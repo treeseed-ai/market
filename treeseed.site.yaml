@@ -5,6 +5,45 @@ contactEmail: hello@treeseed.ai
 cloudflare:
   accountId: replace-with-cloudflare-account-id
   workerName: treeseed-market
+  gatewayWorkerName: treeseed-agent-gateway
+  queueName: agent-work
+  dlqName: agent-work-dlq
+  d1Binding: SITE_DATA_DB
+  queueBinding: AGENT_WORK_QUEUE
+services:
+  gateway:
+    enabled: true
+    provider: cloudflare
+    cloudflare:
+      workerName: treeseed-agent-gateway
+  manager:
+    enabled: true
+    provider: railway
+    railway:
+      serviceName: treeseed-manager
+      rootDir: packages/agent
+      startCommand: node ./dist/services/manager.js
+  worker:
+    enabled: true
+    provider: railway
+    railway:
+      serviceName: treeseed-worker
+      rootDir: packages/agent
+      startCommand: node ./dist/services/worker.js
+  workdayStart:
+    enabled: true
+    provider: railway
+    railway:
+      serviceName: treeseed-workday-start
+      rootDir: packages/agent
+      startCommand: node ./dist/services/workday-start.js
+  workdayReport:
+    enabled: true
+    provider: railway
+    railway:
+      serviceName: treeseed-workday-report
+      rootDir: packages/agent
+      startCommand: node ./dist/services/workday-report.js
 plugins:
   - package: '@treeseed/core/plugin-default'
 providers:

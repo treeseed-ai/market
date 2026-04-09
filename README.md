@@ -15,6 +15,37 @@ The goal is simple:
 - developing TreeSeed packages together should also be easy
 - package authorship must still work cleanly from each standalone package repo
 
+## Unified Agent Hosting
+
+Treeseed now supports a split agent-hosting architecture:
+
+- Cloudflare is the control and data plane.
+  - D1 is the canonical operational store.
+  - Queues are the transient execution transport.
+  - one gateway Worker owns authenticated D1 writes and producer-side queue enqueueing.
+- Railway is the execution plane.
+  - `manager` is an always-on coordinator that owns the work-day lifecycle and graph runtime.
+  - `worker` is an always-on bounded execution process.
+  - `workdayStart` and `workdayReport` are short-lived cron services.
+
+The important operational consequence is that local and hybrid deployments still work:
+
+- Cloudflare site + local manager on your laptop: supported
+- Cloudflare site + local worker on your laptop: supported
+- Railway manager + Railway worker: supported
+- fully local development: still supported
+
+The local hybrid path is first-class. The intended shape is:
+
+```text
+Cloudflare site + gateway Worker + D1 + Queue
+                    ^
+                    |
+             local laptop manager
+                    |
+             optional local worker
+```
+
 ## Architecture
 
 This workspace has two layers:
@@ -38,6 +69,13 @@ Important boundaries:
 - `cli` owns the `treeseed` command, scaffold/sync behavior, and CLI-facing template integration.
 - `agent` owns the agent runtime and `treeseed-agents`.
 - the market site owns marketplace content, presentation, and eventually the remote template catalog API
+
+### Agent Hosting Package Roles
+
+- `sdk` owns the typed operational models, gateway client, queue client, and D1-backed state transitions.
+- `api` owns both the public Treeseed HTTP API and the private Cloudflare gateway app.
+- `agent` owns the Node service entrypoints for `manager`, `worker`, `workday-start`, and `workday-report`.
+- `core` and the Treeseed deploy tooling own how these services are represented in `treeseed.site.yaml` and deploy state.
 
 ### Current Template Architecture
 
@@ -117,6 +155,14 @@ Recommended first commands:
 npm install
 npm run test:unit
 npm run check
+```
+
+If you are working on the agent hosting stack, also verify the package-local paths:
+
+```bash
+cd packages/sdk && npm run build && npm test
+cd ../api && npm run build && npm test
+cd ../agent && npm run build
 ```
 
 If you are contributing mainly to a package, also install in that package directly:
@@ -212,6 +258,106 @@ Minimum verification:
 - SDK build plus SDK tests
 - Core `build:dist`
 - Core verify path when changing exported runtime behavior
+
+### I Want To Change Agent Hosting Or Control Plane Behavior
+
+Work from:
+
+- [`packages/sdk`](/home/adrian/Projects/treeseed/market/packages/sdk)
+- [`packages/api`](/home/adrian/Projects/treeseed/market/packages/api)
+- [`packages/agent`](/home/adrian/Projects/treeseed/market/packages/agent)
+
+Recommended path:
+
+```bash
+cd packages/sdk && npm run build && npm test
+cd ../api && npm run build && npm test
+cd ../agent && npm run build
+```
+
+Minimum verification:
+
+- SDK build and tests pass
+- API build and tests pass
+- Agent build passes
+- if you changed process wiring, smoke the relevant service entrypoint locally
+
+## Operator Workflows
+
+### Local Manager With Cloudflare Site
+
+Use this when the site and gateway are deployed to Cloudflare, but you want orchestration on your laptop.
+
+1. Copy the example env file:
+
+```bash
+cp packages/agent/.env.local-manager-cloudflare.example packages/agent/.env.local-manager-cloudflare
+```
+
+2. Fill in at least:
+
+- `TREESEED_AGENT_REPO_ROOT`
+- `TREESEED_GATEWAY_BASE_URL`
+- `TREESEED_GATEWAY_BEARER_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `TREESEED_QUEUE_ID`
+- `TREESEED_QUEUE_PULL_TOKEN` if you also want a local worker
+
+3. Start the manager:
+
+```bash
+cd packages/agent
+npm run start:local-manager-cloudflare
+```
+
+4. Optionally start a local worker in another shell:
+
+```bash
+cd packages/agent
+set -a; source ./.env.local-manager-cloudflare; set +a
+npm run dev:worker
+```
+
+5. Trigger the work day:
+
+```bash
+cd packages/agent
+set -a; source ./.env.local-manager-cloudflare; set +a
+npm run dev:workday-start
+```
+
+6. Produce a report at the end:
+
+```bash
+cd packages/agent
+set -a; source ./.env.local-manager-cloudflare; set +a
+npm run dev:workday-report
+```
+
+### Railway Deployment Shape
+
+The intended managed-service mapping in `treeseed.site.yaml` is:
+
+- `gateway`: Cloudflare Worker
+- `manager`: Railway service
+- `worker`: Railway service
+- `workdayStart`: Railway cron service
+- `workdayReport`: Railway cron service
+- optional `api`: public Railway API service
+
+### Convenient Package Commands
+
+`packages/agent` now exposes the operational entrypoints directly:
+
+- `npm run dev:manager`
+- `npm run dev:worker`
+- `npm run dev:workday-start`
+- `npm run dev:workday-report`
+- `npm run start:manager`
+- `npm run start:worker`
+- `npm run start:workday-start`
+- `npm run start:workday-report`
+- `npm run start:local-manager-cloudflare`
 
 ### I Want To Change Market-Site Rendering Or Content
 
