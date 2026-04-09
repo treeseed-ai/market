@@ -34,7 +34,7 @@
   "scripts": {
     "setup": "npm install",
     "setup:ci": "npm ci",
-    "postinstall": "npm --prefix ./packages/sdk run build:dist && npm --prefix ./packages/core run build:dist && npm --prefix ./packages/agent run build:dist && npm --prefix ./packages/cli run build:dist && node ./packages/cli/dist/cli/main.js starlight:patch",
+    "postinstall": "npm --prefix ./packages/sdk run build:dist && npm --prefix ./packages/core run build:dist && npm --prefix ./packages/agent run build:dist && npm --prefix ./packages/api run build:dist && npm --prefix ./packages/cli run build:dist && node ./packages/cli/dist/cli/main.js starlight:patch",
     "starlight:patch": "treeseed starlight:patch",
     "config": "treeseed config",
     "dev": "treeseed dev",
