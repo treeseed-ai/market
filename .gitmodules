@@ -4,3 +4,6 @@
 [submodule "packages/sdk"]
 	path = packages/sdk
 	url = git@github.com:treeseed-ai/sdk.git
+[submodule "packages/cli"]
+	path = packages/cli
+	url = git@github.com:treeseed-ai/cli.git
