@@ -2,7 +2,7 @@
   "name": "@treeseed/market",
   "version": "0.1.0",
   "description": "TreeSeed marketplace site built on top of @treeseed/core.",
-  "license": "AGPL-3.0-only",
+  "license": "COMMERCIAL",
   "repository": {
     "type": "git",
     "url": "https://github.com/treeseed-ai/market.git",
@@ -18,6 +18,9 @@
   "engines": {
     "node": ">=20"
   },
+  "workspaces": [
+    "packages/*"
+  ],
   "files": [
     "README.md",
     "astro.config.ts",
@@ -31,7 +34,7 @@
   "scripts": {
     "setup": "npm install",
     "setup:ci": "npm ci",
-    "postinstall": "treeseed starlight:patch",
+    "postinstall": "npm --prefix ./packages/sdk run build:dist && npm --prefix ./packages/core run build:dist && npm --prefix ./packages/agent run build:dist && npm --prefix ./packages/cli run build:dist && node ./packages/cli/dist/cli/main.js starlight:patch",
     "starlight:patch": "treeseed starlight:patch",
     "config": "treeseed config",
     "dev": "treeseed dev",
