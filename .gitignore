@@ -13,3 +13,4 @@ scripts/.ts-run-*.mjs
 npm-debug.log*
 public/books/*.md
 public/__treeseed/*.json
+.codex
