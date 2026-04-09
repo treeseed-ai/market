@@ -1,0 +1,101 @@
+site:
+  logo:
+    src: /logo.svg
+    alt: TreeSeed Market logo
+  name: TreeSeed Market
+  statement: A market built on the layered TreeSeed architecture
+  siteUrl: https://market.treeseed.ai
+  githubRepository: https://github.com/treeseed-ai/market
+  discordLink: https://discord.gg/example
+  headerMenu:
+    - label: Market
+      items:
+        - label: Templates
+          href: /templates/
+        - label: Vision
+          href: /vision/
+        - label: Status
+          href: /status/
+    - label: Learn
+      items:
+        - label: Market Handbook
+          href: /knowledge/market/
+        - label: Questions
+          href: /questions/
+        - label: Objectives
+          href: /objectives/
+    - label: Build
+      items:
+        - label: Notes
+          href: /notes/
+        - label: Books
+          href: /books/
+        - label: People
+          href: /people/
+  footerMenu:
+    - label: Market
+      items:
+        - label: Templates
+          href: /templates/
+        - label: Status
+          href: /status/
+    - label: Project
+      items:
+        - label: Repository
+          href: https://github.com/treeseed-ai/market
+        - label: Vision
+          href: /vision/
+        - label: Handbook
+          href: /knowledge/market/
+  forms:
+    apiBaseUrl: /api/form/submit
+  emailNotifications:
+    contactRouting:
+      default:
+        - hello@treeseed.ai
+      issue:
+        - hello@treeseed.ai
+      collaboration:
+        - hello@treeseed.ai
+    subscribeRecipients:
+      - hello@treeseed.ai
+  summary: TreeSeed Market is the canonical marketplace site for template products built on TreeSeed itself.
+  projectStage: Working market
+  projectStageDetail: Site-first marketplace proving the layered TreeSeed architecture in production-like form.
+  theme:
+    accent:
+      base: "#d9d2b6"
+      strong: "#6f5f2e"
+      soft: "#f7f1db"
+models:
+  pages:
+    defaults:
+      pageLayout: article
+      stage: market
+      audience: []
+  notes:
+    defaults:
+      author: TreeSeed Market Team
+      draft: false
+      tags: []
+  questions:
+    defaults:
+      draft: false
+      tags: []
+  objectives:
+    defaults:
+      draft: false
+      tags: []
+  people:
+    defaults:
+      status: live
+      tags: []
+  agents:
+    defaults:
+      tags: []
+  books:
+    defaults:
+      tags: []
+  docs:
+    defaults:
+      tags: []

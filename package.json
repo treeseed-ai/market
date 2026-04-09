@@ -1,0 +1,57 @@
+{
+  "name": "@treeseed/market",
+  "version": "0.1.0",
+  "description": "TreeSeed marketplace site built on top of @treeseed/core.",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/treeseed-ai/market.git",
+    "directory": "."
+  },
+  "homepage": "https://treeseed.ai",
+  "bugs": {
+    "url": "https://github.com/treeseed-ai/market/issues"
+  },
+  "packageManager": "npm@11.7.0",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "README.md",
+    "astro.config.ts",
+    "treeseed.site.yaml",
+    "tsconfig.json",
+    "src",
+    "public",
+    "migrations",
+    "templates"
+  ],
+  "scripts": {
+    "setup": "npm install",
+    "setup:ci": "npm ci",
+    "postinstall": "treeseed starlight:patch",
+    "starlight:patch": "treeseed starlight:patch",
+    "config": "treeseed config",
+    "dev": "treeseed dev",
+    "dev:watch": "treeseed dev --watch",
+    "test": "npm run test:unit",
+    "test:unit": "vitest run --config ./vitest.config.ts",
+    "check": "treeseed check",
+    "build": "treeseed build",
+    "deploy": "treeseed deploy",
+    "preview": "treeseed preview",
+    "verify": "npm run test:unit && npm run check && npm run build"
+  },
+  "dependencies": {
+    "@treeseed/cli": "^0.1.1",
+    "@treeseed/core": "^0.1.2",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.2"
+  }
+}

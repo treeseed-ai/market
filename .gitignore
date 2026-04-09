@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.astro/
+.wrangler/
+.dev.vars
+.env.local
+.local/
+.treeseed/
+coverage/
+*.log
+*.tgz
+scripts/.ts-run-*.mjs
+npm-debug.log*
+public/books/*.md
+public/__treeseed/*.json

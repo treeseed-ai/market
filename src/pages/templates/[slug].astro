@@ -1,0 +1,75 @@
+---
+import { getTemplateProductBySlug } from '../../lib/market/templates.js';
+
+const slug = Astro.params.slug ?? '';
+const entry = await getTemplateProductBySlug(slug);
+
+if (!entry) {
+	return Astro.redirect('/templates/');
+}
+
+const { Content } = await entry.render();
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{entry.data.title}</title>
+	</head>
+	<body>
+		<main class="template-shell">
+			<p><a href="/templates/">Templates</a></p>
+			<header>
+				<p class="template-eyebrow">{entry.data.category} · {entry.data.publisher.name}</p>
+				<h1>{entry.data.title}</h1>
+				<p>{entry.data.description}</p>
+			</header>
+			<section class="template-panel">
+				<h2>Compatibility</h2>
+				<ul>
+					<li>Template version: {entry.data.templateVersion}</li>
+					<li>Template API: {entry.data.templateApiVersion}</li>
+					<li>Minimum CLI: {entry.data.minCliVersion}</li>
+					<li>Minimum core: {entry.data.minCoreVersion}</li>
+				</ul>
+			</section>
+			<section class="template-panel">
+				<h2>Fulfillment</h2>
+				<ul>
+					<li>Source: Git</li>
+					<li>Repository: {entry.data.fulfillment.source.repoUrl}</li>
+					<li>Directory: {entry.data.fulfillment.source.directory}</li>
+					<li>Ref: {entry.data.fulfillment.source.ref}</li>
+					<li>Hooks policy: {entry.data.fulfillment.hooksPolicy}</li>
+					<li>Supports reconcile: {entry.data.fulfillment.supportsReconcile ? 'yes' : 'no'}</li>
+				</ul>
+			</section>
+			<article class="template-panel">
+				<Content />
+			</article>
+		</main>
+	</body>
+</html>
+
+<style>
+	.template-shell {
+		max-width: 56rem;
+		margin: 0 auto;
+		padding: 3rem 1.25rem 4rem;
+	}
+
+	.template-eyebrow {
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		font-size: 0.82rem;
+		color: var(--sl-color-gray-3);
+	}
+
+	.template-panel {
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 1rem;
+		padding: 1rem 1.1rem;
+		margin-top: 1rem;
+	}
+ </style>

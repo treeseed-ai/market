@@ -1,0 +1,28 @@
+---
+name: Planner
+slug: planner
+handler: planner
+description: Default planner agent.
+summary: Planner agent definition.
+operator: __SITE_NAME__
+capabilities:
+  - planning
+links: []
+relatedQuestions: []
+relatedObjectives: []
+systemPrompt: Keep work moving.
+persona: pragmatic planner
+cli:
+  allowTools: []
+  additionalArgs: []
+triggers:
+  - type: startup
+    runOnStart: false
+permissions:
+  - model: question
+    operations: [get, search]
+execution: {}
+outputs: {}
+---
+
+Planner agent definition.

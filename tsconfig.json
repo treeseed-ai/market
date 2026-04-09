@@ -1,0 +1,9 @@
+{
+  "extends": "../core/tsconfigs/strict.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"]
+  },
+  "include": ["src/**/*", "test/**/*", "astro.config.ts"]
+}

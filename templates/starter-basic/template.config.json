@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "starter-basic",
+  "displayName": "TreeSeed Basic",
+  "description": "Opinionated basic TreeSeed starter for Astro, Cloudflare, agents, and content-backed workflows.",
+  "category": "starter",
+  "tags": ["starter", "basic", "astro", "cloudflare", "agents"],
+  "templateVersion": "1.0.0",
+  "templateApiVersion": 1,
+  "minCliVersion": "0.1.1",
+  "minCoreVersion": "0.1.2",
+  "variables": [
+    { "name": "packageName", "token": "__PACKAGE_NAME__", "deriveFrom": "slug", "required": true },
+    { "name": "tenantId", "token": "__TENANT_ID__", "deriveFrom": "slug", "required": true },
+    { "name": "siteName", "token": "__SITE_NAME__", "deriveFrom": "name", "required": true },
+    { "name": "siteUrl", "token": "__SITE_URL__", "deriveFrom": "siteUrl", "required": true, "default": "https://example.com" },
+    { "name": "contactEmail", "token": "__CONTACT_EMAIL__", "deriveFrom": "contactEmail", "required": true, "default": "hello@example.com" },
+    { "name": "repositoryUrl", "token": "__REPOSITORY_URL__", "deriveFrom": "repositoryUrl", "required": true, "default": "https://github.com/example/project" },
+    { "name": "discordUrl", "token": "__DISCORD_URL__", "deriveFrom": "discordUrl", "required": true, "default": "https://discord.gg/example" },
+    { "name": "cliVersion", "token": "__CLI_VERSION__", "deriveFrom": "cliVersion", "required": true },
+    { "name": "coreVersion", "token": "__CORE_VERSION__", "deriveFrom": "coreVersion", "required": true }
+  ],
+  "actions": ["install", "printNextSteps", "reconcile-managed-surface"],
+  "postCreate": ["install", "printNextSteps"],
+  "managedSurface": {
+    "coreManaged": ["astro.config.ts", "src/content.config.ts", "src/env.d.ts", "package.json"],
+    "validatedOnly": ["treeseed.site.yaml", "src/manifest.yaml", "src/config.yaml"],
+    "tenantManaged": ["src/content/**", "src/agents/**", "public/**", "migrations/**"]
+  },
+  "testing": {
+    "smokeCommand": "npm run build",
+    "buildCommand": "npm run build"
+  }
+}

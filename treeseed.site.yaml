@@ -1,0 +1,26 @@
+name: TreeSeed Market
+slug: treeseed-market
+siteUrl: https://market.treeseed.ai
+contactEmail: hello@treeseed.ai
+cloudflare:
+  accountId: replace-with-cloudflare-account-id
+  workerName: treeseed-market
+plugins:
+  - package: '@treeseed/core/plugin-default'
+providers:
+  forms: store_only
+  agents:
+    execution: stub
+    mutation: local_branch
+    repository: stub
+    verification: stub
+    notification: stub
+    research: stub
+  deploy: cloudflare
+  content:
+    docs: default
+  site: default
+smtp:
+  enabled: false
+turnstile:
+  enabled: true

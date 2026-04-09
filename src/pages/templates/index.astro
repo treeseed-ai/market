@@ -1,0 +1,61 @@
+---
+import MarketProductCard from '../../components/market/MarketProductCard.astro';
+import { getLiveTemplateProducts } from '../../lib/market/templates.js';
+
+const templates = await getLiveTemplateProducts();
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Templates</title>
+	</head>
+	<body>
+		<main class="market-shell">
+			<header class="market-hero">
+				<p class="market-hero__eyebrow">TreeSeed Market</p>
+				<h1>Templates</h1>
+				<p>First-party TreeSeed template products packaged through the market layer.</p>
+			</header>
+			<section class="market-grid">
+				{templates.map((entry) => (
+					<MarketProductCard
+						slug={entry.data.slug}
+						title={entry.data.title}
+						summary={entry.data.summary}
+						category={entry.data.category}
+						featured={entry.data.featured}
+						publisherName={entry.data.publisher.name}
+						templateVersion={entry.data.templateVersion}
+					/>
+				))}
+			</section>
+		</main>
+	</body>
+</html>
+
+<style>
+	.market-shell {
+		max-width: 72rem;
+		margin: 0 auto;
+		padding: 3rem 1.25rem 4rem;
+	}
+
+	.market-hero {
+		margin-bottom: 2rem;
+	}
+
+	.market-hero__eyebrow {
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		font-size: 0.82rem;
+		color: var(--sl-color-gray-3);
+	}
+
+	.market-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+		gap: 1rem;
+	}
+ </style>

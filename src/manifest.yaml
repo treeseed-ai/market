@@ -1,0 +1,21 @@
+id: treeseed-market
+siteConfigPath: ./src/config.yaml
+content:
+  docs: ./src/content/knowledge
+  pages: ./src/content/pages
+  notes: ./src/content/notes
+  questions: ./src/content/questions
+  objectives: ./src/content/objectives
+  people: ./src/content/people
+  agents: ./src/content/agents
+  books: ./src/content/books
+  templates: ./src/content/templates
+  knowledge_downloads: ./src/content/knowledge-downloads
+features:
+  docs: true
+  books: true
+  notes: true
+  questions: true
+  objectives: true
+  agents: true
+  forms: true

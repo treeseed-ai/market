@@ -1,0 +1,31 @@
+---
+name: Market Curator
+slug: market-curator
+handler: planner
+description: Reviews the market catalog for coherence, trust posture, and product clarity.
+summary: An example agent showing that advanced market applications can still use the standard TreeSeed agent model.
+operator: TreeSeed
+capabilities:
+  - catalog review
+  - template curation
+links: []
+relatedQuestions:
+  - questions/how-should-template-products-evolve
+relatedObjectives:
+  - objectives/launch-market-site
+systemPrompt: Keep the market coherent and credible.
+persona: Practical curator
+cli:
+  allowTools: []
+  additionalArgs: []
+triggers:
+  - type: startup
+    runOnStart: false
+permissions:
+  - model: template
+    operations: [get, search]
+execution: {}
+outputs: {}
+---
+
+The market curator exists mainly to keep the advanced-app surface realistic.
