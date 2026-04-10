@@ -2,12 +2,13 @@
 
 `@treeseed/market` is the canonical TreeSeed marketplace site and the top-level unified development workspace for the current TreeSeed system.
 
-This repo is not just the market site. It is also the integration workspace for four freestanding package repositories mounted as git submodules:
+This repo is not just the market site. It can also act as the integration workspace for five freestanding package repositories mounted as git submodules:
 
 - [`packages/sdk`](/home/adrian/Projects/treeseed/market/packages/sdk)
 - [`packages/core`](/home/adrian/Projects/treeseed/market/packages/core)
 - [`packages/cli`](/home/adrian/Projects/treeseed/market/packages/cli)
 - [`packages/agent`](/home/adrian/Projects/treeseed/market/packages/agent)
+- [`packages/api`](/home/adrian/Projects/treeseed/market/packages/api)
 
 The goal is simple:
 
@@ -113,15 +114,42 @@ Read the package-level docs when you are working primarily inside one package:
 
 ## Choose Your Workflow
 
-### Unified Development From The Root
+### Registry Mode From The Root
 
-Use the root workspace when:
+Use registry mode when:
+
+- you are developing the market site or a normal Treeseed tenant
+- you do not need to edit `sdk`, `core`, `cli`, `agent`, or `api`
+- you want root commands to use published `@treeseed/*` packages from npm
+
+This is the default plain-clone path. Do not initialize submodules:
+
+```bash
+git clone git@github.com:treeseed-ai/market.git
+cd market
+npm install
+```
+
+The root bootstrap will print `Treeseed bootstrap mode: registry` and skip local `packages/*` builds.
+
+### Workspace Mode From The Root
+
+Use workspace mode when:
 
 - you are changing behavior across multiple packages
 - you are testing how the market site interacts with `core`, `cli`, `sdk`, or `agent`
 - you want a single checkout with all package repos mounted in place
 
-This is the best path for integrated system work.
+This is the integrated system path. Initialize all Treeseed package submodules before installing:
+
+```bash
+git clone git@github.com:treeseed-ai/market.git
+cd market
+git submodule update --init --recursive
+npm install
+```
+
+The root bootstrap will print `Treeseed bootstrap mode: workspace`, build the local packages, and run the Starlight patch through the local CLI build.
 
 ### Standalone Package Development From `packages/*`
 
@@ -141,18 +169,24 @@ Requirements:
 - npm `>=11`
 - git with submodule support
 
-Clone and initialize the workspace:
+For normal market-site development, clone and install without submodules:
 
 ```bash
 git clone git@github.com:treeseed-ai/market.git
 cd market
+npm install
+```
+
+For integrated package development, initialize submodules before installing:
+
+```bash
 git submodule update --init --recursive
+npm install
 ```
 
 Recommended first commands:
 
 ```bash
-npm install
 npm run test:unit
 npm run check
 ```
@@ -173,7 +207,7 @@ npm install
 npm test
 ```
 
-Use the root `npm install` as a convenience bootstrap for integrated development. Do not treat it as the authoritative package-publishing workflow for `sdk`, `core`, `cli`, or `agent`.
+Use the root `npm install` as the bootstrap for whichever mode is active. Do not treat it as the authoritative package-publishing workflow for `sdk`, `core`, `cli`, `agent`, or `api`.
 
 ## Daily Development
 
@@ -403,27 +437,38 @@ Minimum verification:
 
 ## Known npm / Workspace Quirks
 
-### Root `postinstall` Is An Integration Bootstrap
+### Root `postinstall` Selects Registry Or Workspace Mode
 
-The root `postinstall` currently does more than install packages. It also:
+The root `postinstall` runs the reusable workspace bootstrap shipped by `@treeseed/core` at `node_modules/@treeseed/core/dist/scripts/workspace-bootstrap.js`. The core bootstrap detects whether all Treeseed package submodules are checked out.
+
+In registry mode, the bootstrap:
+
+1. uses published `@treeseed/*` packages from `node_modules`
+2. skips local `packages/*` builds
+3. runs the Starlight patch through the installed Treeseed CLI
+
+In workspace mode, the bootstrap:
 
 1. builds `sdk`
 2. builds `core`
 3. builds `agent`
-4. builds `cli`
-5. runs the CLI Starlight patch step for the market site
+4. builds `api`
+5. builds `cli`
+6. runs the CLI Starlight patch step for the market site
 
-That behavior exists to make integrated development easier from the root workspace.
+If only some Treeseed package submodules are checked out, the bootstrap fails with a targeted message. Fix it by either initializing all submodules or removing the partial checkout and using registry mode.
 
-### Root `npm install` Is Convenient But Fragile
+### Root `npm install` Is Mode-Aware
 
-The root install path is currently more fragile than the package-local install paths.
+The root install path is valid in both modes:
 
-Known reality:
+- registry mode is best for normal market-site or tenant development
+- workspace mode is best for package/core development
+- the committed root lockfile is registry-oriented so plain clones do not depend on submodule paths
+- workspace mode links checked-out `packages/*` into `node_modules/@treeseed/*` during bootstrap
+- package-local `npm install` and build/test flows remain authoritative for package authorship
 
-- package-local `npm install` and package-local build/test flows are more reliable for package authorship
-- root `npm install` may expose `dist` bootstrapping or build-order issues in the submodule packages
-- if root install behaves differently from package install, trust the package-local workflow first for the package repo you are editing
+If root install behaves differently from package install, trust the package-local workflow first for the package repo you are editing.
 
 If you only need to refresh the root lockfile without running the full bootstrap chain, prefer:
 
