@@ -31,8 +31,8 @@
   "scripts": {
     "setup": "npm install",
     "setup:ci": "npm ci",
-    "postinstall": "node ./node_modules/@treeseed/core/dist/scripts/workspace-bootstrap.js",
-    "bootstrap": "node ./node_modules/@treeseed/core/dist/scripts/workspace-bootstrap.js",
+    "postinstall": "npm run bootstrap",
+    "bootstrap": "if test -f ./packages/core/scripts/workspace-bootstrap.ts; then node ./packages/core/scripts/run-ts.mjs ./packages/core/scripts/workspace-bootstrap.ts; elif test -f ./node_modules/@treeseed/core/dist/scripts/workspace-bootstrap.js; then node ./node_modules/@treeseed/core/dist/scripts/workspace-bootstrap.js; else treeseed starlight:patch; fi",
     "starlight:patch": "treeseed starlight:patch",
     "config": "treeseed config",
     "dev": "treeseed dev",
