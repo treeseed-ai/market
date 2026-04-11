@@ -68,6 +68,9 @@ CREATE TABLE IF NOT EXISTS graph_runs (
   work_day_id TEXT NOT NULL,
   corpus_hash TEXT NOT NULL,
   graph_version TEXT NOT NULL,
+  query_json TEXT,
+  seed_ids_json TEXT,
+  selected_node_ids_json TEXT,
   stats_json TEXT,
   snapshot_ref TEXT,
   created_at TEXT NOT NULL

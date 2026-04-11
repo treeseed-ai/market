@@ -1,0 +1,214 @@
+---
+id: knowledge:sdk-interface-reference
+title: SDK Interface Reference
+description: Full public interface reference for AgentSdk, ScopedAgentSdk, and ContentGraphRuntime.
+type: reference
+status: canonical
+tags:
+  - sdk
+  - reference
+  - api
+canonical: true
+domain: sdk
+audience:
+  - developer
+related:
+  - knowledge/sdk-graph-api-guide
+  - knowledge/sdk-ctx-query-language
+  - knowledge/sdk-ctx-query-engine
+---
+
+# SDK Interface Reference
+
+This document is the full public interface reference for the Treeseed SDK surface that most consumers use directly.
+
+## Surface Hierarchy
+
+| Surface | Classification | Purpose |
+| --- | --- | --- |
+| `AgentSdk` | Primary | main application-facing SDK |
+| `ScopedAgentSdk` | Operational | permission-enforcing wrapper for agents and worker code |
+| `ContentGraphRuntime` | Advanced | low-level direct graph runtime |
+
+Use `AgentSdk` by default.
+
+## `AgentSdk`
+
+### Generic model access
+
+- `get(request)`
+- `read(request)`
+- `search(request)`
+- `follow(request)`
+- `pick(request)`
+- `create(request)`
+- `update(request)`
+
+These route to either the content store or the D1 store based on the model definition.
+
+### Messaging and runtime state
+
+- `claimMessage(request)`
+- `ackMessage(request)`
+- `createMessage(request)`
+- `recordRun(request)`
+- `getCursor(request)`
+- `upsertCursor(request)`
+- `releaseLease(request)`
+- `releaseAllLeases()`
+
+### Control plane and orchestration
+
+- `startWorkDay(request)`
+- `closeWorkDay(request)`
+- `createTask(request)`
+- `claimTask(request)`
+- `recordTaskProgress(request)`
+- `completeTask(request)`
+- `failTask(request)`
+- `appendTaskEvent(request)`
+- `searchTasks(request)`
+- `createReport(request)`
+- `getManagerContext(taskId)`
+
+### Agent registry and scoping
+
+- `listAgentSpecs(options?)`
+- `listRawAgentSpecs(options?)`
+- `scopeForAgent(agent)`
+
+### Primary graph/context workflow
+
+- `parseGraphDsl(source)`
+- `resolveSeeds(request)`
+- `queryGraph(request)`
+- `buildContextPack(request)`
+- `resolveReference(reference, options?)`
+- `explainReferenceChain(fromId, toId)`
+
+These are the preferred graph APIs for new integrations.
+
+### Advanced graph primitives
+
+- `refreshGraph(request?)`
+- `searchFiles(query, options?)`
+- `searchSections(query, options?)`
+- `searchEntities(query, options?)`
+- `getGraphNode(id)`
+- `getNeighbors(id, options?)`
+- `followReferences(id, options?)`
+- `getBacklinks(id, options?)`
+- `getRelated(id, options?)`
+- `getSubgraph(seedIds, options?)`
+
+These remain public but are lower-level than the graph/context workflow.
+
+### Constructor / factory
+
+- `new AgentSdk(options?)`
+- `AgentSdk.createLocal(options)`
+
+## `ScopedAgentSdk`
+
+`ScopedAgentSdk` is returned by `AgentSdk.scopeForAgent()`. It mirrors most of the `AgentSdk` interface but enforces model permissions and injects actor identity where appropriate.
+
+### Generic model access
+
+- `get(request)`
+- `read(request)`
+- `search(request)`
+- `follow(request)`
+- `pick(request)`
+- `create(request)`
+- `update(request)`
+
+`create()` and `update()` inject the scoped agent as `actor`.
+
+### Messaging and runtime state
+
+- `claimMessage(request)`
+- `ackMessage(request)`
+- `createMessage(request)`
+- `recordRun(request)`
+- `getCursor(request)`
+- `upsertCursor(request)`
+- `releaseLease(request)`
+- `releaseAllLeases()`
+
+`createMessage()` injects the scoped agent as `actor`.
+
+### Graph/context workflow
+
+- `refreshGraph(request?)`
+- `searchFiles(query, options?)`
+- `searchSections(query, options?)`
+- `searchEntities(query, options?)`
+- `getGraphNode(id)`
+- `getNeighbors(id, options?)`
+- `followReferences(id, options?)`
+- `getBacklinks(id, options?)`
+- `getRelated(id, options?)`
+- `getSubgraph(seedIds, options?)`
+- `resolveSeeds(request)`
+- `queryGraph(request)`
+- `buildContextPack(request)`
+- `parseGraphDsl(source)`
+- `resolveReference(reference, options?)`
+- `explainReferenceChain(fromId, toId)`
+
+The scoped version filters graph access to models the agent may `search` or `follow`.
+
+## `ContentGraphRuntime`
+
+`ContentGraphRuntime` exposes the direct graph engine:
+
+- `refresh(request?)`
+- `searchFiles(query, options?)`
+- `searchSections(query, options?)`
+- `searchEntities(query, options?)`
+- `getNode(id)`
+- `getNeighbors(id, options?)`
+- `followReferences(id, options?)`
+- `getBacklinks(id, options?)`
+- `getRelated(id, options?)`
+- `getSubgraph(seedIds, options?)`
+- `resolveSeeds(request)`
+- `queryGraph(request)`
+- `buildContextPack(request)`
+- `parseGraphDsl(source)`
+- `resolveReference(reference, options?)`
+- `explainReferenceChain(fromId, toId)`
+
+Use this surface only when you want the graph subsystem directly and do not need the broader `AgentSdk` model/storage interface.
+
+## Method Overlap And Selection
+
+The overlap is intentional but hierarchical:
+
+- use `AgentSdk` for most application code
+- use `ScopedAgentSdk` for agent-runtime code that needs permission enforcement
+- use `ContentGraphRuntime` only for graph-only integrations
+
+Within the graph APIs:
+
+- use `parseGraphDsl()` / `queryGraph()` / `buildContextPack()` for the primary graph retrieval workflow
+- use `searchFiles()` / `searchSections()` / `searchEntities()` for raw lexical graph search
+- use `getNeighbors()` / `followReferences()` / `getSubgraph()` for raw topology inspection
+
+## Recommended Starting Points
+
+For application code:
+
+- `new AgentSdk()`
+- `get()`, `search()`, `create()`, `update()`
+- `parseGraphDsl()`, `queryGraph()`, `buildContextPack()`
+
+For agent/worker code:
+
+- `sdk.scopeForAgent(...)`
+- `search()`, `createMessage()`, `queryGraph()`, `buildContextPack()`
+
+For graph-only embedding:
+
+- `new ContentGraphRuntime(...)`
+- `queryGraph()`, `buildContextPack()`

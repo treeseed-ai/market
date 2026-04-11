@@ -1,0 +1,178 @@
+---
+id: knowledge:sdk-graph-api-guide
+title: Graph API Guide
+description: Guidance for choosing between the graph workflow methods and lower-level graph primitives.
+type: guide
+status: canonical
+tags:
+  - sdk
+  - graph
+  - guide
+canonical: true
+domain: sdk
+audience:
+  - developer
+  - agent
+related:
+  - knowledge/sdk-interface-reference
+  - knowledge/sdk-ctx-query-engine
+  - knowledge/sdk-ctx-query-language
+---
+
+# Graph API Guide
+
+This guide explains how the Treeseed graph API layers fit together and how to choose the right method.
+
+## The Recommended Graph Story
+
+For new integrations, the preferred graph flow is:
+
+1. `parseGraphDsl()`
+2. `queryGraph()`
+3. `buildContextPack()`
+
+Example:
+
+```ts
+import { AgentSdk } from '@treeseed/sdk';
+
+const sdk = new AgentSdk();
+const parsed = await sdk.parseGraphDsl(
+  'ctx "queue api" for implement in /knowledge via implements,references depth 1 budget 4000 as full',
+);
+
+if (!parsed.ok || !parsed.query) {
+  throw new Error(parsed.errors.join('; '));
+}
+
+const graph = await sdk.queryGraph(parsed.query);
+const pack = await sdk.buildContextPack(parsed.query);
+```
+
+This is the preferred path because it gives you:
+
+- root resolution
+- graph-aware ranking
+- scope and metadata filtering
+- prompt-budget-aware packaging
+
+## Primitive vs Workflow Methods
+
+The graph API has both low-level primitives and higher-level workflow methods.
+
+### Primary workflow methods
+
+- `parseGraphDsl()`
+- `resolveSeeds()`
+- `queryGraph()`
+- `buildContextPack()`
+- `resolveReference()`
+- `explainReferenceChain()`
+
+Use these when you want ranked graph retrieval or AI-context assembly.
+
+### Advanced lexical primitives
+
+- `searchFiles()`
+- `searchSections()`
+- `searchEntities()`
+
+Use these when you need direct lexical graph search and do not want traversal or context packaging.
+
+### Advanced topology primitives
+
+- `getGraphNode()`
+- `getNeighbors()`
+- `followReferences()`
+- `getBacklinks()`
+- `getRelated()`
+- `getSubgraph()`
+- `refreshGraph()`
+
+Use these when you need raw graph inspection or maintenance rather than the ranked retrieval workflow.
+
+## Overlap: `queryGraph()` vs `searchFiles()`
+
+Use `searchFiles()` when:
+
+- you only want file-level lexical matches
+- you do not want graph expansion
+- you are building a custom search UI or debugging lexical retrieval
+
+Use `queryGraph()` when:
+
+- you want ranked graph retrieval
+- you want stage-aware ordering
+- you want graph propagation beyond lexical seeds
+- you want one API that respects `ctx`-style scope, relation, and filtering controls
+
+In short:
+
+- `searchFiles()` is raw lexical search
+- `queryGraph()` is the preferred ranked graph retrieval API
+
+## Overlap: `buildContextPack()` vs `getSubgraph()`
+
+Use `getSubgraph()` when:
+
+- you want raw graph nodes and edges
+- you are doing inspection or tooling
+- you do not need prompt packaging
+
+Use `buildContextPack()` when:
+
+- you need prompt-ready text
+- you need budgeted inclusion
+- you want deterministic context ordering
+- you want provenance on included nodes
+
+In short:
+
+- `getSubgraph()` is raw topology
+- `buildContextPack()` is the preferred AI-context assembly API
+
+## `AgentSdk` vs `ContentGraphRuntime`
+
+Both surfaces expose graph capabilities, but they are not equal entrypoints.
+
+### `AgentSdk`
+
+Use when:
+
+- you are writing application code
+- you also need content-backed or D1-backed model access
+- you want the main supported SDK experience
+
+### `ContentGraphRuntime`
+
+Use when:
+
+- you only want the graph subsystem
+- you are embedding the graph engine directly
+- you do not need the broader model/storage surface
+
+`ContentGraphRuntime` powers the graph subsystem behind `AgentSdk`, but it is an advanced runtime API.
+
+## `AgentSdk` vs `ScopedAgentSdk`
+
+Use `AgentSdk` when:
+
+- you are writing normal server, app, CLI, or script code
+
+Use `ScopedAgentSdk` when:
+
+- the caller is an agent with explicit model permissions
+- you need permission enforcement on reads and graph access
+- you want actor injection for `create()`, `update()`, and `createMessage()`
+
+`ScopedAgentSdk` is an operational wrapper, not the default application entrypoint.
+
+## Selection Rules
+
+If you are unsure, use these defaults:
+
+- use `AgentSdk`
+- use `parseGraphDsl()` + `queryGraph()` + `buildContextPack()`
+- drop to `searchFiles()` or `getSubgraph()` only when you explicitly need a lower-level primitive
+
+That keeps the public story small while leaving the advanced graph tools available.

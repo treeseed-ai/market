@@ -71,6 +71,42 @@ Important boundaries:
 - `agent` owns the agent runtime and `treeseed-agents`.
 - the market site owns marketplace content, presentation, and eventually the remote template catalog API
 
+## Graph-First Context Retrieval
+
+The SDK graph runtime now supports graph-first AI context retrieval over MDX content:
+
+- MDX files remain the canonical authored node
+- section nodes are indexed as first-class retrieval targets
+- frontmatter can declare stable `id` values plus typed graph relationships such as `related`, `dependsOn`, `implements`, `supersedes`, and `about`
+- search is used to find starting nodes; graph traversal is used to assemble deterministic context
+
+The preferred SDK graph workflow is:
+
+- `parseGraphDsl`
+- `queryGraph`
+- `buildContextPack`
+
+Lower-level graph primitives such as `searchFiles`, `searchSections`, `getNeighbors`, and `getSubgraph` still exist, but they are now considered advanced tools rather than the primary public graph story.
+
+The SDK surface hierarchy is:
+
+- `AgentSdk`: main public SDK
+- `ScopedAgentSdk`: operational wrapper for permission-enforced agent execution
+- `ContentGraphRuntime`: advanced graph runtime
+
+The public graph-query syntax is now the `ctx` command language. Example:
+
+```text
+ctx "market architecture" for plan in /knowledge via related,references depth 1 budget 600 as brief
+```
+
+Full documentation:
+
+- [SDK Interface Reference](./src/content/knowledge/sdk/interface-reference.mdx)
+- [Graph API Guide](./src/content/knowledge/sdk/graph-api-guide.mdx)
+- [ctx Query Language](./src/content/knowledge/sdk/ctx-query-language.mdx)
+- [How ctx Works](./src/content/knowledge/sdk/ctx-query-engine.mdx)
+
 ### Agent Hosting Package Roles
 
 - `sdk` owns the typed operational models, gateway client, queue client, and D1-backed state transitions.
