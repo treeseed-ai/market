@@ -1,5 +1,14 @@
 ---
+import { render } from 'astro:content';
 import { getTemplateProductBySlug } from '../../lib/market/templates.js';
+import { getLiveTemplateProducts } from '../../lib/market/templates.js';
+
+export async function getStaticPaths() {
+	const templates = await getLiveTemplateProducts();
+	return templates.map((entry) => ({
+		params: { slug: entry.data.slug },
+	}));
+}
 
 const slug = Astro.params.slug ?? '';
 const entry = await getTemplateProductBySlug(slug);
@@ -8,7 +17,7 @@ if (!entry) {
 	return Astro.redirect('/templates/');
 }
 
-const { Content } = await entry.render();
+const { Content } = await render(entry);
 ---
 
 <html lang="en">

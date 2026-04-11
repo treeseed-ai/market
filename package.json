@@ -41,7 +41,7 @@
     "test:unit": "vitest run --config ./vitest.config.ts",
     "check": "treeseed check",
     "build": "treeseed build",
-    "deploy": "treeseed deploy",
+    "deploy": "treeseed release",
     "preview": "treeseed preview",
     "verify": "npm run test:unit && npm run check && npm run build"
   },

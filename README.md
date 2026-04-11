@@ -217,19 +217,37 @@ From the repo root:
 
 ```bash
 npm install
-npm run dev
-npm run check
-npm run build
-npm run test:unit
+treeseed status
+treeseed config
+treeseed switch feature/my-change --preview
+treeseed dev
+treeseed save "feat: describe your change"
+treeseed stage "feat: describe the resolution"
+treeseed release --patch
 ```
 
 What they mean here:
 
 - `npm install`: install root deps and run the root bootstrap/postinstall chain
-- `npm run dev`: run the market site through the installed Treeseed CLI
-- `npm run check`: run Treeseed site checks for the market app
-- `npm run build`: build the market app
-- `npm run test:unit`: run root vitest coverage for the market site
+- `treeseed status`: show project health, current branch/task, runtime readiness, preview state, and next commands
+- `treeseed config`: configure and test the local/staging/production runtime foundation
+- `treeseed switch`: create or resume a task branch from `staging`
+- `treeseed dev`: run the local Cloudflare and agent runtime for iterative development
+- `treeseed save`: verify, commit, sync, push, and refresh the branch preview when enabled
+- `treeseed stage`: merge the task into `staging`, wait for staging automation, archive the task tag, and clean up the branch/preview
+- `treeseed release`: promote `staging` to `main`, bump versions, tag the release, and trigger production deployment
+
+To abandon a task without merging it, run:
+
+```bash
+treeseed close "reason this task was closed"
+```
+
+`close` creates a resurrection tag at `deprecated/<slug>/<sha>` before deleting the branch. To resurrect it later:
+
+```bash
+git switch -c feature/my-change deprecated/<slug>/<sha>
+```
 
 ### Package-Local Commands
 
@@ -403,14 +421,15 @@ Recommended path:
 
 ```bash
 npm install
-npm run dev
-npm run check
+treeseed status
+treeseed dev
+treeseed save "feat: describe your change"
 ```
 
 Minimum verification:
 
-- market dev flow starts
-- market check passes
+- `treeseed dev` starts
+- `treeseed save "..."` passes verification before pushing
 - run `npm run build` if you touched site structure or runtime integration
 
 ### I Want To Change Template Catalog Or Scaffold Behavior
