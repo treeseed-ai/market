@@ -165,7 +165,7 @@ This is the best path for package authorship and publish readiness.
 
 Requirements:
 
-- Node `>=20`
+- Node `>=22`
 - npm `>=11`
 - git with submodule support
 
