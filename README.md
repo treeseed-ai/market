@@ -71,6 +71,21 @@ Important boundaries:
 - `agent` owns the agent runtime and `treeseed-agents`.
 - the market site owns marketplace content, presentation, and eventually the remote template catalog API
 
+## Shared Fixture Model
+
+The workspace uses `.fixtures/treeseed-fixtures` as the canonical integrated Treeseed project. That fixture is shared across `sdk`, `core`, `cli`, `agent`, and `api`.
+
+Important consequences:
+
+- packages must adapt to the shared fixture, not rewrite it
+- package verification is still package-scoped even when the fixture is integrated
+- fixture-time shims or package injection do not imply package ownership or dependency coupling
+- `core` can validate the shared Astro site against an Agent contracts shim without depending on `@treeseed/agent`
+
+SDK owns the shared fixture support utilities and the canonical package-injection model used during isolated package verification.
+
+Read [AGENTS.md](./AGENTS.md) for the current shared fixture contract and workspace development rules.
+
 ## Graph-First Context Retrieval
 
 The SDK graph runtime now supports graph-first AI context retrieval over MDX content:
