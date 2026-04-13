@@ -7,7 +7,6 @@ This repo is not just the market site. It can also act as the integration worksp
 - [`packages/sdk`](/home/adrian/Projects/treeseed/market/packages/sdk)
 - [`packages/core`](/home/adrian/Projects/treeseed/market/packages/core)
 - [`packages/cli`](/home/adrian/Projects/treeseed/market/packages/cli)
-- [`packages/agent`](/home/adrian/Projects/treeseed/market/packages/agent)
 
 The goal is simple:
 
@@ -56,8 +55,8 @@ This workspace has two layers:
 The high-level package dependency graph is:
 
 ```text
-sdk -> core -> cli
-          -> agent
+sdk -> core
+sdk -> cli
 ```
 
 The market site consumes the package runtime like a normal TreeSeed application. It is not an installable framework package for the CLI.
@@ -65,21 +64,20 @@ The market site consumes the package runtime like a normal TreeSeed application.
 Important boundaries:
 
 - `sdk` owns shared data-access and typed runtime helpers.
-- `core` owns the integrated Treeseed runtime for Astro/Starlight sites, Hono API surfaces, and integrated local dev orchestration.
+- `core` owns the integrated Treeseed runtime for Astro/Starlight sites, Hono API surfaces, agent and worker services, and integrated local dev orchestration.
 - `cli` owns the `treeseed` command, scaffold/sync behavior, and CLI-facing template integration while delegating integrated runtime startup to `core`.
-- `agent` owns the agent runtime and `treeseed-agents`.
 - the market site owns marketplace content, presentation, and eventually the remote template catalog API
 
 ## Shared Fixture Model
 
-The workspace uses `.fixtures/treeseed-fixtures` as the canonical integrated Treeseed project. That fixture is shared across `sdk`, `core`, `cli`, and `agent`.
+The workspace uses `.fixtures/treeseed-fixtures` as the canonical integrated Treeseed project. That fixture is shared across `sdk`, `core`, and `cli`.
 
 Important consequences:
 
 - packages must adapt to the shared fixture, not rewrite it
 - package verification is still package-scoped even when the fixture is integrated
 - fixture-time shims or package injection do not imply package ownership or dependency coupling
-- `core` can validate the shared Astro site against an Agent contracts shim without depending on `@treeseed/agent`
+- `core` can validate the shared Astro site against a narrow Core agent-contract shim without reviving a separate agent runtime package
 
 SDK owns the shared fixture support utilities and the canonical package-injection model used during isolated package verification.
 
@@ -161,7 +159,6 @@ Read the package-level docs when you are working primarily inside one package:
 - [SDK README](/home/adrian/Projects/treeseed/market/packages/sdk/README.md)
 - [Core README](/home/adrian/Projects/treeseed/market/packages/core/README.md)
 - [CLI README](/home/adrian/Projects/treeseed/market/packages/cli/README.md)
-- [Agent README](/home/adrian/Projects/treeseed/market/packages/agent/README.md)
 
 ## Choose Your Workflow
 
@@ -170,7 +167,7 @@ Read the package-level docs when you are working primarily inside one package:
 Use registry mode when:
 
 - you are developing the market site or a normal Treeseed tenant
-- you do not need to edit `sdk`, `core`, `cli`, `agent`, or `api`
+- you do not need to edit `sdk`, `core`, `cli`, or `api`
 - you want root commands to use published `@treeseed/*` packages from npm
 
 This is the default plain-clone path. Do not initialize submodules:
@@ -188,7 +185,7 @@ The root bootstrap will print `Treeseed bootstrap mode: registry` and skip local
 Use workspace mode when:
 
 - you are changing behavior across multiple packages
-- you are testing how the market site interacts with `core`, `cli`, `sdk`, or `agent`
+- you are testing how the market site interacts with `core`, `cli`, or `sdk`
 - you want a single checkout with all package repos mounted in place
 
 This is the integrated system path. Initialize all Treeseed package submodules before installing:
@@ -242,12 +239,11 @@ npm run test:unit
 npm run check
 ```
 
-If you are working on the agent hosting stack, also verify the package-local paths:
+If you are working on the integrated worker hosting stack, also verify the package-local paths:
 
 ```bash
 cd packages/sdk && npm run build && npm test
-cd ../api && npm run build && npm test
-cd ../agent && npm run build
+cd ../core && npm run verify
 ```
 
 If you are contributing mainly to a package, also install in that package directly:
@@ -258,7 +254,7 @@ npm install
 npm test
 ```
 
-Use the root `npm install` as the bootstrap for whichever mode is active. Do not treat it as the authoritative package-publishing workflow for `sdk`, `core`, `cli`, `agent`, or `api`.
+Use the root `npm install` as the bootstrap for whichever mode is active. Do not treat it as the authoritative package-publishing workflow for `sdk`, `core`, `cli`, or `api`.
 
 ## Daily Development
 
@@ -283,7 +279,7 @@ What they mean here:
 - `treeseed status`: show project health, current branch/task, runtime readiness, preview state, and next commands
 - `treeseed config`: configure and test the local/staging/production runtime foundation
 - `treeseed switch`: create or resume a task branch from `staging`
-- `treeseed dev`: run the local Cloudflare and agent runtime for iterative development
+- `treeseed dev`: run the local Cloudflare, API, and integrated worker runtime for iterative development
 - `treeseed save`: verify, commit, sync, push, and refresh the branch preview when enabled
 - `treeseed stage`: merge the task into `staging`, wait for staging automation, archive the task tag, and clean up the branch/preview
 - `treeseed release`: promote `staging` to `main`, bump versions, tag the release, and trigger production deployment
@@ -308,7 +304,6 @@ Run these from the relevant package root when you are working mainly inside that
 cd packages/sdk && npm install && npm run build && npm test
 cd packages/core && npm install && npm run verify
 cd packages/cli && npm install && npm test
-cd packages/agent && npm install && npm run release:verify
 ```
 
 Those package-local flows are the canonical behavior for standalone package development.
@@ -362,27 +357,25 @@ Minimum verification:
 - Core `build:dist`
 - Core verify path when changing exported runtime behavior
 
-### I Want To Change Agent Hosting Or Control Plane Behavior
+### I Want To Change Worker Hosting Or Control Plane Behavior
 
 Work from:
 
 - [`packages/sdk`](/home/adrian/Projects/treeseed/market/packages/sdk)
 - [`packages/core`](/home/adrian/Projects/treeseed/market/packages/core)
-- [`packages/agent`](/home/adrian/Projects/treeseed/market/packages/agent)
 
 Recommended path:
 
 ```bash
 cd packages/sdk && npm run build && npm test
-cd ../core && npm run build:dist && npm test
-cd ../agent && npm run build
+cd ../core && npm run verify
 ```
 
 Minimum verification:
 
 - SDK build and tests pass
 - Core API runtime build and tests pass
-- Agent build passes
+- Core worker entrypoints build and smoke cleanly
 - if you changed process wiring, smoke the relevant service entrypoint locally
 
 ## Operator Workflows
@@ -391,13 +384,7 @@ Minimum verification:
 
 Use this when the site and gateway are deployed to Cloudflare, but you want orchestration on your laptop.
 
-1. Copy the example env file:
-
-```bash
-cp packages/agent/.env.local-manager-cloudflare.example packages/agent/.env.local-manager-cloudflare
-```
-
-2. Fill in at least:
+Set these environment variables before starting the services:
 
 - `TREESEED_AGENT_REPO_ROOT`
 - `TREESEED_GATEWAY_BASE_URL`
@@ -406,34 +393,31 @@ cp packages/agent/.env.local-manager-cloudflare.example packages/agent/.env.loca
 - `TREESEED_QUEUE_ID`
 - `TREESEED_QUEUE_PULL_TOKEN` if you also want a local worker
 
-3. Start the manager:
+Start the manager:
 
 ```bash
-cd packages/agent
-npm run start:local-manager-cloudflare
+cd packages/core
+npm run dev:manager
 ```
 
-4. Optionally start a local worker in another shell:
+Optionally start a local worker in another shell:
 
 ```bash
-cd packages/agent
-set -a; source ./.env.local-manager-cloudflare; set +a
+cd packages/core
 npm run dev:worker
 ```
 
-5. Trigger the work day:
+Trigger the work day:
 
 ```bash
-cd packages/agent
-set -a; source ./.env.local-manager-cloudflare; set +a
+cd packages/core
 npm run dev:workday-start
 ```
 
-6. Produce a report at the end:
+Produce a report at the end:
 
 ```bash
-cd packages/agent
-set -a; source ./.env.local-manager-cloudflare; set +a
+cd packages/core
 npm run dev:workday-report
 ```
 
@@ -450,7 +434,7 @@ The intended managed-service mapping in `treeseed.site.yaml` is:
 
 ### Convenient Package Commands
 
-`packages/agent` now exposes the operational entrypoints directly:
+`packages/core` now exposes the operational entrypoints directly:
 
 - `npm run dev:manager`
 - `npm run dev:worker`

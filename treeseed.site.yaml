@@ -45,29 +45,33 @@ services:
     provider: railway
     railway:
       serviceName: treeseed-manager
-      rootDir: packages/agent
-      startCommand: node ./dist/services/manager.js
+      rootDir: .
+      buildCommand: npm run build:api
+      startCommand: node ./packages/core/dist/services/manager.js
   worker:
     enabled: true
     provider: railway
     railway:
       serviceName: treeseed-worker
-      rootDir: packages/agent
-      startCommand: node ./dist/services/worker.js
+      rootDir: .
+      buildCommand: npm run build:api
+      startCommand: node ./packages/core/dist/services/worker.js
   workdayStart:
     enabled: true
     provider: railway
     railway:
       serviceName: treeseed-workday-start
-      rootDir: packages/agent
-      startCommand: node ./dist/services/workday-start.js
+      rootDir: .
+      buildCommand: npm run build:api
+      startCommand: node ./packages/core/dist/services/workday-start.js
   workdayReport:
     enabled: true
     provider: railway
     railway:
       serviceName: treeseed-workday-report
-      rootDir: packages/agent
-      startCommand: node ./dist/services/workday-report.js
+      rootDir: .
+      buildCommand: npm run build:api
+      startCommand: node ./packages/core/dist/services/workday-report.js
 plugins:
   - package: '@treeseed/core/plugin-default'
 providers:
