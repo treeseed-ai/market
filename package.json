@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/market",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TreeSeed marketplace site built on top of @treeseed/core.",
   "license": "COMMERCIAL",
   "repository": {
@@ -52,10 +52,10 @@
     "verify": "node --input-type=module -e \"await import('@treeseed/sdk/scripts/verify-driver')\""
   },
   "dependencies": {
-    "@treeseed/agent": "^0.1.2",
-    "@treeseed/cli": "^0.1.1",
-    "@treeseed/core": "^0.1.2",
-    "@treeseed/sdk": "^0.1.2",
+    "@treeseed/agent": "^0.4.2",
+    "@treeseed/cli": "^0.4.5",
+    "@treeseed/core": "^0.4.4",
+    "@treeseed/sdk": "^0.4.4",
     "better-auth": "^1.6.2",
     "hono": "^4.8.2",
     "yaml": "^2.8.1"
