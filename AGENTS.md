@@ -5,10 +5,9 @@ This repository is the unified development workspace for the Treeseed system and
 ## Package Roles
 
 - `@treeseed/sdk`: platform, config, plugin, data, and shared non-UI runtime substrate
-- `@treeseed/core`: Treeseed Research Hub, Astro/Starlight site runtime, content model, and forms
+- `@treeseed/core`: integrated Treeseed platform starter for Astro/Starlight web runtime, Hono API runtime, integrated local orchestration, content model, and forms
 - `@treeseed/agent`: agent runtime, kernel, adapters, and agent contracts
 - `@treeseed/cli`: operator and developer CLI workflows
-- `@treeseed/api`: HTTP API and gateway services
 
 ## Boundary Rules
 
@@ -21,7 +20,7 @@ This repository is the unified development workspace for the Treeseed system and
 ## Shared Fixture Model
 
 - `.fixtures/treeseed-fixtures` is the canonical integrated Treeseed project.
-- The fixture is intentionally shared across `sdk`, `core`, `cli`, `agent`, and `api`.
+- The fixture is intentionally shared across `sdk`, `core`, `cli`, and `agent`.
 - Package-local verification must adapt to the fixture. Do not rewrite the fixture to satisfy one package.
 - Fixture shims and package injection exist only to make isolated package verification behave like the canonical integrated project.
 - SDK owns the shared fixture support model and the canonical contracts-only Agent shim used when package-only verification does not have a real Agent package checkout.
@@ -31,9 +30,9 @@ This repository is the unified development workspace for the Treeseed system and
 The shared fixture exists to validate the full Treeseed project shape in one canonical place:
 
 - content and platform configuration from `sdk`
-- Astro/Starlight site runtime from `core`
+- Astro/Starlight site runtime and integrated API starter surfaces from `core`
 - agent handler files and contracts from `agent`
-- package and deployment workflows exercised by `cli` and `api`
+- package and deployment workflows exercised by `cli`
 
 The fixture is not package-specific. It is the integrated reference project for the system.
 
@@ -47,8 +46,8 @@ The fixture is not package-specific. It is the integrated reference project for 
   - may inject an Agent contracts shim so the integrated fixture can typecheck and build without a real Agent runtime dependency
 - `agent`
   - validates the real Agent runtime and real Agent contracts against the shared fixture
-- `cli` and `api`
-  - validate their own package-owned surfaces while still targeting the same integrated fixture
+- `cli`
+  - validates operator workflows while still targeting the same integrated fixture
 
 ### Package Injection Modes
 
@@ -65,9 +64,9 @@ The canonical `contracts-only` shim currently exists for `@treeseed/agent` contr
 The shared fixture may import:
 
 - `@treeseed/sdk` surfaces used by content, runtime, and platform config
-- `@treeseed/core` site and runtime surfaces
+- `@treeseed/core` site, API, and runtime surfaces
 - `@treeseed/agent` contract and runtime surfaces appropriate for integrated project files
-- `@treeseed/cli` and `@treeseed/api` surfaces only where the canonical fixture genuinely models those workflows
+- `@treeseed/cli` surfaces only where the canonical fixture genuinely models those workflows
 
 What matters is that package-local verification adapts correctly, not that the fixture stays artificially minimal.
 
@@ -92,6 +91,7 @@ What matters is that package-local verification adapts correctly, not that the f
 - Initialize submodules before installing.
 - Use the root workspace when changing behavior across package boundaries.
 - Re-run the affected package verifies after integration changes.
+- Treat `treeseed dev` as a `core`-owned integrated runtime entrypoint; the root tenant should only delegate to it.
 
 ### Fixture-related debugging
 

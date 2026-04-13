@@ -10,7 +10,31 @@ cloudflare:
   dlqName: agent-work-dlq
   d1Binding: SITE_DATA_DB
   queueBinding: AGENT_WORK_QUEUE
+surfaces:
+  web:
+    enabled: true
+    provider: cloudflare
+    rootDir: .
+    publicBaseUrl: https://market.treeseed.ai
+    localBaseUrl: http://127.0.0.1:4321
+  api:
+    enabled: true
+    provider: railway
+    rootDir: .
+    localBaseUrl: http://127.0.0.1:3000
 services:
+  api:
+    enabled: true
+    provider: railway
+    rootDir: .
+    publicBaseUrl: https://api.treeseed.ai
+    railway:
+      serviceName: treeseed-api
+      buildCommand: npm run build:api
+      startCommand: node ./packages/core/dist/api/server.js
+    environments:
+      local:
+        baseUrl: http://127.0.0.1:3000
   gateway:
     enabled: true
     provider: cloudflare

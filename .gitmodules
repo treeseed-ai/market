@@ -10,6 +10,4 @@
 [submodule "packages/agent"]
 	path = packages/agent
 	url = git@github.com:treeseed-ai/agent.git
-[submodule "packages/api"]
-	path = packages/api
-	url = git@github.com:treeseed-ai/api.git
+

@@ -2,13 +2,12 @@
 
 `@treeseed/market` is the canonical TreeSeed marketplace site and the top-level unified development workspace for the current TreeSeed system.
 
-This repo is not just the market site. It can also act as the integration workspace for five freestanding package repositories mounted as git submodules:
+This repo is not just the market site. It can also act as the integration workspace for four freestanding package repositories mounted as git submodules:
 
 - [`packages/sdk`](/home/adrian/Projects/treeseed/market/packages/sdk)
 - [`packages/core`](/home/adrian/Projects/treeseed/market/packages/core)
 - [`packages/cli`](/home/adrian/Projects/treeseed/market/packages/cli)
 - [`packages/agent`](/home/adrian/Projects/treeseed/market/packages/agent)
-- [`packages/api`](/home/adrian/Projects/treeseed/market/packages/api)
 
 The goal is simple:
 
@@ -66,14 +65,14 @@ The market site consumes the package runtime like a normal TreeSeed application.
 Important boundaries:
 
 - `sdk` owns shared data-access and typed runtime helpers.
-- `core` owns the Treeseed runtime for Astro/Starlight sites.
-- `cli` owns the `treeseed` command, scaffold/sync behavior, and CLI-facing template integration.
+- `core` owns the integrated Treeseed runtime for Astro/Starlight sites, Hono API surfaces, and integrated local dev orchestration.
+- `cli` owns the `treeseed` command, scaffold/sync behavior, and CLI-facing template integration while delegating integrated runtime startup to `core`.
 - `agent` owns the agent runtime and `treeseed-agents`.
 - the market site owns marketplace content, presentation, and eventually the remote template catalog API
 
 ## Shared Fixture Model
 
-The workspace uses `.fixtures/treeseed-fixtures` as the canonical integrated Treeseed project. That fixture is shared across `sdk`, `core`, `cli`, `agent`, and `api`.
+The workspace uses `.fixtures/treeseed-fixtures` as the canonical integrated Treeseed project. That fixture is shared across `sdk`, `core`, `cli`, and `agent`.
 
 Important consequences:
 
@@ -125,7 +124,7 @@ Full documentation:
 ### Agent Hosting Package Roles
 
 - `sdk` owns the typed operational models, gateway client, queue client, and D1-backed state transitions.
-- `api` owns both the public Treeseed HTTP API and the private Cloudflare gateway app.
+- `core` owns the published Treeseed HTTP API runtime, the private Cloudflare gateway app, and the integrated local platform startup flow.
 - `agent` owns the Node service entrypoints for `manager`, `worker`, `workday-start`, and `workday-report`.
 - `core` and the Treeseed deploy tooling own how these services are represented in `treeseed.site.yaml` and deploy state.
 
@@ -150,6 +149,7 @@ Top-level workspace responsibilities:
 - unified workspace scripts: root `package.json`
 - integration lockfile: root `package-lock.json`
 - package submodules: `packages/*`
+- integrated local process orchestration: `@treeseed/core` via `treeseed dev`
 
 Submodule responsibilities:
 
@@ -367,21 +367,21 @@ Minimum verification:
 Work from:
 
 - [`packages/sdk`](/home/adrian/Projects/treeseed/market/packages/sdk)
-- [`packages/api`](/home/adrian/Projects/treeseed/market/packages/api)
+- [`packages/core`](/home/adrian/Projects/treeseed/market/packages/core)
 - [`packages/agent`](/home/adrian/Projects/treeseed/market/packages/agent)
 
 Recommended path:
 
 ```bash
 cd packages/sdk && npm run build && npm test
-cd ../api && npm run build && npm test
+cd ../core && npm run build:dist && npm test
 cd ../agent && npm run build
 ```
 
 Minimum verification:
 
 - SDK build and tests pass
-- API build and tests pass
+- Core API runtime build and tests pass
 - Agent build passes
 - if you changed process wiring, smoke the relevant service entrypoint locally
 
