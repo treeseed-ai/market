@@ -5,7 +5,6 @@ contactEmail: hello@treeseed.ai
 cloudflare:
   accountId: replace-with-cloudflare-account-id
   workerName: treeseed-market
-  gatewayWorkerName: treeseed-agent-gateway
   queueName: agent-work
   dlqName: agent-work-dlq
   d1Binding: SITE_DATA_DB
@@ -31,23 +30,10 @@ services:
     railway:
       serviceName: treeseed-api
       buildCommand: npm run build:api
-      startCommand: node ./packages/core/dist/api/server.js
+      startCommand: node ./src/api/server.js
     environments:
       local:
         baseUrl: http://127.0.0.1:3000
-  gateway:
-    enabled: true
-    provider: cloudflare
-    cloudflare:
-      workerName: treeseed-agent-gateway
-  manager:
-    enabled: true
-    provider: railway
-    railway:
-      serviceName: treeseed-manager
-      rootDir: .
-      buildCommand: npm run build:api
-      startCommand: node ./packages/core/dist/services/manager.js
   worker:
     enabled: true
     provider: railway
@@ -56,6 +42,14 @@ services:
       rootDir: .
       buildCommand: npm run build:api
       startCommand: node ./packages/core/dist/services/worker.js
+  runner:
+    enabled: true
+    provider: railway
+    railway:
+      serviceName: treeseed-runner
+      rootDir: .
+      buildCommand: npm run build:api
+      startCommand: node ./packages/core/dist/services/remote-runner.js
   workdayStart:
     enabled: true
     provider: railway
