@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI: "true"
-      TREESEED_BOOTSTRAP_MODE: registry
+      TREESEED_BOOTSTRAP_MODE: auto
       TREESEED_GITHUB_AUTOMATION_MODE: stub
       TREESEED_STAGE_WAIT_MODE: skip
       TREESEED_AGENT_DISABLE_GIT: "true"

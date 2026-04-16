@@ -131,9 +131,13 @@ jobs:
       needs.classify.outputs.release_tag == 'true'
     permissions:
       contents: read
+    env:
+      TREESEED_BOOTSTRAP_MODE: auto
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -177,6 +181,7 @@ jobs:
       deployments: write
     environment: ${{ needs.classify.outputs.scope == 'prod' && 'production' || 'staging' }}
     env:
+      TREESEED_BOOTSTRAP_MODE: auto
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       TREESEED_CLOUDFLARE_PAGES_PROJECT_NAME: ${{ vars.TREESEED_CLOUDFLARE_PAGES_PROJECT_NAME }}
@@ -219,6 +224,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -260,6 +267,7 @@ jobs:
       needs.classify.outputs.release_tag == 'true'
     environment: ${{ needs.classify.outputs.scope == 'prod' && 'production' || 'staging' }}
     env:
+      TREESEED_BOOTSTRAP_MODE: auto
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       TREESEED_CLOUDFLARE_PAGES_PROJECT_NAME: ${{ vars.TREESEED_CLOUDFLARE_PAGES_PROJECT_NAME }}
@@ -302,6 +310,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -344,6 +354,7 @@ jobs:
       (needs['deploy-code'].result == 'success' || needs['deploy-code'].result == 'skipped')
     environment: ${{ needs.classify.outputs.scope == 'prod' && 'production' || 'staging' }}
     env:
+      TREESEED_BOOTSTRAP_MODE: auto
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       TREESEED_CLOUDFLARE_PAGES_PROJECT_NAME: ${{ vars.TREESEED_CLOUDFLARE_PAGES_PROJECT_NAME }}
@@ -386,6 +397,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -431,6 +444,7 @@ jobs:
       deployments: write
     environment: ${{ needs.classify.outputs.scope == 'prod' && 'production' || 'staging' }}
     env:
+      TREESEED_BOOTSTRAP_MODE: auto
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       TREESEED_CONTENT_BUCKET_NAME: ${{ vars.TREESEED_CONTENT_BUCKET_NAME }}
@@ -450,6 +464,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Setup Node
         uses: actions/setup-node@v4

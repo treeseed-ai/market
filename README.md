@@ -264,6 +264,7 @@ From the repo root:
 npm install
 treeseed status
 treeseed config
+treeseed switch feature/my-change --plan
 treeseed switch feature/my-change --preview
 treeseed dev
 treeseed save "feat: describe your change"
@@ -274,13 +275,13 @@ treeseed release --patch
 What they mean here:
 
 - `npm install`: install root deps and run the root bootstrap/postinstall chain
-- `treeseed status`: show project health, current branch/task, runtime readiness, preview state, and next commands
+- `treeseed status`: show project health, current branch/task, runtime readiness, preview state, package drift, workflow locks, and next commands
 - `treeseed config`: configure and test the local/staging/production runtime foundation
-- `treeseed switch`: create or resume a task branch from `staging`
+- `treeseed switch`: create or resume a task branch from `staging`, mirroring checked-out package repos in the full workspace
 - `treeseed dev`: run the local Cloudflare, API, and integrated worker runtime for iterative development
-- `treeseed save`: verify, commit, sync, push, and refresh the branch preview when enabled
-- `treeseed stage`: merge the task into `staging`, wait for staging automation, archive the task tag, and clean up the branch/preview
-- `treeseed release`: promote `staging` to `main`, bump versions, tag the release, and trigger production deployment
+- `treeseed save`: recursively verify, commit, sync, and push dirty package repos before saving the market repo and refreshing the branch preview when enabled
+- `treeseed stage`: squash-merge the task into package `staging` branches first, then market `staging`, wait for staging automation, archive the task tag, and clean up the task branches
+- `treeseed release`: promote changed packages plus dependents first, then promote market `staging` to `main`, tag the release, and sync market production to package `main` heads
 
 To abandon a task without merging it, run:
 
@@ -292,6 +293,21 @@ treeseed close "reason this task was closed"
 
 ```bash
 git switch -c feature/my-change deprecated/<slug>/<sha>
+```
+
+Before any multi-repo mutation, use planning mode:
+
+```bash
+treeseed save --plan "feat: describe your change" --json
+treeseed stage --plan "feat: describe the resolution" --json
+treeseed release --patch --plan --json
+```
+
+If a recursive workflow is interrupted, inspect and resume it through the journaled interface instead of retrying blindly:
+
+```bash
+treeseed recover
+treeseed resume <run-id>
 ```
 
 ### Package-Local Commands
