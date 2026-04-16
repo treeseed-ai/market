@@ -16,14 +16,26 @@ const marketMigrationPathCandidates = [
 	resolve(packageRoot, '../migrations/0008_market_control_plane.sql'),
 ];
 const marketMigrationPath = marketMigrationPathCandidates.find((candidate) => existsSync(candidate));
+const catalogMigrationPathCandidates = [
+	resolve(packageRoot, 'migrations/0009_team_content_catalog.sql'),
+	resolve(packageRoot, '../migrations/0009_team_content_catalog.sql'),
+];
+const catalogMigrationPath = catalogMigrationPathCandidates.find((candidate) => existsSync(candidate));
+const topologyMigrationPathCandidates = [
+	resolve(packageRoot, 'migrations/0010_project_hosting_topology.sql'),
+	resolve(packageRoot, '../migrations/0010_project_hosting_topology.sql'),
+];
+const topologyMigrationPath = topologyMigrationPathCandidates.find((candidate) => existsSync(candidate));
 const sqliteModule = await import('node:sqlite').catch(() => null);
 const DatabaseSyncCtor = sqliteModule?.DatabaseSync ?? null;
 const DatabaseSync = DatabaseSyncCtor as NonNullable<typeof DatabaseSyncCtor>;
 const runtimeDescribe = DatabaseSyncCtor ? describe : describe.skip;
 const resolvedAuthMigrationPath = authMigrationPath as string;
 const resolvedMarketMigrationPath = marketMigrationPath as string;
+const resolvedCatalogMigrationPath = catalogMigrationPath as string;
+const resolvedTopologyMigrationPath = topologyMigrationPath as string;
 
-if (!authMigrationPath || !marketMigrationPath) {
+if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath) {
 	throw new Error('Unable to resolve required market migration fixtures.');
 }
 
@@ -67,6 +79,8 @@ class TestD1Database implements D1DatabaseLike {
 	constructor() {
 		this.db.exec(readFileSync(resolvedAuthMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedMarketMigrationPath, 'utf8'));
+		this.db.exec(readFileSync(resolvedCatalogMigrationPath, 'utf8'));
+		this.db.exec(readFileSync(resolvedTopologyMigrationPath, 'utf8'));
 	}
 
 	prepare(query: string) {
@@ -239,6 +253,62 @@ runtimeDescribe('market api', () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
 
+	it('serves deep health and runner health summaries', async () => {
+		const app = createTestApp();
+		const deepHealth = await json(await app.request('/healthz/deep'));
+		expect(deepHealth).toMatchObject({
+			ok: true,
+			status: 'ok',
+			checks: {
+				d1: true,
+			},
+		});
+
+		const token = await authorizeApp(app);
+		const { project } = await createTeamAndProject(app, token, {
+			id: 'health-project',
+			slug: 'health-project',
+			name: 'Health Project',
+		});
+		const connection = await json(await app.request(`/v1/projects/${project.id}/connection`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				mode: 'hosted',
+				projectApiBaseUrl: 'https://project.example.com',
+				metadata: {
+					projectApiKey: 'hosted-project-key',
+				},
+			}),
+		}));
+		const runnerToken = connection.payload.runnerToken as string;
+		await app.request(`/v1/projects/${project.id}/runner/agent-pools/primary/register`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				environment: 'staging',
+				teamId: project.teamId,
+				managerId: 'manager-1',
+				desiredWorkers: 1,
+				observedQueueDepth: 2,
+			}),
+		});
+		const runnerHealth = await json(await app.request(`/v1/projects/${project.id}/runner/health?environment=staging`, {
+			headers: {
+				authorization: `Bearer ${runnerToken}`,
+			},
+		}));
+		expect(runnerHealth.ok).toBe(true);
+		expect(Array.isArray(runnerHealth.payload.pools)).toBe(true);
+		expect(runnerHealth.payload.pools[0]?.latestRegistration?.managerId).toBe('manager-1');
+	});
+
 	it('queues project runner jobs and records lifecycle events', async () => {
 		const app = createTestApp();
 		const token = await authorizeApp(app);
@@ -340,6 +410,564 @@ runtimeDescribe('market api', () => {
 		]);
 	});
 
+	it('stores project hosting topology and runner-authenticated agent pool registrations', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { team, project } = await createTeamAndProject(app, token, {
+			id: 'topology-project',
+			slug: 'topology-project',
+			name: 'Topology Project',
+		});
+
+		const hosting = await json(await app.request(`/v1/projects/${project.id}/hosting`, {
+			method: 'PUT',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				kind: 'hosted_project',
+				registration: 'optional',
+				marketBaseUrl: 'https://market.example.com',
+				sourceRepoOwner: 'treeseed-ai',
+				sourceRepoName: 'topology-project',
+				sourceRepoUrl: 'https://github.com/treeseed-ai/topology-project',
+				sourceRepoWorkflowPath: '.github/workflows/deploy.yml',
+			}),
+		}));
+		expect(hosting.payload).toMatchObject({
+			projectId: project.id,
+			kind: 'hosted_project',
+			registration: 'optional',
+		});
+
+		const environment = await json(await app.request(`/v1/projects/${project.id}/environments/staging`, {
+			method: 'PUT',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				deploymentProfile: 'hosted_project',
+				baseUrl: 'https://staging.example.com',
+				cloudflareAccountId: 'cf-account-1',
+				pagesProjectName: 'topology-project-staging',
+				workerName: 'topology-project-staging-worker',
+				r2BucketName: 'topology-project-staging-content',
+				d1DatabaseName: 'topology-project-staging-db',
+				queueName: 'topology-project-staging-queue',
+				railwayProjectName: 'topology-project-staging',
+			}),
+		}));
+		expect(environment.payload).toMatchObject({
+			projectId: project.id,
+			environment: 'staging',
+			pagesProjectName: 'topology-project-staging',
+		});
+
+		const resource = await json(await app.request(`/v1/projects/${project.id}/resources`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				environment: 'staging',
+				provider: 'cloudflare',
+				resourceKind: 'r2',
+				logicalName: 'content',
+				locator: 'teams/team-one/published/common.json',
+			}),
+		}));
+		expect(resource.payload).toMatchObject({
+			projectId: project.id,
+			provider: 'cloudflare',
+			resourceKind: 'r2',
+			logicalName: 'content',
+		});
+
+		const deployment = await json(await app.request(`/v1/projects/${project.id}/deployments`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				environment: 'staging',
+				deploymentKind: 'code',
+				status: 'running',
+				sourceRef: 'staging',
+				commitSha: 'abc123',
+			}),
+		}));
+		expect(deployment.payload).toMatchObject({
+			projectId: project.id,
+			environment: 'staging',
+			deploymentKind: 'code',
+			status: 'running',
+		});
+
+		const pool = await json(await app.request(`/v1/projects/${project.id}/agent-pools`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				teamId: team.id,
+				environment: 'staging',
+				name: 'primary',
+				status: 'active',
+				autoscale: {
+					minWorkers: 0,
+					maxWorkers: 4,
+					targetQueueDepth: 2,
+					cooldownSeconds: 45,
+				},
+			}),
+		}));
+		expect(pool.payload).toMatchObject({
+			projectId: project.id,
+			name: 'primary',
+			autoscale: {
+				maxWorkers: 4,
+				targetQueueDepth: 2,
+			},
+		});
+
+		const connection = await json(await app.request(`/v1/projects/${project.id}/connection`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				mode: 'hosted',
+				executionOwner: 'project_runner',
+				rotateRunnerToken: true,
+			}),
+		}));
+		const runnerToken = connection.payload.runnerToken as string;
+
+		const registration = await json(await app.request(`/v1/projects/${project.id}/runner/agent-pools/primary/register`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				teamId: team.id,
+				environment: 'staging',
+				managerId: 'manager-1',
+				runnerId: 'runner-1',
+				serviceName: 'manager',
+				desiredWorkers: 2,
+				observedQueueDepth: 3,
+				observedActiveLeases: 1,
+			}),
+		}));
+		expect(registration.payload.pool).toMatchObject({
+			name: 'primary',
+			environment: 'staging',
+		});
+		expect(registration.payload.registration).toMatchObject({
+			managerId: 'manager-1',
+			desiredWorkers: 2,
+			observedQueueDepth: 3,
+		});
+
+		const runnerEnvironment = await json(await app.request(`/v1/projects/${project.id}/runner/environments/prod`, {
+			method: 'PUT',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				deploymentProfile: 'hosted_project',
+				baseUrl: 'https://prod.example.com',
+				pagesProjectName: 'topology-project-prod',
+				workerName: 'topology-project-prod-worker',
+				r2BucketName: 'topology-project-prod-content',
+				railwayProjectName: 'topology-project-prod',
+			}),
+		}));
+		expect(runnerEnvironment.payload).toMatchObject({
+			environment: 'prod',
+			pagesProjectName: 'topology-project-prod',
+		});
+
+		const runnerResource = await json(await app.request(`/v1/projects/${project.id}/runner/resources`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				environment: 'prod',
+				provider: 'railway',
+				resourceKind: 'service',
+				logicalName: 'manager',
+				locator: 'railway://topology-project-prod/manager',
+			}),
+		}));
+		expect(runnerResource.payload).toMatchObject({
+			environment: 'prod',
+			provider: 'railway',
+			resourceKind: 'service',
+			logicalName: 'manager',
+		});
+
+		const runnerDeployment = await json(await app.request(`/v1/projects/${project.id}/runner/deployments`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				environment: 'prod',
+				deploymentKind: 'mixed',
+				status: 'success',
+				sourceRef: 'main',
+				commitSha: 'def456',
+			}),
+		}));
+		expect(runnerDeployment.payload).toMatchObject({
+			environment: 'prod',
+			deploymentKind: 'mixed',
+			status: 'success',
+		});
+
+		const details = await json(await app.request(`/v1/projects/${project.id}`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(details.payload.hosting).toMatchObject({
+			kind: 'hosted_project',
+		});
+		expect(details.payload.environments).toHaveLength(2);
+		expect(details.payload.resources).toHaveLength(2);
+		expect(details.payload.deployments).toHaveLength(2);
+		expect(details.payload.agentPools).toHaveLength(1);
+	});
+
+	it('stores runner-reported scale decisions and workday summaries', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { team, project } = await createTeamAndProject(app, token, {
+			id: 'manager-project',
+			slug: 'manager-project',
+			name: 'Manager Project',
+		});
+
+		await app.request(`/v1/projects/${project.id}/agent-pools`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				teamId: team.id,
+				environment: 'staging',
+				name: 'primary',
+				status: 'active',
+				autoscale: {
+					minWorkers: 0,
+					maxWorkers: 4,
+					targetQueueDepth: 2,
+					cooldownSeconds: 45,
+				},
+			}),
+		});
+		const connection = await json(await app.request(`/v1/projects/${project.id}/connection`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				mode: 'hosted',
+				executionOwner: 'project_runner',
+				rotateRunnerToken: true,
+			}),
+		}));
+		const runnerToken = connection.payload.runnerToken as string;
+
+		await app.request(`/v1/projects/${project.id}/runner/agent-pools/primary/register`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				teamId: team.id,
+				environment: 'staging',
+				managerId: 'manager-1',
+				serviceName: 'manager',
+				desiredWorkers: 2,
+				observedQueueDepth: 3,
+				observedActiveLeases: 1,
+			}),
+		});
+
+		const decision = await json(await app.request(`/v1/projects/${project.id}/runner/agent-pools/primary/scale-decisions`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				environment: 'staging',
+				poolName: 'primary',
+				workDayId: 'workday-1',
+				desiredWorkers: 2,
+				observedQueueDepth: 3,
+				observedActiveLeases: 1,
+				reason: 'reconcile',
+				metadata: {
+					remainingCredits: 4,
+				},
+			}),
+		}));
+		expect(decision.payload).toMatchObject({
+			projectId: project.id,
+			environment: 'staging',
+			desiredWorkers: 2,
+			reason: 'reconcile',
+		});
+
+		const workday = await json(await app.request(`/v1/projects/${project.id}/runner/workdays`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				environment: 'staging',
+				workDayId: 'workday-1',
+				kind: 'workday_summary',
+				state: 'completed',
+				startedAt: '2026-04-15T09:00:00.000Z',
+				endedAt: '2026-04-15T17:00:00.000Z',
+				summary: {
+					totalTasks: 3,
+					usedTaskCredits: 4,
+				},
+			}),
+		}));
+		expect(workday.payload).toMatchObject({
+			projectId: project.id,
+			environment: 'staging',
+			workDayId: 'workday-1',
+			kind: 'workday_summary',
+		});
+
+		const decisions = await json(await app.request(`/v1/projects/${project.id}/agent-pools/${decision.payload.poolId}/scale-decisions`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(decisions.payload).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				desiredWorkers: 2,
+				workDayId: 'workday-1',
+			}),
+		]));
+
+		const workdays = await json(await app.request(`/v1/projects/${project.id}/workdays?environment=staging`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(workdays.payload).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				workDayId: 'workday-1',
+				kind: 'workday_summary',
+			}),
+		]));
+	});
+
+	it('stores hosted project work policies, priority snapshots, and task-credit ledger entries', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { project } = await createTeamAndProject(app, token, {
+			id: 'planning-project',
+			slug: 'planning-project',
+			name: 'Planning Project',
+		});
+
+		const workPolicy = await json(await app.request(`/v1/projects/${project.id}/work-policy`, {
+			method: 'PUT',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				environment: 'staging',
+				schedule: {
+					timezone: 'America/New_York',
+					windows: [{ days: [1, 2, 3, 4, 5], startTime: '09:00', endTime: '17:00' }],
+				},
+				dailyTaskCreditBudget: 12,
+				maxQueuedTasks: 4,
+				maxQueuedCredits: 8,
+				autoscale: {
+					minWorkers: 0,
+					maxWorkers: 3,
+					targetQueueDepth: 2,
+					cooldownSeconds: 60,
+				},
+				creditWeights: [{
+					type: 'question',
+					credits: 3,
+				}],
+				metadata: {
+					managedBy: 'market',
+				},
+			}),
+		}));
+		expect(workPolicy.payload).toMatchObject({
+			projectId: project.id,
+			environment: 'staging',
+			dailyTaskCreditBudget: 12,
+			maxQueuedTasks: 4,
+		});
+
+		const priorityOverride = await json(await app.request(`/v1/projects/${project.id}/priority-overrides`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				model: 'question',
+				subjectId: 'question-1',
+				priority: 42,
+				estimatedCredits: 3,
+				metadata: {
+					reason: 'customer-escalation',
+				},
+			}),
+		}));
+		expect(priorityOverride.payload).toMatchObject({
+			projectId: project.id,
+			model: 'question',
+			subjectId: 'question-1',
+			priority: 42,
+		});
+
+		const connection = await json(await app.request(`/v1/projects/${project.id}/connection`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				mode: 'hosted',
+				executionOwner: 'project_runner',
+				rotateRunnerToken: true,
+			}),
+		}));
+		const runnerToken = connection.payload.runnerToken as string;
+
+		const snapshot = await json(await app.request(`/v1/projects/${project.id}/runner/priority-snapshots`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				workDayId: 'workday-2',
+				generatedAt: '2026-04-15T13:00:00.000Z',
+				snapshot: {
+					items: [{
+						id: 'question-1',
+						model: 'question',
+						priority: 42,
+						title: 'Critical question',
+					}],
+				},
+				metadata: {
+					source: 'manager',
+				},
+			}),
+		}));
+		expect(snapshot.payload).toMatchObject({
+			projectId: project.id,
+			workDayId: 'workday-2',
+		});
+
+		const taskCredit = await json(await app.request(`/v1/projects/${project.id}/runner/task-credits`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				workDayId: 'workday-2',
+				taskId: 'task-1',
+				phase: 'seeded',
+				credits: 3,
+				metadata: {
+					reason: 'queued',
+				},
+			}),
+		}));
+		expect(taskCredit.payload).toMatchObject({
+			projectId: project.id,
+			workDayId: 'workday-2',
+			taskId: 'task-1',
+			phase: 'seeded',
+			credits: 3,
+		});
+
+		const listedPolicy = await json(await app.request(`/v1/projects/${project.id}/work-policy?environment=staging`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(listedPolicy.payload).toMatchObject({
+			environment: 'staging',
+			dailyTaskCreditBudget: 12,
+		});
+
+		const listedOverrides = await json(await app.request(`/v1/projects/${project.id}/priority-overrides`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(listedOverrides.payload).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				subjectId: 'question-1',
+				priority: 42,
+			}),
+		]));
+
+		const listedSnapshots = await json(await app.request(`/v1/projects/${project.id}/priority-snapshots?workDayId=workday-2`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(listedSnapshots.payload).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				workDayId: 'workday-2',
+			}),
+		]));
+
+		const listedCredits = await json(await app.request(`/v1/projects/${project.id}/workdays/workday-2/task-credits`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(listedCredits.payload).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				workDayId: 'workday-2',
+				taskId: 'task-1',
+				credits: 3,
+			}),
+		]));
+	});
+
 	it('blocks dispatch when a project capability grant is disabled', async () => {
 		const app = createTestApp();
 		const token = await authorizeApp(app);
@@ -385,5 +1013,96 @@ runtimeDescribe('market api', () => {
 			ok: false,
 			error: 'Dispatch capability disabled for project.',
 		});
+	});
+
+	it('indexes team-owned catalog items and artifact versions centrally', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { team } = await createTeamAndProject(app, token, {
+			id: 'catalog-project',
+			slug: 'catalog-project',
+			name: 'Catalog Project',
+			description: 'Central catalog seed',
+			metadata: { listingEnabled: true, manifestKey: 'teams/team-one/published/common.json' },
+		});
+
+		const catalogItem = await json(await app.request(`/v1/teams/${team.id}/catalog-items`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				kind: 'template',
+				slug: 'starter-pro',
+				title: 'Starter Pro',
+				summary: 'A team-owned starter template.',
+				visibility: 'public',
+				listingEnabled: true,
+				offerMode: 'subscription_updates',
+				artifactKey: 'teams/team-one/artifacts/template/starter-pro-v1.zip',
+			}),
+		}));
+
+		const artifact = await json(await app.request(`/v1/catalog/${catalogItem.payload.id}/artifacts`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				kind: 'template_artifact',
+				version: '1.0.0',
+				contentKey: 'teams/team-one/artifacts/template/starter-pro-v1.zip',
+			}),
+		}));
+
+		const listed = await json(await app.request('/v1/catalog?kind=template'));
+		expect(listed.payload[0]).toMatchObject({
+			kind: 'template',
+			slug: 'starter-pro',
+			offerMode: 'subscription_updates',
+			listingEnabled: true,
+		});
+
+		const versions = await json(await app.request(`/v1/catalog/${catalogItem.payload.id}/artifacts`));
+		expect(versions.payload[0]).toMatchObject({
+			version: '1.0.0',
+			contentKey: 'teams/team-one/artifacts/template/starter-pro-v1.zip',
+		});
+		expect(artifact.payload.version).toBe('1.0.0');
+	});
+
+	it('signs editorial preview links for team-scoped overlays', async () => {
+		const app = createTestApp({
+			config: {
+				baseUrl: 'https://market.example.com',
+			},
+		});
+		const token = await authorizeApp(app);
+		const { team } = await createTeamAndProject(app, token, {
+			id: 'preview-project',
+			slug: 'preview-project',
+			name: 'Preview Project',
+		});
+
+		const response = await json(await app.request(`/v1/teams/${team.id}/content-previews`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				previewId: 'staging-abc123',
+				expiresAt: '2030-01-01T00:00:00.000Z',
+			}),
+		}));
+
+		expect(response.payload).toMatchObject({
+			teamId: team.id,
+			previewId: 'staging-abc123',
+		});
+		expect(response.payload.token).toContain('.');
+		expect(response.payload.previewUrl).toContain('?preview=');
 	});
 });

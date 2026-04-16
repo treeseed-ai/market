@@ -10,7 +10,8 @@ content:
   agents: ./src/content/agents
   books: ./src/content/books
   templates: ./src/content/templates
-  knowledge_downloads: ./src/content/knowledge-downloads
+  knowledge_packs: ./src/content/knowledge-packs
+  workdays: ./src/content/workdays
 features:
   docs: true
   books: true
@@ -19,3 +20,9 @@ features:
   objectives: true
   agents: true
   forms: true
+site:
+  models:
+    knowledge_packs:
+      rendered: false
+    workdays:
+      rendered: false

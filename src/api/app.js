@@ -3,6 +3,7 @@ import {
 	RemoteTreeseedClient,
 	RemoteTreeseedOperationsClient,
 	RemoteTreeseedSdkClient,
+	signEditorialPreviewToken,
 	TreeseedOperationsSdk,
 	executeSdkOperation,
 	findDispatchCapability,
@@ -117,6 +118,43 @@ async function requireProjectAccess(c, store, projectId, permission = null) {
 	return {
 		principal: access.principal,
 		details,
+	};
+}
+
+async function requireProjectRunner(c, store, projectId) {
+	const token = bearerTokenFromRequest(c.req.raw);
+	if (!token) {
+		return {
+			response: jsonError(c, 401, 'Authentication required.'),
+		};
+	}
+	const runner = await store.authenticateRunner(projectId, token);
+	if (!runner) {
+		return {
+			response: jsonError(c, 401, 'Invalid project runner token.'),
+		};
+	}
+	return { runner };
+}
+
+async function requireCatalogItemAccess(c, store, itemId, permission = null) {
+	const auth = await ensurePrincipal(c);
+	if (auth.response) {
+		return auth;
+	}
+	const item = await store.getCatalogItem(itemId);
+	if (!item) {
+		return {
+			response: jsonError(c, 404, `Unknown catalog item "${itemId}".`),
+		};
+	}
+	const access = await requireTeamAccess(c, store, item.teamId, permission);
+	if (access.response) {
+		return access;
+	}
+	return {
+		principal: access.principal,
+		item,
 	};
 }
 
@@ -278,6 +316,22 @@ export function createMarketApiApp(options = {}) {
 			...(options.surfaces ?? {}),
 		},
 		extendApp(app, runtime) {
+			app.get('/healthz/deep', async (c) => {
+				try {
+					await store.ensureInitialized();
+					const probe = await store.first('SELECT 1 AS ok');
+					return c.json({
+						ok: true,
+						status: 'ok',
+						checks: {
+							d1: probe?.ok === 1 || probe?.ok === '1',
+						},
+					});
+				} catch (error) {
+					return jsonError(c, 500, error instanceof Error ? error.message : String(error));
+				}
+			});
+
 			app.use('/v1/*', async (c, next) => {
 				if (!c.get('principal')) {
 					const token = bearerTokenFromRequest(c.req.raw);
@@ -405,6 +459,285 @@ export function createMarketApiApp(options = {}) {
 						connection: result.connection,
 						runnerToken: result.runnerToken,
 					},
+				});
+			});
+
+			app.get('/v1/projects/:projectId/hosting', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: access.details.hosting,
+				});
+			});
+
+			app.put('/v1/projects/:projectId/hosting', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.kind) {
+					return jsonError(c, 400, 'kind is required.');
+				}
+				const payload = await store.upsertProjectHosting(c.req.param('projectId'), {
+					kind: String(body.kind),
+					registration: typeof body.registration === 'string' ? body.registration : 'none',
+					marketBaseUrl: typeof body.marketBaseUrl === 'string' ? body.marketBaseUrl : null,
+					sourceRepoOwner: typeof body.sourceRepoOwner === 'string' ? body.sourceRepoOwner : null,
+					sourceRepoName: typeof body.sourceRepoName === 'string' ? body.sourceRepoName : null,
+					sourceRepoUrl: typeof body.sourceRepoUrl === 'string' ? body.sourceRepoUrl : null,
+					sourceRepoWorkflowPath: typeof body.sourceRepoWorkflowPath === 'string' ? body.sourceRepoWorkflowPath : null,
+					projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
+					executionOwner: typeof body.executionOwner === 'string' ? body.executionOwner : null,
+					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+				});
+				return c.json({ ok: true, payload });
+			});
+
+			app.get('/v1/projects/:projectId/environments', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.listProjectEnvironments(c.req.param('projectId')),
+				});
+			});
+
+			app.put('/v1/projects/:projectId/environments/:environment', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				return c.json({
+					ok: true,
+					payload: await store.upsertProjectEnvironment(c.req.param('projectId'), {
+						environment: c.req.param('environment'),
+						deploymentProfile: typeof body.deploymentProfile === 'string' ? body.deploymentProfile : 'self_hosted_project',
+						baseUrl: typeof body.baseUrl === 'string' ? body.baseUrl : null,
+						cloudflareAccountId: typeof body.cloudflareAccountId === 'string' ? body.cloudflareAccountId : null,
+						pagesProjectName: typeof body.pagesProjectName === 'string' ? body.pagesProjectName : null,
+						workerName: typeof body.workerName === 'string' ? body.workerName : null,
+						r2BucketName: typeof body.r2BucketName === 'string' ? body.r2BucketName : null,
+						d1DatabaseName: typeof body.d1DatabaseName === 'string' ? body.d1DatabaseName : null,
+						queueName: typeof body.queueName === 'string' ? body.queueName : null,
+						railwayProjectName: typeof body.railwayProjectName === 'string' ? body.railwayProjectName : null,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/resources', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const environment = typeof c.req.query('environment') === 'string' ? c.req.query('environment') : null;
+				return c.json({
+					ok: true,
+					payload: await store.listProjectInfrastructureResources(c.req.param('projectId'), environment),
+				});
+			});
+
+			app.post('/v1/projects/:projectId/resources', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.environment || !body.provider || !body.resourceKind || !body.logicalName) {
+					return jsonError(c, 400, 'environment, provider, resourceKind, and logicalName are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.upsertProjectInfrastructureResource(c.req.param('projectId'), {
+						id: typeof body.id === 'string' ? body.id : undefined,
+						environment: String(body.environment),
+						provider: String(body.provider),
+						resourceKind: String(body.resourceKind),
+						logicalName: String(body.logicalName),
+						locator: typeof body.locator === 'string' ? body.locator : null,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/deployments', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const environment = typeof c.req.query('environment') === 'string' ? c.req.query('environment') : null;
+				return c.json({
+					ok: true,
+					payload: await store.listProjectDeployments(c.req.param('projectId'), environment),
+				});
+			});
+
+			app.post('/v1/projects/:projectId/deployments', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.environment || !body.deploymentKind) {
+					return jsonError(c, 400, 'environment and deploymentKind are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.createProjectDeployment(c.req.param('projectId'), {
+						id: typeof body.id === 'string' ? body.id : undefined,
+						environment: String(body.environment),
+						deploymentKind: String(body.deploymentKind),
+						status: typeof body.status === 'string' ? body.status : 'pending',
+						sourceRef: typeof body.sourceRef === 'string' ? body.sourceRef : null,
+						releaseTag: typeof body.releaseTag === 'string' ? body.releaseTag : null,
+						commitSha: typeof body.commitSha === 'string' ? body.commitSha : null,
+						triggeredByType: typeof body.triggeredByType === 'string' ? body.triggeredByType : null,
+						triggeredById: typeof body.triggeredById === 'string' ? body.triggeredById : access.principal.id,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+						startedAt: typeof body.startedAt === 'string' ? body.startedAt : null,
+						finishedAt: typeof body.finishedAt === 'string' ? body.finishedAt : null,
+					}),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/agent-pools', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const environment = typeof c.req.query('environment') === 'string' ? c.req.query('environment') : null;
+				return c.json({
+					ok: true,
+					payload: await store.listAgentPools(c.req.param('projectId'), environment),
+				});
+			});
+
+			app.post('/v1/projects/:projectId/agent-pools', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.teamId || !body.environment || !body.name) {
+					return jsonError(c, 400, 'teamId, environment, and name are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.upsertAgentPool(c.req.param('projectId'), {
+						id: typeof body.id === 'string' ? body.id : undefined,
+						teamId: String(body.teamId),
+						environment: String(body.environment),
+						name: String(body.name),
+						registrationIdentity: typeof body.registrationIdentity === 'string' ? body.registrationIdentity : null,
+						serviceBaseUrl: typeof body.serviceBaseUrl === 'string' ? body.serviceBaseUrl : null,
+						status: typeof body.status === 'string' ? body.status : 'active',
+						autoscale: typeof body.autoscale === 'object' && body.autoscale
+							? {
+								minWorkers: Number(body.autoscale.minWorkers ?? 0),
+								maxWorkers: Number(body.autoscale.maxWorkers ?? 1),
+								targetQueueDepth: Number(body.autoscale.targetQueueDepth ?? 1),
+								cooldownSeconds: Number(body.autoscale.cooldownSeconds ?? 60),
+							}
+							: undefined,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/agent-pools/:poolId/registrations', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.listAgentPoolRegistrations(c.req.param('poolId')),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/agent-pools/:poolId/scale-decisions', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.listAgentPoolScaleDecisions(c.req.param('poolId')),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/work-policy', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const environment = typeof c.req.query('environment') === 'string' ? c.req.query('environment') : 'staging';
+				return c.json({
+					ok: true,
+					payload: await store.getProjectWorkPolicy(c.req.param('projectId'), environment),
+				});
+			});
+
+			app.put('/v1/projects/:projectId/work-policy', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.environment || typeof body.schedule !== 'object' || !body.schedule) {
+					return jsonError(c, 400, 'environment and schedule are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.upsertProjectWorkPolicy(c.req.param('projectId'), {
+						environment: String(body.environment),
+						schedule: body.schedule,
+						dailyTaskCreditBudget: Number.isFinite(Number(body.dailyTaskCreditBudget)) ? Number(body.dailyTaskCreditBudget) : 0,
+						maxQueuedTasks: Number.isFinite(Number(body.maxQueuedTasks)) ? Number(body.maxQueuedTasks) : 0,
+						maxQueuedCredits: Number.isFinite(Number(body.maxQueuedCredits)) ? Number(body.maxQueuedCredits) : 0,
+						autoscale: typeof body.autoscale === 'object' && body.autoscale ? body.autoscale : {},
+						creditWeights: Array.isArray(body.creditWeights) ? body.creditWeights : [],
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/priority-overrides', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.listProjectPriorityOverrides(c.req.param('projectId')),
+				});
+			});
+
+			app.post('/v1/projects/:projectId/priority-overrides', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.model || !body.subjectId) {
+					return jsonError(c, 400, 'model and subjectId are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.upsertProjectPriorityOverride(c.req.param('projectId'), {
+						id: typeof body.id === 'string' ? body.id : undefined,
+						model: String(body.model),
+						subjectId: String(body.subjectId),
+						priority: Number.isFinite(Number(body.priority)) ? Number(body.priority) : 0,
+						estimatedCredits: Number.isFinite(Number(body.estimatedCredits)) ? Number(body.estimatedCredits) : null,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/priority-snapshots', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const workDayId = typeof c.req.query('workDayId') === 'string' ? c.req.query('workDayId') : null;
+				return c.json({
+					ok: true,
+					payload: await store.listProjectPrioritySnapshots(c.req.param('projectId'), workDayId),
+				});
+			});
+
+			app.post('/v1/projects/:projectId/agent-pools/:poolId/registrations', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const body = await c.req.json().catch(() => ({}));
+				return c.json({
+					ok: true,
+					payload: await store.recordAgentPoolRegistration(c.req.param('projectId'), {
+						poolId: c.req.param('poolId'),
+						id: typeof body.id === 'string' ? body.id : undefined,
+						runnerId: typeof body.runnerId === 'string' ? body.runnerId : null,
+						managerId: typeof body.managerId === 'string' ? body.managerId : null,
+						serviceName: typeof body.serviceName === 'string' ? body.serviceName : null,
+						heartbeatAt: typeof body.heartbeatAt === 'string' ? body.heartbeatAt : null,
+						desiredWorkers: Number.isFinite(Number(body.desiredWorkers)) ? Number(body.desiredWorkers) : null,
+						observedQueueDepth: Number.isFinite(Number(body.observedQueueDepth)) ? Number(body.observedQueueDepth) : null,
+						observedActiveLeases: Number.isFinite(Number(body.observedActiveLeases)) ? Number(body.observedActiveLeases) : null,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
 				});
 			});
 
@@ -572,6 +905,270 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
+			app.put('/v1/projects/:projectId/runner/environments/:environment', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const body = await c.req.json().catch(() => ({}));
+				return c.json({
+					ok: true,
+					payload: await store.upsertProjectEnvironment(c.req.param('projectId'), {
+						environment: c.req.param('environment'),
+						deploymentProfile: typeof body.deploymentProfile === 'string' ? body.deploymentProfile : 'self_hosted_project',
+						baseUrl: typeof body.baseUrl === 'string' ? body.baseUrl : null,
+						cloudflareAccountId: typeof body.cloudflareAccountId === 'string' ? body.cloudflareAccountId : null,
+						pagesProjectName: typeof body.pagesProjectName === 'string' ? body.pagesProjectName : null,
+						workerName: typeof body.workerName === 'string' ? body.workerName : null,
+						r2BucketName: typeof body.r2BucketName === 'string' ? body.r2BucketName : null,
+						d1DatabaseName: typeof body.d1DatabaseName === 'string' ? body.d1DatabaseName : null,
+						queueName: typeof body.queueName === 'string' ? body.queueName : null,
+						railwayProjectName: typeof body.railwayProjectName === 'string' ? body.railwayProjectName : null,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.post('/v1/projects/:projectId/runner/resources', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.environment || !body.provider || !body.resourceKind || !body.logicalName) {
+					return jsonError(c, 400, 'environment, provider, resourceKind, and logicalName are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.upsertProjectInfrastructureResource(c.req.param('projectId'), {
+						environment: String(body.environment),
+						provider: String(body.provider),
+						resourceKind: String(body.resourceKind),
+						logicalName: String(body.logicalName),
+						locator: typeof body.locator === 'string' ? body.locator : null,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.post('/v1/projects/:projectId/runner/deployments', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.environment || !body.deploymentKind) {
+					return jsonError(c, 400, 'environment and deploymentKind are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.createProjectDeployment(c.req.param('projectId'), {
+						environment: String(body.environment),
+						deploymentKind: String(body.deploymentKind),
+						status: typeof body.status === 'string' ? body.status : 'pending',
+						sourceRef: typeof body.sourceRef === 'string' ? body.sourceRef : null,
+						releaseTag: typeof body.releaseTag === 'string' ? body.releaseTag : null,
+						commitSha: typeof body.commitSha === 'string' ? body.commitSha : null,
+						triggeredByType: typeof body.triggeredByType === 'string' ? body.triggeredByType : 'project_runner',
+						triggeredById: typeof body.triggeredById === 'string' ? body.triggeredById : runnerAccess.runner.tokenDigest,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+						startedAt: typeof body.startedAt === 'string' ? body.startedAt : null,
+						finishedAt: typeof body.finishedAt === 'string' ? body.finishedAt : null,
+					}),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/runner/deployments', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const environment = typeof c.req.query('environment') === 'string' ? c.req.query('environment') : null;
+				return c.json({
+					ok: true,
+					payload: await store.listProjectDeployments(c.req.param('projectId'), environment),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/runner/health', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const environment = typeof c.req.query('environment') === 'string' ? c.req.query('environment') : 'staging';
+				const [resources, deployments, pools, workdays] = await Promise.all([
+					store.listProjectInfrastructureResources(c.req.param('projectId'), environment),
+					store.listProjectDeployments(c.req.param('projectId'), environment),
+					store.listAgentPools(c.req.param('projectId'), environment),
+					store.listProjectWorkdaySummaries(c.req.param('projectId'), environment),
+				]);
+				const poolDetails = await Promise.all(pools.map(async (pool) => ({
+					pool,
+					latestRegistration: (await store.listAgentPoolRegistrations(pool.id))[0] ?? null,
+					latestScaleDecision: (await store.listAgentPoolScaleDecisions(pool.id))[0] ?? null,
+				})));
+				return c.json({
+					ok: true,
+					payload: {
+						environment,
+						resources,
+						deployments: deployments.slice(0, 10),
+						pools: poolDetails,
+						workdays: workdays.slice(0, 5),
+					},
+				});
+			});
+
+			app.post('/v1/projects/:projectId/runner/agent-pools/:poolName/register', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const project = await store.getProject(c.req.param('projectId'));
+				if (!project) {
+					return jsonError(c, 404, `Unknown project "${c.req.param('projectId')}".`);
+				}
+				const body = await c.req.json().catch(() => ({}));
+				const environment = typeof body.environment === 'string' ? body.environment : 'local';
+				const pool = await store.upsertAgentPool(c.req.param('projectId'), {
+					teamId: typeof body.teamId === 'string' ? body.teamId : project.teamId,
+					environment,
+					name: c.req.param('poolName'),
+					registrationIdentity: typeof body.registrationIdentity === 'string'
+						? body.registrationIdentity
+						: typeof body.managerId === 'string'
+							? body.managerId
+							: typeof body.runnerId === 'string'
+								? body.runnerId
+								: c.req.param('poolName'),
+					serviceBaseUrl: typeof body.serviceBaseUrl === 'string' ? body.serviceBaseUrl : null,
+					status: typeof body.status === 'string' ? body.status : 'active',
+					autoscale: typeof body.autoscale === 'object' && body.autoscale
+						? {
+							minWorkers: Number(body.autoscale.minWorkers ?? 0),
+							maxWorkers: Number(body.autoscale.maxWorkers ?? 1),
+							targetQueueDepth: Number(body.autoscale.targetQueueDepth ?? 1),
+							cooldownSeconds: Number(body.autoscale.cooldownSeconds ?? 60),
+						}
+						: undefined,
+					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+				});
+				const registration = await store.recordAgentPoolRegistration(c.req.param('projectId'), {
+					poolId: pool.id,
+					runnerId: typeof body.runnerId === 'string' ? body.runnerId : null,
+					managerId: typeof body.managerId === 'string' ? body.managerId : null,
+					serviceName: typeof body.serviceName === 'string' ? body.serviceName : 'manager',
+					heartbeatAt: typeof body.heartbeatAt === 'string' ? body.heartbeatAt : null,
+					desiredWorkers: Number.isFinite(Number(body.desiredWorkers)) ? Number(body.desiredWorkers) : null,
+					observedQueueDepth: Number.isFinite(Number(body.observedQueueDepth)) ? Number(body.observedQueueDepth) : null,
+					observedActiveLeases: Number.isFinite(Number(body.observedActiveLeases)) ? Number(body.observedActiveLeases) : null,
+					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+				});
+				return c.json({
+					ok: true,
+					payload: {
+						pool,
+						registration,
+					},
+				});
+			});
+
+			app.post('/v1/projects/:projectId/runner/agent-pools/:poolName/scale-decisions', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const poolName = c.req.param('poolName');
+				const pools = await store.listAgentPools(c.req.param('projectId'));
+				const pool = pools.find((entry) => entry.name === poolName);
+				if (!pool) {
+					return jsonError(c, 404, `Unknown agent pool "${poolName}".`);
+				}
+				const body = await c.req.json().catch(() => ({}));
+				if (!Number.isFinite(Number(body.desiredWorkers))) {
+					return jsonError(c, 400, 'desiredWorkers is required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.recordAgentPoolScaleDecision(c.req.param('projectId'), {
+						poolId: pool.id,
+						environment: typeof body.environment === 'string' ? body.environment : pool.environment,
+						workDayId: typeof body.workDayId === 'string' ? body.workDayId : null,
+						desiredWorkers: Number(body.desiredWorkers),
+						observedQueueDepth: Number.isFinite(Number(body.observedQueueDepth)) ? Number(body.observedQueueDepth) : 0,
+						observedActiveLeases: Number.isFinite(Number(body.observedActiveLeases)) ? Number(body.observedActiveLeases) : 0,
+						reason: typeof body.reason === 'string' ? body.reason : 'reconcile',
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/workdays', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const environment = typeof c.req.query('environment') === 'string' ? c.req.query('environment') : null;
+				return c.json({
+					ok: true,
+					payload: await store.listProjectWorkdaySummaries(c.req.param('projectId'), environment),
+				});
+			});
+
+			app.post('/v1/projects/:projectId/runner/workdays', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.environment || !body.workDayId || !body.summary || typeof body.summary !== 'object') {
+					return jsonError(c, 400, 'environment, workDayId, and summary are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.createProjectWorkdaySummary(c.req.param('projectId'), {
+						environment: String(body.environment),
+						workDayId: String(body.workDayId),
+						kind: typeof body.kind === 'string' ? body.kind : 'workday_summary',
+						state: typeof body.state === 'string' ? body.state : null,
+						startedAt: typeof body.startedAt === 'string' ? body.startedAt : null,
+						endedAt: typeof body.endedAt === 'string' ? body.endedAt : null,
+						summary: body.summary,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/workdays/:workDayId/task-credits', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.listProjectTaskCredits(c.req.param('projectId'), c.req.param('workDayId')),
+				});
+			});
+
+			app.post('/v1/projects/:projectId/runner/priority-snapshots', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.snapshot || typeof body.snapshot !== 'object') {
+					return jsonError(c, 400, 'snapshot is required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.createProjectPrioritySnapshot(c.req.param('projectId'), {
+						id: typeof body.id === 'string' ? body.id : undefined,
+						workDayId: typeof body.workDayId === 'string' ? body.workDayId : null,
+						snapshot: body.snapshot,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+						generatedAt: typeof body.generatedAt === 'string' ? body.generatedAt : null,
+					}),
+				});
+			});
+
+			app.post('/v1/projects/:projectId/runner/task-credits', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.workDayId || !body.phase || !Number.isFinite(Number(body.credits))) {
+					return jsonError(c, 400, 'workDayId, phase, and credits are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.recordProjectTaskCredits(c.req.param('projectId'), {
+						id: typeof body.id === 'string' ? body.id : undefined,
+						workDayId: String(body.workDayId),
+						taskId: typeof body.taskId === 'string' ? body.taskId : null,
+						phase: String(body.phase),
+						credits: Number(body.credits),
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
 			app.post('/v1/jobs/:jobId/progress', async (c) => {
 				const token = bearerTokenFromRequest(c.req.raw);
 				if (!token) {
@@ -643,15 +1240,174 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
-			app.get('/v1/templates', (c) => c.json({
-				ok: true,
-				payload: loadTemplateCatalog(runtime.resolved.config),
-			}));
+			app.get('/v1/catalog', async (c) => {
+				const kind = typeof c.req.query('kind') === 'string' ? c.req.query('kind') : undefined;
+				const teamId = typeof c.req.query('teamId') === 'string' ? c.req.query('teamId') : undefined;
+				const slug = typeof c.req.query('slug') === 'string' ? c.req.query('slug') : undefined;
+				return c.json({
+					ok: true,
+					payload: await store.listCatalogItems(c.get('principal'), {
+						kind,
+						teamId,
+						slug,
+					}),
+				});
+			});
 
-			app.get('/v1/knowledge-packs', async (c) => c.json({
-				ok: true,
-				payload: await store.listKnowledgePacks(c.get('principal')),
-			}));
+			app.get('/v1/catalog/:itemId', async (c) => {
+				const item = await store.getCatalogItem(c.req.param('itemId'));
+				if (!item) {
+					return jsonError(c, 404, `Unknown catalog item "${c.req.param('itemId')}".`);
+				}
+				const canAccess = await store.principalCanAccessCatalogItem(c.get('principal'), item);
+				if (!canAccess) {
+					return jsonError(c, 404, `Unknown catalog item "${c.req.param('itemId')}".`);
+				}
+				return c.json({ ok: true, payload: item });
+			});
+
+			app.get('/v1/catalog/:itemId/artifacts', async (c) => {
+				const item = await store.getCatalogItem(c.req.param('itemId'));
+				if (!item) {
+					return jsonError(c, 404, `Unknown catalog item "${c.req.param('itemId')}".`);
+				}
+				const canAccess = await store.principalCanAccessCatalogItem(c.get('principal'), item);
+				if (!canAccess) {
+					return jsonError(c, 404, `Unknown catalog item "${c.req.param('itemId')}".`);
+				}
+				return c.json({
+					ok: true,
+					payload: await store.listCatalogArtifactVersions(item.id),
+				});
+			});
+
+			app.post('/v1/teams/:teamId/catalog-items', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.kind || !body.slug || !body.title) {
+					return jsonError(c, 400, 'kind, slug, and title are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.upsertCatalogItem(c.req.param('teamId'), {
+						id: typeof body.id === 'string' ? body.id : undefined,
+						kind: String(body.kind),
+						slug: String(body.slug),
+						title: String(body.title),
+						summary: typeof body.summary === 'string' ? body.summary : null,
+						visibility: typeof body.visibility === 'string' ? body.visibility : 'private',
+						listingEnabled: body.listingEnabled === true,
+						offerMode: typeof body.offerMode === 'string' ? body.offerMode : 'private',
+						manifestKey: typeof body.manifestKey === 'string' ? body.manifestKey : null,
+						artifactKey: typeof body.artifactKey === 'string' ? body.artifactKey : null,
+						searchText: typeof body.searchText === 'string' ? body.searchText : null,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.post('/v1/catalog/:itemId/artifacts', async (c) => {
+				const access = await requireCatalogItemAccess(c, store, c.req.param('itemId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.kind || !body.version || !body.contentKey) {
+					return jsonError(c, 400, 'kind, version, and contentKey are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.upsertCatalogArtifactVersion(access.item.teamId, access.item.id, {
+						id: typeof body.id === 'string' ? body.id : undefined,
+						kind: String(body.kind),
+						version: String(body.version),
+						contentKey: String(body.contentKey),
+						manifestKey: typeof body.manifestKey === 'string' ? body.manifestKey : null,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+						publishedAt: typeof body.publishedAt === 'string' ? body.publishedAt : null,
+					}),
+				});
+			});
+
+			app.get('/v1/teams/:teamId/storage', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.getTeamStorageLocator(c.req.param('teamId')),
+				});
+			});
+
+			app.put('/v1/teams/:teamId/storage', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.bucketName || !body.manifestKeyTemplate || !body.previewRootTemplate) {
+					return jsonError(c, 400, 'bucketName, manifestKeyTemplate, and previewRootTemplate are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.upsertTeamStorageLocator(c.req.param('teamId'), {
+						bucketName: String(body.bucketName),
+						manifestKeyTemplate: String(body.manifestKeyTemplate),
+						previewRootTemplate: String(body.previewRootTemplate),
+						publicBaseUrl: typeof body.publicBaseUrl === 'string' ? body.publicBaseUrl : null,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.post('/v1/teams/:teamId/content-previews', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.previewId) {
+					return jsonError(c, 400, 'previewId is required.');
+				}
+				const expiresAt = typeof body.expiresAt === 'string'
+					? body.expiresAt
+					: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+				const secret = String(runtime.env?.TREESEED_EDITORIAL_PREVIEW_SECRET ?? runtime.resolved.config.authSecret ?? '');
+				if (!secret) {
+					return jsonError(c, 500, 'Editorial preview secret is not configured.');
+				}
+				const token = signEditorialPreviewToken({
+					teamId: c.req.param('teamId'),
+					previewId: String(body.previewId),
+					expiresAt,
+				}, secret);
+				return c.json({
+					ok: true,
+					payload: {
+						teamId: c.req.param('teamId'),
+						previewId: String(body.previewId),
+						expiresAt,
+						token,
+						previewUrl: `${runtime.resolved.config.baseUrl ?? ''}?preview=${encodeURIComponent(token)}`,
+					},
+				});
+			});
+
+			app.get('/v1/templates', async (c) => {
+				const catalog = await store.listCatalogItems(c.get('principal'), { kind: 'template' });
+				if (catalog.length > 0) {
+					return c.json({ ok: true, payload: { items: catalog } });
+				}
+				return c.json({
+					ok: true,
+					payload: loadTemplateCatalog(runtime.resolved.config),
+				});
+			});
+
+			app.get('/v1/knowledge-packs', async (c) => {
+				const catalog = await store.listCatalogItems(c.get('principal'), { kind: 'knowledge_pack' });
+				if (catalog.length > 0) {
+					return c.json({ ok: true, payload: catalog });
+				}
+				return c.json({
+					ok: true,
+					payload: await store.listKnowledgePacks(c.get('principal')),
+				});
+			});
 
 			app.post('/v1/knowledge-packs', async (c) => {
 				const body = await c.req.json().catch(() => ({}));

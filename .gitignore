@@ -12,5 +12,6 @@ coverage/
 scripts/.ts-run-*.mjs
 npm-debug.log*
 public/books/*.md
+public/books/*.json
 public/__treeseed/*.json
 .codex

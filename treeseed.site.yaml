@@ -2,6 +2,11 @@ name: TreeSeed Market
 slug: treeseed-market
 siteUrl: https://market.treeseed.ai
 contactEmail: hello@treeseed.ai
+hosting:
+  kind: market_control_plane
+  registration: none
+  marketBaseUrl: https://api.treeseed.ai
+  projectId: treeseed-market
 cloudflare:
   accountId: replace-with-cloudflare-account-id
   workerName: treeseed-market
@@ -9,6 +14,18 @@ cloudflare:
   dlqName: agent-work-dlq
   d1Binding: SITE_DATA_DB
   queueBinding: AGENT_WORK_QUEUE
+  pages:
+    projectName: treeseed-market
+    previewProjectName: treeseed-market-staging
+    productionBranch: main
+    stagingBranch: staging
+    buildOutputDir: dist
+  r2:
+    binding: TREESEED_CONTENT_BUCKET
+    bucketName: treeseed-market-content
+    manifestKeyTemplate: teams/{teamId}/published/common.json
+    previewRootTemplate: teams/{teamId}/previews
+    previewTtlHours: 168
 surfaces:
   web:
     enabled: true
@@ -34,6 +51,15 @@ services:
     environments:
       local:
         baseUrl: http://127.0.0.1:3000
+  manager:
+    enabled: true
+    provider: railway
+    railway:
+      serviceName: treeseed-manager
+      rootDir: .
+      buildCommand: npm run build:api
+      startCommand: node ./packages/core/dist/services/manager.js
+      schedule: '*/5 * * * *'
   worker:
     enabled: true
     provider: railway
@@ -42,6 +68,14 @@ services:
       rootDir: .
       buildCommand: npm run build:api
       startCommand: node ./packages/core/dist/services/worker.js
+  agents:
+    enabled: true
+    provider: railway
+    railway:
+      serviceName: treeseed-agents
+      rootDir: .
+      buildCommand: npm run build:api
+      startCommand: node ./packages/core/dist/services/agents.js
   runner:
     enabled: true
     provider: railway
@@ -58,6 +92,7 @@ services:
       rootDir: .
       buildCommand: npm run build:api
       startCommand: node ./packages/core/dist/services/workday-start.js
+      schedule: '0 9 * * 1-5'
   workdayReport:
     enabled: true
     provider: railway
@@ -66,6 +101,7 @@ services:
       rootDir: .
       buildCommand: npm run build:api
       startCommand: node ./packages/core/dist/services/workday-report.js
+      schedule: '5 17 * * 1-5'
 plugins:
   - package: '@treeseed/core/plugin-default'
 providers:
@@ -79,6 +115,8 @@ providers:
     research: stub
   deploy: cloudflare
   content:
+    runtime: team_scoped_r2_overlay
+    publish: team_scoped_r2_overlay
     docs: default
   site: default
 smtp:

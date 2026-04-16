@@ -1,63 +1,99 @@
 ---
 import { render } from 'astro:content';
-import { getTemplateProductBySlug } from '../../lib/market/templates.js';
-import { getLiveTemplateProducts } from '../../lib/market/templates.js';
-
-export async function getStaticPaths() {
-	const templates = await getLiveTemplateProducts();
-	return templates.map((entry) => ({
-		params: { slug: entry.data.slug },
-	}));
-}
+import { resolveSiteTemplate } from '@treeseed/core/templates';
+import { createMarketTemplateCatalogProvider } from '../../lib/market/catalog.js';
 
 const slug = Astro.params.slug ?? '';
-const entry = await getTemplateProductBySlug(slug);
+const template = await resolveSiteTemplate(slug, {
+	locals: Astro.locals,
+	catalogProvider: createMarketTemplateCatalogProvider(Astro.locals),
+});
+if (!template.rendered) {
+	Astro.response.status = 404;
+}
 
-if (!entry) {
+if (template.rendered && !template.item) {
 	return Astro.redirect('/templates/');
 }
 
-const { Content } = await render(entry);
+const contentRender = template.item?.contentEntry ? await render(template.item.contentEntry) : null;
+const Content = contentRender?.Content;
 ---
 
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>{entry.data.title}</title>
+		<title>{template.item?.title}</title>
 	</head>
 	<body>
+		{template.rendered ? (
+			<main class="template-shell">
+				<p><a href="/templates/">Templates</a></p>
+				<header>
+					<p class="template-eyebrow">
+						{`${template.item?.category ?? 'Template'} · ${template.item?.publisherName ?? 'Unknown publisher'}`}
+					</p>
+					<h1>{template.item?.title}</h1>
+					<p>{template.item?.description}</p>
+				</header>
+				<section class="template-panel">
+					<h2>Compatibility</h2>
+					<ul>
+						<li>Template version: {template.item?.compatibility.templateVersion ?? 'unknown'}</li>
+						<li>Template API: {template.item?.compatibility.templateApiVersion ?? 'unknown'}</li>
+						<li>Minimum CLI: {template.item?.compatibility.minCliVersion ?? 'unknown'}</li>
+						<li>Minimum core: {template.item?.compatibility.minCoreVersion ?? 'unknown'}</li>
+					</ul>
+				</section>
+				<section class="template-panel">
+					<h2>Fulfillment</h2>
+					<ul>
+						<li>Mode: {template.item?.fulfillment.mode ?? 'unknown'}</li>
+						<li>Source: {template.item?.fulfillment.sourceLabel ?? 'unknown'}</li>
+						{template.item?.source === 'catalog' ? (
+							<>
+								{template.item.fulfillment.artifactKey ? <li>Artifact key: {template.item.fulfillment.artifactKey}</li> : null}
+								{template.item.fulfillment.manifestKey ? <li>Manifest key: {template.item.fulfillment.manifestKey}</li> : null}
+								<li>Offer: {template.item.priceModel?.replaceAll('_', ' ') ?? 'free'}</li>
+							</>
+						) : template.item?.fulfillment.objectKey ? (
+							<>
+								<li>Object key: {template.item.fulfillment.objectKey}</li>
+								<li>Artifact version: {template.item.fulfillment.version}</li>
+								{template.item.fulfillment.publicUrl ? (
+									<li>Public URL: {template.item.fulfillment.publicUrl}</li>
+								) : null}
+							</>
+						) : (
+							<>
+								<li>Repository: {template.item?.fulfillment.repoUrl}</li>
+								<li>Directory: {template.item?.fulfillment.directory}</li>
+								<li>Ref: {template.item?.fulfillment.ref}</li>
+							</>
+						)}
+						{template.item?.source === 'catalog' ? null : <li>Hooks policy: {template.item?.fulfillment.hooksPolicy}</li>}
+						{template.item?.source === 'catalog' ? null : <li>Supports reconcile: {template.item?.fulfillment.supportsReconcile ? 'yes' : 'no'}</li>}
+						{template.item?.source === 'catalog' ? null : <li>Offer: {template.item?.priceModel?.replaceAll('_', ' ') ?? 'free'}</li>}
+					</ul>
+				</section>
+				{Content ? (
+				<article class="template-panel">
+						<Content />
+					</article>
+				) : template.item?.source === 'catalog' ? (
+					<article class="template-panel">
+						<h2>Catalog Entry</h2>
+						<p>{template.item.summary ?? 'This template is managed through the central market catalog.'}</p>
+					</article>
+				) : null}
+			</main>
+		) : (
 		<main class="template-shell">
-			<p><a href="/templates/">Templates</a></p>
-			<header>
-				<p class="template-eyebrow">{entry.data.category} · {entry.data.publisher.name}</p>
-				<h1>{entry.data.title}</h1>
-				<p>{entry.data.description}</p>
-			</header>
-			<section class="template-panel">
-				<h2>Compatibility</h2>
-				<ul>
-					<li>Template version: {entry.data.templateVersion}</li>
-					<li>Template API: {entry.data.templateApiVersion}</li>
-					<li>Minimum CLI: {entry.data.minCliVersion}</li>
-					<li>Minimum core: {entry.data.minCoreVersion}</li>
-				</ul>
-			</section>
-			<section class="template-panel">
-				<h2>Fulfillment</h2>
-				<ul>
-					<li>Source: Git</li>
-					<li>Repository: {entry.data.fulfillment.source.repoUrl}</li>
-					<li>Directory: {entry.data.fulfillment.source.directory}</li>
-					<li>Ref: {entry.data.fulfillment.source.ref}</li>
-					<li>Hooks policy: {entry.data.fulfillment.hooksPolicy}</li>
-					<li>Supports reconcile: {entry.data.fulfillment.supportsReconcile ? 'yes' : 'no'}</li>
-				</ul>
-			</section>
-			<article class="template-panel">
-				<Content />
-			</article>
+			<h1>Not found</h1>
+			<p>The templates model is disabled for this site.</p>
 		</main>
+		)}
 	</body>
 </html>
 

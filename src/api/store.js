@@ -5,6 +5,9 @@ import { readFileSync } from 'node:fs';
 const migrationSql = [
 	'../../migrations/0007_site_web_sessions.sql',
 	'../../migrations/0008_market_control_plane.sql',
+	'../../migrations/0009_team_content_catalog.sql',
+	'../../migrations/0010_project_hosting_topology.sql',
+	'../../migrations/0011_control_plane_reporting.sql',
 ]
 	.map((relativePath) => fileURLToPath(new URL(relativePath, import.meta.url)))
 	.map((migrationPath) => readFileSync(migrationPath, 'utf8'))
@@ -46,6 +49,16 @@ function principalIsAdmin(principal) {
 			|| principal.roles?.includes?.('market_admin')
 		),
 	);
+}
+
+function projectConnectionModeFromHosting(kind, registration = 'none') {
+	if (kind === 'hosted_project') {
+		return 'hosted';
+	}
+	if (kind === 'self_hosted_project') {
+		return registration === 'optional' ? 'hybrid' : 'self_hosted';
+	}
+	return 'hosted';
 }
 
 function serializeTeam(row) {
@@ -177,6 +190,274 @@ function serializeKnowledgePack(row) {
 	};
 }
 
+function serializeTeamStorageLocator(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		bucketName: row.bucket_name,
+		manifestKeyTemplate: row.manifest_key_template,
+		previewRootTemplate: row.preview_root_template,
+		publicBaseUrl: row.public_base_url,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeCatalogItem(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		kind: row.kind,
+		slug: row.slug,
+		title: row.title,
+		summary: row.summary,
+		visibility: row.visibility,
+		listingEnabled: Boolean(row.listing_enabled),
+		offerMode: row.offer_mode,
+		manifestKey: row.manifest_key,
+		artifactKey: row.artifact_key,
+		searchText: row.search_text,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeCatalogArtifactVersion(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		itemId: row.item_id,
+		teamId: row.team_id,
+		kind: row.kind,
+		version: row.version,
+		contentKey: row.content_key,
+		manifestKey: row.manifest_key,
+		metadata: parseJson(row.metadata_json, {}),
+		publishedAt: row.published_at,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeProjectHosting(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		kind: row.hosting_kind,
+		registration: row.registration,
+		marketBaseUrl: row.market_base_url,
+		sourceRepoOwner: row.source_repo_owner,
+		sourceRepoName: row.source_repo_name,
+		sourceRepoUrl: row.source_repo_url,
+		sourceRepoWorkflowPath: row.source_repo_workflow_path,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeProjectEnvironment(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		environment: row.environment,
+		deploymentProfile: row.deployment_profile,
+		baseUrl: row.base_url,
+		cloudflareAccountId: row.cloudflare_account_id,
+		pagesProjectName: row.pages_project_name,
+		workerName: row.worker_name,
+		r2BucketName: row.r2_bucket_name,
+		d1DatabaseName: row.d1_database_name,
+		queueName: row.queue_name,
+		railwayProjectName: row.railway_project_name,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeProjectInfrastructureResource(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		environment: row.environment,
+		provider: row.provider,
+		resourceKind: row.resource_kind,
+		logicalName: row.logical_name,
+		locator: row.locator,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeProjectDeployment(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		environment: row.environment,
+		deploymentKind: row.deployment_kind,
+		status: row.status,
+		sourceRef: row.source_ref,
+		releaseTag: row.release_tag,
+		commitSha: row.commit_sha,
+		triggeredByType: row.triggered_by_type,
+		triggeredById: row.triggered_by_id,
+		metadata: parseJson(row.metadata_json, {}),
+		startedAt: row.started_at,
+		finishedAt: row.finished_at,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeAgentPool(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		teamId: row.team_id,
+		environment: row.environment,
+		name: row.name,
+		registrationIdentity: row.registration_identity,
+		serviceBaseUrl: row.service_base_url,
+		status: row.status,
+		autoscale: {
+			minWorkers: Number(row.min_workers ?? 0),
+			maxWorkers: Number(row.max_workers ?? 1),
+			targetQueueDepth: Number(row.target_queue_depth ?? 1),
+			cooldownSeconds: Number(row.cooldown_seconds ?? 60),
+		},
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeAgentPoolRegistration(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		poolId: row.pool_id,
+		projectId: row.project_id,
+		runnerId: row.runner_id,
+		managerId: row.manager_id,
+		serviceName: row.service_name,
+		heartbeatAt: row.heartbeat_at,
+		desiredWorkers: row.desired_workers === null || row.desired_workers === undefined ? null : Number(row.desired_workers),
+		observedQueueDepth: row.observed_queue_depth === null || row.observed_queue_depth === undefined ? null : Number(row.observed_queue_depth),
+		observedActiveLeases: row.observed_active_leases === null || row.observed_active_leases === undefined ? null : Number(row.observed_active_leases),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeAgentPoolScaleDecision(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		poolId: row.pool_id,
+		projectId: row.project_id,
+		environment: row.environment,
+		desiredWorkers: Number(row.desired_workers ?? 0),
+		observedQueueDepth: Number(row.observed_queue_depth ?? 0),
+		observedActiveLeases: Number(row.observed_active_leases ?? 0),
+		workDayId: row.work_day_id,
+		reason: row.reason,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeProjectWorkdaySummary(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		environment: row.environment,
+		workDayId: row.work_day_id,
+		kind: row.kind,
+		state: row.state,
+		startedAt: row.started_at,
+		endedAt: row.ended_at,
+		summary: parseJson(row.summary_json, {}),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeWorkPolicy(row) {
+	if (!row) return null;
+	return {
+		projectId: row.project_id,
+		environment: row.environment,
+		schedule: parseJson(row.schedule_json, { timezone: 'UTC', windows: [] }),
+		dailyTaskCreditBudget: Number(row.daily_task_credit_budget ?? 0),
+		maxQueuedTasks: Number(row.max_queued_tasks ?? 0),
+		maxQueuedCredits: Number(row.max_queued_credits ?? 0),
+		autoscale: parseJson(row.autoscale_json, {}),
+		creditWeights: parseJson(row.credit_weights_json, []),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializePriorityOverride(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		model: row.model,
+		subjectId: row.subject_id,
+		priority: Number(row.priority ?? 0),
+		estimatedCredits: row.estimated_credits === null || row.estimated_credits === undefined ? null : Number(row.estimated_credits),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializePrioritySnapshot(row) {
+	if (!row) return null;
+	const snapshot = parseJson(row.snapshot_json, {});
+	return {
+		...snapshot,
+		id: row.id,
+		projectId: row.project_id,
+		workDayId: row.work_day_id,
+		metadata: parseJson(row.metadata_json, {}),
+		generatedAt: row.generated_at,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeTaskCreditLedgerEntry(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		workDayId: row.work_day_id,
+		taskId: row.task_id,
+		phase: row.phase,
+		credits: Number(row.credits ?? 0),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+	};
+}
+
 export class MarketControlPlaneStore {
 	constructor(config, db) {
 		this.config = config;
@@ -232,6 +513,14 @@ export class MarketControlPlaneStore {
 		if (principalIsAdmin(principal)) return true;
 		const teamIds = await this.teamIdsForPrincipal(principal);
 		return teamIds.includes(teamId);
+	}
+
+	async principalCanAccessCatalogItem(principal, item) {
+		if (!item) return false;
+		if (item.visibility === 'public') {
+			return item.listingEnabled !== false;
+		}
+		return this.principalCanAccessTeam(principal, item.teamId);
 	}
 
 	async authenticateTeamApiKey(token) {
@@ -344,6 +633,202 @@ export class MarketControlPlaneStore {
 		};
 	}
 
+	async getTeamStorageLocator(teamId) {
+		await this.ensureInitialized();
+		return serializeTeamStorageLocator(await this.first(`SELECT * FROM team_storage_locators WHERE team_id = ?`, [teamId]));
+	}
+
+	async upsertTeamStorageLocator(teamId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const existing = await this.first(`SELECT * FROM team_storage_locators WHERE team_id = ?`, [teamId]);
+		if (existing) {
+			await this.run(
+				`UPDATE team_storage_locators
+				 SET bucket_name = ?, manifest_key_template = ?, preview_root_template = ?, public_base_url = ?, metadata_json = ?, updated_at = ?
+				 WHERE team_id = ?`,
+				[
+					input.bucketName,
+					input.manifestKeyTemplate,
+					input.previewRootTemplate,
+					input.publicBaseUrl ?? null,
+					JSON.stringify(input.metadata ?? parseJson(existing.metadata_json, {})),
+					timestamp,
+					teamId,
+				],
+			);
+		} else {
+			await this.run(
+				`INSERT INTO team_storage_locators (
+					id, team_id, bucket_name, manifest_key_template, preview_root_template, public_base_url, metadata_json, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[
+					randomUUID(),
+					teamId,
+					input.bucketName,
+					input.manifestKeyTemplate,
+					input.previewRootTemplate,
+					input.publicBaseUrl ?? null,
+					JSON.stringify(input.metadata ?? {}),
+					timestamp,
+					timestamp,
+				],
+			);
+		}
+		return this.getTeamStorageLocator(teamId);
+	}
+
+	async upsertCatalogItem(teamId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		const existing = await this.first(`SELECT * FROM catalog_items WHERE id = ?`, [id]);
+		if (existing) {
+			await this.run(
+				`UPDATE catalog_items
+				 SET team_id = ?, kind = ?, slug = ?, title = ?, summary = ?, visibility = ?, listing_enabled = ?, offer_mode = ?, manifest_key = ?, artifact_key = ?, search_text = ?, metadata_json = ?, updated_at = ?
+				 WHERE id = ?`,
+				[
+					teamId,
+					input.kind,
+					input.slug,
+					input.title,
+					input.summary ?? null,
+					input.visibility ?? 'private',
+					input.listingEnabled === true ? 1 : 0,
+					input.offerMode ?? 'private',
+					input.manifestKey ?? null,
+					input.artifactKey ?? null,
+					input.searchText ?? null,
+					JSON.stringify(input.metadata ?? {}),
+					timestamp,
+					id,
+				],
+			);
+		} else {
+			await this.run(
+				`INSERT INTO catalog_items (
+					id, team_id, kind, slug, title, summary, visibility, listing_enabled, offer_mode, manifest_key, artifact_key, search_text, metadata_json, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[
+					id,
+					teamId,
+					input.kind,
+					input.slug,
+					input.title,
+					input.summary ?? null,
+					input.visibility ?? 'private',
+					input.listingEnabled === true ? 1 : 0,
+					input.offerMode ?? 'private',
+					input.manifestKey ?? null,
+					input.artifactKey ?? null,
+					input.searchText ?? null,
+					JSON.stringify(input.metadata ?? {}),
+					timestamp,
+					timestamp,
+				],
+			);
+		}
+		return serializeCatalogItem(await this.first(`SELECT * FROM catalog_items WHERE id = ?`, [id]));
+	}
+
+	async getCatalogItem(itemId) {
+		await this.ensureInitialized();
+		return serializeCatalogItem(await this.first(`SELECT * FROM catalog_items WHERE id = ?`, [itemId]));
+	}
+
+	async getCatalogItemBySlug(kind, slug) {
+		await this.ensureInitialized();
+		return serializeCatalogItem(await this.first(
+			`SELECT * FROM catalog_items WHERE kind = ? AND slug = ? LIMIT 1`,
+			[kind, slug],
+		));
+	}
+
+	async listCatalogItems(principal, filters = {}) {
+		await this.ensureInitialized();
+		const clauses = [];
+		const params = [];
+		if (filters.kind) {
+			clauses.push('kind = ?');
+			params.push(filters.kind);
+		}
+		if (filters.teamId) {
+			clauses.push('team_id = ?');
+			params.push(filters.teamId);
+		}
+		if (filters.slug) {
+			clauses.push('slug = ?');
+			params.push(filters.slug);
+		}
+		const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+		const rows = await this.all(
+			`SELECT * FROM catalog_items ${where} ORDER BY updated_at DESC, created_at DESC`,
+			params,
+		);
+		const teamIds = await this.teamIdsForPrincipal(principal);
+		return rows
+			.map(serializeCatalogItem)
+			.filter((item) =>
+				item.visibility === 'public'
+					? item.listingEnabled
+					: principalIsAdmin(principal) || teamIds.includes(item.teamId),
+			);
+	}
+
+	async upsertCatalogArtifactVersion(teamId, itemId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		const existing = await this.first(`SELECT * FROM catalog_artifact_versions WHERE item_id = ? AND version = ? LIMIT 1`, [itemId, input.version]);
+		if (existing) {
+			await this.run(
+				`UPDATE catalog_artifact_versions
+				 SET team_id = ?, kind = ?, content_key = ?, manifest_key = ?, metadata_json = ?, published_at = ?, updated_at = ?
+				 WHERE id = ?`,
+				[
+					teamId,
+					input.kind,
+					input.contentKey,
+					input.manifestKey ?? null,
+					JSON.stringify(input.metadata ?? {}),
+					input.publishedAt ?? timestamp,
+					timestamp,
+					existing.id,
+				],
+			);
+			return serializeCatalogArtifactVersion(await this.first(`SELECT * FROM catalog_artifact_versions WHERE id = ?`, [existing.id]));
+		}
+		await this.run(
+			`INSERT INTO catalog_artifact_versions (
+				id, item_id, team_id, kind, version, content_key, manifest_key, metadata_json, published_at, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				itemId,
+				teamId,
+				input.kind,
+				input.version,
+				input.contentKey,
+				input.manifestKey ?? null,
+				JSON.stringify(input.metadata ?? {}),
+				input.publishedAt ?? timestamp,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeCatalogArtifactVersion(await this.first(`SELECT * FROM catalog_artifact_versions WHERE id = ?`, [id]));
+	}
+
+	async listCatalogArtifactVersions(itemId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM catalog_artifact_versions WHERE item_id = ? ORDER BY published_at DESC, created_at DESC`,
+			[itemId],
+		);
+		return rows.map(serializeCatalogArtifactVersion);
+	}
+
 	async listProjectsForPrincipal(principal) {
 		await this.ensureInitialized();
 		const teamIds = await this.teamIdsForPrincipal(principal);
@@ -389,6 +874,20 @@ export class MarketControlPlaneStore {
 				timestamp,
 			],
 		);
+		await this.upsertCatalogItem(teamId, {
+			id,
+			kind: 'project',
+			slug: input.slug,
+			title: input.name,
+			summary: input.description ?? null,
+			visibility: 'team',
+			listingEnabled: input.metadata?.listingEnabled === true,
+			offerMode: input.entitlementTier ?? 'free',
+			manifestKey: input.metadata?.manifestKey ?? null,
+			artifactKey: input.metadata?.artifactKey ?? null,
+			searchText: [input.name, input.description].filter(Boolean).join(' ').trim() || null,
+			metadata: input.metadata ?? {},
+		});
 		return this.getProjectDetails(id);
 	}
 
@@ -400,6 +899,575 @@ export class MarketControlPlaneStore {
 	async getProjectConnection(projectId) {
 		await this.ensureInitialized();
 		return serializeConnection(await this.first(`SELECT * FROM project_connections WHERE project_id = ?`, [projectId]));
+	}
+
+	async getProjectHosting(projectId) {
+		await this.ensureInitialized();
+		return serializeProjectHosting(await this.first(`SELECT * FROM project_hosting WHERE project_id = ?`, [projectId]));
+	}
+
+	async upsertProjectHosting(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const existing = await this.first(`SELECT * FROM project_hosting WHERE project_id = ?`, [projectId]);
+		const nextMode = projectConnectionModeFromHosting(input.kind, input.registration ?? 'none');
+		const metadata = input.metadata ?? parseJson(existing?.metadata_json, {});
+		if (existing) {
+			await this.run(
+				`UPDATE project_hosting
+				 SET hosting_kind = ?, registration = ?, market_base_url = ?, source_repo_owner = ?, source_repo_name = ?, source_repo_url = ?, source_repo_workflow_path = ?, metadata_json = ?, updated_at = ?
+				 WHERE project_id = ?`,
+				[
+					input.kind,
+					input.registration ?? 'none',
+					input.marketBaseUrl ?? null,
+					input.sourceRepoOwner ?? null,
+					input.sourceRepoName ?? null,
+					input.sourceRepoUrl ?? null,
+					input.sourceRepoWorkflowPath ?? null,
+					JSON.stringify(metadata),
+					timestamp,
+					projectId,
+				],
+			);
+		} else {
+			await this.run(
+				`INSERT INTO project_hosting (
+					id, project_id, hosting_kind, registration, market_base_url, source_repo_owner, source_repo_name, source_repo_url, source_repo_workflow_path, metadata_json, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[
+					randomUUID(),
+					projectId,
+					input.kind,
+					input.registration ?? 'none',
+					input.marketBaseUrl ?? null,
+					input.sourceRepoOwner ?? null,
+					input.sourceRepoName ?? null,
+					input.sourceRepoUrl ?? null,
+					input.sourceRepoWorkflowPath ?? null,
+					JSON.stringify(metadata),
+					timestamp,
+					timestamp,
+				],
+			);
+		}
+
+		const connection = await this.getProjectConnection(projectId);
+		await this.upsertProjectConnection(projectId, {
+			mode: nextMode,
+			projectApiBaseUrl: input.projectApiBaseUrl ?? connection?.projectApiBaseUrl ?? null,
+			executionOwner: input.executionOwner ?? connection?.executionOwner ?? (nextMode === 'hosted' ? 'project_api' : 'project_runner'),
+			metadata: {
+				...(connection?.metadata ?? {}),
+				hostingKind: input.kind,
+				registration: input.registration ?? 'none',
+				marketBaseUrl: input.marketBaseUrl ?? null,
+				sourceRepoOwner: input.sourceRepoOwner ?? null,
+				sourceRepoName: input.sourceRepoName ?? null,
+				sourceRepoUrl: input.sourceRepoUrl ?? null,
+				sourceRepoWorkflowPath: input.sourceRepoWorkflowPath ?? null,
+			},
+		});
+
+		return this.getProjectHosting(projectId);
+	}
+
+	async listProjectEnvironments(projectId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM project_environments WHERE project_id = ? ORDER BY environment ASC`,
+			[projectId],
+		);
+		return rows.map(serializeProjectEnvironment);
+	}
+
+	async upsertProjectEnvironment(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const existing = await this.first(
+			`SELECT * FROM project_environments WHERE project_id = ? AND environment = ? LIMIT 1`,
+			[projectId, input.environment],
+		);
+		if (existing) {
+			await this.run(
+				`UPDATE project_environments
+				 SET deployment_profile = ?, base_url = ?, cloudflare_account_id = ?, pages_project_name = ?, worker_name = ?, r2_bucket_name = ?, d1_database_name = ?, queue_name = ?, railway_project_name = ?, metadata_json = ?, updated_at = ?
+				 WHERE project_id = ? AND environment = ?`,
+				[
+					input.deploymentProfile,
+					input.baseUrl ?? null,
+					input.cloudflareAccountId ?? null,
+					input.pagesProjectName ?? null,
+					input.workerName ?? null,
+					input.r2BucketName ?? null,
+					input.d1DatabaseName ?? null,
+					input.queueName ?? null,
+					input.railwayProjectName ?? null,
+					JSON.stringify(input.metadata ?? parseJson(existing.metadata_json, {})),
+					timestamp,
+					projectId,
+					input.environment,
+				],
+			);
+		} else {
+			await this.run(
+				`INSERT INTO project_environments (
+					id, project_id, environment, deployment_profile, base_url, cloudflare_account_id, pages_project_name, worker_name, r2_bucket_name, d1_database_name, queue_name, railway_project_name, metadata_json, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[
+					randomUUID(),
+					projectId,
+					input.environment,
+					input.deploymentProfile,
+					input.baseUrl ?? null,
+					input.cloudflareAccountId ?? null,
+					input.pagesProjectName ?? null,
+					input.workerName ?? null,
+					input.r2BucketName ?? null,
+					input.d1DatabaseName ?? null,
+					input.queueName ?? null,
+					input.railwayProjectName ?? null,
+					JSON.stringify(input.metadata ?? {}),
+					timestamp,
+					timestamp,
+				],
+			);
+		}
+
+		return serializeProjectEnvironment(await this.first(
+			`SELECT * FROM project_environments WHERE project_id = ? AND environment = ? LIMIT 1`,
+			[projectId, input.environment],
+		));
+	}
+
+	async listProjectInfrastructureResources(projectId, environment = null) {
+		await this.ensureInitialized();
+		const rows = environment
+			? await this.all(
+				`SELECT * FROM project_infrastructure_resources WHERE project_id = ? AND environment = ? ORDER BY provider ASC, resource_kind ASC, logical_name ASC`,
+				[projectId, environment],
+			)
+			: await this.all(
+				`SELECT * FROM project_infrastructure_resources WHERE project_id = ? ORDER BY environment ASC, provider ASC, resource_kind ASC, logical_name ASC`,
+				[projectId],
+			);
+		return rows.map(serializeProjectInfrastructureResource);
+	}
+
+	async upsertProjectInfrastructureResource(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const existing = await this.first(
+			`SELECT * FROM project_infrastructure_resources
+			 WHERE project_id = ? AND environment = ? AND provider = ? AND resource_kind = ? AND logical_name = ?
+			 LIMIT 1`,
+			[projectId, input.environment, input.provider, input.resourceKind, input.logicalName],
+		);
+		if (existing) {
+			await this.run(
+				`UPDATE project_infrastructure_resources
+				 SET locator = ?, metadata_json = ?, updated_at = ?
+				 WHERE id = ?`,
+				[
+					input.locator ?? null,
+					JSON.stringify(input.metadata ?? parseJson(existing.metadata_json, {})),
+					timestamp,
+					existing.id,
+				],
+			);
+			return serializeProjectInfrastructureResource(await this.first(`SELECT * FROM project_infrastructure_resources WHERE id = ?`, [existing.id]));
+		}
+
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO project_infrastructure_resources (
+				id, project_id, environment, provider, resource_kind, logical_name, locator, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				projectId,
+				input.environment,
+				input.provider,
+				input.resourceKind,
+				input.logicalName,
+				input.locator ?? null,
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeProjectInfrastructureResource(await this.first(`SELECT * FROM project_infrastructure_resources WHERE id = ?`, [id]));
+	}
+
+	async createProjectDeployment(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO project_deployments (
+				id, project_id, environment, deployment_kind, status, source_ref, release_tag, commit_sha, triggered_by_type, triggered_by_id, metadata_json, started_at, finished_at, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				projectId,
+				input.environment,
+				input.deploymentKind,
+				input.status ?? 'pending',
+				input.sourceRef ?? null,
+				input.releaseTag ?? null,
+				input.commitSha ?? null,
+				input.triggeredByType ?? null,
+				input.triggeredById ?? null,
+				JSON.stringify(input.metadata ?? {}),
+				input.startedAt ?? timestamp,
+				input.finishedAt ?? null,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeProjectDeployment(await this.first(`SELECT * FROM project_deployments WHERE id = ?`, [id]));
+	}
+
+	async listProjectDeployments(projectId, environment = null) {
+		await this.ensureInitialized();
+		const rows = environment
+			? await this.all(
+				`SELECT * FROM project_deployments WHERE project_id = ? AND environment = ? ORDER BY created_at DESC`,
+				[projectId, environment],
+			)
+			: await this.all(
+				`SELECT * FROM project_deployments WHERE project_id = ? ORDER BY created_at DESC`,
+				[projectId],
+			);
+		return rows.map(serializeProjectDeployment);
+	}
+
+	async upsertAgentPool(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const existing = await this.first(
+			`SELECT * FROM agent_pools WHERE project_id = ? AND environment = ? AND name = ? LIMIT 1`,
+			[projectId, input.environment, input.name],
+		);
+		if (existing) {
+			await this.run(
+				`UPDATE agent_pools
+				 SET team_id = ?, registration_identity = ?, service_base_url = ?, status = ?, min_workers = ?, max_workers = ?, target_queue_depth = ?, cooldown_seconds = ?, metadata_json = ?, updated_at = ?
+				 WHERE id = ?`,
+				[
+					input.teamId,
+					input.registrationIdentity ?? null,
+					input.serviceBaseUrl ?? null,
+					input.status ?? 'active',
+					input.autoscale?.minWorkers ?? 0,
+					input.autoscale?.maxWorkers ?? 1,
+					input.autoscale?.targetQueueDepth ?? 1,
+					input.autoscale?.cooldownSeconds ?? 60,
+					JSON.stringify(input.metadata ?? parseJson(existing.metadata_json, {})),
+					timestamp,
+					existing.id,
+				],
+			);
+			return serializeAgentPool(await this.first(`SELECT * FROM agent_pools WHERE id = ?`, [existing.id]));
+		}
+
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO agent_pools (
+				id, project_id, team_id, environment, name, registration_identity, service_base_url, status, min_workers, max_workers, target_queue_depth, cooldown_seconds, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				projectId,
+				input.teamId,
+				input.environment,
+				input.name,
+				input.registrationIdentity ?? null,
+				input.serviceBaseUrl ?? null,
+				input.status ?? 'active',
+				input.autoscale?.minWorkers ?? 0,
+				input.autoscale?.maxWorkers ?? 1,
+				input.autoscale?.targetQueueDepth ?? 1,
+				input.autoscale?.cooldownSeconds ?? 60,
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeAgentPool(await this.first(`SELECT * FROM agent_pools WHERE id = ?`, [id]));
+	}
+
+	async listAgentPools(projectId, environment = null) {
+		await this.ensureInitialized();
+		const rows = environment
+			? await this.all(
+				`SELECT * FROM agent_pools WHERE project_id = ? AND environment = ? ORDER BY created_at ASC`,
+				[projectId, environment],
+			)
+			: await this.all(
+				`SELECT * FROM agent_pools WHERE project_id = ? ORDER BY environment ASC, created_at ASC`,
+				[projectId],
+			);
+		return rows.map(serializeAgentPool);
+	}
+
+	async recordAgentPoolRegistration(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO agent_pool_registrations (
+				id, pool_id, project_id, runner_id, manager_id, service_name, heartbeat_at, desired_workers, observed_queue_depth, observed_active_leases, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				input.poolId,
+				projectId,
+				input.runnerId ?? null,
+				input.managerId ?? null,
+				input.serviceName ?? null,
+				input.heartbeatAt ?? timestamp,
+				input.desiredWorkers ?? null,
+				input.observedQueueDepth ?? null,
+				input.observedActiveLeases ?? null,
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeAgentPoolRegistration(await this.first(`SELECT * FROM agent_pool_registrations WHERE id = ?`, [id]));
+	}
+
+	async listAgentPoolRegistrations(poolId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM agent_pool_registrations WHERE pool_id = ? ORDER BY heartbeat_at DESC`,
+			[poolId],
+		);
+		return rows.map(serializeAgentPoolRegistration);
+	}
+
+	async recordAgentPoolScaleDecision(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO agent_pool_scale_decisions (
+				id, pool_id, project_id, environment, desired_workers, observed_queue_depth, observed_active_leases, work_day_id, reason, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				input.poolId,
+				projectId,
+				input.environment,
+				input.desiredWorkers,
+				input.observedQueueDepth ?? 0,
+				input.observedActiveLeases ?? 0,
+				input.workDayId ?? null,
+				input.reason,
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeAgentPoolScaleDecision(await this.first(`SELECT * FROM agent_pool_scale_decisions WHERE id = ?`, [id]));
+	}
+
+	async listAgentPoolScaleDecisions(poolId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM agent_pool_scale_decisions WHERE pool_id = ? ORDER BY created_at DESC`,
+			[poolId],
+		);
+		return rows.map(serializeAgentPoolScaleDecision);
+	}
+
+	async createProjectWorkdaySummary(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO project_workday_summaries (
+				id, project_id, environment, work_day_id, kind, state, started_at, ended_at, summary_json, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				projectId,
+				input.environment,
+				input.workDayId,
+				input.kind ?? 'workday_summary',
+				input.state ?? null,
+				input.startedAt ?? null,
+				input.endedAt ?? null,
+				JSON.stringify(input.summary ?? {}),
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeProjectWorkdaySummary(await this.first(`SELECT * FROM project_workday_summaries WHERE id = ?`, [id]));
+	}
+
+	async listProjectWorkdaySummaries(projectId, environment = null) {
+		await this.ensureInitialized();
+		const rows = environment
+			? await this.all(
+				`SELECT * FROM project_workday_summaries WHERE project_id = ? AND environment = ? ORDER BY created_at DESC`,
+				[projectId, environment],
+			)
+			: await this.all(
+				`SELECT * FROM project_workday_summaries WHERE project_id = ? ORDER BY created_at DESC`,
+				[projectId],
+			);
+		return rows.map(serializeProjectWorkdaySummary);
+	}
+
+	async getProjectWorkPolicy(projectId, environment) {
+		await this.ensureInitialized();
+		return serializeWorkPolicy(await this.first(
+			`SELECT * FROM work_policies WHERE project_id = ? AND environment = ? LIMIT 1`,
+			[projectId, environment],
+		));
+	}
+
+	async upsertProjectWorkPolicy(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		await this.run(
+			`INSERT OR REPLACE INTO work_policies (
+				project_id, environment, schedule_json, daily_task_credit_budget, max_queued_tasks, max_queued_credits,
+				autoscale_json, credit_weights_json, metadata_json, created_at, updated_at
+			) VALUES (
+				?, ?, ?, ?, ?, ?, ?, ?, ?,
+				COALESCE((SELECT created_at FROM work_policies WHERE project_id = ? AND environment = ?), ?),
+				?
+			)`,
+			[
+				projectId,
+				input.environment,
+				JSON.stringify(input.schedule ?? { timezone: 'UTC', windows: [] }),
+				Number(input.dailyTaskCreditBudget ?? 0),
+				Number(input.maxQueuedTasks ?? 0),
+				Number(input.maxQueuedCredits ?? 0),
+				JSON.stringify(input.autoscale ?? {}),
+				JSON.stringify(input.creditWeights ?? []),
+				JSON.stringify(input.metadata ?? {}),
+				projectId,
+				input.environment,
+				timestamp,
+				timestamp,
+			],
+		);
+		return this.getProjectWorkPolicy(projectId, input.environment);
+	}
+
+	async listProjectPriorityOverrides(projectId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM priority_overrides WHERE project_id = ? ORDER BY priority DESC, updated_at DESC`,
+			[projectId],
+		);
+		return rows.map(serializePriorityOverride);
+	}
+
+	async upsertProjectPriorityOverride(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT OR REPLACE INTO priority_overrides (
+				id, project_id, model, subject_id, priority, estimated_credits, metadata_json, created_at, updated_at
+			) VALUES (
+				?, ?, ?, ?, ?, ?, ?,
+				COALESCE((SELECT created_at FROM priority_overrides WHERE id = ?), ?),
+				?
+			)`,
+			[
+				id,
+				projectId,
+				input.model,
+				input.subjectId,
+				Number(input.priority ?? 0),
+				input.estimatedCredits === null || input.estimatedCredits === undefined ? null : Number(input.estimatedCredits),
+				JSON.stringify(input.metadata ?? {}),
+				id,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializePriorityOverride(await this.first(`SELECT * FROM priority_overrides WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async createProjectPrioritySnapshot(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT OR REPLACE INTO priority_snapshots (
+				id, project_id, work_day_id, snapshot_json, metadata_json, generated_at, created_at, updated_at
+			) VALUES (
+				?, ?, ?, ?, ?, ?,
+				COALESCE((SELECT created_at FROM priority_snapshots WHERE id = ?), ?),
+				?
+			)`,
+			[
+				id,
+				projectId,
+				input.workDayId ?? null,
+				JSON.stringify(input.snapshot ?? {}),
+				JSON.stringify(input.metadata ?? {}),
+				input.generatedAt ?? timestamp,
+				id,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializePrioritySnapshot(await this.first(`SELECT * FROM priority_snapshots WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async listProjectPrioritySnapshots(projectId, workDayId = null) {
+		await this.ensureInitialized();
+		const rows = workDayId
+			? await this.all(
+				`SELECT * FROM priority_snapshots WHERE project_id = ? AND work_day_id = ? ORDER BY generated_at DESC`,
+				[projectId, workDayId],
+			)
+			: await this.all(
+				`SELECT * FROM priority_snapshots WHERE project_id = ? ORDER BY generated_at DESC`,
+				[projectId],
+			);
+		return rows.map(serializePrioritySnapshot);
+	}
+
+	async recordProjectTaskCredits(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO task_credit_ledger (
+				id, project_id, work_day_id, task_id, phase, credits, metadata_json, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				projectId,
+				input.workDayId,
+				input.taskId ?? null,
+				input.phase,
+				Number(input.credits ?? 0),
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+			],
+		);
+		return serializeTaskCreditLedgerEntry(await this.first(`SELECT * FROM task_credit_ledger WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async listProjectTaskCredits(projectId, workDayId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM task_credit_ledger WHERE project_id = ? AND work_day_id = ? ORDER BY created_at ASC`,
+			[projectId, workDayId],
+		);
+		return rows.map(serializeTaskCreditLedgerEntry);
 	}
 
 	async issueRunnerToken(projectId) {
@@ -548,16 +1616,26 @@ export class MarketControlPlaneStore {
 		if (!project) {
 			return null;
 		}
-		const [connection, capabilityGrants, entitlement] = await Promise.all([
+		const [connection, capabilityGrants, entitlement, hosting, environments, resources, deployments, agentPools] = await Promise.all([
 			this.getProjectConnection(projectId),
 			this.listProjectCapabilities(projectId),
 			(async () => serializeEntitlement(await this.first(`SELECT * FROM entitlements WHERE project_id = ? LIMIT 1`, [projectId])))(),
+			this.getProjectHosting(projectId),
+			this.listProjectEnvironments(projectId),
+			this.listProjectInfrastructureResources(projectId),
+			this.listProjectDeployments(projectId),
+			this.listAgentPools(projectId),
 		]);
 		return {
 			project,
 			connection,
 			capabilityGrants,
 			entitlement,
+			hosting,
+			environments,
+			resources,
+			deployments,
+			agentPools,
 		};
 	}
 
@@ -584,6 +1662,25 @@ export class MarketControlPlaneStore {
 				timestamp,
 			],
 		);
+		await this.upsertCatalogItem(teamId, {
+			id,
+			kind: 'knowledge_pack',
+			slug: input.slug,
+			title: input.name,
+			summary: input.summary ?? null,
+			visibility: input.visibility ?? 'private',
+			listingEnabled: input.metadata?.listingEnabled === true,
+			offerMode: input.metadata?.offerMode ?? (input.visibility === 'public' ? 'free' : 'private'),
+			manifestKey: input.metadata?.manifestKey ?? null,
+			artifactKey: input.metadata?.artifactKey ?? null,
+			searchText: [input.name, input.summary].filter(Boolean).join(' ').trim() || null,
+			metadata: {
+				sourceKind: input.sourceKind ?? 'market_import',
+				sourceRef: input.sourceRef ?? null,
+				installStrategy: input.installStrategy ?? 'import_export',
+				...(input.metadata ?? {}),
+			},
+		});
 		return serializeKnowledgePack(await this.first(`SELECT * FROM knowledge_packs WHERE id = ?`, [id]));
 	}
 

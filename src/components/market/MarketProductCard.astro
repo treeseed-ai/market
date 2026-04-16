@@ -7,6 +7,7 @@ interface Props {
 	featured?: boolean;
 	publisherName: string;
 	templateVersion?: string;
+	priceModel?: string;
 }
 
 const {
@@ -17,6 +18,7 @@ const {
 	featured = false,
 	publisherName,
 	templateVersion,
+	priceModel,
 } = Astro.props as Props;
 ---
 
@@ -26,7 +28,11 @@ const {
 		<h2><a href={`/templates/${slug}/`}>{title}</a></h2>
 	</div>
 	<p>{summary}</p>
-	<p class="market-card__meta">Publisher: {publisherName}{templateVersion ? ` · v${templateVersion}` : ''}</p>
+	<p class="market-card__meta">
+		Publisher: {publisherName}
+		{templateVersion ? ` · v${templateVersion}` : ''}
+		{priceModel ? ` · ${priceModel.replaceAll('_', ' ')}` : ''}
+	</p>
 </article>
 
 <style>

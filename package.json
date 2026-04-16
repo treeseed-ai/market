@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/market",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "TreeSeed marketplace site built on top of @treeseed/core.",
   "license": "COMMERCIAL",
   "repository": {
@@ -38,6 +38,9 @@
     "dev": "treeseed dev",
     "dev:web": "if test -f ./packages/core/scripts/dev-platform.ts; then node ./packages/core/scripts/run-ts.mjs ./packages/core/scripts/dev-platform.ts --surface web; elif test -f ./node_modules/@treeseed/core/dist/scripts/dev-platform.js; then node ./node_modules/@treeseed/core/dist/scripts/dev-platform.js --surface web; else echo 'Unable to resolve @treeseed/core dev-platform entrypoint.'; exit 1; fi",
     "dev:api": "if test -f ./packages/core/scripts/dev-platform.ts; then node ./packages/core/scripts/run-ts.mjs ./packages/core/scripts/dev-platform.ts --surface api; elif test -f ./node_modules/@treeseed/core/dist/scripts/dev-platform.js; then node ./node_modules/@treeseed/core/dist/scripts/dev-platform.js --surface api; else echo 'Unable to resolve @treeseed/core dev-platform entrypoint.'; exit 1; fi",
+    "dev:manager": "if test -f ./packages/core/scripts/run-ts.mjs; then node ./packages/core/scripts/run-ts.mjs ./packages/core/src/services/manager.ts; elif test -f ./node_modules/@treeseed/core/dist/services/manager.js; then node ./node_modules/@treeseed/core/dist/services/manager.js; else echo 'Unable to resolve @treeseed/core manager service entrypoint.'; exit 1; fi",
+    "dev:worker": "if test -f ./packages/core/scripts/run-ts.mjs; then node ./packages/core/scripts/run-ts.mjs ./packages/core/src/services/worker.ts; elif test -f ./node_modules/@treeseed/core/dist/services/worker.js; then node ./node_modules/@treeseed/core/dist/services/worker.js; else echo 'Unable to resolve @treeseed/core worker service entrypoint.'; exit 1; fi",
+    "dev:agents": "if test -f ./packages/core/scripts/run-ts.mjs; then node ./packages/core/scripts/run-ts.mjs ./packages/core/src/services/agents.ts; elif test -f ./node_modules/@treeseed/core/dist/services/agents.js; then node ./node_modules/@treeseed/core/dist/services/agents.js; else echo 'Unable to resolve @treeseed/core agents service entrypoint.'; exit 1; fi",
     "dev:watch": "treeseed dev --watch",
     "lint": "npm run check",
     "test": "npm run test:unit",
@@ -54,8 +57,8 @@
     "verify": "node --input-type=module -e \"await import('@treeseed/sdk/scripts/verify-driver')\""
   },
   "dependencies": {
-    "@treeseed/cli": "^0.4.10",
-    "@treeseed/core": "^0.4.10",
+    "@treeseed/cli": "^0.4.11",
+    "@treeseed/core": "^0.4.12",
     "better-auth": "^1.6.2",
     "hono": "^4.8.2",
     "yaml": "^2.8.1"
