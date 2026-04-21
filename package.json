@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/market",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "TreeSeed marketplace site built on top of @treeseed/core.",
   "license": "COMMERCIAL",
   "repository": {
@@ -59,7 +59,7 @@
   },
   "dependencies": {
     "@treeseed/cli": "^0.5.1",
-    "@treeseed/core": "^0.5.3",
+    "@treeseed/core": "^0.5.4",
     "better-auth": "^1.6.2",
     "hono": "^4.8.2",
     "yaml": "^2.8.1"
