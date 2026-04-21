@@ -1,5 +1,6 @@
 ---
 interface Props {
+	href?: string;
 	slug: string;
 	title: string;
 	summary: string;
@@ -8,9 +9,11 @@ interface Props {
 	publisherName: string;
 	templateVersion?: string;
 	priceModel?: string;
+	badges?: string[];
 }
 
 const {
+	href,
 	slug,
 	title,
 	summary,
@@ -19,15 +22,21 @@ const {
 	publisherName,
 	templateVersion,
 	priceModel,
+	badges = [],
 } = Astro.props as Props;
 ---
 
 <article class="market-card">
 	<div class="market-card__header">
 		<p class="market-card__eyebrow">{category ?? 'Template'}{featured ? ' · Featured' : ''}</p>
-		<h2><a href={`/templates/${slug}/`}>{title}</a></h2>
+		<h2><a href={href ?? `/market/templates/${slug}/`}>{title}</a></h2>
 	</div>
 	<p>{summary}</p>
+	{badges.length > 0 ? (
+		<div class="market-card__badges">
+			{badges.map((badge) => <span>{badge}</span>)}
+		</div>
+	) : null}
 	<p class="market-card__meta">
 		Publisher: {publisherName}
 		{templateVersion ? ` · v${templateVersion}` : ''}
@@ -37,29 +46,61 @@ const {
 
 <style>
 	.market-card {
-		border: 1px solid var(--sl-color-gray-5);
+		display: flex;
+		flex-direction: column;
+		gap: 0.85rem;
+		border: 1px solid #d0d7de;
 		border-radius: 1rem;
 		padding: 1rem 1.1rem;
-		background: var(--sl-color-black);
+		background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.9) 100%);
+		box-shadow: 0 1px 2px rgba(31,35,40,0.08);
 	}
 
 	.market-card__eyebrow {
 		font-size: 0.85rem;
 		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--sl-color-gray-3);
+		letter-spacing: 0.04em;
+		color: #0969da;
+		font-family: "IBM Plex Mono", ui-monospace, monospace;
+		font-weight: 700;
+		margin: 0;
 	}
 
 	.market-card__meta {
-		color: var(--sl-color-gray-3);
-		font-size: 0.95rem;
+		color: #57606a;
+		font-size: 0.92rem;
+		margin: 0;
 	}
 
 	.market-card h2 {
-		margin: 0.2rem 0 0.6rem;
+		margin: 0.2rem 0 0;
 	}
 
 	.market-card a {
 		text-decoration: none;
+		color: #1f2328;
+	}
+
+	.market-card p {
+		margin: 0;
+		color: #57606a;
+	}
+
+	.market-card__badges {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.45rem;
+	}
+
+	.market-card__badges span {
+		display: inline-flex;
+		align-items: center;
+		padding: 0.18rem 0.48rem;
+		border-radius: 999px;
+		border: 1px solid #d0d7de;
+		background: #f6f8fa;
+		font-size: 0.78rem;
+		color: #57606a;
+		font-family: "IBM Plex Mono", ui-monospace, monospace;
 	}
 </style>

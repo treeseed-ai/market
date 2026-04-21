@@ -1,0 +1,79 @@
+---
+import { listSiteTemplates } from '@treeseed/core/templates';
+import KnowledgeCoopPublicLayout from '../../layouts/KnowledgeCoopPublicLayout.astro';
+import MarketProductCard from '../../components/market/MarketProductCard.astro';
+import { createMarketTemplateCatalogProvider } from '../../lib/market/catalog.js';
+import { resolveMarketStore } from '../../lib/market/store.js';
+
+const templateListing = await listSiteTemplates({
+	locals: Astro.locals,
+	catalogProvider: createMarketTemplateCatalogProvider(Astro.locals),
+});
+const store = resolveMarketStore(Astro.locals);
+const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
+---
+
+<KnowledgeCoopPublicLayout
+	title="Knowledge Coop Market"
+	description="Browse templates and knowledge packs inside Knowledge Coop."
+	currentPath={Astro.url.pathname}
+>
+	<section class="kc-panel">
+		<div class="kc-panel__header">
+			<div>
+				<p class="kc-section__eyebrow">Market</p>
+				<h1>Reusable foundations for knowledge hubs and agent teams</h1>
+				<p>Templates give you working project scaffolds. Knowledge packs give you reusable direction, source material, and packaged operational context.</p>
+			</div>
+		</div>
+	</section>
+
+	<section class="kc-grid-2" style="margin-top: 1rem;">
+		<div class="kc-panel">
+			<div class="kc-panel__header">
+				<div>
+					<h2>Templates</h2>
+					<p>Launch hubs with a proven operational baseline.</p>
+				</div>
+				<a href="/market/templates/">Browse templates</a>
+			</div>
+			<div class="kc-card-list">
+				{templateListing.items.map((entry) => (
+					<MarketProductCard
+						href={`/market/templates/${entry.slug}/`}
+						slug={entry.slug}
+						title={entry.title}
+						summary={entry.summary}
+						category={entry.category}
+						featured={entry.featured}
+						publisherName={entry.publisherName}
+						templateVersion={entry.templateVersion}
+						priceModel={entry.priceModel}
+					/>
+				))}
+			</div>
+		</div>
+		<div class="kc-panel">
+			<div class="kc-panel__header">
+				<div>
+					<h2>Knowledge packs</h2>
+					<p>Publish reusable knowledge sets with install and trust context attached.</p>
+				</div>
+				<a href="/market/knowledge-packs/">Browse packs</a>
+			</div>
+			<div class="kc-card-list">
+				{knowledgePacks.length > 0 ? knowledgePacks.map((entry: any) => (
+					<MarketProductCard
+						href={`/market/knowledge-packs/${entry.slug}/`}
+						slug={entry.slug}
+						title={entry.name}
+						summary={entry.summary ?? 'Reusable source material and market-packaged knowledge assets.'}
+						category="Knowledge pack"
+						publisherName="Knowledge Coop"
+						badges={[entry.visibility, entry.installStrategy]}
+					/>
+				)) : <div class="kc-empty">No public knowledge packs are published yet.</div>}
+			</div>
+		</div>
+	</section>
+</KnowledgeCoopPublicLayout>

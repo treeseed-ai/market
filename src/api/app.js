@@ -15,6 +15,7 @@ import {
 	resolveApiConfig,
 	resolveApiD1Database,
 } from '@treeseed/core/api';
+import { executeKnowledgeCoopManagedLaunch } from '@treeseed/core';
 import { MarketControlPlaneStore } from './store.js';
 
 function jsonError(c, status, error, details = {}) {
@@ -69,6 +70,116 @@ function mergeCapability(baseCapability, override) {
 		allowedTargets: [...override.allowedTargets],
 		defaultDispatchMode: override.defaultDispatchMode,
 	};
+}
+
+function launchFailureCode(error) {
+	return typeof error?.phase === 'string' ? error.phase : 'runtime_connection_failed';
+}
+
+function launchFailurePhases(error) {
+	return Array.isArray(error?.phases) ? error.phases : [];
+}
+
+function resourceRowsFromLaunch(projectId, launch) {
+	const rows = [];
+	for (const [environment, summary] of [['staging', launch.cloudflare?.staging], ['prod', launch.cloudflare?.prod]]) {
+		if (!summary) continue;
+		rows.push(
+			{
+				projectId,
+				environment,
+				provider: 'cloudflare',
+				resourceKind: 'pages',
+				logicalName: 'site',
+				locator: summary.pages?.url ?? summary.siteUrl ?? null,
+				metadata: summary.pages ?? {},
+			},
+			{
+				projectId,
+				environment,
+				provider: 'cloudflare',
+				resourceKind: 'worker',
+				logicalName: 'worker',
+				locator: summary.workerName ?? null,
+				metadata: { workerName: summary.workerName ?? null },
+			},
+			{
+				projectId,
+				environment,
+				provider: 'cloudflare',
+				resourceKind: 'r2',
+				logicalName: 'content',
+				locator: summary.content?.bucketName ?? null,
+				metadata: summary.content ?? {},
+			},
+			{
+				projectId,
+				environment,
+				provider: 'cloudflare',
+				resourceKind: 'd1',
+				logicalName: 'site_data',
+				locator: summary.siteDataDb?.databaseId ?? summary.siteDataDb?.databaseName ?? null,
+				metadata: summary.siteDataDb ?? {},
+			},
+			{
+				projectId,
+				environment,
+				provider: 'cloudflare',
+				resourceKind: 'queue',
+				logicalName: 'agent_work',
+				locator: summary.queue?.queueId ?? summary.queue?.name ?? null,
+				metadata: summary.queue ?? {},
+			},
+		);
+		if (summary.queue?.dlqName || summary.queue?.dlqId) {
+			rows.push({
+				projectId,
+				environment,
+				provider: 'cloudflare',
+				resourceKind: 'dlq',
+				logicalName: 'agent_work_dlq',
+				locator: summary.queue?.dlqId ?? summary.queue?.dlqName ?? null,
+				metadata: summary.queue ?? {},
+			});
+		}
+	}
+	for (const service of launch.railway?.services ?? []) {
+		rows.push({
+			projectId,
+			environment: service.scope ?? 'prod',
+			provider: 'railway',
+			resourceKind: 'railway_service',
+			logicalName: service.key,
+			locator: service.publicBaseUrl ?? service.serviceName ?? service.serviceId ?? null,
+			metadata: service,
+		});
+		if (service.projectName || service.projectId) {
+			rows.push({
+				projectId,
+				environment: service.scope ?? 'prod',
+				provider: 'railway',
+				resourceKind: 'railway_project',
+				logicalName: service.key,
+				locator: service.projectId ?? service.projectName ?? null,
+				metadata: {
+					projectId: service.projectId ?? null,
+					projectName: service.projectName ?? null,
+				},
+			});
+		}
+	}
+	for (const schedule of launch.railway?.schedules ?? []) {
+		rows.push({
+			projectId,
+			environment: 'prod',
+			provider: 'railway',
+			resourceKind: 'railway_schedule',
+			logicalName: schedule.logicalName ?? schedule.service ?? 'schedule',
+			locator: schedule.id ?? null,
+			metadata: schedule,
+		});
+	}
+	return rows.filter((row) => row.locator || row.metadata);
 }
 
 async function ensurePrincipal(c) {
@@ -156,6 +267,24 @@ async function requireCatalogItemAccess(c, store, itemId, permission = null) {
 		principal: access.principal,
 		item,
 	};
+}
+
+async function requireConnectedProjectRuntime(c, store, projectId, principal, path, input = {}) {
+	const payload = await store.requestProjectRuntime(projectId, principal, path, input);
+	if (!payload) {
+		return {
+			response: jsonError(c, 409, 'Project runtime is not connected or unavailable.', {
+				projectId,
+				path,
+			}),
+		};
+	}
+	return { payload };
+}
+
+async function projectAppHref(store, teamId, projectSlug, section) {
+	const team = await store.getTeam(teamId);
+	return team ? `/app/teams/${team.slug}/projects/${projectSlug}/${section}` : null;
 }
 
 async function executeInline(runtime, request) {
@@ -279,7 +408,13 @@ function defaultConfig(overrides = {}) {
 export function createMarketApiApp(options = {}) {
 	const config = defaultConfig(options.config ?? {});
 	const db = options.db ?? resolveApiD1Database(config);
-	const store = options.store ?? new MarketControlPlaneStore(config, db);
+	const store = options.store ?? new MarketControlPlaneStore({
+		...config,
+		assertionSecret: config.webAssertionSecret,
+		serviceId: config.webServiceId,
+		serviceSecret: config.webServiceSecret,
+		fetchImpl: options.fetchImpl ?? fetch,
+	}, db);
 	const configuredAuthProviderId = config.providers?.auth ?? 'd1';
 	const authProviderId = configuredAuthProviderId === 'd1' ? 'market-d1' : configuredAuthProviderId;
 	const sharedSdk = options.sdk ?? AgentSdk.createLocal({
@@ -373,6 +508,42 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
+			app.get('/v1/teams/:teamId/home', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.getTeamHomeSummary(c.req.param('teamId'), access.principal),
+				});
+			});
+
+			app.get('/v1/teams/:teamId/inbox', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.listTeamInboxItems(c.req.param('teamId'), access.principal),
+				});
+			});
+
+			app.get('/v1/teams/:teamId/members', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.listTeamMembers(c.req.param('teamId')),
+				});
+			});
+
+			app.get('/v1/teams/:teamId/products', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.listTeamProducts(c.req.param('teamId'), access.principal),
+				});
+			});
+
 			app.post('/v1/teams', async (c) => {
 				const auth = await ensurePrincipal(c);
 				if (auth.response) return auth.response;
@@ -436,10 +607,748 @@ export function createMarketApiApp(options = {}) {
 				return c.json({ ok: true, payload: details });
 			});
 
+			app.post('/v1/teams/:teamId/projects/launch', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.slug || !body.name) {
+					return jsonError(c, 400, 'slug and name are required.');
+				}
+				const teamId = c.req.param('teamId');
+				const hostingMode = typeof body.hostingMode === 'string' ? body.hostingMode : 'managed';
+				const hostingKind = hostingMode === 'managed' ? 'hosted_project' : 'self_hosted_project';
+				const registration = hostingMode === 'hybrid' ? 'optional' : 'none';
+				const sourceKind = typeof body.sourceKind === 'string' ? body.sourceKind : 'blank';
+				const sourceRef = typeof body.sourceRef === 'string' ? body.sourceRef : null;
+				const repoProvider = typeof body.repoProvider === 'string' ? body.repoProvider : 'github';
+				const repoVisibility = typeof body.repoVisibility === 'string' ? body.repoVisibility : 'private';
+				if (!['blank', 'template', 'knowledge_pack'].includes(sourceKind)) {
+					return jsonError(c, 400, `Unsupported sourceKind "${sourceKind}".`);
+				}
+				if (repoProvider !== 'github') {
+					return jsonError(c, 400, 'Knowledge Coop managed launch currently supports GitHub repositories only.');
+				}
+				if (hostingMode !== 'managed') {
+					return jsonError(c, 400, 'Live project launch currently supports managed hosting only. Use treeseed config --connect-market for hybrid pairing.');
+				}
+				const team = await store.getTeam(teamId);
+				const details = await store.createProject(c.req.param('teamId'), {
+					id: typeof body.id === 'string' ? body.id : undefined,
+					slug: String(body.slug),
+					name: String(body.name),
+					description: typeof body.summary === 'string' ? body.summary : typeof body.description === 'string' ? body.description : null,
+					metadata: {
+						publicSite: body.publicSite !== false,
+						sourceKind,
+						sourceRef,
+						enableDefaultAgents: body.enableDefaultAgents !== false,
+						launchMode: hostingMode,
+						launchPhase: 'queued',
+						...(typeof body.metadata === 'object' && body.metadata ? body.metadata : {}),
+					},
+					entitlementTier: typeof body.entitlementTier === 'string' ? body.entitlementTier : 'free',
+				});
+				await store.upsertProjectHosting(details.project.id, {
+					kind: hostingKind,
+					registration,
+					marketBaseUrl: runtime.resolved.config.baseUrl ?? null,
+					sourceRepoOwner: typeof body.sourceRepoOwner === 'string' ? body.sourceRepoOwner : null,
+					sourceRepoName: typeof body.sourceRepoName === 'string' ? body.sourceRepoName : null,
+					sourceRepoUrl: typeof body.sourceRepoUrl === 'string' ? body.sourceRepoUrl : null,
+					sourceRepoWorkflowPath: typeof body.sourceRepoWorkflowPath === 'string' ? body.sourceRepoWorkflowPath : null,
+					projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
+					executionOwner: hostingMode === 'managed' ? 'project_api' : 'project_runner',
+					metadata: {
+						repoProvider,
+						repoVisibility,
+						publicSite: body.publicSite !== false,
+						sourceKind,
+						sourceRef,
+						launchPhase: 'queued',
+					},
+				});
+				await store.upsertProjectConnection(details.project.id, {
+					mode: hostingMode === 'managed' ? 'hosted' : hostingMode === 'hybrid' ? 'hybrid' : 'self_hosted',
+					projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
+					executionOwner: hostingMode === 'managed' ? 'project_api' : 'project_runner',
+					metadata: {
+						internalPrefix: '/internal/core',
+						repoProvider,
+						repoVisibility,
+						publicSite: body.publicSite !== false,
+						sourceKind,
+						sourceRef,
+						launchPhase: 'queued',
+					},
+				});
+				for (const environment of ['local', 'staging', 'prod']) {
+					await store.upsertProjectEnvironment(details.project.id, {
+						environment,
+						deploymentProfile: hostingKind,
+						baseUrl: null,
+						metadata: {
+							launchMode: hostingMode,
+							launchPhase: 'queued',
+						},
+					});
+				}
+				const launchJob = await store.createJob({
+					projectId: details.project.id,
+					namespace: 'workflow',
+					operation: 'launch_project',
+					status: 'running',
+					preferredMode: 'auto',
+					selectedTarget: hostingMode === 'managed' ? 'project_api' : 'project_runner',
+					requestedByType: c.get('actorType') === 'service' ? 'service' : 'user',
+					requestedById: typeof access.principal.id === 'string' ? access.principal.id : null,
+					input: {
+						teamId,
+						projectId: details.project.id,
+						hostingMode,
+						sourceKind,
+						sourceRef,
+						repoProvider,
+						repoVisibility,
+					},
+				});
+				const href = await projectAppHref(store, teamId, details.project.slug, 'overview');
+				const launchItemKey = `launch:${details.project.id}`;
+
+				try {
+					const launch = await executeKnowledgeCoopManagedLaunch({
+						projectId: details.project.id,
+						teamId,
+						teamSlug: team?.slug ?? null,
+						projectSlug: details.project.slug,
+						projectName: details.project.name,
+						summary: details.project.description ?? null,
+						sourceKind,
+						sourceRef,
+						hostingMode,
+						publicSite: body.publicSite !== false,
+						repoOwner: typeof body.repoOwner === 'string'
+							? body.repoOwner
+							: typeof body.sourceRepoOwner === 'string'
+								? body.sourceRepoOwner
+								: null,
+						repoVisibility,
+						marketBaseUrl: runtime.resolved.config.baseUrl ?? null,
+						projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
+						contactEmail: typeof body.contactEmail === 'string' ? body.contactEmail : null,
+						enableDefaultAgents: body.enableDefaultAgents !== false,
+					});
+
+					for (const phase of launch.phases) {
+						await store.appendJobEvent(launchJob.id, 'phase', phase);
+					}
+
+					const mergedMetadata = {
+						...(details.project.metadata ?? {}),
+						...(launch.projectMetadata ?? {}),
+						launchJobId: launchJob.id,
+						launchPhase: 'completed',
+						lastSuccessfulPhase: 'runtime_connection',
+						repository: launch.repository,
+						workflows: launch.workflows,
+						cloudflare: launch.cloudflare,
+						railway: launch.railway,
+						templatePackage: {
+							outputRoot: launch.templatePackage.outputRoot,
+							payloadRoot: launch.templatePackage.payloadRoot,
+							manifestPath: launch.templatePackage.manifestPath,
+							manifest: launch.templatePackage.manifest,
+						},
+						knowledgePackPackage: {
+							outputRoot: launch.knowledgePackPackage.outputRoot,
+							payloadRoot: launch.knowledgePackPackage.payloadRoot,
+							manifestPath: launch.knowledgePackPackage.manifestPath,
+							manifest: launch.knowledgePackPackage.manifest,
+						},
+					};
+					await store.updateProject(details.project.id, {
+						description: details.project.description ?? null,
+						metadata: mergedMetadata,
+					});
+					await store.upsertCatalogItem(teamId, {
+						id: details.project.id,
+						kind: 'project',
+						slug: details.project.slug,
+						title: details.project.name,
+						summary: details.project.description ?? null,
+						visibility: 'team',
+						listingEnabled: false,
+						offerMode: typeof body.entitlementTier === 'string' ? body.entitlementTier : 'free',
+						searchText: [details.project.name, details.project.description].filter(Boolean).join(' ').trim() || null,
+						metadata: mergedMetadata,
+					});
+					await store.upsertProjectHosting(details.project.id, {
+						kind: hostingKind,
+						registration,
+						marketBaseUrl: runtime.resolved.config.baseUrl ?? null,
+						sourceRepoOwner: launch.repository.owner,
+						sourceRepoName: launch.repository.name,
+						sourceRepoUrl: launch.repository.url,
+						sourceRepoWorkflowPath: '.github/workflows/verify.yml',
+						projectApiBaseUrl: launch.projectApiBaseUrl,
+						executionOwner: hostingMode === 'managed' ? 'project_api' : 'project_runner',
+						metadata: {
+							repoProvider,
+							repoVisibility: launch.repository.visibility,
+							publicSite: body.publicSite !== false,
+							sourceKind,
+							sourceRef,
+							launchPhase: 'completed',
+							lastSuccessfulPhase: 'runtime_connection',
+							repository: launch.repository,
+							workflows: launch.workflows,
+						},
+					});
+					const connectionResult = await store.upsertProjectConnection(details.project.id, {
+						mode: hostingMode === 'managed' ? 'hosted' : hostingMode === 'hybrid' ? 'hybrid' : 'self_hosted',
+						projectApiBaseUrl: launch.projectApiBaseUrl,
+						executionOwner: hostingMode === 'managed' ? 'project_api' : 'project_runner',
+						metadata: {
+							internalPrefix: '/internal/core',
+							repoProvider,
+							repoVisibility: launch.repository.visibility,
+							publicSite: body.publicSite !== false,
+							sourceKind,
+							sourceRef,
+							launchPhase: 'completed',
+							lastSuccessfulPhase: 'runtime_connection',
+							repository: launch.repository,
+							workflows: launch.workflows,
+							templatePackage: {
+								manifestPath: launch.templatePackage.manifestPath,
+								outputRoot: launch.templatePackage.outputRoot,
+							},
+							knowledgePackPackage: {
+								manifestPath: launch.knowledgePackPackage.manifestPath,
+								outputRoot: launch.knowledgePackPackage.outputRoot,
+							},
+						},
+					});
+					const railwayApiService = (launch.railway?.services ?? []).find((service) => service.key === 'api') ?? null;
+					await store.upsertProjectEnvironment(details.project.id, {
+						environment: 'local',
+						deploymentProfile: hostingKind,
+						baseUrl: 'http://127.0.0.1:4321',
+						railwayProjectName: railwayApiService?.projectName ?? null,
+						metadata: {
+							launchMode: hostingMode,
+							launchPhase: 'completed',
+							projectApiBaseUrl: 'http://127.0.0.1:3000',
+							runnerReady: connectionResult.connection?.runnerRegistrationState === 'registered',
+						},
+					});
+					await store.upsertProjectEnvironment(details.project.id, {
+						environment: 'staging',
+						deploymentProfile: hostingKind,
+						baseUrl: launch.cloudflare?.staging?.pages?.url ?? launch.cloudflare?.staging?.siteUrl ?? null,
+						cloudflareAccountId: launch.cloudflare?.staging?.accountId ?? null,
+						pagesProjectName: launch.cloudflare?.staging?.pages?.projectName ?? null,
+						workerName: launch.cloudflare?.staging?.workerName ?? null,
+						r2BucketName: launch.cloudflare?.staging?.content?.bucketName ?? null,
+						d1DatabaseName: launch.cloudflare?.staging?.siteDataDb?.databaseName ?? null,
+						queueName: launch.cloudflare?.staging?.queue?.name ?? null,
+						metadata: {
+							launchMode: hostingMode,
+							launchPhase: 'completed',
+							projectApiBaseUrl: launch.projectApiBaseUrl,
+							siteUrl: launch.cloudflare?.staging?.siteUrl ?? null,
+						},
+					});
+					await store.upsertProjectEnvironment(details.project.id, {
+						environment: 'prod',
+						deploymentProfile: hostingKind,
+						baseUrl: launch.projectSiteUrl,
+						cloudflareAccountId: launch.cloudflare?.prod?.accountId ?? null,
+						pagesProjectName: launch.cloudflare?.prod?.pages?.projectName ?? null,
+						workerName: launch.cloudflare?.prod?.workerName ?? null,
+						r2BucketName: launch.cloudflare?.prod?.content?.bucketName ?? null,
+						d1DatabaseName: launch.cloudflare?.prod?.siteDataDb?.databaseName ?? null,
+						queueName: launch.cloudflare?.prod?.queue?.name ?? null,
+						railwayProjectName: railwayApiService?.projectName ?? null,
+						metadata: {
+							launchMode: hostingMode,
+							launchPhase: 'completed',
+							projectApiBaseUrl: launch.projectApiBaseUrl,
+						},
+					});
+					for (const resource of resourceRowsFromLaunch(details.project.id, launch)) {
+						await store.upsertProjectInfrastructureResource(details.project.id, resource);
+					}
+					await store.upsertAgentPool(details.project.id, {
+						teamId,
+						environment: 'prod',
+						name: 'managed-default',
+						registrationIdentity: `market:${details.project.id}`,
+						serviceBaseUrl: railwayApiService?.publicBaseUrl ?? null,
+						status: 'active',
+						autoscale: {
+							minWorkers: Number(process.env.TREESEED_AGENT_POOL_MIN_WORKERS ?? 1),
+							maxWorkers: Number(process.env.TREESEED_AGENT_POOL_MAX_WORKERS ?? 3),
+							targetQueueDepth: Number(process.env.TREESEED_AGENT_POOL_TARGET_QUEUE_DEPTH ?? 3),
+							cooldownSeconds: Number(process.env.TREESEED_AGENT_POOL_COOLDOWN_SECONDS ?? 120),
+						},
+						metadata: {
+							source: 'knowledge_coop_launch',
+							services: launch.railway?.services ?? [],
+						},
+					});
+					const completedJob = await store.completeJob(launchJob.id, {
+						output: {
+							repository: launch.repository,
+							projectApiBaseUrl: launch.projectApiBaseUrl,
+							projectSiteUrl: launch.projectSiteUrl,
+							templatePackage: {
+								manifestPath: launch.templatePackage.manifestPath,
+								outputRoot: launch.templatePackage.outputRoot,
+							},
+							knowledgePackPackage: {
+								manifestPath: launch.knowledgePackPackage.manifestPath,
+								outputRoot: launch.knowledgePackPackage.outputRoot,
+							},
+						},
+					});
+					await store.deleteTeamInboxItemsByItemKey(teamId, launchItemKey);
+					const projectSummary = await store.getProjectSummary(details.project.id, access.principal);
+					if (projectSummary) {
+						await store.upsertProjectSummarySnapshot(details.project.id, teamId, projectSummary);
+					}
+					return c.json({
+						ok: true,
+						payload: {
+							project: projectSummary,
+							launchJob: decorateJob(normalizeBaseUrl(runtime.resolved.config.baseUrl ?? ''), completedJob),
+						},
+					});
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error);
+					const phases = launchFailurePhases(error);
+					for (const phase of phases) {
+						await store.appendJobEvent(launchJob.id, 'phase', phase);
+					}
+					const lastSuccessfulPhase = [...phases]
+						.reverse()
+						.find((entry) => entry.status === 'completed')?.phase ?? null;
+					const failedMetadata = {
+						...(details.project.metadata ?? {}),
+						publicSite: body.publicSite !== false,
+						sourceKind,
+						sourceRef,
+						enableDefaultAgents: body.enableDefaultAgents !== false,
+						launchMode: hostingMode,
+						launchJobId: launchJob.id,
+						launchPhase: 'failed',
+						lastSuccessfulPhase,
+						launchFailure: {
+							code: launchFailureCode(error),
+							message,
+						},
+					};
+					await store.updateProject(details.project.id, {
+						metadata: failedMetadata,
+					});
+					await store.upsertCatalogItem(teamId, {
+						id: details.project.id,
+						kind: 'project',
+						slug: details.project.slug,
+						title: details.project.name,
+						summary: details.project.description ?? null,
+						visibility: 'team',
+						listingEnabled: false,
+						offerMode: typeof body.entitlementTier === 'string' ? body.entitlementTier : 'free',
+						searchText: [details.project.name, details.project.description].filter(Boolean).join(' ').trim() || null,
+						metadata: failedMetadata,
+					});
+					await store.upsertProjectHosting(details.project.id, {
+						kind: hostingKind,
+						registration,
+						marketBaseUrl: runtime.resolved.config.baseUrl ?? null,
+						sourceRepoOwner: typeof body.repoOwner === 'string'
+							? body.repoOwner
+							: typeof body.sourceRepoOwner === 'string'
+								? body.sourceRepoOwner
+								: null,
+						sourceRepoName: details.project.slug,
+						sourceRepoUrl: null,
+						sourceRepoWorkflowPath: '.github/workflows/verify.yml',
+						projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
+						executionOwner: hostingMode === 'managed' ? 'project_api' : 'project_runner',
+						metadata: {
+							repoProvider,
+							repoVisibility,
+							publicSite: body.publicSite !== false,
+							sourceKind,
+							sourceRef,
+							launchPhase: 'failed',
+							lastSuccessfulPhase,
+							launchFailure: {
+								code: launchFailureCode(error),
+								message,
+							},
+						},
+					});
+					await store.upsertProjectConnection(details.project.id, {
+						mode: hostingMode === 'managed' ? 'hosted' : hostingMode === 'hybrid' ? 'hybrid' : 'self_hosted',
+						projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
+						executionOwner: hostingMode === 'managed' ? 'project_api' : 'project_runner',
+						metadata: {
+							internalPrefix: '/internal/core',
+							repoProvider,
+							repoVisibility,
+							publicSite: body.publicSite !== false,
+							sourceKind,
+							sourceRef,
+							launchPhase: 'failed',
+							lastSuccessfulPhase,
+							launchFailure: {
+								code: launchFailureCode(error),
+								message,
+							},
+						},
+					});
+					const failedJob = await store.failJob(launchJob.id, {
+						code: launchFailureCode(error),
+						message,
+					});
+					await store.upsertTeamInboxItem(teamId, {
+						id: `launch-failure:${details.project.id}`,
+						projectId: details.project.id,
+						kind: 'launch_failure',
+						state: 'open',
+						title: `${details.project.name}: launch failed`,
+						summary: message,
+						href,
+						itemKey: launchItemKey,
+						metadata: {
+							jobId: launchJob.id,
+							code: launchFailureCode(error),
+							lastSuccessfulPhase,
+						},
+					});
+					const projectSummary = await store.getProjectSummary(details.project.id, access.principal);
+					if (projectSummary) {
+						await store.upsertProjectSummarySnapshot(details.project.id, teamId, projectSummary);
+					}
+					return c.json({
+						ok: false,
+						error: message,
+						payload: {
+							project: projectSummary,
+							launchJob: decorateJob(normalizeBaseUrl(runtime.resolved.config.baseUrl ?? ''), failedJob),
+						},
+					}, { status: 502 });
+				}
+			});
+
 			app.get('/v1/projects/:projectId', async (c) => {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
 				if (access.response) return access.response;
 				return c.json({ ok: true, payload: access.details });
+			});
+
+			app.get('/v1/projects/:projectId/summary', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.getProjectSummary(c.req.param('projectId'), access.principal),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/direct', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.getProjectDirectSummary(c.req.param('projectId'), access.principal),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/workstreams', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.getProjectWorkstreamsSummary(c.req.param('projectId'), access.principal),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/agents', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.getProjectAgentsSummary(c.req.param('projectId'), access.principal),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/releases', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.getProjectReleasesSummary(c.req.param('projectId'), access.principal),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/share', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.getProjectShareSummary(c.req.param('projectId'), access.principal),
+				});
+			});
+
+			app.post('/v1/projects/:projectId/workstreams', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const delegated = await requireConnectedProjectRuntime(c, store, access.details.project.id, access.principal, '/v1/workstreams', {
+					method: 'POST',
+					body,
+				});
+				if (delegated.response) return delegated.response;
+				return c.json({ ok: true, payload: delegated.payload }, { status: 201 });
+			});
+
+			app.get('/v1/projects/:projectId/workstreams/:workstreamId', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const delegated = await requireConnectedProjectRuntime(c, store, access.details.project.id, access.principal, `/v1/workstreams/${encodeURIComponent(c.req.param('workstreamId'))}`);
+				if (delegated.response) return delegated.response;
+				return c.json({ ok: true, payload: delegated.payload });
+			});
+
+			app.post('/v1/projects/:projectId/workstreams/:workstreamId/save', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const delegated = await requireConnectedProjectRuntime(c, store, access.details.project.id, access.principal, `/v1/workstreams/${encodeURIComponent(c.req.param('workstreamId'))}/save`, {
+					method: 'POST',
+					body,
+				});
+				if (delegated.response) return delegated.response;
+				return c.json({ ok: true, payload: delegated.payload });
+			});
+
+			app.post('/v1/projects/:projectId/workstreams/:workstreamId/archive', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const delegated = await requireConnectedProjectRuntime(c, store, access.details.project.id, access.principal, `/v1/workstreams/${encodeURIComponent(c.req.param('workstreamId'))}/archive`, {
+					method: 'POST',
+					body,
+				});
+				if (delegated.response) return delegated.response;
+				return c.json({ ok: true, payload: delegated.payload });
+			});
+
+			app.post('/v1/projects/:projectId/workstreams/:workstreamId/stage', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const href = await projectAppHref(store, access.details.project.teamId, access.details.project.slug, 'workstreams');
+				const job = await store.createJob({
+					projectId: access.details.project.id,
+					namespace: 'project',
+					operation: 'stage_workstream',
+					status: 'waiting_for_approval',
+					preferredMode: 'auto',
+					selectedTarget: 'project_api',
+					requestedByType: c.get('actorType') === 'service' ? 'service' : 'user',
+					requestedById: typeof access.principal.id === 'string' ? access.principal.id : null,
+					input: {
+						actionPath: `/v1/workstreams/${c.req.param('workstreamId')}/stage`,
+						requestBody: body,
+						teamId: access.details.project.teamId,
+					},
+				});
+				await store.upsertTeamInboxItem(access.details.project.teamId, {
+					id: `approval:${job.id}`,
+					projectId: access.details.project.id,
+					kind: 'approval',
+					state: 'waiting_for_approval',
+					title: `${access.details.project.name}: stage workstream`,
+					summary: 'A workstream is ready to move to staging and needs human approval.',
+					href,
+					itemKey: job.id,
+					metadata: {
+						jobId: job.id,
+						workstreamId: c.req.param('workstreamId'),
+						action: 'stage',
+					},
+				});
+				return c.json({
+					ok: true,
+					payload: {
+						job: decorateJob(normalizeBaseUrl(runtime.resolved.config.baseUrl ?? ''), job),
+					},
+				}, { status: 202 });
+			});
+
+			app.post('/v1/projects/:projectId/releases', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const delegated = await requireConnectedProjectRuntime(c, store, access.details.project.id, access.principal, '/v1/releases', {
+					method: 'POST',
+					body,
+				});
+				if (delegated.response) return delegated.response;
+				return c.json({ ok: true, payload: delegated.payload }, { status: 201 });
+			});
+
+			app.get('/v1/projects/:projectId/releases/:releaseId', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const delegated = await requireConnectedProjectRuntime(c, store, access.details.project.id, access.principal, `/v1/releases/${encodeURIComponent(c.req.param('releaseId'))}`);
+				if (delegated.response) return delegated.response;
+				return c.json({ ok: true, payload: delegated.payload });
+			});
+
+			app.post('/v1/projects/:projectId/releases/:releaseId/rollback', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const delegated = await requireConnectedProjectRuntime(c, store, access.details.project.id, access.principal, `/v1/releases/${encodeURIComponent(c.req.param('releaseId'))}/rollback`, {
+					method: 'POST',
+					body,
+				});
+				if (delegated.response) return delegated.response;
+				return c.json({ ok: true, payload: delegated.payload });
+			});
+
+			app.post('/v1/projects/:projectId/releases/:releaseId/publish', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const href = await projectAppHref(store, access.details.project.teamId, access.details.project.slug, 'releases');
+				const job = await store.createJob({
+					projectId: access.details.project.id,
+					namespace: 'project',
+					operation: 'publish_release',
+					status: 'waiting_for_approval',
+					preferredMode: 'auto',
+					selectedTarget: 'project_api',
+					requestedByType: c.get('actorType') === 'service' ? 'service' : 'user',
+					requestedById: typeof access.principal.id === 'string' ? access.principal.id : null,
+					input: {
+						actionPath: `/v1/releases/${c.req.param('releaseId')}/publish`,
+						requestBody: body,
+						teamId: access.details.project.teamId,
+					},
+				});
+				await store.upsertTeamInboxItem(access.details.project.teamId, {
+					id: `approval:${job.id}`,
+					projectId: access.details.project.id,
+					kind: 'approval',
+					state: 'waiting_for_approval',
+					title: `${access.details.project.name}: publish release`,
+					summary: 'A release candidate is ready for production and needs human approval.',
+					href,
+					itemKey: job.id,
+					metadata: {
+						jobId: job.id,
+						releaseId: c.req.param('releaseId'),
+						action: 'publish_release',
+					},
+				});
+				return c.json({
+					ok: true,
+					payload: {
+						job: decorateJob(normalizeBaseUrl(runtime.resolved.config.baseUrl ?? ''), job),
+					},
+				}, { status: 202 });
+			});
+
+			app.get('/v1/projects/:projectId/agents/messages', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const delegated = await requireConnectedProjectRuntime(c, store, access.details.project.id, access.principal, '/v1/agents/messages');
+				if (delegated.response) return delegated.response;
+				return c.json({ ok: true, payload: delegated.payload });
+			});
+
+			app.post('/v1/projects/:projectId/share/export', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const delegated = await requireConnectedProjectRuntime(c, store, access.details.project.id, access.principal, '/v1/share/export', {
+					method: 'POST',
+					body,
+				});
+				if (delegated.response) return delegated.response;
+				return c.json({ ok: true, payload: delegated.payload });
+			});
+
+			app.post('/v1/projects/:projectId/share/package-template', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const delegated = await requireConnectedProjectRuntime(c, store, access.details.project.id, access.principal, '/v1/share/package-template', {
+					method: 'POST',
+					body,
+				});
+				if (delegated.response) return delegated.response;
+				return c.json({ ok: true, payload: delegated.payload });
+			});
+
+			app.post('/v1/projects/:projectId/share/package-knowledge-pack', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const delegated = await requireConnectedProjectRuntime(c, store, access.details.project.id, access.principal, '/v1/share/package-knowledge-pack', {
+					method: 'POST',
+					body,
+				});
+				if (delegated.response) return delegated.response;
+				return c.json({ ok: true, payload: delegated.payload });
+			});
+
+			app.post('/v1/projects/:projectId/share/publish', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const href = await projectAppHref(store, access.details.project.teamId, access.details.project.slug, 'share');
+				const job = await store.createJob({
+					projectId: access.details.project.id,
+					namespace: 'project',
+					operation: 'publish_listing',
+					status: 'waiting_for_approval',
+					preferredMode: 'auto',
+					selectedTarget: 'project_api',
+					requestedByType: c.get('actorType') === 'service' ? 'service' : 'user',
+					requestedById: typeof access.principal.id === 'string' ? access.principal.id : null,
+					input: {
+						actionPath: '/v1/share/publish',
+						requestBody: body,
+						teamId: access.details.project.teamId,
+					},
+				});
+				await store.upsertTeamInboxItem(access.details.project.teamId, {
+					id: `approval:${job.id}`,
+					projectId: access.details.project.id,
+					kind: 'approval',
+					state: 'waiting_for_approval',
+					title: `${access.details.project.name}: publish listing`,
+					summary: 'A market listing is ready to publish and needs human approval.',
+					href,
+					itemKey: job.id,
+					metadata: {
+						jobId: job.id,
+						action: 'publish_listing',
+					},
+				});
+				return c.json({
+					ok: true,
+					payload: {
+						job: decorateJob(normalizeBaseUrl(runtime.resolved.config.baseUrl ?? ''), job),
+					},
+				}, { status: 202 });
 			});
 
 			app.post('/v1/projects/:projectId/connection', async (c) => {
@@ -867,6 +1776,86 @@ export function createMarketApiApp(options = {}) {
 				return c.json({
 					ok: true,
 					payload: decorateJob(runtime.resolved.config.baseUrl, await store.cancelJob(job.id)),
+				});
+			});
+
+			app.post('/v1/jobs/:jobId/approve', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const job = await store.findJobById(c.req.param('jobId'));
+				if (!job) {
+					return jsonError(c, 404, `Unknown job "${c.req.param('jobId')}".`);
+				}
+				const access = await requireProjectAccess(c, store, job.projectId, 'projects:manage:team');
+				if (access.response) return access.response;
+				if (job.status !== 'waiting_for_approval') {
+					return jsonError(c, 409, 'This job is not waiting for approval.', { status: job.status });
+				}
+				const body = await c.req.json().catch(() => ({}));
+				const actionPath = typeof job.input?.actionPath === 'string' ? job.input.actionPath : null;
+				if (!actionPath) {
+					return jsonError(c, 400, 'Approved job is missing an action path.');
+				}
+				await store.appendJobEvent(job.id, 'approved', {
+					approvedBy: access.principal.id,
+					note: typeof body.note === 'string' ? body.note : null,
+				});
+				await store.recordJobProgress(job.id, {
+					summary: 'Approval granted. Executing approved action.',
+				});
+				const delegated = await store.requestProjectRuntime(job.projectId, access.principal, actionPath, {
+					method: 'POST',
+					body: typeof job.input?.requestBody === 'object' && job.input.requestBody ? job.input.requestBody : {},
+				});
+				if (!delegated) {
+					const failedJob = await store.failJob(job.id, {
+						code: 'runtime_unavailable',
+						message: 'Project runtime is not connected or unavailable for the approved action.',
+					});
+					return c.json({
+						ok: false,
+						payload: decorateJob(runtime.resolved.config.baseUrl, failedJob),
+					}, { status: 409 });
+				}
+				const completed = await store.completeJob(job.id, {
+					output: {
+						approvedBy: access.principal.id,
+						result: delegated,
+					},
+				});
+				const teamId = typeof job.input?.teamId === 'string' ? job.input.teamId : access.details.project.teamId;
+				await store.deleteTeamInboxItemsByItemKey(teamId, job.id);
+				return c.json({
+					ok: true,
+					payload: {
+						job: decorateJob(runtime.resolved.config.baseUrl, completed),
+						result: delegated,
+					},
+				});
+			});
+
+			app.post('/v1/jobs/:jobId/reject', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const job = await store.findJobById(c.req.param('jobId'));
+				if (!job) {
+					return jsonError(c, 404, `Unknown job "${c.req.param('jobId')}".`);
+				}
+				const access = await requireProjectAccess(c, store, job.projectId, 'projects:manage:team');
+				if (access.response) return access.response;
+				if (job.status !== 'waiting_for_approval') {
+					return jsonError(c, 409, 'This job is not waiting for approval.', { status: job.status });
+				}
+				const body = await c.req.json().catch(() => ({}));
+				const rejected = await store.failJob(job.id, {
+					code: 'approval_rejected',
+					message: typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim() : 'Approval rejected.',
+				});
+				const teamId = typeof job.input?.teamId === 'string' ? job.input.teamId : access.details.project.teamId;
+				await store.deleteTeamInboxItemsByItemKey(teamId, job.id);
+				return c.json({
+					ok: true,
+					payload: decorateJob(runtime.resolved.config.baseUrl, rejected),
 				});
 			});
 

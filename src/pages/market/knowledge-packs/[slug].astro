@@ -1,0 +1,63 @@
+---
+import KnowledgeCoopPublicLayout from '../../../layouts/KnowledgeCoopPublicLayout.astro';
+import { resolveMarketStore } from '../../../lib/market/store.js';
+
+const slug = Astro.params.slug ?? '';
+const store = resolveMarketStore(Astro.locals);
+const entry = store ? await store.getCatalogItemBySlug('knowledge_pack', slug) : null;
+const artifacts = entry && store ? await store.listCatalogArtifactVersions(entry.id) : [];
+
+if (!entry) {
+	Astro.response.status = 404;
+}
+---
+
+<KnowledgeCoopPublicLayout
+	title={`${entry?.title ?? 'Knowledge pack'} | Knowledge Coop`}
+	description={entry?.summary ?? 'Knowledge pack detail'}
+	currentPath={Astro.url.pathname}
+>
+	<section class="kc-panel">
+		<p class="kc-section__eyebrow">Knowledge pack</p>
+		<h1>{entry?.title ?? 'Unknown knowledge pack'}</h1>
+		<p>{entry?.summary ?? 'This knowledge pack could not be resolved.'}</p>
+		<div class="kc-badges" style="margin-top: 0.75rem;">
+			{entry ? <span class="kc-badge">{entry.visibility}</span> : null}
+			{entry?.offerMode ? <span class="kc-badge">{entry.offerMode.replaceAll('_', ' ')}</span> : null}
+			{entry?.metadata?.installStrategy ? <span class="kc-badge">{String(entry.metadata.installStrategy)}</span> : null}
+		</div>
+	</section>
+
+	<section class="kc-grid-2" style="margin-top: 1rem;">
+		<div class="kc-panel">
+			<div class="kc-panel__header">
+				<div>
+					<h2>Trust and packaging</h2>
+					<p>Visibility, source, and publication context carried in the catalog entry.</p>
+				</div>
+			</div>
+			<div class="kc-list">
+				<div class="kc-list-item"><strong>Visibility</strong><br />{entry?.visibility ?? 'unknown'}</div>
+				<div class="kc-list-item"><strong>Offer mode</strong><br />{entry?.offerMode?.replaceAll('_', ' ') ?? 'unknown'}</div>
+				<div class="kc-list-item"><strong>Source kind</strong><br />{String(entry?.metadata?.sourceKind ?? 'market_import')}</div>
+				<div class="kc-list-item"><strong>Install strategy</strong><br />{String(entry?.metadata?.installStrategy ?? 'import_export')}</div>
+			</div>
+		</div>
+		<div class="kc-panel">
+			<div class="kc-panel__header">
+				<div>
+					<h2>Published artifacts</h2>
+					<p>Artifact versions packaged for this knowledge pack.</p>
+				</div>
+			</div>
+			<div class="kc-list">
+					{artifacts.length > 0 ? artifacts.map((artifact: any) => (
+					<div class="kc-list-item">
+						<strong>{artifact.version}</strong><br />
+						{artifact.kind} · {artifact.publishedAt}
+					</div>
+				)) : <div class="kc-empty">No published artifacts are attached yet.</div>}
+			</div>
+		</div>
+	</section>
+</KnowledgeCoopPublicLayout>

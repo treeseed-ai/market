@@ -1,0 +1,349 @@
+---
+import KnowledgeCoopAppLayout from '../../../../../../layouts/KnowledgeCoopAppLayout.astro';
+import { loadProjectAppContext } from '../../../../../../lib/market/app-data.js';
+
+const section = Astro.params.section ?? 'overview';
+const allowedSections = new Set(['overview', 'direct', 'workstreams', 'agents', 'releases', 'share', 'settings']);
+if (!allowedSections.has(section)) {
+	Astro.response.status = 404;
+}
+
+if (!Astro.locals.auth?.principal) {
+	return Astro.redirect(`/auth/sign-in?provider=github&next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+
+const context = await loadProjectAppContext(Astro.locals, Astro.params.teamSlug ?? '', Astro.params.projectSlug ?? '');
+if (!context.team || !context.project || !context.store) {
+	Astro.response.status = 404;
+}
+
+const [summary, direct, workstreams, agents, releases, share] = context.project && context.store
+	? await Promise.all([
+		context.store.getProjectSummary(context.project.id, context.principal as any),
+		context.store.getProjectDirectSummary(context.project.id, context.principal as any),
+		context.store.getProjectWorkstreamsSummary(context.project.id, context.principal as any),
+		context.store.getProjectAgentsSummary(context.project.id, context.principal as any),
+		context.store.getProjectReleasesSummary(context.project.id, context.principal as any),
+		context.store.getProjectShareSummary(context.project.id, context.principal as any),
+	])
+	: [null, null, null, null, null, null];
+
+const sectionTitles = {
+	overview: 'Overview',
+	direct: 'Direct',
+	workstreams: 'Workstreams',
+	agents: 'Agents',
+	releases: 'Releases',
+	share: 'Share',
+	settings: 'Settings',
+};
+const currentSectionTitle = (sectionTitles as Record<string, string>)[section] ?? 'Project';
+---
+
+<KnowledgeCoopAppLayout
+	title={`${context.project?.name ?? 'Project'} · ${currentSectionTitle}`}
+	description="Project-centric operations for direction, workstreams, agents, releases, and market sharing."
+	currentPath={Astro.url.pathname}
+	teams={context.teams}
+	activeTeam={context.team}
+	project={{
+		id: context.project?.id ?? '',
+		slug: context.project?.slug ?? '',
+		name: context.project?.name ?? 'Project',
+		health: summary?.health ?? null,
+	}}
+>
+	{section === 'overview' ? (
+		<>
+			<section class="kc-metric-strip">
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Objectives</span>
+					<span class="kc-metric__value">{summary?.counts.objectives ?? 0}</span>
+				</div>
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Proposals</span>
+					<span class="kc-metric__value">{summary?.counts.proposals ?? 0}</span>
+				</div>
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Decisions</span>
+					<span class="kc-metric__value">{summary?.counts.decisions ?? 0}</span>
+				</div>
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Workstreams</span>
+					<span class="kc-metric__value">{summary?.counts.activeWorkstreams ?? 0}</span>
+				</div>
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Agent pools</span>
+					<span class="kc-metric__value">{summary?.counts.agentPools ?? 0}</span>
+				</div>
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Published artifacts</span>
+					<span class="kc-metric__value">{summary?.counts.artifacts ?? 0}</span>
+				</div>
+			</section>
+
+			<section class="kc-grid-2" style="margin-top: 1rem;">
+				<div class="kc-panel">
+					<div class="kc-panel__header">
+						<div>
+							<p class="kc-section__eyebrow">Project health</p>
+							<h2>{summary?.health.label ?? 'Unknown'}</h2>
+						</div>
+						<span class="kc-status-pill" data-tone={summary?.health.state === 'release_ready' ? 'success' : summary?.health.state === 'verification_failing' ? 'danger' : summary?.health.state === 'setup_needed' ? 'warning' : 'info'}>{summary?.health.label ?? 'Unknown'}</span>
+					</div>
+					<p>{summary?.health.reason}</p>
+					<div class="kc-list">
+						<div class="kc-list-item"><strong>Next best action</strong><br />{summary?.nextBestAction}</div>
+						<div class="kc-list-item"><strong>Latest prod</strong><br />{summary?.latestProdDeployment?.releaseTag ?? 'No prod release recorded yet.'}</div>
+						<div class="kc-list-item"><strong>Latest staging</strong><br />{summary?.latestStagingDeployment?.releaseTag ?? 'No staging candidate recorded yet.'}</div>
+					</div>
+				</div>
+				<div class="kc-panel">
+					<div class="kc-panel__header">
+						<div>
+							<p class="kc-section__eyebrow">Recent activity</p>
+							<h2>Timeline</h2>
+						</div>
+					</div>
+					<div class="kc-activity">
+						{summary?.recentActivity?.length ? summary.recentActivity.map((item: any) => (
+							<div class="kc-activity-item">
+								<strong>{item.title}</strong><br />
+								<span class="kc-subtle">{item.status} · {item.timestamp}</span>
+								{item.summary ? <p>{item.summary}</p> : null}
+							</div>
+						)) : <div class="kc-empty">No activity has been recorded yet.</div>}
+					</div>
+				</div>
+			</section>
+		</>
+	) : null}
+
+	{section === 'direct' ? (
+		<section class="kc-grid-2">
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Direct</p>
+						<h2>Direction board summary</h2>
+						<p>Canonical direction stays in the hub repo. The market app renders the current summary and saved views.</p>
+					</div>
+				</div>
+				<div class="kc-list">
+					<div class="kc-list-item"><strong>Objectives</strong><br />{direct?.objectiveCount ?? 0}</div>
+					<div class="kc-list-item"><strong>Questions</strong><br />{direct?.questionCount ?? 0}</div>
+					<div class="kc-list-item"><strong>Notes</strong><br />{direct?.noteCount ?? 0}</div>
+					<div class="kc-list-item"><strong>Proposals</strong><br />{direct?.proposalCount ?? 0}</div>
+					<div class="kc-list-item"><strong>Decisions</strong><br />{direct?.decisionCount ?? 0}</div>
+				</div>
+			</div>
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Saved views</p>
+						<h2>Default operating slices</h2>
+					</div>
+				</div>
+				<div class="kc-badges">
+					{direct?.savedViews?.map((view: any) => <span class="kc-badge">{view}</span>)}
+				</div>
+				<div class="kc-list" style="margin-top: 1rem;">
+					{direct?.items?.length ? direct.items.map((item: any) => (
+						<div class="kc-list-item">
+							<strong>{item.title ?? item.id ?? 'Direction item'}</strong><br />
+							<span class="kc-subtle">{item.kind ?? 'item'}</span>
+						</div>
+					)) : <div class="kc-empty">No Direct item summaries have been reported into the control-plane yet.</div>}
+				</div>
+			</div>
+		</section>
+	) : null}
+
+	{section === 'workstreams' ? (
+		<section class="kc-grid-2">
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Workstreams</p>
+						<h2>Lifecycle columns</h2>
+					</div>
+				</div>
+				<div class="kc-badges">
+					{workstreams?.columns?.map((column: any) => <span class="kc-badge">{column}</span>)}
+				</div>
+				<div class="kc-list" style="margin-top: 1rem;">
+					{workstreams?.items?.length ? workstreams.items.map((item: any) => (
+						<div class="kc-list-item">
+							<strong>{item.title ?? item.name ?? 'Workstream'}</strong><br />
+							<span class="kc-subtle">{item.status ?? 'drafting'}</span>
+						</div>
+					)) : <div class="kc-empty">No branch-backed workstreams have been synchronized into the control-plane yet.</div>}
+				</div>
+			</div>
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Recent workflow jobs</p>
+						<h2>Operational activity</h2>
+					</div>
+				</div>
+				<div class="kc-list">
+					{workstreams?.recentJobs?.length ? workstreams.recentJobs.map((job: any) => (
+						<div class="kc-list-item">
+							<strong>{job.namespace}:{job.operation}</strong><br />
+							<span class="kc-subtle">{job.status} · {job.updatedAt}</span>
+						</div>
+					)) : <div class="kc-empty">No workflow jobs have been recorded yet.</div>}
+				</div>
+			</div>
+		</section>
+	) : null}
+
+	{section === 'agents' ? (
+		<section class="kc-grid-2">
+			<div class="kc-table-shell">
+				<table class="kc-table">
+					<thead>
+						<tr>
+							<th>Pool</th>
+							<th>Environment</th>
+							<th>Status</th>
+							<th>Service</th>
+						</tr>
+					</thead>
+					<tbody>
+						{agents?.pools?.length ? agents.pools.map((pool: any) => (
+							<tr>
+								<td>{pool.name}</td>
+								<td>{pool.environment}</td>
+								<td>{pool.status}</td>
+								<td>{pool.serviceBaseUrl ?? 'not registered'}</td>
+							</tr>
+						)) : (
+							<tr>
+								<td colspan="4">No agent pools are registered for this project yet.</td>
+							</tr>
+						)}
+					</tbody>
+				</table>
+			</div>
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Recent summaries</p>
+						<h2>Workday reporting</h2>
+					</div>
+				</div>
+				<div class="kc-list">
+					{agents?.workdaySummaries?.length ? agents.workdaySummaries.map((item: any) => (
+						<div class="kc-list-item">
+							<strong>{item.kind}</strong><br />
+							<span class="kc-subtle">{item.environment} · {item.createdAt}</span>
+						</div>
+					)) : <div class="kc-empty">No workday or agent summaries have been reported yet.</div>}
+				</div>
+			</div>
+		</section>
+	) : null}
+
+	{section === 'releases' ? (
+		<section class="kc-grid-2">
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Current environments</p>
+						<h2>Release state</h2>
+					</div>
+				</div>
+				<div class="kc-list">
+					<div class="kc-list-item"><strong>Production</strong><br />{releases?.currentProd?.releaseTag ?? 'No production release recorded.'}</div>
+					<div class="kc-list-item"><strong>Staging candidates</strong><br />{releases?.stagingCandidates?.length ?? 0}</div>
+				</div>
+			</div>
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Release history</p>
+						<h2>Deployments</h2>
+					</div>
+				</div>
+				<div class="kc-list">
+					{releases?.history?.length ? releases.history.map((entry: any) => (
+						<div class="kc-list-item">
+							<strong>{entry.environment}</strong><br />
+							<span class="kc-subtle">{entry.status} · {entry.releaseTag ?? entry.id}</span>
+						</div>
+					)) : <div class="kc-empty">No deployments have been recorded yet.</div>}
+				</div>
+			</div>
+		</section>
+	) : null}
+
+	{section === 'share' ? (
+		<section class="kc-grid-2">
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Listing state</p>
+						<h2>Market packaging</h2>
+					</div>
+				</div>
+				<div class="kc-list">
+					<div class="kc-list-item"><strong>Catalog listing</strong><br />{share?.listing?.title ?? 'No listing record yet.'}</div>
+					<div class="kc-list-item"><strong>Visibility</strong><br />{share?.listing?.visibility ?? 'draft'}</div>
+					<div class="kc-list-item"><strong>Publishable</strong><br />{share?.canPublish ? 'yes' : 'not yet'}</div>
+				</div>
+			</div>
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Artifacts</p>
+						<h2>Exported versions</h2>
+					</div>
+				</div>
+				<div class="kc-list">
+					{share?.artifacts?.length ? share.artifacts.map((artifact: any) => (
+						<div class="kc-list-item">
+							<strong>{artifact.version}</strong><br />
+							<span class="kc-subtle">{artifact.kind} · {artifact.publishedAt}</span>
+						</div>
+					)) : <div class="kc-empty">No export or package artifacts have been published yet.</div>}
+				</div>
+			</div>
+		</section>
+	) : null}
+
+	{section === 'settings' ? (
+		<section class="kc-grid-2">
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Runtime</p>
+						<h2>Connection and hosting</h2>
+					</div>
+				</div>
+				<div class="kc-list">
+					<div class="kc-list-item"><strong>Connection mode</strong><br />{summary?.connection?.mode ?? 'unconfigured'}</div>
+					<div class="kc-list-item"><strong>Execution owner</strong><br />{summary?.connection?.executionOwner ?? 'unconfigured'}</div>
+					<div class="kc-list-item"><strong>Hosting kind</strong><br />{summary?.hosting?.kind ?? 'unconfigured'}</div>
+				</div>
+			</div>
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Environments</p>
+						<h2>Configured surfaces</h2>
+					</div>
+				</div>
+				<div class="kc-list">
+					{summary?.environments?.length ? summary.environments.map((environment: any) => (
+						<div class="kc-list-item">
+							<strong>{environment.environment}</strong><br />
+							<span class="kc-subtle">{environment.deploymentProfile}</span>
+						</div>
+					)) : <div class="kc-empty">No environments are configured yet.</div>}
+				</div>
+			</div>
+		</section>
+	) : null}
+</KnowledgeCoopAppLayout>

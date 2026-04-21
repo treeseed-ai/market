@@ -1,28 +1,26 @@
 name: TreeSeed Market
 slug: treeseed-market
-siteUrl: https://market.treeseed.ai
+siteUrl: https://treeseed.ai
 contactEmail: hello@treeseed.ai
 hosting:
   kind: market_control_plane
   registration: none
-  marketBaseUrl: https://api.treeseed.ai
-  projectId: treeseed-market
+hub:
+  mode: treeseed_hosted
+runtime:
+  mode: treeseed_managed
+  registration: none
 cloudflare:
-  accountId: replace-with-cloudflare-account-id
   workerName: treeseed-market
   queueName: agent-work
   dlqName: agent-work-dlq
   d1Binding: SITE_DATA_DB
   queueBinding: AGENT_WORK_QUEUE
   pages:
-    projectName: treeseed-market
-    previewProjectName: treeseed-market-staging
     productionBranch: main
     stagingBranch: staging
     buildOutputDir: dist
   r2:
-    binding: TREESEED_CONTENT_BUCKET
-    bucketName: treeseed-market-content
     manifestKeyTemplate: teams/{teamId}/published/common.json
     previewRootTemplate: teams/{teamId}/previews
     previewTtlHours: 168
@@ -33,6 +31,26 @@ surfaces:
     rootDir: .
     publicBaseUrl: https://market.treeseed.ai
     localBaseUrl: http://127.0.0.1:4321
+    cache:
+      sourcePages:
+        browserTtlSeconds: 0
+        edgeTtlSeconds: 31536000
+        staleWhileRevalidateSeconds: 86400
+        staleIfErrorSeconds: 86400
+        paths:
+          - /
+          - /contact
+          - /404
+      contentPages:
+        browserTtlSeconds: 0
+        edgeTtlSeconds: 31536000
+        staleWhileRevalidateSeconds: 86400
+        staleIfErrorSeconds: 86400
+      r2PublishedObjects:
+        browserTtlSeconds: 0
+        edgeTtlSeconds: 31536000
+        staleWhileRevalidateSeconds: 86400
+        staleIfErrorSeconds: 86400
   api:
     enabled: true
     provider: railway
@@ -43,83 +61,106 @@ services:
     enabled: true
     provider: railway
     rootDir: .
-    publicBaseUrl: https://api.treeseed.ai
     railway:
+      projectName: treeseed-market
       serviceName: treeseed-api
+      rootDir: .
       buildCommand: npm run build:api
       startCommand: node ./src/api/server.js
     environments:
       local:
         baseUrl: http://127.0.0.1:3000
+        railwayEnvironment: local
+      staging:
+        railwayEnvironment: staging
+      prod:
+        railwayEnvironment: prod
   manager:
     enabled: true
     provider: railway
     railway:
+      projectName: treeseed-market
       serviceName: treeseed-manager
       rootDir: .
       buildCommand: npm run build:api
       startCommand: node ./packages/core/dist/services/manager.js
-      schedule: '*/5 * * * *'
+      schedule: "*/5 * * * *"
+    environments:
+      local:
+        railwayEnvironment: local
+      staging:
+        railwayEnvironment: staging
+      prod:
+        railwayEnvironment: prod
   worker:
     enabled: true
     provider: railway
     railway:
+      projectName: treeseed-market
       serviceName: treeseed-worker
       rootDir: .
       buildCommand: npm run build:api
       startCommand: node ./packages/core/dist/services/worker.js
-  agents:
-    enabled: true
-    provider: railway
-    railway:
-      serviceName: treeseed-agents
-      rootDir: .
-      buildCommand: npm run build:api
-      startCommand: node ./packages/core/dist/services/agents.js
-  runner:
-    enabled: true
-    provider: railway
-    railway:
-      serviceName: treeseed-runner
-      rootDir: .
-      buildCommand: npm run build:api
-      startCommand: node ./packages/core/dist/services/remote-runner.js
+    environments:
+      local:
+        railwayEnvironment: local
+      staging:
+        railwayEnvironment: staging
+      prod:
+        railwayEnvironment: prod
   workdayStart:
     enabled: true
     provider: railway
     railway:
+      projectName: treeseed-market
       serviceName: treeseed-workday-start
       rootDir: .
       buildCommand: npm run build:api
       startCommand: node ./packages/core/dist/services/workday-start.js
-      schedule: '0 9 * * 1-5'
+      schedule: 0 9 * * 1-5
+    environments:
+      local:
+        railwayEnvironment: local
+      staging:
+        railwayEnvironment: staging
+      prod:
+        railwayEnvironment: prod
   workdayReport:
     enabled: true
     provider: railway
     railway:
+      projectName: treeseed-market
       serviceName: treeseed-workday-report
       rootDir: .
       buildCommand: npm run build:api
       startCommand: node ./packages/core/dist/services/workday-report.js
-      schedule: '5 17 * * 1-5'
+      schedule: 5 17 * * 1-5
+    environments:
+      local:
+        railwayEnvironment: local
+      staging:
+        railwayEnvironment: staging
+      prod:
+        railwayEnvironment: prod
 plugins:
-  - package: '@treeseed/core/plugin-default'
+  - package: "@treeseed/core/plugin-default"
 providers:
   forms: store_only
   agents:
-    execution: stub
+    execution: copilot
     mutation: local_branch
-    repository: stub
-    verification: stub
-    notification: stub
-    research: stub
+    repository: git
+    verification: local
+    notification: sdk_message
+    research: project_graph
   deploy: cloudflare
   content:
+    serving: local_collections
     runtime: team_scoped_r2_overlay
     publish: team_scoped_r2_overlay
     docs: default
   site: default
 smtp:
-  enabled: false
+  enabled: true
 turnstile:
   enabled: true

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as treeseedCore from '@treeseed/core';
 import { AgentSdk } from '@treeseed/sdk';
 import type { D1DatabaseLike, D1PreparedStatementLike } from '@treeseed/core/types/cloudflare';
 import { createMarketApiApp } from '../../src/api/app.js';
@@ -172,6 +173,18 @@ async function createTeamAndProject(app: ReturnType<typeof createTestApp>, token
 		team: team.payload,
 		project: project.payload.project,
 	};
+}
+
+async function createTeam(app: ReturnType<typeof createTestApp>, token: string) {
+	const team = await json(await app.request('/v1/teams', {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			authorization: `Bearer ${token}`,
+		},
+		body: JSON.stringify({ slug: 'team-one', name: 'Team One' }),
+	}));
+	return team.payload;
 }
 
 runtimeDescribe('market api', () => {
@@ -1104,5 +1117,212 @@ runtimeDescribe('market api', () => {
 		});
 		expect(response.payload.token).toContain('.');
 		expect(response.payload.previewUrl).toContain('?preview=');
+	});
+
+	it('executes the managed project launch pipeline and persists launch topology', async () => {
+		const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeCoopManagedLaunch').mockResolvedValue({
+			workingRoot: '/tmp/knowledge-coop-launch-success',
+			repository: {
+				slug: 'treeseed-ai/launch-project',
+				owner: 'treeseed-ai',
+				name: 'launch-project',
+				url: 'https://github.com/treeseed-ai/launch-project',
+				defaultBranch: 'main',
+				stagingBranch: 'staging',
+				visibility: 'private',
+			},
+			workflows: {
+				repository: 'treeseed-ai/launch-project',
+				workflows: [{ workflowPath: '.github/workflows/verify.yml', changed: true, workingDirectory: '.' }],
+				secrets: { existing: [], created: ['TREESEED_API_WEB_SERVICE_SECRET'] },
+				variables: { existing: [], created: ['TREESEED_API_BASE_URL'] },
+			},
+			cloudflare: {
+				staging: {
+					accountId: 'cf-account-1',
+					workerName: 'launch-project-staging',
+					siteUrl: 'https://launch-project-staging.pages.dev',
+					pages: { projectName: 'launch-project-staging', url: 'https://launch-project-staging.pages.dev' },
+					content: { bucketName: 'launch-project-staging-content' },
+					siteDataDb: { databaseName: 'launch-project-staging-db' },
+					queue: { name: 'launch-project-staging-queue' },
+				},
+				prod: {
+					accountId: 'cf-account-1',
+					workerName: 'launch-project',
+					siteUrl: 'https://launch-project.pages.dev',
+					pages: { projectName: 'launch-project', url: 'https://launch-project.pages.dev' },
+					content: { bucketName: 'launch-project-content' },
+					siteDataDb: { databaseName: 'launch-project-db' },
+					queue: { name: 'launch-project-queue' },
+				},
+				verification: { ok: true },
+			},
+			railway: {
+				services: [{
+					key: 'api',
+					scope: 'prod',
+					projectName: 'launch-project',
+					serviceName: 'launch-project-api',
+					publicBaseUrl: 'https://launch-project-api.up.railway.app',
+				}],
+				deployments: [],
+				schedules: [],
+				verification: { ok: true },
+			},
+			projectApiBaseUrl: 'https://launch-project-api.up.railway.app',
+			projectSiteUrl: 'https://launch-project.pages.dev',
+			projectMetadata: {
+				objectiveCount: 1,
+				questionCount: 1,
+				noteCount: 1,
+				proposalCount: 1,
+				decisionCount: 1,
+				workstreams: [{
+					id: 'launch-project:initial-launch',
+					title: 'Initial launch',
+				}],
+			},
+			defaultWorkstream: {
+				id: 'launch-project:initial-launch',
+				title: 'Initial launch',
+				state: 'saved_remote',
+			},
+			phases: [
+				{ phase: 'repo_provision', status: 'completed', detail: 'Created repository.', timestamp: '2026-04-16T00:00:00.000Z' },
+				{ phase: 'content_bootstrap', status: 'completed', detail: 'Scaffolded starter template.', timestamp: '2026-04-16T00:00:01.000Z' },
+				{ phase: 'workflow_bootstrap', status: 'completed', detail: 'Installed workflows.', timestamp: '2026-04-16T00:00:02.000Z' },
+				{ phase: 'hosting_registration', status: 'completed', detail: 'Provisioned Cloudflare.', timestamp: '2026-04-16T00:00:03.000Z' },
+				{ phase: 'runtime_connection', status: 'completed', detail: 'Connected Railway runtime.', timestamp: '2026-04-16T00:00:04.000Z' },
+			],
+			templatePackage: {
+				outputRoot: '/tmp/knowledge-coop-launch-success/template',
+				payloadRoot: '/tmp/knowledge-coop-launch-success/template/payload',
+				manifestPath: '/tmp/knowledge-coop-launch-success/template/manifest.json',
+				files: ['package.json'],
+				manifest: {
+					schemaVersion: 1,
+					kind: 'template',
+					id: 'launch-project-template',
+					title: 'Launch Project template',
+					summary: 'Template package',
+					version: '0.1.0',
+					generatedAt: '2026-04-16T00:00:05.000Z',
+					projectSlug: 'launch-project',
+					sourceProjectRoot: '/tmp/knowledge-coop-launch-success',
+					payloadRoot: 'payload',
+					files: ['package.json'],
+					compatibility: { minCliVersion: '0.1.0', minCoreVersion: '0.1.0', minSdkVersion: '0.1.0' },
+					sourceSelection: { includedPaths: ['package.json'] },
+					market: { publisherId: 'team-one', publisherName: 'Team One', publishMetadata: {} },
+				},
+			},
+			knowledgePackPackage: {
+				outputRoot: '/tmp/knowledge-coop-launch-success/knowledge-pack',
+				payloadRoot: '/tmp/knowledge-coop-launch-success/knowledge-pack/payload',
+				manifestPath: '/tmp/knowledge-coop-launch-success/knowledge-pack/manifest.json',
+				files: ['src/content/objectives/launch.mdx'],
+				manifest: {
+					schemaVersion: 1,
+					kind: 'knowledge_pack',
+					id: 'launch-project-pack',
+					title: 'Launch Project knowledge pack',
+					summary: 'Knowledge pack',
+					version: '0.1.0',
+					generatedAt: '2026-04-16T00:00:05.000Z',
+					projectSlug: 'launch-project',
+					sourceProjectRoot: '/tmp/knowledge-coop-launch-success',
+					payloadRoot: 'payload',
+					files: ['src/content/objectives/launch.mdx'],
+					compatibility: { minCliVersion: '0.1.0', minCoreVersion: '0.1.0', minSdkVersion: '0.1.0' },
+					sourceSelection: { includedPaths: ['src/content/objectives'] },
+					market: { publisherId: 'team-one', publisherName: 'Team One', publishMetadata: {} },
+				},
+			},
+		} as unknown as Awaited<ReturnType<typeof treeseedCore.executeKnowledgeCoopManagedLaunch>>);
+
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+
+		const launched = await app.request(`/v1/teams/${team.id}/projects/launch`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				slug: 'launch-project',
+				name: 'Launch Project',
+				sourceKind: 'template',
+				sourceRef: 'starter-basic',
+				hostingMode: 'managed',
+			}),
+		});
+
+		expect(launched.status).toBe(200);
+		const payload = await json(launched);
+		expect(payload.ok).toBe(true);
+		expect(payload.payload.project.project.slug).toBe('launch-project');
+		expect(payload.payload.project.connection.projectApiBaseUrl).toBe('https://launch-project-api.up.railway.app');
+		expect(payload.payload.launchJob.status).toBe('completed');
+		expect(launchSpy).toHaveBeenCalledTimes(1);
+
+		const details = await json(await app.request(`/v1/projects/${payload.payload.project.project.id}`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(details.payload.hosting.sourceRepoUrl).toBe('https://github.com/treeseed-ai/launch-project');
+		expect(details.payload.environments.find((entry: { environment: string }) => entry.environment === 'prod')?.baseUrl).toBe('https://launch-project.pages.dev');
+		expect(details.payload.resources.some((entry: { provider: string; resourceKind: string }) => entry.provider === 'cloudflare' && entry.resourceKind === 'pages')).toBe(true);
+
+		const inbox = await json(await app.request(`/v1/teams/${team.id}/inbox`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(inbox.payload.some((entry: { kind: string }) => entry.kind === 'launch_failure')).toBe(false);
+	});
+
+	it('records launch failures as recoverable inbox items', async () => {
+		const error = Object.assign(new Error('GitHub denied repository creation.'), {
+			phase: 'repo_provision_failed',
+			phases: [
+				{ phase: 'repo_provision', status: 'failed', detail: 'GitHub denied repository creation.', timestamp: '2026-04-16T00:00:00.000Z' },
+			],
+		});
+		vi.spyOn(treeseedCore, 'executeKnowledgeCoopManagedLaunch').mockRejectedValue(error);
+
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+
+		const launched = await app.request(`/v1/teams/${team.id}/projects/launch`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				slug: 'failed-launch',
+				name: 'Failed Launch',
+				sourceKind: 'blank',
+				hostingMode: 'managed',
+			}),
+		});
+
+		expect(launched.status).toBe(502);
+		const payload = await json(launched);
+		expect(payload.ok).toBe(false);
+		expect(payload.payload.launchJob.status).toBe('failed');
+		expect(payload.payload.project.project.metadata.launchPhase).toBe('failed');
+
+		const inbox = await json(await app.request(`/v1/teams/${team.id}/inbox`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(inbox.payload.some((entry: { kind: string; title: string }) => entry.kind === 'launch_failure' && entry.title.includes('Failed Launch'))).toBe(true);
 	});
 });

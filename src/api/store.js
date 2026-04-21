@@ -1,4 +1,4 @@
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 
@@ -8,6 +8,7 @@ const migrationSql = [
 	'../../migrations/0009_team_content_catalog.sql',
 	'../../migrations/0010_project_hosting_topology.sql',
 	'../../migrations/0011_control_plane_reporting.sql',
+	'../../migrations/0012_knowledge_coop_views.sql',
 ]
 	.map((relativePath) => fileURLToPath(new URL(relativePath, import.meta.url)))
 	.map((migrationPath) => readFileSync(migrationPath, 'utf8'))
@@ -51,6 +52,49 @@ function principalIsAdmin(principal) {
 	);
 }
 
+const TEAM_ROLE_CAPABILITIES = {
+	team_owner: [
+		'launch_projects',
+		'edit_direct',
+		'manage_workstreams',
+		'stage_releases',
+		'publish_releases',
+		'publish_market_listings',
+		'manage_products',
+		'manage_billing',
+		'approve_remote_execution',
+	],
+	market_steward: ['manage_products', 'publish_market_listings'],
+	project_lead: ['launch_projects', 'edit_direct', 'manage_workstreams', 'stage_releases', 'publish_releases', 'approve_remote_execution'],
+	contributor: ['edit_direct', 'manage_workstreams'],
+	reviewer: ['stage_releases', 'approve_remote_execution'],
+	finance: ['manage_billing', 'manage_products'],
+};
+
+const KNOWLEDGE_COOP_ROLE_DESCRIPTIONS = {
+	team_owner: 'Own the team portfolio and all project capabilities.',
+	market_steward: 'Manage market products and publish listings.',
+	project_lead: 'Lead projects, workstreams, and release promotion.',
+	contributor: 'Edit direction and move workstreams forward.',
+	reviewer: 'Review staged work and approve remote execution.',
+	finance: 'Manage billing and commercial product settings.',
+};
+
+const ALL_TEAM_CAPABILITIES = [...new Set(Object.values(TEAM_ROLE_CAPABILITIES).flat())];
+
+function normalizeBaseUrl(baseUrl) {
+	return String(baseUrl ?? '').trim().replace(/\/+$/u, '');
+}
+
+function signAssertionPayload(payload, secret) {
+	return createHmac('sha256', secret).update(payload).digest('base64url');
+}
+
+function uniqueCapabilities(roles = []) {
+	const capabilities = roles.flatMap((role) => TEAM_ROLE_CAPABILITIES[role] ?? []);
+	return [...new Set(capabilities)];
+}
+
 function projectConnectionModeFromHosting(kind, registration = 'none') {
 	if (kind === 'hosted_project') {
 		return 'hosted';
@@ -73,6 +117,21 @@ function serializeTeam(row) {
 	};
 }
 
+function serializeTeamMember(row, roles = []) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		userId: row.user_id,
+		status: row.status,
+		displayName: row.display_name,
+		email: row.email,
+		roles,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
 function serializeProject(row) {
 	if (!row) return null;
 	return {
@@ -84,6 +143,104 @@ function serializeProject(row) {
 		metadata: parseJson(row.metadata_json, {}),
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
+	};
+}
+
+function isoDate(value) {
+	if (typeof value !== 'string' || !value.trim()) {
+		return null;
+	}
+	const parsed = new Date(value);
+	return Number.isFinite(parsed.valueOf()) ? parsed.toISOString() : null;
+}
+
+function compareDatesDesc(left, right) {
+	const leftTime = isoDate(left) ? new Date(left).getTime() : 0;
+	const rightTime = isoDate(right) ? new Date(right).getTime() : 0;
+	return rightTime - leftTime;
+}
+
+function latestDate(...values) {
+	return values
+		.map((value) => isoDate(value))
+		.filter(Boolean)
+		.sort(compareDatesDesc)[0] ?? null;
+}
+
+function uniqueStrings(values) {
+	return [...new Set(values.filter((value) => typeof value === 'string' && value.trim()).map((value) => value.trim()))];
+}
+
+function summarizeProjectHealth({ hosting, connection, deployments, jobs }) {
+	const failedDeployment = deployments.find((deployment) => deployment.status === 'failed');
+	if (failedDeployment) {
+		return {
+			state: 'verification_failing',
+			label: 'Verification failing',
+			reason: `Latest ${failedDeployment.environment} deployment failed.`,
+		};
+	}
+
+	const failedJob = jobs.find((job) => job.status === 'failed');
+	if (failedJob) {
+		return {
+			state: 'action_required',
+			label: 'Action required',
+			reason: `Workflow ${failedJob.operation} failed.`,
+		};
+	}
+
+	if (!hosting || !connection) {
+		return {
+			state: 'setup_needed',
+			label: 'Setup needed',
+			reason: 'Hosting and runtime connection still need configuration.',
+		};
+	}
+
+	const readyRelease = deployments.find((deployment) => deployment.environment === 'staging' && deployment.status === 'succeeded');
+	if (readyRelease) {
+		return {
+			state: 'release_ready',
+			label: 'Release ready',
+			reason: 'A verified staging candidate is ready for human review.',
+		};
+	}
+
+	return {
+		state: 'working_normally',
+		label: 'Working normally',
+		reason: 'This project has a healthy runtime surface and no active failures.',
+	};
+}
+
+function summarizeDeploymentStatus(deployment) {
+	if (!deployment) {
+		return null;
+	}
+	return {
+		id: deployment.id,
+		environment: deployment.environment,
+		status: deployment.status,
+		deploymentKind: deployment.deploymentKind,
+		releaseTag: deployment.releaseTag,
+		commitSha: deployment.commitSha,
+		sourceRef: deployment.sourceRef,
+		finishedAt: deployment.finishedAt,
+		startedAt: deployment.startedAt,
+	};
+}
+
+function toActivityItem(kind, input) {
+	return {
+		kind,
+		id: input.id,
+		title: input.title,
+		status: input.status,
+		timestamp: input.timestamp,
+		href: input.href ?? null,
+		summary: input.summary ?? null,
+		metadata: input.metadata ?? {},
 	};
 }
 
@@ -458,6 +615,36 @@ function serializeTaskCreditLedgerEntry(row) {
 	};
 }
 
+function serializeTeamInboxItem(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		projectId: row.project_id,
+		kind: row.kind,
+		state: row.state,
+		title: row.title,
+		summary: row.summary,
+		href: row.href,
+		itemKey: row.item_key,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeProjectSummarySnapshot(row) {
+	if (!row) return null;
+	return {
+		projectId: row.project_id,
+		teamId: row.team_id,
+		summary: parseJson(row.summary_json, {}),
+		generatedAt: row.generated_at,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
 export class MarketControlPlaneStore {
 	constructor(config, db) {
 		this.config = config;
@@ -480,9 +667,155 @@ export class MarketControlPlaneStore {
 
 	ensureInitialized() {
 		if (!this.initializationPromise) {
-			this.initializationPromise = this.db.exec(migrationSql);
+			this.initializationPromise = this.db.exec(migrationSql)
+				.then(() => this.seedKnowledgeCoopRoles());
 		}
 		return this.initializationPromise;
+	}
+
+	async seedKnowledgeCoopRoles() {
+		const timestamp = isoNow();
+		for (const [key, description] of Object.entries(KNOWLEDGE_COOP_ROLE_DESCRIPTIONS)) {
+			await this.run(
+				`INSERT OR IGNORE INTO roles (id, key, description, created_at)
+				 VALUES (?, ?, ?, ?)`,
+				[randomUUID(), key, description, timestamp],
+			);
+		}
+	}
+
+	async roleIdForKey(key) {
+		await this.ensureInitialized();
+		const row = await this.first(`SELECT id FROM roles WHERE key = ? LIMIT 1`, [key]);
+		return typeof row?.id === 'string' ? row.id : null;
+	}
+
+	async bindRoleToMembership(teamMembershipId, roleKey) {
+		await this.ensureInitialized();
+		const roleId = await this.roleIdForKey(roleKey);
+		if (!roleId) return;
+		await this.run(
+			`INSERT OR IGNORE INTO team_role_bindings (team_membership_id, role_id, created_at)
+			 VALUES (?, ?, ?)`,
+			[teamMembershipId, roleId, isoNow()],
+		);
+	}
+
+	async listRoleKeysForMembership(teamMembershipId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT roles.key
+			 FROM team_role_bindings
+			 INNER JOIN roles ON roles.id = team_role_bindings.role_id
+			 WHERE team_role_bindings.team_membership_id = ?
+			 ORDER BY roles.key ASC`,
+			[teamMembershipId],
+		);
+		return uniqueStrings(rows.map((row) => row.key));
+	}
+
+	async resolvePrincipalTeamContext(teamId, principal) {
+		await this.ensureInitialized();
+		if (!principal) return null;
+		if (principalIsAdmin(principal)) {
+			return {
+				membershipId: null,
+				roles: ['team_owner'],
+				capabilities: [...ALL_TEAM_CAPABILITIES],
+			};
+		}
+		if (principal.roles?.includes?.('team_api_key') && principal.metadata?.teamId === teamId) {
+			return {
+				membershipId: null,
+				roles: ['team_owner'],
+				capabilities: [...ALL_TEAM_CAPABILITIES],
+			};
+		}
+		const userId = typeof principal.id === 'string' ? principal.id : '';
+		if (!userId) return null;
+		const membership = await this.first(
+			`SELECT * FROM team_memberships WHERE team_id = ? AND user_id = ? AND status = 'active' LIMIT 1`,
+			[teamId, userId],
+		);
+		if (!membership?.id) {
+			return null;
+		}
+		const roles = await this.listRoleKeysForMembership(membership.id);
+		const effectiveRoles = roles.length > 0 ? roles : ['team_owner'];
+		return {
+			membershipId: membership.id,
+			roles: effectiveRoles,
+			capabilities: uniqueCapabilities(effectiveRoles),
+		};
+	}
+
+	createTrustedUserAssertion(claims) {
+		const secret = typeof this.config.assertionSecret === 'string' ? this.config.assertionSecret.trim() : '';
+		if (!secret) return null;
+		const encodedPayload = Buffer.from(JSON.stringify(claims)).toString('base64url');
+		return `${encodedPayload}.${signAssertionPayload(encodedPayload, secret)}`;
+	}
+
+	async requestProjectRuntime(projectId, principal, path, input = {}) {
+		await this.ensureInitialized();
+		const fetchImpl = this.config.fetchImpl ?? fetch;
+		const serviceId = typeof this.config.serviceId === 'string' ? this.config.serviceId.trim() : '';
+		const serviceSecret = typeof this.config.serviceSecret === 'string' ? this.config.serviceSecret.trim() : '';
+		if (!principal || !serviceId || !serviceSecret) {
+			return null;
+		}
+		const details = await this.getProjectDetails(projectId);
+		const baseUrl = normalizeBaseUrl(details?.connection?.projectApiBaseUrl);
+		if (!details?.project || !baseUrl) {
+			return null;
+		}
+		const teamContext = await this.resolvePrincipalTeamContext(details.project.teamId, principal);
+		if (!teamContext) {
+			return null;
+		}
+		const assertion = this.createTrustedUserAssertion({
+			userId: principal.id,
+			sessionId: principal.metadata?.sessionId ?? null,
+			identityId: principal.metadata?.identityId ?? null,
+			authTime: principal.metadata?.authTime ?? principal.metadata?.authenticatedAt ?? isoNow(),
+			expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+			nonce: randomUUID(),
+			teamId: details.project.teamId,
+			projectId,
+			membershipId: teamContext.membershipId,
+			teamRoles: teamContext.roles,
+			teamCapabilities: teamContext.capabilities,
+		});
+		if (!assertion) {
+			return null;
+		}
+
+		const headers = new Headers({
+			accept: 'application/json',
+			'x-treeseed-service-id': serviceId,
+			'x-treeseed-service-secret': serviceSecret,
+			'x-treeseed-user-assertion': assertion,
+		});
+		if (input.body !== undefined) {
+			headers.set('content-type', 'application/json');
+		}
+		try {
+			const response = await fetchImpl(`${baseUrl}${path}`, {
+				method: input.method ?? 'GET',
+				headers,
+				body: input.body === undefined ? undefined : JSON.stringify(input.body),
+			});
+			if (!response.ok) {
+				return null;
+			}
+			const envelope = await response.json().catch(() => null);
+			if (!envelope?.ok) {
+				return null;
+			}
+			return envelope.payload ?? null;
+		} catch {
+			return null;
+		}
 	}
 
 	async teamIdsForPrincipal(principal) {
@@ -575,11 +908,13 @@ export class MarketControlPlaneStore {
 			[id, input.slug, input.name, JSON.stringify(input.metadata ?? {}), timestamp, timestamp],
 		);
 		if (input.ownerUserId) {
+			const membershipId = randomUUID();
 			await this.run(
 				`INSERT OR IGNORE INTO team_memberships (id, team_id, user_id, status, created_at, updated_at)
 				 VALUES (?, ?, ?, 'active', ?, ?)`,
-				[randomUUID(), id, input.ownerUserId, timestamp, timestamp],
+				[membershipId, id, input.ownerUserId, timestamp, timestamp],
 			);
+			await this.bindRoleToMembership(membershipId, 'team_owner');
 		}
 		return this.getTeam(id);
 	}
@@ -587,6 +922,11 @@ export class MarketControlPlaneStore {
 	async getTeam(teamId) {
 		await this.ensureInitialized();
 		return serializeTeam(await this.first(`SELECT * FROM teams WHERE id = ?`, [teamId]));
+	}
+
+	async getTeamBySlug(slug) {
+		await this.ensureInitialized();
+		return serializeTeam(await this.first(`SELECT * FROM teams WHERE slug = ?`, [slug]));
 	}
 
 	async listTeamsForPrincipal(principal) {
@@ -601,6 +941,37 @@ export class MarketControlPlaneStore {
 			teamIds,
 		);
 		return rows.map(serializeTeam);
+	}
+
+	async listTeamMembers(teamId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT team_memberships.*, users.display_name, users.email
+			 FROM team_memberships
+			 INNER JOIN users ON users.id = team_memberships.user_id
+			 WHERE team_memberships.team_id = ?
+			 ORDER BY team_memberships.created_at ASC`,
+			[teamId],
+		);
+		if (rows.length === 0) {
+			return [];
+		}
+		const membershipIds = rows.map((row) => row.id);
+		const placeholders = membershipIds.map(() => '?').join(', ');
+		const roleRows = await this.all(
+			`SELECT team_role_bindings.team_membership_id, roles.key
+			 FROM team_role_bindings
+			 INNER JOIN roles ON roles.id = team_role_bindings.role_id
+			 WHERE team_role_bindings.team_membership_id IN (${placeholders})`,
+			membershipIds,
+		);
+		const rolesByMembership = new Map();
+		for (const row of roleRows) {
+			const existing = rolesByMembership.get(row.team_membership_id) ?? [];
+			existing.push(row.key);
+			rolesByMembership.set(row.team_membership_id, uniqueStrings(existing));
+		}
+		return rows.map((row) => serializeTeamMember(row, rolesByMembership.get(row.id) ?? []));
 	}
 
 	async createTeamApiKey(teamId, input) {
@@ -829,6 +1200,19 @@ export class MarketControlPlaneStore {
 		return rows.map(serializeCatalogArtifactVersion);
 	}
 
+	async listTeamProducts(teamId, principal = null) {
+		const items = await this.listCatalogItems(principal, { teamId });
+		const latestArtifacts = new Map();
+		for (const item of items) {
+			const latest = (await this.listCatalogArtifactVersions(item.id))[0] ?? null;
+			latestArtifacts.set(item.id, latest);
+		}
+		return items.map((item) => ({
+			...item,
+			latestArtifact: latestArtifacts.get(item.id) ?? null,
+		}));
+	}
+
 	async listProjectsForPrincipal(principal) {
 		await this.ensureInitialized();
 		const teamIds = await this.teamIdsForPrincipal(principal);
@@ -839,6 +1223,15 @@ export class MarketControlPlaneStore {
 		const rows = await this.all(
 			`SELECT * FROM projects WHERE team_id IN (${placeholders}) ORDER BY created_at ASC`,
 			teamIds,
+		);
+		return rows.map(serializeProject);
+	}
+
+	async listTeamProjects(teamId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM projects WHERE team_id = ? ORDER BY created_at ASC`,
+			[teamId],
 		);
 		return rows.map(serializeProject);
 	}
@@ -891,9 +1284,41 @@ export class MarketControlPlaneStore {
 		return this.getProjectDetails(id);
 	}
 
+	async updateProject(projectId, input) {
+		await this.ensureInitialized();
+		const existing = await this.first(`SELECT * FROM projects WHERE id = ? LIMIT 1`, [projectId]);
+		if (!existing) {
+			return null;
+		}
+		const timestamp = isoNow();
+		const metadata = input.metadata ?? parseJson(existing.metadata_json, {});
+		await this.run(
+			`UPDATE projects
+			 SET slug = ?, name = ?, description = ?, metadata_json = ?, updated_at = ?
+			 WHERE id = ?`,
+			[
+				input.slug ?? existing.slug,
+				input.name ?? existing.name,
+				input.description ?? existing.description ?? null,
+				JSON.stringify(metadata),
+				timestamp,
+				projectId,
+			],
+		);
+		return this.getProject(projectId);
+	}
+
 	async getProject(projectId) {
 		await this.ensureInitialized();
 		return serializeProject(await this.first(`SELECT * FROM projects WHERE id = ?`, [projectId]));
+	}
+
+	async getProjectByTeamAndSlug(teamId, slug) {
+		await this.ensureInitialized();
+		return serializeProject(await this.first(
+			`SELECT * FROM projects WHERE team_id = ? AND slug = ? LIMIT 1`,
+			[teamId, slug],
+		));
 	}
 
 	async getProjectConnection(projectId) {
@@ -1639,6 +2064,447 @@ export class MarketControlPlaneStore {
 		};
 	}
 
+	async listRecentJobsForProject(projectId, limit = 10) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM remote_jobs WHERE project_id = ? ORDER BY updated_at DESC, created_at DESC LIMIT ?`,
+			[projectId, Math.max(1, Math.min(Number(limit) || 10, 50))],
+		);
+		return rows.map(serializeJob);
+	}
+
+	async listProjectActivity(projectId, limit = 12) {
+		const [jobs, deployments] = await Promise.all([
+			this.listRecentJobsForProject(projectId, limit),
+			this.listProjectDeployments(projectId),
+		]);
+		return [
+			...jobs.map((job) => toActivityItem('job', {
+				id: job.id,
+				title: `${job.namespace}:${job.operation}`,
+				status: job.status,
+				timestamp: latestDate(job.finishedAt, job.updatedAt, job.createdAt),
+				summary: typeof job.output?.summary === 'string' ? job.output.summary : null,
+				metadata: {
+					selectedTarget: job.selectedTarget,
+				},
+			})),
+			...deployments.map((deployment) => toActivityItem('deployment', {
+				id: deployment.id,
+				title: `${deployment.environment} ${deployment.deploymentKind} deployment`,
+				status: deployment.status,
+				timestamp: latestDate(deployment.finishedAt, deployment.startedAt, deployment.createdAt),
+				summary: deployment.releaseTag ? `Release ${deployment.releaseTag}` : deployment.sourceRef,
+				metadata: {
+					releaseTag: deployment.releaseTag,
+					commitSha: deployment.commitSha,
+				},
+			})),
+		]
+			.filter((item) => item.timestamp)
+			.sort((left, right) => compareDatesDesc(left.timestamp, right.timestamp))
+			.slice(0, limit);
+	}
+
+	async getProjectSummary(projectId, principal = null) {
+		const details = await this.getProjectDetails(projectId);
+		if (!details) {
+			return null;
+		}
+
+		const [runtimeSummary, jobs, activity, products] = await Promise.all([
+			this.requestProjectRuntime(projectId, principal, '/v1/project/summary'),
+			this.listRecentJobsForProject(projectId, 12),
+			this.listProjectActivity(projectId, 12),
+			this.listCatalogArtifactVersions(projectId),
+		]);
+		const latestProdDeployment = details.deployments
+			.filter((deployment) => deployment.environment === 'prod')
+			.sort((left, right) => compareDatesDesc(latestDate(left.finishedAt, left.createdAt), latestDate(right.finishedAt, right.createdAt)))[0] ?? null;
+		const latestStagingDeployment = details.deployments
+			.filter((deployment) => deployment.environment === 'staging')
+			.sort((left, right) => compareDatesDesc(latestDate(left.finishedAt, left.createdAt), latestDate(right.finishedAt, right.createdAt)))[0] ?? null;
+		const health = summarizeProjectHealth({
+			hosting: details.hosting,
+			connection: details.connection,
+			deployments: details.deployments,
+			jobs,
+		});
+		const metadata = details.project.metadata ?? {};
+		const runtimeCounts = typeof runtimeSummary?.counts === 'object' && runtimeSummary.counts ? runtimeSummary.counts : {};
+		const runtimeConnection = typeof runtimeSummary?.connection === 'object' && runtimeSummary.connection ? runtimeSummary.connection : null;
+		return {
+			project: details.project,
+			teamId: details.project.teamId,
+			health: runtimeSummary?.health ?? health,
+			counts: {
+				objectives: Number(runtimeCounts.objectives ?? metadata.objectiveCount ?? metadata.objectives ?? 0),
+				questions: Number(runtimeCounts.questions ?? metadata.questionCount ?? 0),
+				notes: Number(runtimeCounts.notes ?? metadata.noteCount ?? 0),
+				proposals: Number(runtimeCounts.proposals ?? metadata.proposalCount ?? 0),
+				decisions: Number(runtimeCounts.decisions ?? metadata.decisionCount ?? 0),
+				activeWorkstreams: Number(runtimeCounts.activeWorkstreams ?? (Array.isArray(metadata.workstreams) ? metadata.workstreams.length : 0)),
+				agentPools: details.agentPools.length,
+				agents: Number(runtimeCounts.agents ?? details.agentPools.length),
+				releases: Number(runtimeCounts.releases ?? details.deployments.filter((deployment) => deployment.environment === 'prod' && deployment.status === 'succeeded').length),
+				artifacts: products.length,
+			},
+			environments: details.environments,
+			connection: runtimeConnection
+				? {
+					...details.connection,
+					...runtimeConnection,
+					projectId,
+					connection: details.connection,
+					executionOwner: details.connection?.executionOwner ?? null,
+				}
+				: details.connection,
+			hosting: details.hosting,
+			agentPools: details.agentPools,
+			latestProdDeployment: summarizeDeploymentStatus(latestProdDeployment),
+			latestStagingDeployment: summarizeDeploymentStatus(latestStagingDeployment),
+			recentActivity: Array.isArray(runtimeSummary?.recentActivity) && runtimeSummary.recentActivity.length > 0 ? runtimeSummary.recentActivity : activity,
+			nextBestAction: typeof runtimeSummary?.nextBestAction === 'string' && runtimeSummary.nextBestAction.trim()
+				? runtimeSummary.nextBestAction
+				: health.state === 'setup_needed'
+				? 'Configure hosting and connect a project runtime.'
+				: health.state === 'release_ready'
+					? 'Review the latest staging candidate and decide whether to release.'
+					: health.state === 'verification_failing'
+						? 'Inspect the latest failed deployment or workflow run.'
+						: 'Open Direct or Workstreams to continue knowledge work.',
+		};
+	}
+
+	async getProjectDirectSummary(projectId, principal = null) {
+		const project = await this.getProject(projectId);
+		if (!project) {
+			return null;
+		}
+		const runtimeSummary = await this.requestProjectRuntime(projectId, principal, '/v1/direct/summary');
+		if (runtimeSummary) {
+			return {
+				...runtimeSummary,
+				items: Array.isArray(runtimeSummary.items)
+					? runtimeSummary.items.map((item) => ({
+						...item,
+						kind: item.model,
+						status: item.status ?? null,
+					}))
+					: [],
+			};
+		}
+		const metadata = project.metadata ?? {};
+		return {
+			projectId,
+			objectiveCount: Number(metadata.objectiveCount ?? 0),
+			questionCount: Number(metadata.questionCount ?? 0),
+			noteCount: Number(metadata.noteCount ?? 0),
+			proposalCount: Number(metadata.proposalCount ?? 0),
+			decisionCount: Number(metadata.decisionCount ?? 0),
+			savedViews: Array.isArray(metadata.directViews) && metadata.directViews.length > 0
+				? metadata.directViews
+				: ['Now', 'Blocked', 'Ready for research', 'Ready for build', 'Release-linked'],
+			items: Array.isArray(metadata.directItems) ? metadata.directItems : [],
+		};
+	}
+
+	async getProjectWorkstreamsSummary(projectId, principal = null) {
+		const project = await this.getProject(projectId);
+		if (!project) {
+			return null;
+		}
+		const [runtimeSummary, jobs] = await Promise.all([
+			this.requestProjectRuntime(projectId, principal, '/v1/workstreams'),
+			this.listRecentJobsForProject(projectId, 12),
+		]);
+		if (runtimeSummary) {
+			return {
+				projectId,
+				items: Array.isArray(runtimeSummary.items)
+					? runtimeSummary.items.map((item) => ({
+						...item,
+						status: item.state ?? item.status ?? null,
+					}))
+					: [],
+				recentJobs: jobs,
+				columns: Array.isArray(runtimeSummary.columns) ? runtimeSummary.columns : ['Drafting', 'Active locally', 'Verifying', 'Saved remotely', 'In staging', 'Archived'],
+			};
+		}
+		const metadata = project.metadata ?? {};
+		return {
+			projectId,
+			items: Array.isArray(metadata.workstreams) ? metadata.workstreams : [],
+			recentJobs: jobs,
+			columns: ['Drafting', 'Active locally', 'Verifying', 'Saved remotely', 'In staging', 'Archived'],
+		};
+	}
+
+	async getProjectAgentsSummary(projectId, principal = null) {
+		const details = await this.getProjectDetails(projectId);
+		if (!details) {
+			return null;
+		}
+		const [statusPayload, messagePayload, workdaySummaries] = await Promise.all([
+			this.requestProjectRuntime(projectId, principal, '/v1/agents/status'),
+			this.requestProjectRuntime(projectId, principal, '/v1/agents/messages'),
+			this.all(
+				`SELECT * FROM project_workday_summaries WHERE project_id = ? ORDER BY created_at DESC LIMIT 6`,
+				[projectId],
+			),
+		]);
+		return {
+			projectId,
+			pools: details.agentPools,
+			agents: Array.isArray(statusPayload?.agents) ? statusPayload.agents : [],
+			messages: Array.isArray(messagePayload) ? messagePayload : [],
+			workdaySummaries: workdaySummaries.map((row) => ({
+				id: row.id,
+				environment: row.environment,
+				kind: row.kind,
+				state: row.state,
+				summary: parseJson(row.summary_json, {}),
+				createdAt: row.created_at,
+			})),
+		};
+	}
+
+	async getProjectReleasesSummary(projectId, principal = null) {
+		const details = await this.getProjectDetails(projectId);
+		if (!details) {
+			return null;
+		}
+		const runtimeSummary = await this.requestProjectRuntime(projectId, principal, '/v1/releases');
+		if (runtimeSummary) {
+			return runtimeSummary;
+		}
+		const deployments = [...details.deployments].sort((left, right) =>
+			compareDatesDesc(latestDate(left.finishedAt, left.startedAt, left.createdAt), latestDate(right.finishedAt, right.startedAt, right.createdAt)),
+		);
+		return {
+			projectId,
+			currentProd: summarizeDeploymentStatus(deployments.find((deployment) => deployment.environment === 'prod') ?? null),
+			stagingCandidates: deployments
+				.filter((deployment) => deployment.environment === 'staging')
+				.map(summarizeDeploymentStatus)
+				.filter(Boolean),
+			history: deployments.map(summarizeDeploymentStatus).filter(Boolean),
+		};
+	}
+
+	async getProjectShareSummary(projectId, principal = null) {
+		const [project, item, artifacts, runtimeSummary] = await Promise.all([
+			this.getProject(projectId),
+			this.getCatalogItem(projectId),
+			this.listCatalogArtifactVersions(projectId),
+			this.requestProjectRuntime(projectId, principal, '/v1/share/status'),
+		]);
+		if (!project) {
+			return null;
+		}
+		return {
+			projectId,
+			project,
+			listing: runtimeSummary?.listing ?? item,
+			artifacts,
+			packages: Array.isArray(runtimeSummary?.packages) ? runtimeSummary.packages : [],
+			canPublish: runtimeSummary?.canPublish === true || Boolean(item && item.listingEnabled),
+		};
+	}
+
+	async listPersistedTeamInboxItems(teamId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM team_inbox_items WHERE team_id = ? ORDER BY created_at DESC`,
+			[teamId],
+		);
+		return rows.map(serializeTeamInboxItem);
+	}
+
+	async getProjectSummarySnapshot(projectId) {
+		await this.ensureInitialized();
+		return serializeProjectSummarySnapshot(await this.first(
+			`SELECT * FROM project_summary_snapshots WHERE project_id = ? LIMIT 1`,
+			[projectId],
+		));
+	}
+
+	async upsertProjectSummarySnapshot(projectId, teamId, summary) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		await this.run(
+			`INSERT OR REPLACE INTO project_summary_snapshots (
+				project_id, team_id, summary_json, generated_at, created_at, updated_at
+			) VALUES (
+				?, ?, ?, ?,
+				COALESCE((SELECT created_at FROM project_summary_snapshots WHERE project_id = ?), ?),
+				?
+			)`,
+			[
+				projectId,
+				teamId,
+				JSON.stringify(summary ?? {}),
+				timestamp,
+				projectId,
+				timestamp,
+				timestamp,
+			],
+		);
+		return this.getProjectSummarySnapshot(projectId);
+	}
+
+	async upsertTeamInboxItem(teamId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT OR REPLACE INTO team_inbox_items (
+				id, team_id, project_id, kind, state, title, summary, href, item_key, metadata_json, created_at, updated_at
+			) VALUES (
+				?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				COALESCE((SELECT created_at FROM team_inbox_items WHERE id = ?), ?),
+				?
+			)`,
+			[
+				id,
+				teamId,
+				input.projectId ?? null,
+				input.kind,
+				input.state,
+				input.title,
+				input.summary ?? null,
+				input.href ?? null,
+				input.itemKey ?? null,
+				JSON.stringify(input.metadata ?? {}),
+				id,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeTeamInboxItem(await this.first(`SELECT * FROM team_inbox_items WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async deleteTeamInboxItem(id) {
+		await this.ensureInitialized();
+		await this.run(`DELETE FROM team_inbox_items WHERE id = ?`, [id]);
+	}
+
+	async deleteTeamInboxItemsByItemKey(teamId, itemKey) {
+		await this.ensureInitialized();
+		await this.run(`DELETE FROM team_inbox_items WHERE team_id = ? AND item_key = ?`, [teamId, itemKey]);
+	}
+
+	async listTeamInboxItems(teamId, principal = null) {
+		const team = await this.getTeam(teamId);
+		if (!team) {
+			return [];
+		}
+		const projects = await this.listTeamProjects(teamId);
+		const [persistedItems] = await Promise.all([
+			this.listPersistedTeamInboxItems(teamId),
+		]);
+		const items = [...persistedItems];
+		for (const project of projects) {
+			const [summary, jobs, products] = await Promise.all([
+				this.getProjectSummary(project.id, principal),
+				this.listRecentJobsForProject(project.id, 10),
+				this.listCatalogArtifactVersions(project.id),
+			]);
+			const failedJob = jobs.find((job) => job.status === 'failed');
+			if (failedJob) {
+				items.push({
+					id: `job:${failedJob.id}`,
+					teamId,
+					projectId: project.id,
+					kind: 'failure',
+					state: 'action_required',
+					title: `${project.name}: ${failedJob.operation} failed`,
+					summary: `The latest ${failedJob.namespace}:${failedJob.operation} run failed and needs review.`,
+					href: `/app/teams/${team.slug}/projects/${project.slug}/overview`,
+					createdAt: latestDate(failedJob.finishedAt, failedJob.updatedAt, failedJob.createdAt),
+				});
+			}
+			if (summary?.latestStagingDeployment?.status === 'succeeded') {
+				const releaseTag = summary.latestStagingDeployment.releaseTag;
+				if (!summary.latestProdDeployment || summary.latestProdDeployment.releaseTag !== releaseTag) {
+					items.push({
+						id: `release:${project.id}:${releaseTag ?? summary.latestStagingDeployment.id}`,
+						teamId,
+						projectId: project.id,
+						kind: 'release',
+						state: 'waiting_for_approval',
+						title: `${project.name}: staging candidate ready`,
+						summary: 'A verified staging deployment is ready for human release review.',
+						href: `/app/teams/${team.slug}/projects/${project.slug}/releases`,
+						createdAt: latestDate(summary.latestStagingDeployment.finishedAt, summary.latestStagingDeployment.startedAt),
+					});
+				}
+			}
+			if (products.length > 0 && !(summary?.latestProdDeployment?.releaseTag ?? null)) {
+				items.push({
+					id: `share:${project.id}`,
+					teamId,
+					projectId: project.id,
+					kind: 'share',
+					state: 'informational',
+					title: `${project.name}: artifacts available`,
+					summary: 'Release artifacts exist for this project and can be packaged for market distribution.',
+					href: `/app/teams/${team.slug}/projects/${project.slug}/share`,
+					createdAt: products[0].publishedAt,
+				});
+			}
+		}
+		return items
+			.filter((item, index, all) => all.findIndex((candidate) => candidate.id === item.id) === index)
+			.filter((item) => item.createdAt)
+			.sort((left, right) => compareDatesDesc(left.createdAt, right.createdAt))
+			.slice(0, 20);
+	}
+
+	async getTeamHomeSummary(teamId, principal = null) {
+		const team = await this.getTeam(teamId);
+		if (!team) {
+			return null;
+		}
+		if (principal && !(await this.principalCanAccessTeam(principal, teamId))) {
+			return null;
+		}
+
+		const [members, projects, products, inbox] = await Promise.all([
+			this.listTeamMembers(teamId),
+			this.listTeamProjects(teamId),
+			this.listTeamProducts(teamId, principal),
+			this.listTeamInboxItems(teamId, principal),
+		]);
+		const projectSummaries = (await Promise.all(projects.map((project) => this.getProjectSummary(project.id, principal)))).filter(Boolean);
+		const publishedProducts = products.filter((item) => item.visibility === 'public' && item.listingEnabled);
+		const activeAgents = projectSummaries.flatMap((summary) =>
+			Array.isArray(summary?.agentPools)
+				? summary.agentPools.filter((pool) => ['active', 'degraded'].includes(pool.status))
+				: [],
+		);
+		const readyToRelease = projectSummaries.filter((summary) =>
+			summary?.latestStagingDeployment?.status === 'succeeded'
+			&& (!summary.latestProdDeployment || summary.latestProdDeployment.releaseTag !== summary.latestStagingDeployment.releaseTag),
+		);
+		return {
+			team,
+			members,
+			counts: {
+				projects: projects.length,
+				releaseReady: readyToRelease.length,
+				activeAgents: activeAgents.length,
+				liveListings: publishedProducts.length,
+				inbox: inbox.length,
+			},
+			continueWorking: projectSummaries.slice(0, 6),
+			readyToRelease,
+			activeAgents,
+			publishedProducts,
+			inbox,
+		};
+	}
+
 	async createKnowledgePack(teamId, input) {
 		await this.ensureInitialized();
 		const timestamp = isoNow();
@@ -1737,17 +2603,19 @@ export class MarketControlPlaneStore {
 		}
 		const timestamp = isoNow();
 		const id = input.id ?? randomUUID();
+		const initialStatus = typeof input.status === 'string' && input.status.trim() ? input.status.trim() : 'pending';
 		await this.run(
 			`INSERT INTO remote_jobs (
 				id, project_id, namespace, operation, status, preferred_mode, selected_target, capability_json,
 				input_json, output_json, error_json, requested_by_type, requested_by_id, assigned_runner_id,
 				idempotency_key, created_at, updated_at, started_at, finished_at, cancelled_at
-			) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, ?, ?, ?, NULL, NULL, NULL)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, ?, ?, ?, NULL, NULL, NULL)`,
 			[
 				id,
 				input.projectId,
 				input.namespace,
 				input.operation,
+				initialStatus,
 				input.preferredMode ?? 'auto',
 				input.selectedTarget,
 				JSON.stringify(input.capability ?? null),
@@ -1763,6 +2631,7 @@ export class MarketControlPlaneStore {
 			namespace: input.namespace,
 			operation: input.operation,
 			selectedTarget: input.selectedTarget,
+			status: initialStatus,
 		});
 		return this.findJobById(id);
 	}
@@ -1823,7 +2692,7 @@ export class MarketControlPlaneStore {
 		const timestamp = isoNow();
 		await this.run(
 			`UPDATE remote_jobs
-			 SET status = CASE WHEN status = 'pending' THEN 'running' ELSE status END,
+			 SET status = CASE WHEN status IN ('pending', 'claimed', 'waiting_for_approval') THEN 'running' ELSE status END,
 			     updated_at = ?
 			 WHERE id = ?`,
 			[timestamp, jobId],

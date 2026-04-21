@@ -1,0 +1,147 @@
+---
+import '../styles/knowledge-coop.css';
+
+interface TeamEntry {
+	id: string;
+	slug: string;
+	name: string;
+}
+
+interface ProjectEntry {
+	id: string;
+	slug: string;
+	name: string;
+	health?: { label?: string } | null;
+}
+
+interface Props {
+	title: string;
+	description?: string;
+	currentPath: string;
+	teams: TeamEntry[];
+	activeTeam?: TeamEntry | null;
+	project?: ProjectEntry | null;
+}
+
+const {
+	title,
+	description = 'Operate your knowledge hubs, releases, and listings from one control plane.',
+	currentPath,
+	teams,
+	activeTeam = null,
+	project = null,
+} = Astro.props as Props;
+
+const baseTeamPath = activeTeam ? `/app/teams/${activeTeam.slug}` : '/app';
+const railItems = [
+	{ label: 'Home', href: activeTeam ? `${baseTeamPath}/home` : '/app/' },
+	{ label: 'Market', href: '/market/' },
+	{ label: 'Teams', href: activeTeam ? `${baseTeamPath}/members` : '/app/' },
+	{ label: 'Inbox', href: activeTeam ? `${baseTeamPath}/inbox` : '/app/' },
+	{ label: 'Settings', href: activeTeam ? `${baseTeamPath}/settings` : '/app/' },
+];
+
+const projectTabs = project && activeTeam
+	? [
+		{ label: 'Overview', href: `${baseTeamPath}/projects/${project.slug}/overview` },
+		{ label: 'Direct', href: `${baseTeamPath}/projects/${project.slug}/direct` },
+		{ label: 'Workstreams', href: `${baseTeamPath}/projects/${project.slug}/workstreams` },
+		{ label: 'Agents', href: `${baseTeamPath}/projects/${project.slug}/agents` },
+		{ label: 'Releases', href: `${baseTeamPath}/projects/${project.slug}/releases` },
+		{ label: 'Share', href: `${baseTeamPath}/projects/${project.slug}/share` },
+		{ label: 'Settings', href: `${baseTeamPath}/projects/${project.slug}/settings` },
+	]
+	: [];
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{title}</title>
+		<meta name="description" content={description} />
+	</head>
+	<body>
+		<div class="kc-page kc-app-shell">
+			<aside class="kc-rail">
+				<a class="kc-brand" href="/app/">
+					<span class="kc-brand__mark">KC</span>
+					<span class="kc-brand__text">
+						<span class="kc-brand__name">Knowledge Coop</span>
+						<span class="kc-brand__tag">knowledge.coop</span>
+					</span>
+				</a>
+
+				<div class="kc-team-switcher">
+					<div class="kc-section__eyebrow">Active team</div>
+					<div style="font-weight: 700;">{activeTeam?.name ?? 'Choose a team'}</div>
+					<div class="kc-list" style="margin-top: 0.75rem;">
+						{teams.map((team) => (
+							<a class="kc-rail-link" href={`/app/teams/${team.slug}/home`} aria-current={activeTeam?.id === team.id ? 'page' : undefined}>
+								<span>{team.name}</span>
+							</a>
+						))}
+					</div>
+				</div>
+
+				<nav class="kc-rail-section kc-rail-nav" aria-label="Application">
+					{railItems.map((item) => (
+						<a class="kc-rail-link" href={item.href} aria-current={currentPath === item.href || currentPath.startsWith(`${item.href}/`) ? 'page' : undefined}>
+							<span>{item.label}</span>
+						</a>
+					))}
+				</nav>
+
+				<div class="kc-rail-section" style="margin-top: 1rem;">
+					<div class="kc-section__eyebrow">Quick actions</div>
+					<div class="kc-list" style="margin-top: 0.65rem;">
+						<a class="kc-button" href="/app/launch">Launch project</a>
+						<a class="kc-button-secondary" href="/auth/sign-out">Sign out</a>
+					</div>
+				</div>
+			</aside>
+
+			<main class="kc-app-main">
+				<header class="kc-app-header">
+					<div>
+						<p class="kc-section__eyebrow">Knowledge Coop</p>
+						<h1>{title}</h1>
+						<p>{description}</p>
+					</div>
+				</header>
+
+				{project ? (
+					<section class="kc-panel kc-project-header">
+						<div>
+							<div class="kc-badges">
+								<span class="kc-badge">Local</span>
+								<span class="kc-badge">Staging</span>
+								<span class="kc-badge">Prod</span>
+							</div>
+							<h2 style="margin-top: 0.65rem;">{project.name}</h2>
+							<p>{project.health?.label ?? 'Project workspace'}</p>
+						</div>
+						<div class="kc-inline-actions">
+							<a class="kc-button-secondary" href={`${baseTeamPath}/projects/${project.slug}/direct`}>Start change</a>
+							<a class="kc-button-secondary" href={`${baseTeamPath}/projects/${project.slug}/releases`}>Release</a>
+							<a class="kc-button" href={`${baseTeamPath}/projects/${project.slug}/share`}>Share</a>
+						</div>
+					</section>
+				) : null}
+
+				{projectTabs.length > 0 ? (
+					<nav class="kc-tabs" aria-label="Project">
+						{projectTabs.map((tab) => (
+							<a class="kc-tab" href={tab.href} aria-current={currentPath === tab.href ? 'page' : undefined}>
+								{tab.label}
+							</a>
+						))}
+					</nav>
+				) : null}
+
+				<slot />
+			</main>
+		</div>
+	</body>
+</html>

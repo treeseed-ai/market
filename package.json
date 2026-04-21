@@ -35,6 +35,7 @@
     "bootstrap": "if test -f ./packages/core/scripts/workspace-bootstrap.ts; then node ./packages/core/scripts/run-ts.mjs ./packages/core/scripts/workspace-bootstrap.ts; elif test -f ./node_modules/@treeseed/core/dist/scripts/workspace-bootstrap.js; then node ./node_modules/@treeseed/core/dist/scripts/workspace-bootstrap.js; else treeseed starlight:patch; fi",
     "starlight:patch": "treeseed starlight:patch",
     "config": "treeseed config",
+    "preflight": "treeseed preflight",
     "dev": "treeseed dev",
     "dev:web": "if test -f ./packages/core/scripts/dev-platform.ts; then node ./packages/core/scripts/run-ts.mjs ./packages/core/scripts/dev-platform.ts --surface web; elif test -f ./node_modules/@treeseed/core/dist/scripts/dev-platform.js; then node ./node_modules/@treeseed/core/dist/scripts/dev-platform.js --surface web; else echo 'Unable to resolve @treeseed/core dev-platform entrypoint.'; exit 1; fi",
     "dev:api": "if test -f ./packages/core/scripts/dev-platform.ts; then node ./packages/core/scripts/run-ts.mjs ./packages/core/scripts/dev-platform.ts --surface api; elif test -f ./node_modules/@treeseed/core/dist/scripts/dev-platform.js; then node ./node_modules/@treeseed/core/dist/scripts/dev-platform.js --surface api; else echo 'Unable to resolve @treeseed/core dev-platform entrypoint.'; exit 1; fi",

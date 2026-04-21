@@ -1,0 +1,43 @@
+---
+import { listSiteTemplates, type TemplateSiteCard } from '@treeseed/core/templates';
+import KnowledgeCoopPublicLayout from '../../../layouts/KnowledgeCoopPublicLayout.astro';
+import MarketProductCard from '../../../components/market/MarketProductCard.astro';
+import { createMarketTemplateCatalogProvider } from '../../../lib/market/catalog.js';
+
+const templateListing = await listSiteTemplates({
+	locals: Astro.locals,
+	catalogProvider: createMarketTemplateCatalogProvider(Astro.locals),
+});
+---
+
+<KnowledgeCoopPublicLayout
+	title="Knowledge Coop Templates"
+	description="Template foundations for Treeseed knowledge hubs."
+	currentPath={Astro.url.pathname}
+>
+	<section class="kc-panel">
+		<div class="kc-panel__header">
+			<div>
+				<p class="kc-section__eyebrow">Templates</p>
+				<h1>Launch a knowledge hub with a working Treeseed foundation</h1>
+				<p>Templates define project structure, deployment defaults, compatibility ranges, and packaging posture for new hubs.</p>
+			</div>
+		</div>
+	</section>
+
+	<section class="kc-grid-3" style="margin-top: 1rem;">
+		{templateListing.items.map((entry: TemplateSiteCard) => (
+			<MarketProductCard
+				href={`/market/templates/${entry.slug}/`}
+				slug={entry.slug}
+				title={entry.title}
+				summary={entry.summary}
+				category={entry.category}
+				featured={entry.featured}
+				publisherName={entry.publisherName}
+				templateVersion={entry.templateVersion}
+				priceModel={entry.priceModel}
+			/>
+		))}
+	</section>
+</KnowledgeCoopPublicLayout>

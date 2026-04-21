@@ -1,0 +1,242 @@
+---
+import KnowledgeCoopAppLayout from '../../../../layouts/KnowledgeCoopAppLayout.astro';
+import { loadTeamAppContext } from '../../../../lib/market/app-data.js';
+
+const section = Astro.params.section ?? 'home';
+const allowedSections = new Set(['home', 'inbox', 'members', 'products', 'settings']);
+if (!allowedSections.has(section)) {
+	Astro.response.status = 404;
+}
+
+if (!Astro.locals.auth?.principal) {
+	return Astro.redirect(`/auth/sign-in?provider=github&next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+
+const context = await loadTeamAppContext(Astro.locals, Astro.params.teamSlug ?? '');
+if (!context.team || !context.store) {
+	Astro.response.status = 404;
+}
+
+const [teamHome, inbox, members, products] = context.team && context.store
+	? await Promise.all([
+		context.store.getTeamHomeSummary(context.team.id, context.principal as any),
+		context.store.listTeamInboxItems(context.team.id, context.principal as any),
+		context.store.listTeamMembers(context.team.id),
+		context.store.listTeamProducts(context.team.id, context.principal as any),
+	])
+	: [null, [], [], []];
+
+const sectionTitles = {
+	home: 'Team Home',
+	inbox: 'Inbox',
+	members: 'Team Members',
+	products: 'Team Products',
+	settings: 'Team Settings',
+};
+const currentSectionTitle = (sectionTitles as Record<string, string>)[section] ?? 'Team';
+---
+
+<KnowledgeCoopAppLayout
+	title={`${context.team?.name ?? 'Team'} · ${currentSectionTitle}`}
+	description="Operate projects, releases, market listings, and approvals from the same cooperative control plane."
+	currentPath={Astro.url.pathname}
+	teams={context.teams}
+	activeTeam={context.team}
+>
+	{section === 'home' ? (
+		<>
+			<section class="kc-metric-strip">
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Projects</span>
+					<span class="kc-metric__value">{teamHome?.counts.projects ?? 0}</span>
+				</div>
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Release ready</span>
+					<span class="kc-metric__value">{teamHome?.counts.releaseReady ?? 0}</span>
+				</div>
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Active agents</span>
+					<span class="kc-metric__value">{teamHome?.counts.activeAgents ?? 0}</span>
+				</div>
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Live listings</span>
+					<span class="kc-metric__value">{teamHome?.counts.liveListings ?? 0}</span>
+				</div>
+			</section>
+
+			<section class="kc-grid-2" style="margin-top: 1rem;">
+				<div class="kc-panel">
+					<div class="kc-panel__header">
+						<div>
+							<p class="kc-section__eyebrow">Continue working</p>
+							<h2>Active projects</h2>
+						</div>
+						<a href="/app/launch">Launch project</a>
+					</div>
+					<div class="kc-card-list">
+						{teamHome?.continueWorking?.length ? teamHome.continueWorking.map((entry: any) => (
+							<article class="kc-card">
+								<div class="kc-panel__header">
+									<div>
+										<h2 style="font-size:1.05rem; margin:0;">{entry.project.name}</h2>
+										<p>{entry.health.label}</p>
+									</div>
+									<span class="kc-status-pill" data-tone={entry.health.state === 'release_ready' ? 'success' : entry.health.state === 'verification_failing' ? 'danger' : entry.health.state === 'setup_needed' ? 'warning' : 'info'}>{entry.health.label}</span>
+								</div>
+								<div class="kc-card__meta">
+									<span>{entry.counts.activeWorkstreams} workstreams</span>
+									<span>{entry.counts.agentPools} agent pools</span>
+									<span>{entry.latestProdDeployment?.releaseTag ?? 'no prod release yet'}</span>
+								</div>
+								<div class="kc-inline-actions">
+									<a class="kc-button-secondary" href={`/app/teams/${context.team?.slug}/projects/${entry.project.slug}/overview`}>Open project</a>
+								</div>
+							</article>
+						)) : <div class="kc-empty">No projects have been launched for this team yet.</div>}
+					</div>
+				</div>
+
+				<div class="kc-panel">
+					<div class="kc-panel__header">
+						<div>
+							<p class="kc-section__eyebrow">Ready to release</p>
+							<h2>Human approvals needed</h2>
+						</div>
+						<a href={`/app/teams/${context.team?.slug}/inbox`}>Open inbox</a>
+					</div>
+					<div class="kc-card-list">
+						{teamHome?.readyToRelease?.length ? teamHome.readyToRelease.map((entry: any) => (
+							<article class="kc-card">
+								<h2 style="font-size:1rem;">{entry.project.name}</h2>
+								<p>{entry.latestStagingDeployment?.releaseTag ? `Staging candidate ${entry.latestStagingDeployment.releaseTag}` : 'Staging candidate ready for review.'}</p>
+								<div class="kc-inline-actions">
+									<a class="kc-button-secondary" href={`/app/teams/${context.team?.slug}/projects/${entry.project.slug}/releases`}>Review release</a>
+								</div>
+							</article>
+						)) : <div class="kc-empty">No staging candidates are currently waiting for release approval.</div>}
+					</div>
+				</div>
+			</section>
+		</>
+	) : null}
+
+	{section === 'inbox' ? (
+		<section class="kc-panel">
+			<div class="kc-panel__header">
+				<div>
+					<p class="kc-section__eyebrow">Inbox</p>
+					<h2>Action-required work across the team</h2>
+				</div>
+			</div>
+			<div class="kc-list">
+				{inbox.length > 0 ? inbox.map((item: any) => (
+					<div class="kc-activity-item">
+						<div class="kc-panel__header">
+							<div>
+								<h2 style="font-size:1rem;">{item.title}</h2>
+								<p>{item.summary}</p>
+							</div>
+							<span class="kc-status-pill" data-tone={item.state === 'action_required' ? 'danger' : item.state === 'waiting_for_approval' ? 'warning' : 'info'}>{item.state.replaceAll('_', ' ')}</span>
+						</div>
+						<div class="kc-card__meta">
+							<span>{item.kind}</span>
+							<span>{item.createdAt}</span>
+						</div>
+						{item.href ? <div class="kc-inline-actions"><a class="kc-button-secondary" href={item.href}>Open</a></div> : null}
+					</div>
+				)) : <div class="kc-empty">No action items are waiting for this team right now.</div>}
+			</div>
+		</section>
+	) : null}
+
+	{section === 'members' ? (
+		<section class="kc-table-shell">
+			<table class="kc-table">
+				<thead>
+					<tr>
+						<th>Member</th>
+						<th>Status</th>
+						<th>Roles</th>
+						<th>Joined</th>
+					</tr>
+				</thead>
+				<tbody>
+					{members.map((member: any) => (
+						<tr>
+							<td>
+								<strong>{member.displayName ?? member.email ?? member.userId}</strong><br />
+								<span class="kc-subtle">{member.email ?? member.userId}</span>
+							</td>
+							<td>{member.status}</td>
+							<td>
+								<div class="kc-badges">
+									{member.roles.length > 0 ? member.roles.map((role: any) => <span class="kc-badge">{role}</span>) : <span class="kc-badge">member</span>}
+								</div>
+							</td>
+							<td>{member.createdAt}</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</section>
+	) : null}
+
+	{section === 'products' ? (
+		<section class="kc-table-shell">
+			<table class="kc-table">
+				<thead>
+					<tr>
+						<th>Product</th>
+						<th>Kind</th>
+						<th>Visibility</th>
+						<th>Latest artifact</th>
+					</tr>
+				</thead>
+				<tbody>
+					{products.map((item: any) => (
+						<tr>
+							<td>
+								<strong>{item.title}</strong><br />
+								<span class="kc-subtle">{item.summary ?? 'No summary yet.'}</span>
+							</td>
+							<td>{item.kind}</td>
+							<td>{item.visibility}</td>
+							<td>{item.latestArtifact?.version ?? 'Not published yet'}</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</section>
+	) : null}
+
+	{section === 'settings' ? (
+		<section class="kc-grid-2">
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">General</p>
+						<h2>{context.team?.name}</h2>
+					</div>
+				</div>
+				<div class="kc-list">
+					<div class="kc-list-item"><strong>Slug</strong><br />{context.team?.slug}</div>
+					<div class="kc-list-item"><strong>Members</strong><br />{members.length}</div>
+					<div class="kc-list-item"><strong>Products</strong><br />{products.length}</div>
+				</div>
+			</div>
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Capabilities</p>
+						<h2>Current MVP defaults</h2>
+					</div>
+				</div>
+				<div class="kc-list">
+					<div class="kc-list-item"><strong>Hub visibility</strong><br />Public-ready by default.</div>
+					<div class="kc-list-item"><strong>Market publish</strong><br />Always human-approved.</div>
+					<div class="kc-list-item"><strong>Provider</strong><br />GitHub-first for launch and release workflows.</div>
+				</div>
+			</div>
+		</section>
+	) : null}
+</KnowledgeCoopAppLayout>

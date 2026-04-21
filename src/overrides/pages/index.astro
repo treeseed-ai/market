@@ -1,0 +1,127 @@
+---
+import { listSiteTemplates } from '@treeseed/core/templates';
+import KnowledgeCoopPublicLayout from '../../layouts/KnowledgeCoopPublicLayout.astro';
+import MarketProductCard from '../../components/market/MarketProductCard.astro';
+import { createMarketTemplateCatalogProvider } from '../../lib/market/catalog.js';
+import { resolveMarketStore } from '../../lib/market/store.js';
+
+const templateListing = await listSiteTemplates({
+	locals: Astro.locals,
+	catalogProvider: createMarketTemplateCatalogProvider(Astro.locals),
+});
+const store = resolveMarketStore(Astro.locals);
+const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
+const featuredTemplates = templateListing.items.slice(0, 3);
+const featuredPacks = knowledgePacks.slice(0, 3);
+---
+
+<KnowledgeCoopPublicLayout
+	title="Knowledge Coop | Launch, guide, release, and publish knowledge work"
+	description="Knowledge Coop is the operating system and market for knowledge hubs, agent teams, releases, and reusable packages."
+	currentPath={Astro.url.pathname}
+>
+	<section class="kc-hero">
+		<div class="kc-hero__main">
+			<p class="kc-hero__eyebrow">Knowledge Coop</p>
+			<h1 class="kc-hero-copy">Launch, guide, release, and publish knowledge hubs from one operational home.</h1>
+			<p class="kc-hero-copy">
+				Knowledge Coop combines a GitHub-inspired product shell with Treeseed runtime workflows so your team can
+				run research, development, release, and market publishing from the same app.
+			</p>
+			<div class="kc-hero__actions">
+				<a class="kc-button" href="/app/">Open the app</a>
+				<a class="kc-button-secondary" href="/market/">Browse the market</a>
+			</div>
+		</div>
+		<div class="kc-metric-strip">
+			<div class="kc-panel kc-metric">
+				<span class="kc-metric__label">Templates</span>
+				<span class="kc-metric__value">{templateListing.items.length}</span>
+			</div>
+			<div class="kc-panel kc-metric">
+				<span class="kc-metric__label">Knowledge packs</span>
+				<span class="kc-metric__value">{knowledgePacks.length}</span>
+			</div>
+			<div class="kc-panel kc-metric">
+				<span class="kc-metric__label">Workflow model</span>
+				<span class="kc-metric__value">Direct</span>
+			</div>
+			<div class="kc-panel kc-metric">
+				<span class="kc-metric__label">Release model</span>
+				<span class="kc-metric__value">Human gated</span>
+			</div>
+		</div>
+	</section>
+
+	<section class="kc-panel">
+		<div class="kc-panel__header">
+			<div>
+				<p class="kc-section__eyebrow">Product shape</p>
+				<h2>One shell for discovery and operations</h2>
+			</div>
+		</div>
+		<div class="kc-feature-grid">
+			<article>
+				<h3>Launch and operate</h3>
+				<p>Create a knowledge hub, connect hosting, and manage releases, agent runs, and share workflows inside the same control plane.</p>
+			</article>
+			<article>
+				<h3>Direct and Workstreams</h3>
+				<p>Keep direction humane with Direct while using workstreams, checks, and release discipline that feel familiar to GitHub users.</p>
+			</article>
+			<article>
+				<h3>Packages and market trust</h3>
+				<p>Package releases as templates or knowledge packs and publish them through the same app with compatibility and trust context attached.</p>
+			</article>
+		</div>
+	</section>
+
+	<section class="kc-grid-2" style="margin-top: 1rem;">
+		<div class="kc-panel">
+			<div class="kc-panel__header">
+				<div>
+					<p class="kc-section__eyebrow">Featured templates</p>
+					<h2>Start with a proven foundation</h2>
+				</div>
+				<a href="/market/templates/">View all</a>
+			</div>
+			<div class="kc-card-list">
+				{featuredTemplates.map((entry) => (
+					<MarketProductCard
+						href={`/market/templates/${entry.slug}/`}
+						slug={entry.slug}
+						title={entry.title}
+						summary={entry.summary}
+						category={entry.category}
+						featured={entry.featured}
+						publisherName={entry.publisherName}
+						templateVersion={entry.templateVersion}
+						priceModel={entry.priceModel}
+					/>
+				))}
+			</div>
+		</div>
+		<div class="kc-panel">
+			<div class="kc-panel__header">
+				<div>
+					<p class="kc-section__eyebrow">Knowledge packs</p>
+					<h2>Reuse proven knowledge assets</h2>
+				</div>
+				<a href="/market/knowledge-packs/">View all</a>
+			</div>
+			<div class="kc-card-list">
+				{featuredPacks.length > 0 ? featuredPacks.map((entry: any) => (
+					<MarketProductCard
+						href={`/market/knowledge-packs/${entry.slug}/`}
+						slug={entry.slug}
+						title={entry.name}
+						summary={entry.summary ?? 'Reusable source material and market-packaged knowledge assets.'}
+						category="Knowledge pack"
+						publisherName="Knowledge Coop"
+						badges={[entry.visibility, entry.installStrategy]}
+					/>
+				)) : <div class="kc-empty">No public knowledge packs are published yet.</div>}
+			</div>
+		</div>
+	</section>
+</KnowledgeCoopPublicLayout>

@@ -24,6 +24,10 @@ site:
           href: /questions/
         - label: Objectives
           href: /objectives/
+        - label: Proposals
+          href: /proposals/
+        - label: Decisions
+          href: /decisions/
     - label: Build
       items:
         - label: Notes
@@ -83,6 +87,14 @@ models:
       draft: false
       tags: []
   objectives:
+    defaults:
+      draft: false
+      tags: []
+  proposals:
+    defaults:
+      draft: false
+      tags: []
+  decisions:
     defaults:
       draft: false
       tags: []
