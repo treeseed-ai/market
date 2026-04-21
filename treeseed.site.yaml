@@ -29,7 +29,7 @@ surfaces:
     enabled: true
     provider: cloudflare
     rootDir: .
-    publicBaseUrl: https://market.treeseed.ai
+    publicBaseUrl: https://treeseed.ai
     localBaseUrl: http://127.0.0.1:4321
     cache:
       sourcePages:
