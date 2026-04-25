@@ -1,10 +1,12 @@
 name: TreeSeed Market
 slug: treeseed-market
 siteUrl: https://treeseed.ai
-contactEmail: hello@treeseed.ai
+contactEmail: hello@treeseed.email
 hosting:
   kind: market_control_plane
   registration: none
+  teamId: treeseed
+  projectId: market
 hub:
   mode: treeseed_hosted
 runtime:
@@ -31,6 +33,11 @@ surfaces:
     rootDir: .
     publicBaseUrl: https://treeseed.ai
     localBaseUrl: http://127.0.0.1:4321
+    environments:
+      staging:
+        domain: treeseed-market-staging-479e4625.treeseed.ai
+      prod:
+        domain: treeseed.ai
     cache:
       sourcePages:
         browserTtlSeconds: 0
@@ -56,6 +63,11 @@ surfaces:
     provider: railway
     rootDir: .
     localBaseUrl: http://127.0.0.1:3000
+    environments:
+      staging:
+        domain: api-treeseed-market-staging-ca844c56.treeseed.ai
+      prod:
+        domain: api.treeseed.ai
 services:
   api:
     enabled: true
@@ -63,10 +75,13 @@ services:
     rootDir: .
     railway:
       projectName: treeseed-market
-      serviceName: treeseed-api
+      serviceName: treeseed-market-api
       rootDir: .
       buildCommand: npm run build:api
       startCommand: node ./src/api/server.js
+      healthcheckPath: /healthz
+      healthcheckTimeoutSeconds: 10
+      runtimeMode: serverless
     environments:
       local:
         baseUrl: http://127.0.0.1:3000
@@ -80,10 +95,10 @@ services:
     provider: railway
     railway:
       projectName: treeseed-market
-      serviceName: treeseed-manager
+      serviceName: treeseed-market-manager
       rootDir: .
       buildCommand: npm run build:api
-      startCommand: node ./packages/core/dist/services/manager.js
+      startCommand: node ./node_modules/@treeseed/core/dist/services/manager.js
       schedule: "*/5 * * * *"
     environments:
       local:
@@ -97,10 +112,10 @@ services:
     provider: railway
     railway:
       projectName: treeseed-market
-      serviceName: treeseed-worker
+      serviceName: treeseed-market-worker
       rootDir: .
       buildCommand: npm run build:api
-      startCommand: node ./packages/core/dist/services/worker.js
+      startCommand: node ./node_modules/@treeseed/core/dist/services/worker.js
     environments:
       local:
         railwayEnvironment: local
@@ -113,10 +128,10 @@ services:
     provider: railway
     railway:
       projectName: treeseed-market
-      serviceName: treeseed-workday-start
+      serviceName: treeseed-market-workday-start
       rootDir: .
       buildCommand: npm run build:api
-      startCommand: node ./packages/core/dist/services/workday-start.js
+      startCommand: node ./node_modules/@treeseed/core/dist/services/workday-start.js
       schedule: 0 9 * * 1-5
     environments:
       local:
@@ -130,10 +145,10 @@ services:
     provider: railway
     railway:
       projectName: treeseed-market
-      serviceName: treeseed-workday-report
+      serviceName: treeseed-market-workday-report
       rootDir: .
       buildCommand: npm run build:api
-      startCommand: node ./packages/core/dist/services/workday-report.js
+      startCommand: node ./node_modules/@treeseed/core/dist/services/workday-report.js
       schedule: 5 17 * * 1-5
     environments:
       local:
@@ -154,6 +169,7 @@ providers:
     notification: sdk_message
     research: project_graph
   deploy: cloudflare
+  dns: cloudflare-dns
   content:
     serving: local_collections
     runtime: team_scoped_r2_overlay

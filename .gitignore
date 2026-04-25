@@ -15,3 +15,4 @@ public/books/*.md
 public/books/*.json
 public/__treeseed/*.json
 .codex
+tmp/

@@ -1,6 +1,12 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
+
+function getNodeBuiltin(name) {
+	return globalThis.process?.getBuiltinModule?.(name) ?? null;
+}
+
+function fileUrlPath(url) {
+	return decodeURIComponent(url.pathname);
+}
 
 const migrationSql = [
 	'../../migrations/0007_site_web_sessions.sql',
@@ -10,8 +16,8 @@ const migrationSql = [
 	'../../migrations/0011_control_plane_reporting.sql',
 	'../../migrations/0012_knowledge_coop_views.sql',
 ]
-	.map((relativePath) => fileURLToPath(new URL(relativePath, import.meta.url)))
-	.map((migrationPath) => readFileSync(migrationPath, 'utf8'))
+	.map((relativePath) => fileUrlPath(new URL(relativePath, import.meta.url)))
+	.map((migrationPath) => getNodeBuiltin('fs')?.readFileSync(migrationPath, 'utf8') ?? '')
 	.join('\n');
 
 function isoNow() {
