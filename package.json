@@ -61,8 +61,8 @@
     "verify": "node --input-type=module -e \"await import('@treeseed/sdk/scripts/verify-driver')\""
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#0.6.8-dev.staging.20260427T232906Z",
-    "@treeseed/core": "github:treeseed-ai/core#0.6.10-dev.staging.20260427T232906Z",
+    "@treeseed/cli": "github:treeseed-ai/cli#0.6.8-dev.staging.20260428T004020Z",
+    "@treeseed/core": "github:treeseed-ai/core#0.6.10-dev.staging.20260428T002643Z",
     "better-auth": "^1.6.2",
     "hono": "^4.8.2",
     "libsodium-wrappers": "^0.7.16",
