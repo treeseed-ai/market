@@ -149,11 +149,6 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Prepare deployment install manifest
-        shell: bash
-        run: |
-          node --input-type=module -e "import { readFileSync, writeFileSync } from 'node:fs'; const path = 'package.json'; const pkg = JSON.parse(readFileSync(path, 'utf8')); if (pkg.workspaces) { delete pkg.workspaces; writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n'); console.log('Suppressed root workspaces for deployment install.'); }"
-
       - name: Install dependencies
         run: npm ci
 
@@ -265,11 +260,6 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
-
-      - name: Prepare deployment install manifest
-        shell: bash
-        run: |
-          node --input-type=module -e "import { readFileSync, writeFileSync } from 'node:fs'; const path = 'package.json'; const pkg = JSON.parse(readFileSync(path, 'utf8')); if (pkg.workspaces) { delete pkg.workspaces; writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n'); console.log('Suppressed root workspaces for deployment install.'); }"
 
       - name: Install dependencies
         run: npm ci
@@ -393,14 +383,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: false
-          sparse-checkout: |
-            /*
-            !/src/content/
-            !/src/content/**
-            !/public/books/
-            !/public/books/**
-          sparse-checkout-cone-mode: false
+          submodules: recursive
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -408,11 +391,6 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
-
-      - name: Prepare deployment install manifest
-        shell: bash
-        run: |
-          node --input-type=module -e "import { readFileSync, writeFileSync } from 'node:fs'; const path = 'package.json'; const pkg = JSON.parse(readFileSync(path, 'utf8')); if (pkg.workspaces) { delete pkg.workspaces; writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n'); console.log('Suppressed root workspaces for deployment install.'); }"
 
       - name: Install dependencies
         run: npm ci
@@ -537,11 +515,6 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Prepare deployment install manifest
-        shell: bash
-        run: |
-          node --input-type=module -e "import { readFileSync, writeFileSync } from 'node:fs'; const path = 'package.json'; const pkg = JSON.parse(readFileSync(path, 'utf8')); if (pkg.workspaces) { delete pkg.workspaces; writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n'); console.log('Suppressed root workspaces for deployment install.'); }"
-
       - name: Install dependencies
         run: npm ci
 
@@ -644,11 +617,6 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
-
-      - name: Prepare deployment install manifest
-        shell: bash
-        run: |
-          node --input-type=module -e "import { readFileSync, writeFileSync } from 'node:fs'; const path = 'package.json'; const pkg = JSON.parse(readFileSync(path, 'utf8')); if (pkg.workspaces) { delete pkg.workspaces; writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n'); console.log('Suppressed root workspaces for deployment install.'); }"
 
       - name: Install dependencies
         run: npm ci
