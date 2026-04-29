@@ -51,7 +51,7 @@
     "test:unit": "vitest run --config ./vitest.config.ts",
     "check": "if test -f ./packages/sdk/scripts/tenant-check.ts; then node ./packages/sdk/scripts/run-ts.mjs ./packages/sdk/scripts/tenant-check.ts; elif test -f ./node_modules/@treeseed/sdk/dist/scripts/tenant-check.js; then node ./node_modules/@treeseed/sdk/dist/scripts/tenant-check.js; else treeseed check; fi",
     "build:web": "if test -f ./packages/sdk/scripts/tenant-build.ts; then TREESEED_LOCAL_DEV_MODE=cloudflare node ./packages/sdk/scripts/run-ts.mjs ./packages/sdk/scripts/tenant-build.ts; elif test -f ./node_modules/@treeseed/sdk/dist/scripts/tenant-build.js; then TREESEED_LOCAL_DEV_MODE=cloudflare node ./node_modules/@treeseed/sdk/dist/scripts/tenant-build.js; else TREESEED_LOCAL_DEV_MODE=cloudflare treeseed build; fi",
-    "build:api": "if test -f ./packages/core/scripts/build-dist.ts; then npm --prefix ./packages/core run build:dist; elif test -f ./node_modules/@treeseed/core/dist/api.js; then node -e \"console.log('Using installed @treeseed/core API build.')\"; else echo 'Unable to resolve @treeseed/core API build output.'; exit 1; fi",
+    "build:api": "node ./scripts/build-api.mjs",
     "build": "npm run build:api && npm run build:web",
     "deploy": "treeseed release",
     "preview": "if test -f ./packages/sdk/scripts/tenant-astro-command.ts; then node ./packages/sdk/scripts/run-ts.mjs ./packages/sdk/scripts/tenant-astro-command.ts preview; elif test -f ./node_modules/@treeseed/sdk/dist/scripts/tenant-astro-command.js; then node ./node_modules/@treeseed/sdk/dist/scripts/tenant-astro-command.js preview; else treeseed preview; fi",
@@ -61,9 +61,9 @@
     "verify": "node --input-type=module -e \"await import('@treeseed/sdk/scripts/verify-driver')\""
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#0.6.8-dev.staging.20260428T195412Z",
-    "@treeseed/core": "github:treeseed-ai/core#0.6.10-dev.staging.20260428T195412Z",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#0.6.8-dev.staging.20260428T195005Z",
+    "@treeseed/cli": "^0.6.8-dev.staging.20260429T015552Z",
+    "@treeseed/core": "^0.6.10-dev.staging.20260429T015552Z",
+    "@treeseed/sdk": "^0.6.8-dev.staging.20260429T012910Z",
     "better-auth": "^1.6.2",
     "hono": "^4.8.2",
     "libsodium-wrappers": "^0.7.16",
