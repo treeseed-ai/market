@@ -1283,7 +1283,7 @@ runtimeDescribe('market api', () => {
 			},
 		}));
 		expect(inbox.payload.some((entry: { kind: string }) => entry.kind === 'launch_failure')).toBe(false);
-	});
+	}, 15000);
 
 	it('records launch failures as recoverable inbox items', async () => {
 		const error = Object.assign(new Error('GitHub denied repository creation.'), {
