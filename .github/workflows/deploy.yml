@@ -159,6 +159,16 @@ jobs:
             fi
           done
 
+      - name: Build workspace package artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dir in packages/sdk packages/core packages/cli; do
+            if test -f "${dir}/package.json"; then
+              npm --prefix "${dir}" run build:dist
+            fi
+          done
+
       - name: Verify workspace
         shell: bash
         run: |
@@ -275,6 +285,16 @@ jobs:
           for dir in packages/sdk packages/core packages/cli; do
             if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
               git -C "${dir}" checkout -- package.json
+            fi
+          done
+
+      - name: Build workspace package artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dir in packages/sdk packages/core packages/cli; do
+            if test -f "${dir}/package.json"; then
+              npm --prefix "${dir}" run build:dist
             fi
           done
 
@@ -416,6 +436,16 @@ jobs:
             fi
           done
 
+      - name: Build workspace package artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dir in packages/sdk packages/core packages/cli; do
+            if test -f "${dir}/package.json"; then
+              npm --prefix "${dir}" run build:dist
+            fi
+          done
+
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
@@ -546,6 +576,16 @@ jobs:
             fi
           done
 
+      - name: Build workspace package artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dir in packages/sdk packages/core packages/cli; do
+            if test -f "${dir}/package.json"; then
+              npm --prefix "${dir}" run build:dist
+            fi
+          done
+
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
@@ -653,6 +693,16 @@ jobs:
           for dir in packages/sdk packages/core packages/cli; do
             if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
               git -C "${dir}" checkout -- package.json
+            fi
+          done
+
+      - name: Build workspace package artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dir in packages/sdk packages/core packages/cli; do
+            if test -f "${dir}/package.json"; then
+              npm --prefix "${dir}" run build:dist
             fi
           done
 
