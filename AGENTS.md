@@ -81,7 +81,8 @@ Treeseed development commands are the preferred interface for humans and agents 
 Managed executables:
 
 - Run `npx trsd install --json` before assuming a required executable is missing. The install command downloads or verifies Treeseed-managed tools and reports their exact locations in JSON.
-- Do not expect Treeseed-managed tools to be on the global `PATH`. Use the `toolsHome`, `ghConfigDir`, and per-tool `binaryPath` values from `npx trsd install --json`.
+- Run `npx trsd tools --json` to inspect managed executable locations without installing. Use its `toolsHome`, `ghConfigDir`, per-tool `binaryPath`, invocation mode, and GitHub auth status before scripting against tools.
+- Do not expect Treeseed-managed tools to be on the global `PATH`. Use the `toolsHome`, `ghConfigDir`, and per-tool `binaryPath` values from `npx trsd tools --json` or `npx trsd install --json`.
 - The default managed tools home is `$TREESEED_TOOLS_HOME` when set, then `$XDG_CACHE_HOME/treeseed/tools`, otherwise `$HOME/.cache/treeseed/tools`.
 - Managed GitHub CLI is installed at `<toolsHome>/gh/2.90.0/<platform>-<arch>/bin/gh`; on this Linux x64 workspace that is usually `$HOME/.cache/treeseed/tools/gh/2.90.0/linux-x64/bin/gh`.
 - Managed GitHub CLI configuration and extensions live in `$TREESEED_GH_CONFIG_DIR` when set, otherwise `<toolsHome>/gh-config`. The `gh-act` integration is a `gh` extension, so invoke it through the managed `gh` binary, for example `<managed-gh> act ...`.
@@ -94,7 +95,7 @@ For agents and automation:
 - Use `npx trsd save --json` for checkpoints. Save is optimized for fast local iteration by default.
 - Use `npx trsd stage "message" --json` when the task is ready for staging. Stage waits for required hosted CI/CD gates before cleanup.
 - Use `npx trsd close "reason" --json` when abandoning a task. Close archives the branch and cleans up managed worktrees.
-- Use `npx trsd recover --json` and `npx trsd resume <run-id> --json` after interrupted workflow commands.
+- Use `npx trsd recover --json`, `npx trsd recover --prune-stale --json`, and `npx trsd resume <run-id> --json` after interrupted workflow commands.
 
 For humans:
 
