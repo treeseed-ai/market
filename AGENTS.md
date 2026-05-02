@@ -78,6 +78,15 @@ What matters is that package-local verification adapts correctly, not that the f
 
 Treeseed development commands are the preferred interface for humans and agents working in this repository. They coordinate the root market repo, checked-out package repos, task branches, workspace links, verification, CI gates, and cleanup.
 
+Managed executables:
+
+- Run `npx trsd install --json` before assuming a required executable is missing. The install command downloads or verifies Treeseed-managed tools and reports their exact locations in JSON.
+- Do not expect Treeseed-managed tools to be on the global `PATH`. Use the `toolsHome`, `ghConfigDir`, and per-tool `binaryPath` values from `npx trsd install --json`.
+- The default managed tools home is `$TREESEED_TOOLS_HOME` when set, then `$XDG_CACHE_HOME/treeseed/tools`, otherwise `$HOME/.cache/treeseed/tools`.
+- Managed GitHub CLI is installed at `<toolsHome>/gh/2.90.0/<platform>-<arch>/bin/gh`; on this Linux x64 workspace that is usually `$HOME/.cache/treeseed/tools/gh/2.90.0/linux-x64/bin/gh`.
+- Managed GitHub CLI configuration and extensions live in `$TREESEED_GH_CONFIG_DIR` when set, otherwise `<toolsHome>/gh-config`. The `gh-act` integration is a `gh` extension, so invoke it through the managed `gh` binary, for example `<managed-gh> act ...`.
+- Npm-backed Treeseed tools such as Wrangler, Railway, GitHub Copilot, and the Copilot language server resolve through the local package graph. Prefer Treeseed commands that resolve these paths for you; when scripting directly, read `binaryPath` from `npx trsd install --json` and invoke npm-backed JavaScript entrypoints with `node <binaryPath> ...` if needed.
+
 For agents and automation:
 
 - Start with `npx trsd status --json` to inspect branch role, dirty state, locks, package state, and next safe actions.
