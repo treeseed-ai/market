@@ -5,7 +5,7 @@ describe('site model rendering', () => {
 	it('disables agent-oriented models configured as not rendered in the manifest', async () => {
 		vi.resetModules();
 		vi.stubGlobal('__TREESEED_TENANT_CONFIG__', loadTreeseedManifest('./src/manifest.yaml'));
-		const { siteModelRendered } = await import('../../packages/core/src/utils/site-models.ts');
+		const { siteModelRendered } = await import('@treeseed/core');
 
 		expect(siteModelRendered('knowledge_packs')).toBe(false);
 		expect(siteModelRendered('workdays')).toBe(false);

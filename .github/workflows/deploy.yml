@@ -98,8 +98,11 @@ jobs:
               while IFS= read -r path; do
                 [[ -z "${path}" ]] && continue
                 case "${path}" in
-                  src/content/*|content/*|books/*|docs/*|migrations/*)
+                  src/content/*|content/*|books/*|docs/*)
                     content_changed="true"
+                    ;;
+                  migrations/*)
+                    code_changed="true"
                     ;;
                   *)
                     code_changed="true"
@@ -147,7 +150,14 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          node -e "const fs = require('fs'); for (const file of ['packages/sdk/package.json', 'packages/core/package.json', 'packages/cli/package.json']) { if (!fs.existsSync(file)) continue; const p = JSON.parse(fs.readFileSync(file, 'utf8')); if (p.scripts) delete p.scripts.prepare; fs.writeFileSync(file, JSON.stringify(p, null, '\t') + '\n'); }"
+          npm ci
+          for dir in packages/sdk packages/core packages/cli; do
+            if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
+              git -C "${dir}" checkout -- package.json
+            fi
+          done
 
       - name: Verify workspace
         shell: bash
@@ -192,14 +202,38 @@ jobs:
       TREESEED_EDITORIAL_PREVIEW_SECRET: ${{ secrets.TREESEED_EDITORIAL_PREVIEW_SECRET }}
       TREESEED_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.TREESEED_PUBLIC_TURNSTILE_SITE_KEY }}
       TREESEED_TURNSTILE_SECRET_KEY: ${{ secrets.TREESEED_TURNSTILE_SECRET_KEY }}
-      TREESEED_SMTP_HOST: ${{ secrets.TREESEED_SMTP_HOST }}
-      TREESEED_SMTP_PORT: ${{ secrets.TREESEED_SMTP_PORT }}
-      TREESEED_SMTP_USERNAME: ${{ secrets.TREESEED_SMTP_USERNAME }}
+      TREESEED_SMTP_HOST: ${{ vars.TREESEED_SMTP_HOST }}
+      TREESEED_SMTP_PORT: ${{ vars.TREESEED_SMTP_PORT }}
+      TREESEED_SMTP_USERNAME: ${{ vars.TREESEED_SMTP_USERNAME }}
       TREESEED_SMTP_PASSWORD: ${{ secrets.TREESEED_SMTP_PASSWORD }}
-      TREESEED_SMTP_FROM: ${{ secrets.TREESEED_SMTP_FROM }}
-      TREESEED_SMTP_REPLY_TO: ${{ secrets.TREESEED_SMTP_REPLY_TO }}
+      TREESEED_SMTP_FROM: ${{ vars.TREESEED_SMTP_FROM }}
+      TREESEED_SMTP_REPLY_TO: ${{ vars.TREESEED_SMTP_REPLY_TO }}
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      TREESEED_RAILWAY_WORKSPACE: ${{ vars.TREESEED_RAILWAY_WORKSPACE }}
+      TREESEED_HOSTING_KIND: ${{ vars.TREESEED_HOSTING_KIND }}
+      TREESEED_HOSTING_REGISTRATION: ${{ vars.TREESEED_HOSTING_REGISTRATION }}
+      TREESEED_HOSTING_TEAM_ID: ${{ vars.TREESEED_HOSTING_TEAM_ID }}
       TREESEED_MARKET_API_BASE_URL: ${{ vars.TREESEED_MARKET_API_BASE_URL }}
+      TREESEED_PROJECT_DOMAINS: ${{ vars.TREESEED_PROJECT_DOMAINS }}
+      TREESEED_API_BASE_URL: ${{ vars.TREESEED_API_BASE_URL }}
+      TREESEED_BETTER_AUTH_SECRET: ${{ secrets.TREESEED_BETTER_AUTH_SECRET }}
+      TREESEED_WEB_SERVICE_ID: ${{ vars.TREESEED_WEB_SERVICE_ID }}
+      TREESEED_WEB_SERVICE_SECRET: ${{ secrets.TREESEED_WEB_SERVICE_SECRET }}
+      TREESEED_WEB_ASSERTION_SECRET: ${{ secrets.TREESEED_WEB_ASSERTION_SECRET }}
+      TREESEED_WEB_CSRF_SECRET: ${{ secrets.TREESEED_WEB_CSRF_SECRET }}
+      TREESEED_AUTH_GITHUB_CLIENT_ID: ${{ vars.TREESEED_AUTH_GITHUB_CLIENT_ID }}
+      TREESEED_AUTH_GITHUB_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_GITHUB_CLIENT_SECRET }}
+      TREESEED_AUTH_GOOGLE_CLIENT_ID: ${{ vars.TREESEED_AUTH_GOOGLE_CLIENT_ID }}
+      TREESEED_AUTH_GOOGLE_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_GOOGLE_CLIENT_SECRET }}
+      TREESEED_AUTH_MICROSOFT_CLIENT_ID: ${{ vars.TREESEED_AUTH_MICROSOFT_CLIENT_ID }}
+      TREESEED_AUTH_MICROSOFT_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_MICROSOFT_CLIENT_SECRET }}
+      TREESEED_AUTH_APPLE_CLIENT_ID: ${{ vars.TREESEED_AUTH_APPLE_CLIENT_ID }}
+      TREESEED_AUTH_APPLE_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_APPLE_CLIENT_SECRET }}
+      TREESEED_API_D1_DATABASE_ID: ${{ vars.TREESEED_API_D1_DATABASE_ID }}
+      TREESEED_API_WEB_SERVICE_ID: ${{ vars.TREESEED_API_WEB_SERVICE_ID }}
+      TREESEED_API_WEB_SERVICE_SECRET: ${{ secrets.TREESEED_API_WEB_SERVICE_SECRET }}
+      TREESEED_API_WEB_ASSERTION_SECRET: ${{ secrets.TREESEED_API_WEB_ASSERTION_SECRET }}
+      TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST: ${{ vars.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST }}
       TREESEED_PROJECT_ID: ${{ inputs.project_id || vars.TREESEED_PROJECT_ID }}
       TREESEED_PROJECT_RUNNER_TOKEN: ${{ secrets.TREESEED_PROJECT_RUNNER_TOKEN }}
       TREESEED_WORKER_POOL_SCALER: ${{ vars.TREESEED_WORKER_POOL_SCALER }}
@@ -235,12 +269,23 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          node -e "const fs = require('fs'); for (const file of ['packages/sdk/package.json', 'packages/core/package.json', 'packages/cli/package.json']) { if (!fs.existsSync(file)) continue; const p = JSON.parse(fs.readFileSync(file, 'utf8')); if (p.scripts) delete p.scripts.prepare; fs.writeFileSync(file, JSON.stringify(p, null, '\t') + '\n'); }"
+          npm ci
+          for dir in packages/sdk packages/core packages/cli; do
+            if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
+              git -C "${dir}" checkout -- package.json
+            fi
+          done
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
 
       - name: Provision Treeseed platform
         shell: bash
         run: |
           EXTRA_ARGS=()
+          if [[ "${TREESEED_WORKFLOW_SKIP_PROVISION:-}" == "1" ]]; then EXTRA_ARGS+=(--skip-provision); fi
           if [[ -n "${TREESEED_WORKFLOW_PROJECT:-}" ]]; then EXTRA_ARGS+=(--project-id "${TREESEED_WORKFLOW_PROJECT}"); fi
           if [[ -n "${TREESEED_WORKFLOW_PREVIEW_ID:-}" ]]; then EXTRA_ARGS+=(--preview-id "${TREESEED_WORKFLOW_PREVIEW_ID}"); fi
           if test -f ./packages/sdk/scripts/tenant-workflow-action.ts; then
@@ -251,6 +296,21 @@ jobs:
             echo "Unable to resolve @treeseed/sdk tenant workflow entrypoint."
             exit 1
           fi
+
+      - name: Ensure Treeseed deployment state
+        shell: bash
+        run: |
+          node --input-type=module -e "import { existsSync, readFileSync, writeFileSync } from 'node:fs'; const scope = process.env.TREESEED_WORKFLOW_ENVIRONMENT || 'staging'; const filePath = '.treeseed/state/environments/' + scope + '/deploy.json'; if (!existsSync(filePath)) { throw new Error('Provision did not write deployment state at ' + filePath); } const state = JSON.parse(readFileSync(filePath, 'utf8')); const dbId = state?.d1Databases?.SITE_DATA_DB?.databaseId; if (!dbId || String(dbId).startsWith('dryrun-')) { throw new Error('Provision deployment state is missing a live D1 database id.'); } const now = new Date().toISOString(); state.target = state.target || { kind: 'persistent', scope }; state.readiness = { ...(state.readiness || {}), initialized: true, configured: true, phase: state.readiness?.phase || 'config_complete', initializedAt: state.readiness?.initializedAt || now, lastValidatedAt: now, blockers: state.readiness?.blockers || [], warnings: state.readiness?.warnings || [] }; writeFileSync(filePath, JSON.stringify(state, null, 2) + '\n');"
+
+      - name: Upload Treeseed deployment state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: treeseed-deploy-state-${{ needs.classify.outputs.scope }}
+          path: .treeseed/state
+          if-no-files-found: error
+          retention-days: 1
+          include-hidden-files: true
 
   deploy-code:
     runs-on: ubuntu-latest
@@ -278,14 +338,38 @@ jobs:
       TREESEED_EDITORIAL_PREVIEW_SECRET: ${{ secrets.TREESEED_EDITORIAL_PREVIEW_SECRET }}
       TREESEED_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.TREESEED_PUBLIC_TURNSTILE_SITE_KEY }}
       TREESEED_TURNSTILE_SECRET_KEY: ${{ secrets.TREESEED_TURNSTILE_SECRET_KEY }}
-      TREESEED_SMTP_HOST: ${{ secrets.TREESEED_SMTP_HOST }}
-      TREESEED_SMTP_PORT: ${{ secrets.TREESEED_SMTP_PORT }}
-      TREESEED_SMTP_USERNAME: ${{ secrets.TREESEED_SMTP_USERNAME }}
+      TREESEED_SMTP_HOST: ${{ vars.TREESEED_SMTP_HOST }}
+      TREESEED_SMTP_PORT: ${{ vars.TREESEED_SMTP_PORT }}
+      TREESEED_SMTP_USERNAME: ${{ vars.TREESEED_SMTP_USERNAME }}
       TREESEED_SMTP_PASSWORD: ${{ secrets.TREESEED_SMTP_PASSWORD }}
-      TREESEED_SMTP_FROM: ${{ secrets.TREESEED_SMTP_FROM }}
-      TREESEED_SMTP_REPLY_TO: ${{ secrets.TREESEED_SMTP_REPLY_TO }}
+      TREESEED_SMTP_FROM: ${{ vars.TREESEED_SMTP_FROM }}
+      TREESEED_SMTP_REPLY_TO: ${{ vars.TREESEED_SMTP_REPLY_TO }}
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      TREESEED_RAILWAY_WORKSPACE: ${{ vars.TREESEED_RAILWAY_WORKSPACE }}
+      TREESEED_HOSTING_KIND: ${{ vars.TREESEED_HOSTING_KIND }}
+      TREESEED_HOSTING_REGISTRATION: ${{ vars.TREESEED_HOSTING_REGISTRATION }}
+      TREESEED_HOSTING_TEAM_ID: ${{ vars.TREESEED_HOSTING_TEAM_ID }}
       TREESEED_MARKET_API_BASE_URL: ${{ vars.TREESEED_MARKET_API_BASE_URL }}
+      TREESEED_PROJECT_DOMAINS: ${{ vars.TREESEED_PROJECT_DOMAINS }}
+      TREESEED_API_BASE_URL: ${{ vars.TREESEED_API_BASE_URL }}
+      TREESEED_BETTER_AUTH_SECRET: ${{ secrets.TREESEED_BETTER_AUTH_SECRET }}
+      TREESEED_WEB_SERVICE_ID: ${{ vars.TREESEED_WEB_SERVICE_ID }}
+      TREESEED_WEB_SERVICE_SECRET: ${{ secrets.TREESEED_WEB_SERVICE_SECRET }}
+      TREESEED_WEB_ASSERTION_SECRET: ${{ secrets.TREESEED_WEB_ASSERTION_SECRET }}
+      TREESEED_WEB_CSRF_SECRET: ${{ secrets.TREESEED_WEB_CSRF_SECRET }}
+      TREESEED_AUTH_GITHUB_CLIENT_ID: ${{ vars.TREESEED_AUTH_GITHUB_CLIENT_ID }}
+      TREESEED_AUTH_GITHUB_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_GITHUB_CLIENT_SECRET }}
+      TREESEED_AUTH_GOOGLE_CLIENT_ID: ${{ vars.TREESEED_AUTH_GOOGLE_CLIENT_ID }}
+      TREESEED_AUTH_GOOGLE_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_GOOGLE_CLIENT_SECRET }}
+      TREESEED_AUTH_MICROSOFT_CLIENT_ID: ${{ vars.TREESEED_AUTH_MICROSOFT_CLIENT_ID }}
+      TREESEED_AUTH_MICROSOFT_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_MICROSOFT_CLIENT_SECRET }}
+      TREESEED_AUTH_APPLE_CLIENT_ID: ${{ vars.TREESEED_AUTH_APPLE_CLIENT_ID }}
+      TREESEED_AUTH_APPLE_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_APPLE_CLIENT_SECRET }}
+      TREESEED_API_D1_DATABASE_ID: ${{ vars.TREESEED_API_D1_DATABASE_ID }}
+      TREESEED_API_WEB_SERVICE_ID: ${{ vars.TREESEED_API_WEB_SERVICE_ID }}
+      TREESEED_API_WEB_SERVICE_SECRET: ${{ secrets.TREESEED_API_WEB_SERVICE_SECRET }}
+      TREESEED_API_WEB_ASSERTION_SECRET: ${{ secrets.TREESEED_API_WEB_ASSERTION_SECRET }}
+      TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST: ${{ vars.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST }}
       TREESEED_PROJECT_ID: ${{ inputs.project_id || vars.TREESEED_PROJECT_ID }}
       TREESEED_PROJECT_RUNNER_TOKEN: ${{ secrets.TREESEED_PROJECT_RUNNER_TOKEN }}
       TREESEED_WORKER_POOL_SCALER: ${{ vars.TREESEED_WORKER_POOL_SCALER }}
@@ -306,20 +390,14 @@ jobs:
       TREESEED_CONTENT_SERVING_MODE: published_runtime
       TREESEED_WORKFLOW_ACTION: deploy_code
       TREESEED_WORKFLOW_ENVIRONMENT: ${{ needs.classify.outputs.scope }}
+      TREESEED_WORKFLOW_SKIP_PROVISION: "1"
       TREESEED_WORKFLOW_PROJECT: ${{ inputs.project_id || vars.TREESEED_PROJECT_ID }}
       TREESEED_WORKFLOW_PREVIEW_ID: ${{ inputs.preview_id || needs.classify.outputs.preview_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: false
-          sparse-checkout: |
-            /*
-            !/src/content/
-            !/src/content/**
-            !/public/books/
-            !/public/books/**
-          sparse-checkout-cone-mode: false
+          submodules: recursive
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -329,12 +407,29 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          node -e "const fs = require('fs'); for (const file of ['packages/sdk/package.json', 'packages/core/package.json', 'packages/cli/package.json']) { if (!fs.existsSync(file)) continue; const p = JSON.parse(fs.readFileSync(file, 'utf8')); if (p.scripts) delete p.scripts.prepare; fs.writeFileSync(file, JSON.stringify(p, null, '\t') + '\n'); }"
+          npm ci
+          for dir in packages/sdk packages/core packages/cli; do
+            if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
+              git -C "${dir}" checkout -- package.json
+            fi
+          done
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Download Treeseed deployment state
+        uses: actions/download-artifact@v4
+        with:
+          name: treeseed-deploy-state-${{ needs.classify.outputs.scope }}
+          path: .treeseed/state
 
       - name: Deploy Treeseed platform
         shell: bash
         run: |
           EXTRA_ARGS=()
+          if [[ "${TREESEED_WORKFLOW_SKIP_PROVISION:-}" == "1" ]]; then EXTRA_ARGS+=(--skip-provision); fi
           if [[ -n "${TREESEED_WORKFLOW_PROJECT:-}" ]]; then EXTRA_ARGS+=(--project-id "${TREESEED_WORKFLOW_PROJECT}"); fi
           if [[ -n "${TREESEED_WORKFLOW_PREVIEW_ID:-}" ]]; then EXTRA_ARGS+=(--preview-id "${TREESEED_WORKFLOW_PREVIEW_ID}"); fi
           if test -f ./packages/sdk/scripts/tenant-workflow-action.ts; then
@@ -357,6 +452,8 @@ jobs:
       contents: read
       deployments: write
     if: |
+      always() &&
+      needs.provision.result == 'success' &&
       (needs.classify.outputs.workflow_action == 'publish_content' ||
       needs.classify.outputs.content_changed == 'true') &&
       (needs['deploy-code'].result == 'success' || needs['deploy-code'].result == 'skipped')
@@ -373,14 +470,38 @@ jobs:
       TREESEED_EDITORIAL_PREVIEW_SECRET: ${{ secrets.TREESEED_EDITORIAL_PREVIEW_SECRET }}
       TREESEED_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.TREESEED_PUBLIC_TURNSTILE_SITE_KEY }}
       TREESEED_TURNSTILE_SECRET_KEY: ${{ secrets.TREESEED_TURNSTILE_SECRET_KEY }}
-      TREESEED_SMTP_HOST: ${{ secrets.TREESEED_SMTP_HOST }}
-      TREESEED_SMTP_PORT: ${{ secrets.TREESEED_SMTP_PORT }}
-      TREESEED_SMTP_USERNAME: ${{ secrets.TREESEED_SMTP_USERNAME }}
+      TREESEED_SMTP_HOST: ${{ vars.TREESEED_SMTP_HOST }}
+      TREESEED_SMTP_PORT: ${{ vars.TREESEED_SMTP_PORT }}
+      TREESEED_SMTP_USERNAME: ${{ vars.TREESEED_SMTP_USERNAME }}
       TREESEED_SMTP_PASSWORD: ${{ secrets.TREESEED_SMTP_PASSWORD }}
-      TREESEED_SMTP_FROM: ${{ secrets.TREESEED_SMTP_FROM }}
-      TREESEED_SMTP_REPLY_TO: ${{ secrets.TREESEED_SMTP_REPLY_TO }}
+      TREESEED_SMTP_FROM: ${{ vars.TREESEED_SMTP_FROM }}
+      TREESEED_SMTP_REPLY_TO: ${{ vars.TREESEED_SMTP_REPLY_TO }}
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      TREESEED_RAILWAY_WORKSPACE: ${{ vars.TREESEED_RAILWAY_WORKSPACE }}
+      TREESEED_HOSTING_KIND: ${{ vars.TREESEED_HOSTING_KIND }}
+      TREESEED_HOSTING_REGISTRATION: ${{ vars.TREESEED_HOSTING_REGISTRATION }}
+      TREESEED_HOSTING_TEAM_ID: ${{ vars.TREESEED_HOSTING_TEAM_ID }}
       TREESEED_MARKET_API_BASE_URL: ${{ vars.TREESEED_MARKET_API_BASE_URL }}
+      TREESEED_PROJECT_DOMAINS: ${{ vars.TREESEED_PROJECT_DOMAINS }}
+      TREESEED_API_BASE_URL: ${{ vars.TREESEED_API_BASE_URL }}
+      TREESEED_BETTER_AUTH_SECRET: ${{ secrets.TREESEED_BETTER_AUTH_SECRET }}
+      TREESEED_WEB_SERVICE_ID: ${{ vars.TREESEED_WEB_SERVICE_ID }}
+      TREESEED_WEB_SERVICE_SECRET: ${{ secrets.TREESEED_WEB_SERVICE_SECRET }}
+      TREESEED_WEB_ASSERTION_SECRET: ${{ secrets.TREESEED_WEB_ASSERTION_SECRET }}
+      TREESEED_WEB_CSRF_SECRET: ${{ secrets.TREESEED_WEB_CSRF_SECRET }}
+      TREESEED_AUTH_GITHUB_CLIENT_ID: ${{ vars.TREESEED_AUTH_GITHUB_CLIENT_ID }}
+      TREESEED_AUTH_GITHUB_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_GITHUB_CLIENT_SECRET }}
+      TREESEED_AUTH_GOOGLE_CLIENT_ID: ${{ vars.TREESEED_AUTH_GOOGLE_CLIENT_ID }}
+      TREESEED_AUTH_GOOGLE_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_GOOGLE_CLIENT_SECRET }}
+      TREESEED_AUTH_MICROSOFT_CLIENT_ID: ${{ vars.TREESEED_AUTH_MICROSOFT_CLIENT_ID }}
+      TREESEED_AUTH_MICROSOFT_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_MICROSOFT_CLIENT_SECRET }}
+      TREESEED_AUTH_APPLE_CLIENT_ID: ${{ vars.TREESEED_AUTH_APPLE_CLIENT_ID }}
+      TREESEED_AUTH_APPLE_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_APPLE_CLIENT_SECRET }}
+      TREESEED_API_D1_DATABASE_ID: ${{ vars.TREESEED_API_D1_DATABASE_ID }}
+      TREESEED_API_WEB_SERVICE_ID: ${{ vars.TREESEED_API_WEB_SERVICE_ID }}
+      TREESEED_API_WEB_SERVICE_SECRET: ${{ secrets.TREESEED_API_WEB_SERVICE_SECRET }}
+      TREESEED_API_WEB_ASSERTION_SECRET: ${{ secrets.TREESEED_API_WEB_ASSERTION_SECRET }}
+      TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST: ${{ vars.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST }}
       TREESEED_PROJECT_ID: ${{ inputs.project_id || vars.TREESEED_PROJECT_ID }}
       TREESEED_PROJECT_RUNNER_TOKEN: ${{ secrets.TREESEED_PROJECT_RUNNER_TOKEN }}
       TREESEED_WORKER_POOL_SCALER: ${{ vars.TREESEED_WORKER_POOL_SCALER }}
@@ -416,12 +537,29 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          node -e "const fs = require('fs'); for (const file of ['packages/sdk/package.json', 'packages/core/package.json', 'packages/cli/package.json']) { if (!fs.existsSync(file)) continue; const p = JSON.parse(fs.readFileSync(file, 'utf8')); if (p.scripts) delete p.scripts.prepare; fs.writeFileSync(file, JSON.stringify(p, null, '\t') + '\n'); }"
+          npm ci
+          for dir in packages/sdk packages/core packages/cli; do
+            if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
+              git -C "${dir}" checkout -- package.json
+            fi
+          done
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Download Treeseed deployment state
+        uses: actions/download-artifact@v4
+        with:
+          name: treeseed-deploy-state-${{ needs.classify.outputs.scope }}
+          path: .treeseed/state
 
       - name: Publish Treeseed content
         shell: bash
         run: |
           EXTRA_ARGS=()
+          if [[ "${TREESEED_WORKFLOW_SKIP_PROVISION:-}" == "1" ]]; then EXTRA_ARGS+=(--skip-provision); fi
           if [[ -n "${TREESEED_WORKFLOW_PROJECT:-}" ]]; then EXTRA_ARGS+=(--project-id "${TREESEED_WORKFLOW_PROJECT}"); fi
           if [[ -n "${TREESEED_WORKFLOW_PREVIEW_ID:-}" ]]; then EXTRA_ARGS+=(--preview-id "${TREESEED_WORKFLOW_PREVIEW_ID}"); fi
           if test -f ./packages/sdk/scripts/tenant-workflow-action.ts; then
@@ -441,6 +579,8 @@ jobs:
       - deploy-code
       - publish-content
     if: |
+      always() &&
+      needs.provision.result == 'success' &&
       (needs.classify.outputs.workflow_action == 'monitor' ||
       needs.classify.outputs.code_changed == 'true' ||
       needs.classify.outputs.content_changed == 'true' ||
@@ -458,7 +598,31 @@ jobs:
       TREESEED_CONTENT_BUCKET_NAME: ${{ vars.TREESEED_CONTENT_BUCKET_NAME }}
       TREESEED_CONTENT_BUCKET_BINDING: ${{ vars.TREESEED_CONTENT_BUCKET_BINDING }}
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      TREESEED_RAILWAY_WORKSPACE: ${{ vars.TREESEED_RAILWAY_WORKSPACE }}
+      TREESEED_HOSTING_KIND: ${{ vars.TREESEED_HOSTING_KIND }}
+      TREESEED_HOSTING_REGISTRATION: ${{ vars.TREESEED_HOSTING_REGISTRATION }}
+      TREESEED_HOSTING_TEAM_ID: ${{ vars.TREESEED_HOSTING_TEAM_ID }}
       TREESEED_MARKET_API_BASE_URL: ${{ vars.TREESEED_MARKET_API_BASE_URL }}
+      TREESEED_PROJECT_DOMAINS: ${{ vars.TREESEED_PROJECT_DOMAINS }}
+      TREESEED_API_BASE_URL: ${{ vars.TREESEED_API_BASE_URL }}
+      TREESEED_BETTER_AUTH_SECRET: ${{ secrets.TREESEED_BETTER_AUTH_SECRET }}
+      TREESEED_WEB_SERVICE_ID: ${{ vars.TREESEED_WEB_SERVICE_ID }}
+      TREESEED_WEB_SERVICE_SECRET: ${{ secrets.TREESEED_WEB_SERVICE_SECRET }}
+      TREESEED_WEB_ASSERTION_SECRET: ${{ secrets.TREESEED_WEB_ASSERTION_SECRET }}
+      TREESEED_WEB_CSRF_SECRET: ${{ secrets.TREESEED_WEB_CSRF_SECRET }}
+      TREESEED_AUTH_GITHUB_CLIENT_ID: ${{ vars.TREESEED_AUTH_GITHUB_CLIENT_ID }}
+      TREESEED_AUTH_GITHUB_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_GITHUB_CLIENT_SECRET }}
+      TREESEED_AUTH_GOOGLE_CLIENT_ID: ${{ vars.TREESEED_AUTH_GOOGLE_CLIENT_ID }}
+      TREESEED_AUTH_GOOGLE_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_GOOGLE_CLIENT_SECRET }}
+      TREESEED_AUTH_MICROSOFT_CLIENT_ID: ${{ vars.TREESEED_AUTH_MICROSOFT_CLIENT_ID }}
+      TREESEED_AUTH_MICROSOFT_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_MICROSOFT_CLIENT_SECRET }}
+      TREESEED_AUTH_APPLE_CLIENT_ID: ${{ vars.TREESEED_AUTH_APPLE_CLIENT_ID }}
+      TREESEED_AUTH_APPLE_CLIENT_SECRET: ${{ secrets.TREESEED_AUTH_APPLE_CLIENT_SECRET }}
+      TREESEED_API_D1_DATABASE_ID: ${{ vars.TREESEED_API_D1_DATABASE_ID }}
+      TREESEED_API_WEB_SERVICE_ID: ${{ vars.TREESEED_API_WEB_SERVICE_ID }}
+      TREESEED_API_WEB_SERVICE_SECRET: ${{ secrets.TREESEED_API_WEB_SERVICE_SECRET }}
+      TREESEED_API_WEB_ASSERTION_SECRET: ${{ secrets.TREESEED_API_WEB_ASSERTION_SECRET }}
+      TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST: ${{ vars.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST }}
       TREESEED_PROJECT_ID: ${{ inputs.project_id || vars.TREESEED_PROJECT_ID }}
       TREESEED_PROJECT_RUNNER_TOKEN: ${{ secrets.TREESEED_PROJECT_RUNNER_TOKEN }}
       TREESEED_WORKER_POOL_SCALER: ${{ vars.TREESEED_WORKER_POOL_SCALER }}
@@ -483,12 +647,26 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          node -e "const fs = require('fs'); for (const file of ['packages/sdk/package.json', 'packages/core/package.json', 'packages/cli/package.json']) { if (!fs.existsSync(file)) continue; const p = JSON.parse(fs.readFileSync(file, 'utf8')); if (p.scripts) delete p.scripts.prepare; fs.writeFileSync(file, JSON.stringify(p, null, '\t') + '\n'); }"
+          npm ci
+          for dir in packages/sdk packages/core packages/cli; do
+            if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
+              git -C "${dir}" checkout -- package.json
+            fi
+          done
+
+      - name: Download Treeseed deployment state
+        uses: actions/download-artifact@v4
+        with:
+          name: treeseed-deploy-state-${{ needs.classify.outputs.scope }}
+          path: .treeseed/state
 
       - name: Report Treeseed deployment state
         shell: bash
         run: |
           EXTRA_ARGS=()
+          if [[ "${TREESEED_WORKFLOW_SKIP_PROVISION:-}" == "1" ]]; then EXTRA_ARGS+=(--skip-provision); fi
           if [[ -n "${TREESEED_WORKFLOW_PROJECT:-}" ]]; then EXTRA_ARGS+=(--project-id "${TREESEED_WORKFLOW_PROJECT}"); fi
           if [[ -n "${TREESEED_WORKFLOW_PREVIEW_ID:-}" ]]; then EXTRA_ARGS+=(--preview-id "${TREESEED_WORKFLOW_PREVIEW_ID}"); fi
           if test -f ./packages/sdk/scripts/tenant-workflow-action.ts; then
