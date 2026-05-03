@@ -62,7 +62,7 @@
   },
   "dependencies": {
     "@treeseed/cli": "0.6.15",
-    "@treeseed/core": "0.6.17",
+    "@treeseed/core": "^0.6.18-dev.feature-dev-optional-worker-idle.20260503T175036Z",
     "@treeseed/sdk": "0.6.15",
     "better-auth": "^1.6.2",
     "hono": "^4.8.2",
