@@ -74,6 +74,48 @@ What matters is that package-local verification adapts correctly, not that the f
 
 ## Recommended Workflows
 
+### Treeseed Development Commands
+
+Treeseed development commands are the preferred interface for humans and agents working in this repository. They coordinate the root market repo, checked-out package repos, task branches, workspace links, verification, CI gates, and cleanup.
+
+Managed executables:
+
+- Run `npx trsd install --json` before assuming a required executable is missing. The install command downloads or verifies Treeseed-managed tools and reports their exact locations in JSON.
+- Run `npx trsd tools --json` to inspect managed executable locations without installing. Use its `toolsHome`, `ghConfigDir`, per-tool `binaryPath`, invocation mode, and GitHub auth status before scripting against tools.
+- Do not expect Treeseed-managed tools to be on the global `PATH`. Use the `toolsHome`, `ghConfigDir`, and per-tool `binaryPath` values from `npx trsd tools --json` or `npx trsd install --json`.
+- The default managed tools home is `$TREESEED_TOOLS_HOME` when set, then `$XDG_CACHE_HOME/treeseed/tools`, otherwise `$HOME/.cache/treeseed/tools`.
+- Managed GitHub CLI is installed at `<toolsHome>/gh/2.90.0/<platform>-<arch>/bin/gh`; on this Linux x64 workspace that is usually `$HOME/.cache/treeseed/tools/gh/2.90.0/linux-x64/bin/gh`.
+- Managed GitHub CLI configuration and extensions live in `$TREESEED_GH_CONFIG_DIR` when set, otherwise `<toolsHome>/gh-config`. The `gh-act` integration is a `gh` extension, so invoke it through the managed `gh` binary, for example `<managed-gh> act ...`.
+- Npm-backed Treeseed tools such as Wrangler, Railway, GitHub Copilot, and the Copilot language server resolve through the local package graph. Prefer Treeseed commands that resolve these paths for you; when scripting directly, read `binaryPath` from `npx trsd install --json` and invoke npm-backed JavaScript entrypoints with `node <binaryPath> ...` if needed.
+
+For agents and automation:
+
+- Start with `npx trsd status --json` to inspect branch role, dirty state, locks, package state, and next safe actions.
+- Use `npx trsd switch <task-branch> --json`; when the result includes `payload.worktreePath`, run all future commands from that worktree path.
+- Use `npx trsd save --json` for checkpoints. Save is optimized for fast local iteration by default.
+- Use `npx trsd stage "message" --json` when the task is ready for staging. Stage waits for required hosted CI/CD gates before cleanup.
+- Use `npx trsd close "reason" --json` when abandoning a task. Close archives the branch and cleans up managed worktrees.
+- Use `npx trsd recover --json`, `npx trsd recover --prune-stale --json`, and `npx trsd resume <run-id> --json` after interrupted workflow commands.
+
+For humans:
+
+- The default in-place workflow remains valid: `switch`, edit, `save`, then `stage` or `close`.
+- Use `--worktree on` when isolating risky or parallel work. Agents use managed worktrees automatically when agent environment markers are present.
+- Use `--json` whenever another tool needs stable structured output.
+
+For releases:
+
+- Release only after staging is green.
+- Use `npx trsd release --patch --json`, `npx trsd release --minor --json`, or `npx trsd release --major --json`.
+- Release waits required hosted package and market workflows and reports GitHub run metadata.
+
+Workflow guidance:
+
+- Avoid manual branch deletion, package tag cleanup, or submodule pointer edits while a Treeseed workflow command is active.
+- Treat `stage` and `release` as serialized commands because they mutate shared staging or production state.
+- Prefer `--plan --json` before risky operations when an agent needs a non-mutating preview of the command.
+- Keep workflow proof branches intentionally small so command behavior stays easy to inspect from commit history and GitHub Actions runs.
+
 ### Package-only work
 
 - Run commands from the package root.
