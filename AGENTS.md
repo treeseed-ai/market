@@ -114,6 +114,7 @@ Workflow guidance:
 - Avoid manual branch deletion, package tag cleanup, or submodule pointer edits while a Treeseed workflow command is active.
 - Treat `stage` and `release` as serialized commands because they mutate shared staging or production state.
 - Prefer `--plan --json` before risky operations when an agent needs a non-mutating preview of the command.
+- Keep workflow proof branches intentionally small so command behavior stays easy to inspect from commit history and GitHub Actions runs.
 
 ### Package-only work
 
