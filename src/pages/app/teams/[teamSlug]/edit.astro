@@ -66,16 +66,20 @@ if (Astro.request.method === 'POST') {
 		return Astro.redirect(`/app/teams/${context.team.name}/edit?status=${result.ok ? result.existingUser ? 'member_added' : 'invited' : result.code}`, 303);
 	}
 	if (action === 'role') {
-		const roleStatus = (await context.store.updateTeamMemberRole(
-			context.team.id,
-			String(form.get('membershipId') ?? ''),
-			String(form.get('roleKey') ?? 'contributor'),
-		)).ok ? 'role' : 'last_owner';
-		return Astro.redirect(`/app/teams/${context.team.name}/edit?status=${roleStatus}`, 303);
+		return Astro.redirect(
+			`/app/teams/${context.team.name}/edit?status=${(await context.store.updateTeamMemberRole(
+				context.team.id,
+				String(form.get('membershipId') ?? ''),
+				String(form.get('roleKey') ?? 'contributor'),
+			)).ok ? 'role' : 'last_owner'}`,
+			303,
+		);
 	}
 	if (action === 'remove') {
-		const removeStatus = (await context.store.removeTeamMember(context.team.id, String(form.get('membershipId') ?? ''))).ok ? 'removed' : 'last_owner';
-		return Astro.redirect(`/app/teams/${context.team.name}/edit?status=${removeStatus}`, 303);
+		return Astro.redirect(
+			`/app/teams/${context.team.name}/edit?status=${(await context.store.removeTeamMember(context.team.id, String(form.get('membershipId') ?? ''))).ok ? 'removed' : 'last_owner'}`,
+			303,
+		);
 	}
 	if (action === 'revoke_invite') {
 		await context.store.revokeTeamInvite(context.team.id, String(form.get('inviteId') ?? ''));

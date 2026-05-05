@@ -9,7 +9,6 @@ interface AuthEmailMessage {
 }
 
 interface SmtpConfig {
-	useMailpit?: boolean;
 	host: string;
 	port: number;
 	username: string;
@@ -235,7 +234,7 @@ export function canDeliverAuthEmail(context: Pick<APIContext, 'locals'> | undefi
 }
 
 export function authEmailConfigurationMessage() {
-	return 'Configure auth SMTP email or enable local Mailpit before using registration, email verification, or password reset.';
+	return 'Configure SMTP email before using registration, email verification, or password reset.';
 }
 
 export async function sendAuthEmail(context: Pick<APIContext, 'locals'> | undefined, message: AuthEmailMessage) {
@@ -252,17 +251,6 @@ export async function sendAuthEmail(context: Pick<APIContext, 'locals'> | undefi
 
 	assertSmtpConfigured(smtp);
 
-	if (smtp.useMailpit) {
-		try {
-			await sendWithNodeSockets(message, smtp, config.betterAuthBaseUrl);
-			return;
-		} catch (nodeError) {
-			console.warn('[auth-email] Local Mailpit delivery failed; using console fallback.', { nodeError });
-			logConsoleFallback(message);
-			return;
-		}
-	}
-
 	try {
 		await sendWithCloudflareSockets(message, smtp, config.betterAuthBaseUrl);
 		return;
@@ -271,7 +259,7 @@ export async function sendAuthEmail(context: Pick<APIContext, 'locals'> | undefi
 			await sendWithNodeSockets(message, smtp, config.betterAuthBaseUrl);
 			return;
 		} catch (nodeError) {
-			if (smtp.useMailpit || isLocalAuthUrl(config.betterAuthBaseUrl)) {
+			if (isLocalAuthUrl(config.betterAuthBaseUrl)) {
 				console.warn('[auth-email] SMTP delivery failed; using console fallback.', { cloudflareError, nodeError });
 				logConsoleFallback(message);
 				return;

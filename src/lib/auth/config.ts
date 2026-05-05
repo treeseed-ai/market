@@ -58,13 +58,6 @@ export function getSiteAuthConfig(context?: Pick<APIContext, 'locals'>) {
 	const env = runtimeEnv(context);
 	const authMode = parseEnumEnv('TREESEED_AUTH_MODE', AUTH_MODES, 'internal-first', env);
 	const internalSignup = parseEnumEnv('TREESEED_AUTH_INTERNAL_SIGNUP', INTERNAL_SIGNUP_MODES, 'open', env);
-	const explicitAuthSmtpHost = firstEnvValue(env, 'TREESEED_AUTH_SMTP_HOST', 'TREESEED_SMTP_HOST');
-	const mailpitHost = envValue('TREESEED_MAILPIT_SMTP_HOST', env);
-	const useMailpit = parseBooleanEnv(
-		'TREESEED_AUTH_LOCAL_USE_MAILPIT',
-		parseBooleanEnv('TREESEED_FORMS_LOCAL_USE_MAILPIT', Boolean(mailpitHost && !explicitAuthSmtpHost), env),
-		env,
-	);
 	return {
 		authMode,
 		internalAuthEnabled: authMode !== 'providers-only',
@@ -83,16 +76,11 @@ export function getSiteAuthConfig(context?: Pick<APIContext, 'locals'>) {
 		passwordResetTtlSeconds: parseIntEnv('TREESEED_AUTH_PASSWORD_RESET_TTL', DEFAULT_EMAIL_TOKEN_TTL_SECONDS, env),
 		emailVerificationTtlSeconds: parseIntEnv('TREESEED_AUTH_EMAIL_VERIFICATION_TTL', DEFAULT_EMAIL_TOKEN_TTL_SECONDS, env),
 		authEmail: {
-			useMailpit,
-			host: useMailpit
-				? (mailpitHost || explicitAuthSmtpHost || '127.0.0.1')
-				: explicitAuthSmtpHost,
-			port: useMailpit
-				? parseIntEnv('TREESEED_MAILPIT_SMTP_PORT', parseIntEnv('TREESEED_AUTH_SMTP_PORT', parseIntEnv('TREESEED_SMTP_PORT', 1025, env), env), env)
-				: parseIntEnv('TREESEED_AUTH_SMTP_PORT', parseIntEnv('TREESEED_SMTP_PORT', 465, env), env),
-			username: useMailpit ? '' : firstEnvValue(env, 'TREESEED_AUTH_SMTP_USERNAME', 'TREESEED_SMTP_USERNAME'),
-			password: useMailpit ? '' : firstEnvValue(env, 'TREESEED_AUTH_SMTP_PASSWORD', 'TREESEED_SMTP_PASSWORD'),
-			from: firstEnvValue(env, 'TREESEED_AUTH_EMAIL_FROM', 'TREESEED_SMTP_FROM') || (useMailpit ? 'Treeseed Market <auth@treeseed.local>' : ''),
+			host: envValue('TREESEED_SMTP_HOST', env),
+			port: parseIntEnv('TREESEED_SMTP_PORT', 465, env),
+			username: envValue('TREESEED_SMTP_USERNAME', env),
+			password: envValue('TREESEED_SMTP_PASSWORD', env),
+			from: firstEnvValue(env, 'TREESEED_AUTH_EMAIL_FROM', 'TREESEED_SMTP_FROM'),
 			replyTo: firstEnvValue(env, 'TREESEED_AUTH_EMAIL_REPLY_TO', 'TREESEED_SMTP_REPLY_TO'),
 		},
 		providers: {
