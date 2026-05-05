@@ -199,9 +199,3 @@ CREATE TABLE IF NOT EXISTS web_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_web_sessions_user_id
   ON web_sessions(user_id);
-
-CREATE INDEX IF NOT EXISTS idx_web_sessions_better_auth_session_id
-  ON web_sessions(better_auth_session_id);
-
-CREATE INDEX IF NOT EXISTS idx_web_sessions_active
-  ON web_sessions(user_id, revoked_at, expires_at);
