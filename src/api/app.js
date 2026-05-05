@@ -208,6 +208,11 @@ async function requireTeamAccess(c, store, teamId, permission = null) {
 			response: jsonError(c, 403, 'Permission denied.', { permission }),
 		};
 	}
+	if (permission === 'teams:manage:team' && !isTeamApiPrincipal(principal) && !(await store.principalCanManageTeam(principal, teamId))) {
+		return {
+			response: jsonError(c, 403, 'Permission denied.', { permission }),
+		};
+	}
 	return { principal };
 }
 
@@ -284,7 +289,7 @@ async function requireConnectedProjectRuntime(c, store, projectId, principal, pa
 
 async function projectAppHref(store, teamId, projectSlug, section) {
 	const team = await store.getTeam(teamId);
-	return team ? `/app/teams/${team.slug}/projects/${projectSlug}/${section}` : null;
+	return team ? `/app/teams/${team.name}/projects/${projectSlug}/${section}` : null;
 }
 
 async function executeInline(runtime, request) {
@@ -508,6 +513,13 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
+			app.post('/v1/team-invites/:token/accept', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const result = await store.acceptTeamInvite(c.req.param('token'), auth.principal.id);
+				return c.json(result, result.ok ? 200 : 400);
+			});
+
 			app.get('/v1/teams/:teamId/home', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
 				if (access.response) return access.response;
@@ -551,16 +563,74 @@ export function createMarketApiApp(options = {}) {
 					return jsonError(c, 403, 'Permission denied.');
 				}
 				const body = await c.req.json().catch(() => ({}));
-				if (!body.slug || !body.name) {
-					return jsonError(c, 400, 'slug and name are required.');
+				if (!body.name && !body.slug) {
+					return jsonError(c, 400, 'name is required.');
 				}
 				const team = await store.createTeam({
-					slug: String(body.slug),
-					name: String(body.name),
+					name: String(body.slug ?? body.name),
+					displayName: typeof body.displayName === 'string' ? body.displayName : typeof body.label === 'string' ? body.label : String(body.name ?? body.slug),
+					logoUrl: typeof body.logoUrl === 'string' ? body.logoUrl : null,
+					profileSummary: typeof body.profileSummary === 'string' ? body.profileSummary : typeof body.description === 'string' ? body.description : null,
 					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
 					ownerUserId: typeof auth.principal.id === 'string' ? auth.principal.id : null,
 				});
 				return c.json({ ok: true, payload: team });
+			});
+
+			app.patch('/v1/teams/:teamId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				return c.json({
+					...await store.updateTeamSettings(c.req.param('teamId'), {
+						name: typeof body.name === 'string' ? body.name : undefined,
+						displayName: typeof body.displayName === 'string' ? body.displayName : undefined,
+						logoUrl: typeof body.logoUrl === 'string' ? body.logoUrl : undefined,
+						profileSummary: typeof body.profileSummary === 'string' ? body.profileSummary : typeof body.description === 'string' ? body.description : undefined,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.post('/v1/teams/:teamId/invites', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const result = await store.createTeamInvite(c.req.param('teamId'), {
+					email: body.email,
+					roleKey: body.roleKey ?? body.role,
+					invitedByUserId: access.principal.id,
+				});
+				return c.json(result, result.ok ? 200 : 400);
+			});
+
+			app.patch('/v1/teams/:teamId/members/:membershipId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const result = await store.updateTeamMemberRole(c.req.param('teamId'), c.req.param('membershipId'), String(body.roleKey ?? body.role ?? 'contributor'));
+				return c.json(result, result.ok ? 200 : 400);
+			});
+
+			app.delete('/v1/teams/:teamId/members/:membershipId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const result = await store.removeTeamMember(c.req.param('teamId'), c.req.param('membershipId'));
+				return c.json(result, result.ok ? 200 : 400);
+			});
+
+			app.get('/v1/teams/:teamId/deletion-blockers', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				return c.json({ ok: true, payload: await store.evaluateTeamDeletionBlockers(c.req.param('teamId')) });
+			});
+
+			app.delete('/v1/teams/:teamId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const result = await store.deleteTeam(c.req.param('teamId'), body.confirmation);
+				return c.json(result, result.ok ? 200 : 400);
 			});
 
 			app.post('/v1/teams/:teamId/api-keys', async (c) => {
@@ -718,7 +788,7 @@ export function createMarketApiApp(options = {}) {
 					const launch = await executeKnowledgeCoopManagedLaunch({
 						projectId: details.project.id,
 						teamId,
-						teamSlug: team?.slug ?? null,
+						teamSlug: team?.name ?? null,
 						projectSlug: details.project.slug,
 						projectName: details.project.name,
 						summary: details.project.description ?? null,

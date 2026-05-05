@@ -1,5 +1,4 @@
 import type { APIRoute } from 'astro';
-import { exchangeSiteSession } from '../../lib/auth/api';
 import { loadSiteWebSession } from '../../lib/auth/session-store';
 
 export const prerender = false;
@@ -12,14 +11,13 @@ export const GET: APIRoute = async (context) => {
 			headers: { 'content-type': 'application/json' },
 		});
 	}
-	const exchange = await exchangeSiteSession(context, session);
 	return new Response(JSON.stringify({
 		ok: true,
 		payload: {
 			sessionId: session.id,
 			userId: session.userId,
-			principal: exchange.principal,
-			accessTokenExpiresAt: exchange.expiresAt,
+			principal: session.principal,
+			expiresAt: session.expiresAt,
 		},
 	}), {
 		headers: { 'content-type': 'application/json' },

@@ -59,8 +59,8 @@ const isSignedIn = Boolean(Astro.locals.auth?.principal);
 							<a class="kc-button-secondary" href="/app/">Open app</a>
 						) : (
 							<>
-								<a class="kc-action-link" href="/auth/sign-in?provider=github">Sign in</a>
-								<a class="kc-button" href="/auth/sign-in?provider=github">Launch your coop</a>
+								<a class="kc-action-link" href="/auth/sign-in">Sign in</a>
+								<a class="kc-button" href="/auth/sign-in?returnTo=/app/launch">Launch your coop</a>
 							</>
 						)}
 					</div>

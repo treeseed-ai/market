@@ -1,59 +1,571 @@
-import type { APIRoute } from 'astro';
-import { getSiteAuthConfig } from '../../lib/auth/config';
-import { exchangeSiteSession } from '../../lib/auth/api';
+import type { APIContext, APIRoute } from 'astro';
 import { loadSiteWebSession } from '../../lib/auth/session-store';
+import { resolveMarketStore } from '../../lib/market/store';
 
 export const prerender = false;
 
-function copyHeaderIfPresent(target: Headers, source: Headers, name: string) {
-	const value = source.get(name);
-	if (value) {
-		target.set(name, value);
-	}
+function json(payload: unknown, status = 200) {
+	return new Response(JSON.stringify(payload), {
+		status,
+		headers: { 'content-type': 'application/json' },
+	});
 }
 
-function responseHeaders(source: Headers) {
-	const headers = new Headers();
-	for (const [key, value] of source.entries()) {
-		if (/^(connection|content-length|keep-alive|proxy-authenticate|proxy-authorization|te|trailer|transfer-encoding|upgrade)$/i.test(key)) {
-			continue;
+function error(status: number, message: string, details: Record<string, unknown> = {}) {
+	return json({ ok: false, error: message, ...details }, status);
+}
+
+function bearerToken(request: Request) {
+	const header = request.headers.get('authorization');
+	return header?.match(/^Bearer\s+(.+)$/iu)?.[1] ?? null;
+}
+
+function principalHasPermission(principal: any, permission: string) {
+	return Boolean(
+		principal
+		&& (
+			principal.permissions?.includes?.('*:*:*')
+			|| principal.permissions?.includes?.(permission)
+		),
+	);
+}
+
+function isTeamApiPrincipal(principal: any) {
+	return Boolean(principal?.roles?.includes?.('team_api_key'));
+}
+
+type MarketStore = any;
+
+async function resolvePrincipal(context: APIContext, store: MarketStore) {
+	const token = bearerToken(context.request);
+	if (token && store) {
+		const match = await store.authenticateTeamApiKey(token);
+		if (match) {
+			return {
+				principal: match.principal,
+				actorType: 'service',
+			};
 		}
-		headers.set(key, value);
 	}
-	return headers;
+	const session = await loadSiteWebSession(context);
+	if (!session) return null;
+	return {
+		principal: session.principal,
+		actorType: 'user',
+		session,
+	};
+}
+
+async function requireRunner(store: MarketStore, request: Request, projectId: string) {
+	const token = bearerToken(request);
+	if (!token) return { response: error(401, 'Authentication required.') };
+	const runner = await store.authenticateRunner(projectId, token);
+	if (!runner) return { response: error(401, 'Invalid project runner token.') };
+	return { runner };
+}
+
+async function requireTeam(store: MarketStore, principal: any, teamId: string, permission?: string) {
+	if (!(await store.principalCanAccessTeam(principal, teamId))) {
+		return { response: error(403, 'Permission denied.', { teamId }) };
+	}
+	if (permission && isTeamApiPrincipal(principal) && !principalHasPermission(principal, permission)) {
+		return { response: error(403, 'Permission denied.', { permission }) };
+	}
+	if (permission === 'teams:manage:team' && !isTeamApiPrincipal(principal) && !(await store.principalCanManageTeam(principal, teamId))) {
+		return { response: error(403, 'Permission denied.', { permission }) };
+	}
+	return { ok: true as const };
+}
+
+async function requireProject(store: MarketStore, principal: any, projectId: string, permission?: string) {
+	const details = await store.getProjectDetails(projectId);
+	if (!details) return { response: error(404, `Unknown project "${projectId}".`) };
+	const access = await requireTeam(store, principal, details.project.teamId, permission);
+	if (access.response) return access;
+	return { details };
+}
+
+async function readJson(context: APIContext) {
+	return context.request.json().catch(() => ({})) as Promise<Record<string, any>>;
+}
+
+async function createQueuedProjectJob(
+	context: APIContext,
+	store: MarketStore,
+	auth: { principal: any; actorType: string },
+	projectId: string,
+	namespace: string,
+	operation: string,
+	input: Record<string, unknown>,
+) {
+	const job = await store.createJob({
+		projectId,
+		namespace,
+		operation,
+		status: 'pending',
+		preferredMode: 'auto',
+		selectedTarget: 'project_runner',
+		requestedByType: auth.actorType === 'service' ? 'service' : 'user',
+		requestedById: typeof auth.principal.id === 'string' ? auth.principal.id : null,
+		input,
+	});
+	if (!job) {
+		throw new Error('Unable to create project job.');
+	}
+	const queue = context.locals.runtime?.env?.AGENT_WORK_QUEUE as { send?: (message: unknown) => Promise<void> } | undefined;
+	if (queue?.send) {
+		await queue.send({
+			kind: 'treeseed.project_job',
+			jobId: job.id,
+			projectId,
+			namespace,
+			operation,
+			input,
+		});
+		await store.appendJobEvent(job.id, 'queued', { via: 'cloudflare_queue' });
+	} else {
+		await store.appendJobEvent(job.id, 'queued', { via: 'd1_only', reason: 'queue_binding_unavailable' });
+	}
+	return job;
 }
 
 export const ALL: APIRoute = async (context) => {
-	const config = getSiteAuthConfig(context);
-	const targetPath = `/v1/${context.params.all ?? ''}`.replace(/\/{2,}/g, '/');
-	const targetUrl = new URL(targetPath, config.apiBaseUrl);
-	targetUrl.search = context.url.search;
+	const store = resolveMarketStore(context.locals) as MarketStore | null;
+	if (!store) return error(503, 'SITE_DATA_DB is unavailable.');
+	const method = context.request.method.toUpperCase();
+	const parts = (context.params.all ?? '').split('/').filter(Boolean);
+	const [root, id, third, fourth, fifth] = parts;
 
-	const headers = new Headers();
-	copyHeaderIfPresent(headers, context.request.headers, 'accept');
-	copyHeaderIfPresent(headers, context.request.headers, 'content-type');
-	copyHeaderIfPresent(headers, context.request.headers, 'authorization');
-	copyHeaderIfPresent(headers, context.request.headers, 'x-treeseed-remote-contract-version');
+	if (root === 'projects' && id && third === 'runner') {
+		const runnerAccess = await requireRunner(store, context.request, id);
+		if (runnerAccess.response) return runnerAccess.response;
+		const body = method === 'GET' ? {} : await readJson(context);
+		if (method === 'POST' && fourth === 'jobs' && fifth === 'pull') {
+			return json({
+				ok: true,
+				payload: await store.pullJobsForRunner(id, {
+					limit: body.limit,
+					runnerId: typeof body.runnerId === 'string' ? body.runnerId : null,
+				}),
+			});
+		}
+		if (method === 'PUT' && fourth === 'environments' && fifth) {
+			return json({
+				ok: true,
+				payload: await store.upsertProjectEnvironment(id, {
+					environment: fifth,
+					deploymentProfile: typeof body.deploymentProfile === 'string' ? body.deploymentProfile : 'self_hosted_project',
+					baseUrl: typeof body.baseUrl === 'string' ? body.baseUrl : null,
+					cloudflareAccountId: typeof body.cloudflareAccountId === 'string' ? body.cloudflareAccountId : null,
+					pagesProjectName: typeof body.pagesProjectName === 'string' ? body.pagesProjectName : null,
+					workerName: typeof body.workerName === 'string' ? body.workerName : null,
+					r2BucketName: typeof body.r2BucketName === 'string' ? body.r2BucketName : null,
+					d1DatabaseName: typeof body.d1DatabaseName === 'string' ? body.d1DatabaseName : null,
+					queueName: typeof body.queueName === 'string' ? body.queueName : null,
+					railwayProjectName: typeof body.railwayProjectName === 'string' ? body.railwayProjectName : null,
+					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+				}),
+			});
+		}
+		if (method === 'POST' && fourth === 'resources') {
+			if (!body.environment || !body.provider || !body.resourceKind || !body.logicalName) {
+				return error(400, 'environment, provider, resourceKind, and logicalName are required.');
+			}
+			return json({
+				ok: true,
+				payload: await store.upsertProjectInfrastructureResource(id, {
+					id: typeof body.id === 'string' ? body.id : undefined,
+					environment: String(body.environment),
+					provider: String(body.provider),
+					resourceKind: String(body.resourceKind),
+					logicalName: String(body.logicalName),
+					locator: typeof body.locator === 'string' ? body.locator : null,
+					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+				}),
+			});
+		}
+		if (method === 'POST' && fourth === 'deployments') {
+			if (!body.environment || !body.deploymentKind) return error(400, 'environment and deploymentKind are required.');
+			return json({
+				ok: true,
+				payload: await store.createProjectDeployment(id, {
+					id: typeof body.id === 'string' ? body.id : undefined,
+					environment: String(body.environment),
+					deploymentKind: String(body.deploymentKind),
+					status: typeof body.status === 'string' ? body.status : 'pending',
+					sourceRef: typeof body.sourceRef === 'string' ? body.sourceRef : null,
+					releaseTag: typeof body.releaseTag === 'string' ? body.releaseTag : null,
+					commitSha: typeof body.commitSha === 'string' ? body.commitSha : null,
+					triggeredByType: typeof body.triggeredByType === 'string' ? body.triggeredByType : 'project_runner',
+					triggeredById: typeof body.triggeredById === 'string' ? body.triggeredById : runnerAccess.runner.tokenDigest,
+					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					startedAt: typeof body.startedAt === 'string' ? body.startedAt : null,
+					finishedAt: typeof body.finishedAt === 'string' ? body.finishedAt : null,
+				}),
+			});
+		}
+		if (method === 'GET' && fourth === 'deployments') {
+			return json({ ok: true, payload: await store.listProjectDeployments(id, context.url.searchParams.get('environment')) });
+		}
+		if (method === 'GET' && fourth === 'health') {
+			const environment = context.url.searchParams.get('environment') ?? 'staging';
+			const [resources, deployments, pools, workdays] = await Promise.all([
+				store.listProjectInfrastructureResources(id, environment),
+				store.listProjectDeployments(id, environment),
+				store.listAgentPools(id, environment),
+				store.listProjectWorkdaySummaries(id, environment),
+			]);
+			return json({ ok: true, payload: { environment, resources, deployments, pools, workdays } });
+		}
+		if (method === 'POST' && fourth === 'agent-pools' && fifth) {
+			const project = await store.getProject(id);
+			if (!project) return error(404, `Unknown project "${id}".`);
+			const pool = await store.upsertAgentPool(id, {
+				teamId: typeof body.teamId === 'string' ? body.teamId : project.teamId,
+				environment: typeof body.environment === 'string' ? body.environment : 'local',
+				name: fifth,
+				registrationIdentity: typeof body.registrationIdentity === 'string'
+					? body.registrationIdentity
+					: typeof body.managerId === 'string'
+						? body.managerId
+						: typeof body.runnerId === 'string'
+							? body.runnerId
+							: fifth,
+				serviceBaseUrl: typeof body.serviceBaseUrl === 'string' ? body.serviceBaseUrl : null,
+				status: typeof body.status === 'string' ? body.status : 'active',
+				autoscale: typeof body.autoscale === 'object' && body.autoscale ? body.autoscale : undefined,
+				metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+			});
+			const registration = await store.recordAgentPoolRegistration(id, {
+				poolId: pool.id,
+				runnerId: typeof body.runnerId === 'string' ? body.runnerId : null,
+				managerId: typeof body.managerId === 'string' ? body.managerId : null,
+				serviceName: typeof body.serviceName === 'string' ? body.serviceName : 'manager',
+				heartbeatAt: typeof body.heartbeatAt === 'string' ? body.heartbeatAt : null,
+				desiredWorkers: Number.isFinite(Number(body.desiredWorkers)) ? Number(body.desiredWorkers) : null,
+				observedQueueDepth: Number.isFinite(Number(body.observedQueueDepth)) ? Number(body.observedQueueDepth) : null,
+				observedActiveLeases: Number.isFinite(Number(body.observedActiveLeases)) ? Number(body.observedActiveLeases) : null,
+				metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+			});
+			return json({ ok: true, payload: { pool, registration } });
+		}
+		if (method === 'POST' && fourth === 'workdays') {
+			if (!body.environment || !body.workDayId || !body.summary || typeof body.summary !== 'object') {
+				return error(400, 'environment, workDayId, and summary are required.');
+			}
+			return json({
+				ok: true,
+				payload: await store.createProjectWorkdaySummary(id, {
+					environment: String(body.environment),
+					workDayId: String(body.workDayId),
+					kind: typeof body.kind === 'string' ? body.kind : 'workday_summary',
+					state: typeof body.state === 'string' ? body.state : null,
+					startedAt: typeof body.startedAt === 'string' ? body.startedAt : null,
+					endedAt: typeof body.endedAt === 'string' ? body.endedAt : null,
+					summary: body.summary,
+					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+				}),
+			});
+		}
+		if (method === 'POST' && fourth === 'priority-snapshots') {
+			if (!body.snapshot || typeof body.snapshot !== 'object') return error(400, 'snapshot is required.');
+			return json({
+				ok: true,
+				payload: await store.createProjectPrioritySnapshot(id, {
+					id: typeof body.id === 'string' ? body.id : undefined,
+					workDayId: typeof body.workDayId === 'string' ? body.workDayId : null,
+					snapshot: body.snapshot,
+					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					generatedAt: typeof body.generatedAt === 'string' ? body.generatedAt : null,
+				}),
+			});
+		}
+		if (method === 'POST' && fourth === 'task-credits') {
+			if (!body.workDayId || !body.phase || !Number.isFinite(Number(body.credits))) {
+				return error(400, 'workDayId, phase, and credits are required.');
+			}
+			return json({
+				ok: true,
+				payload: await store.recordProjectTaskCredits(id, {
+					id: typeof body.id === 'string' ? body.id : undefined,
+					workDayId: String(body.workDayId),
+					taskId: typeof body.taskId === 'string' ? body.taskId : null,
+					phase: String(body.phase),
+					credits: Number(body.credits),
+					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+				}),
+			});
+		}
+		return error(404, 'Unknown project runner route.', { path: `/${parts.join('/')}` });
+	}
 
-	if (!headers.has('authorization')) {
-		const session = await loadSiteWebSession(context);
-		if (session) {
-			const exchange = await exchangeSiteSession(context, session);
-			headers.set('authorization', `Bearer ${exchange.accessToken}`);
+	if (root === 'jobs' && id && ['progress', 'complete', 'fail'].includes(third ?? '') && method === 'POST') {
+		const job = await store.findJobById(id);
+		if (!job) return error(404, `Unknown job "${id}".`);
+		const runnerAccess = await requireRunner(store, context.request, job.projectId);
+		if (runnerAccess.response) return runnerAccess.response;
+		const body = await readJson(context);
+		if (third === 'progress') {
+			return json({
+				ok: true,
+				payload: await store.recordJobProgress(id, {
+					summary: typeof body.summary === 'string' ? body.summary : null,
+					data: typeof body.data === 'object' && body.data ? body.data : {},
+				}),
+			});
+		}
+		if (third === 'complete') return json({ ok: true, payload: await store.completeJob(id, { output: body.output }) });
+		if (!body.message) return error(400, 'message is required.');
+		return json({
+			ok: true,
+			payload: await store.failJob(id, {
+				code: typeof body.code === 'string' ? body.code : 'runner_failed',
+				message: String(body.message),
+				details: typeof body.details === 'object' && body.details ? body.details : {},
+			}),
+		});
+	}
+
+	const auth = await resolvePrincipal(context, store);
+	if (!auth) return error(401, 'Authentication required.');
+
+	if (method === 'GET' && root === 'me' && !id) {
+		return json({ ok: true, payload: { principal: auth.principal, teams: await store.listTeamsForPrincipal(auth.principal) } });
+	}
+
+	if (root === 'team-invites' && id && third === 'accept' && method === 'POST') {
+		const result = await store.acceptTeamInvite(id, auth.principal.id);
+		return json(result, result.ok ? 200 : 400);
+	}
+
+	if (root === 'teams') {
+		if (method === 'GET' && !id) {
+			return json({ ok: true, payload: await store.listTeamsForPrincipal(auth.principal) });
+		}
+		if (method === 'POST' && !id) {
+			if (isTeamApiPrincipal(auth.principal)) return error(403, 'Permission denied.');
+			const body = await readJson(context);
+			if (!body.name && !body.slug) return error(400, 'name is required.');
+			const team = await store.createTeam({
+				name: String(body.slug ?? body.name),
+				displayName: typeof body.displayName === 'string' ? body.displayName : typeof body.label === 'string' ? body.label : String(body.name ?? body.slug),
+				logoUrl: typeof body.logoUrl === 'string' ? body.logoUrl : null,
+				profileSummary: typeof body.profileSummary === 'string' ? body.profileSummary : typeof body.description === 'string' ? body.description : null,
+				metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+				ownerUserId: typeof auth.principal.id === 'string' ? auth.principal.id : null,
+			});
+			return json({ ok: true, payload: team });
+		}
+		if (!id) return error(404, 'Unknown team route.');
+		const teamPermission = third === 'api-keys'
+			|| third === 'invites'
+			|| third === 'members'
+			|| third === 'deletion-blockers'
+			|| (method === 'PATCH' && !third)
+			|| (method === 'DELETE' && !third)
+			? 'teams:manage:team'
+			: 'projects:read:team';
+		const access = await requireTeam(store, auth.principal, id, teamPermission);
+		if (access.response) return access.response;
+		if (method === 'GET' && third === 'home') return json({ ok: true, payload: await store.getTeamHomeSummary(id, auth.principal) });
+		if (method === 'GET' && third === 'inbox') return json({ ok: true, payload: await store.listTeamInboxItems(id, auth.principal) });
+		if (method === 'GET' && third === 'members') return json({ ok: true, payload: await store.listTeamMembers(id) });
+		if (method === 'GET' && third === 'products') return json({ ok: true, payload: await store.listTeamProducts(id, auth.principal) });
+		if (method === 'PATCH' && !third) {
+			const body = await readJson(context);
+			const result = await store.updateTeamSettings(id, body);
+			return json(result, result?.ok ? 200 : 400);
+		}
+		if (method === 'POST' && third === 'invites') {
+			const body = await readJson(context);
+			const result = await store.createTeamInvite(id, {
+				email: body.email,
+				roleKey: body.roleKey ?? body.role,
+				invitedByUserId: auth.principal.id,
+			});
+			return json(result, result.ok ? 200 : 400);
+		}
+		if (method === 'PATCH' && third === 'members' && fourth) {
+			const body = await readJson(context);
+			const result = await store.updateTeamMemberRole(id, fourth, String(body.roleKey ?? body.role ?? 'contributor'));
+			return json(result, result.ok ? 200 : 400);
+		}
+		if (method === 'DELETE' && third === 'members' && fourth) {
+			const result = await store.removeTeamMember(id, fourth);
+			return json(result, result.ok ? 200 : 400);
+		}
+		if (method === 'GET' && third === 'deletion-blockers') return json({ ok: true, payload: await store.evaluateTeamDeletionBlockers(id) });
+		if (method === 'DELETE' && !third) {
+			const body = await readJson(context);
+			const result = await store.deleteTeam(id, body.confirmation);
+			return json(result, result.ok ? 200 : 400);
+		}
+		if (method === 'GET' && third === 'storage') return json({ ok: true, payload: await store.getTeamStorageLocator(id) });
+		if (method === 'PUT' && third === 'storage') {
+			const body = await readJson(context);
+			return json({ ok: true, payload: await store.upsertTeamStorageLocator(id, body) });
+		}
+		if (method === 'POST' && third === 'api-keys') {
+			const body = await readJson(context);
+			if (!body.name) return error(400, 'name is required.');
+			return json({
+				ok: true,
+				payload: await store.createTeamApiKey(id, {
+					name: String(body.name),
+					permissions: Array.isArray(body.permissions) ? body.permissions.map(String) : [],
+					expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,
+				}),
+			});
+		}
+		if (method === 'POST' && third === 'projects' && fourth === 'launch') {
+			const body = await readJson(context);
+			if (!body.slug || !body.name) return error(400, 'slug and name are required.');
+			const hostingMode = typeof body.hostingMode === 'string' ? body.hostingMode : 'managed';
+			const details = await store.createProject(id, {
+				id: typeof body.id === 'string' ? body.id : undefined,
+				slug: String(body.slug),
+				name: String(body.name),
+				description: typeof body.summary === 'string' ? body.summary : typeof body.description === 'string' ? body.description : null,
+				metadata: {
+					sourceKind: typeof body.sourceKind === 'string' ? body.sourceKind : 'blank',
+					publicSite: body.publicSite !== false,
+					enableDefaultAgents: body.enableDefaultAgents !== false,
+					launchMode: hostingMode,
+					launchPhase: 'queued',
+					...(typeof body.metadata === 'object' && body.metadata ? body.metadata : {}),
+				},
+				entitlementTier: typeof body.entitlementTier === 'string' ? body.entitlementTier : 'free',
+			});
+			await store.upsertProjectHosting(details.project.id, {
+				kind: hostingMode === 'managed' ? 'hosted_project' : 'self_hosted_project',
+				registration: hostingMode === 'hybrid' ? 'optional' : 'none',
+				marketBaseUrl: context.url.origin,
+				projectApiBaseUrl: null,
+				executionOwner: hostingMode === 'managed' ? 'project_runner' : 'project_runner',
+				metadata: {
+					repoProvider: typeof body.repoProvider === 'string' ? body.repoProvider : 'github',
+					repoVisibility: typeof body.repoVisibility === 'string' ? body.repoVisibility : 'private',
+					publicSite: body.publicSite !== false,
+					launchPhase: 'queued',
+				},
+			});
+			for (const environment of ['local', 'staging', 'prod']) {
+				await store.upsertProjectEnvironment(details.project.id, {
+					environment,
+					deploymentProfile: hostingMode === 'managed' ? 'hosted_project' : 'self_hosted_project',
+					baseUrl: null,
+					metadata: { launchMode: hostingMode, launchPhase: 'queued' },
+				});
+			}
+			const job = await createQueuedProjectJob(context, store, auth, details.project.id, 'workflow', 'launch_project', {
+				teamId: id,
+				projectId: details.project.id,
+				...body,
+			});
+			return json({ ok: true, payload: { ...details, launchJob: job } }, 202);
+		}
+		if (method === 'POST' && third === 'projects') {
+			const body = await readJson(context);
+			if (!body.slug || !body.name) return error(400, 'slug and name are required.');
+			return json({
+				ok: true,
+				payload: await store.createProject(id, {
+					id: typeof body.id === 'string' ? body.id : undefined,
+					slug: String(body.slug),
+					name: String(body.name),
+					description: typeof body.description === 'string' ? body.description : null,
+					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					entitlementTier: typeof body.entitlementTier === 'string' ? body.entitlementTier : 'free',
+				}),
+			});
+		}
+		if (method === 'POST' && third === 'catalog-items') {
+			const body = await readJson(context);
+			return json({ ok: true, payload: await store.upsertCatalogItem(id, body) });
 		}
 	}
 
-	const body = context.request.method === 'GET' || context.request.method === 'HEAD'
-		? undefined
-		: await context.request.arrayBuffer();
-	const response = await fetch(targetUrl, {
-		method: context.request.method,
-		headers,
-		body,
-	});
+	if (root === 'projects') {
+		if (method === 'GET' && !id) {
+			return json({ ok: true, payload: await store.listProjectsForPrincipal(auth.principal) });
+		}
+		if (!id) return error(404, 'Unknown project route.');
+		const access: any = await requireProject(store, auth.principal, id, 'projects:read:team');
+		if (access.response) return access.response;
+		if (method === 'GET' && !third) return json({ ok: true, payload: access.details });
+		if (method === 'GET' && third === 'summary') return json({ ok: true, payload: await store.getProjectSummary(id, auth.principal) });
+		if (method === 'GET' && third === 'direct') return json({ ok: true, payload: await store.getProjectDirectSummary(id, auth.principal) });
+		if (method === 'GET' && third === 'workstreams') return json({ ok: true, payload: await store.getProjectWorkstreamsSummary(id, auth.principal) });
+		if (method === 'GET' && third === 'agents') return json({ ok: true, payload: await store.getProjectAgentsSummary(id, auth.principal) });
+		if (method === 'GET' && third === 'releases') return json({ ok: true, payload: await store.getProjectReleasesSummary(id, auth.principal) });
+		if (method === 'GET' && third === 'share') return json({ ok: true, payload: await store.getProjectShareSummary(id, auth.principal) });
+		if (method === 'GET' && third === 'hosting') return json({ ok: true, payload: await store.getProjectHosting(id) });
+		if (method === 'GET' && third === 'environments') return json({ ok: true, payload: await store.listProjectEnvironments(id) });
+		if (method === 'GET' && third === 'resources') return json({ ok: true, payload: await store.listProjectInfrastructureResources(id) });
+		if (method === 'GET' && third === 'deployments') return json({ ok: true, payload: await store.listProjectDeployments(id) });
+		if (method === 'GET' && third === 'agent-pools') return json({ ok: true, payload: await store.listAgentPools(id) });
+		if (method === 'GET' && third === 'work-policy') {
+			const environment = context.url.searchParams.get('environment') ?? 'prod';
+			return json({ ok: true, payload: await store.getProjectWorkPolicy(id, environment) });
+		}
+		if (method === 'GET' && third === 'priority-overrides') return json({ ok: true, payload: await store.listProjectPriorityOverrides(id) });
+		if (method === 'GET' && third === 'priority-snapshots') return json({ ok: true, payload: await store.listProjectPrioritySnapshots(id) });
+		if (method === 'GET' && third === 'workdays') return json({ ok: true, payload: await store.listProjectWorkdaySummaries(id) });
+		if (method === 'PUT' && third === 'hosting') return json({ ok: true, payload: await store.upsertProjectHosting(id, await readJson(context)) });
+		if (['POST', 'PUT'].includes(method) && third === 'connection') {
+			const body = await readJson(context);
+			const result = await store.upsertProjectConnection(id, {
+				mode: typeof body.mode === 'string' ? body.mode : access.details.connection?.mode ?? 'self_hosted',
+				projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
+				executionOwner: typeof body.executionOwner === 'string' ? body.executionOwner : 'project_runner',
+				metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+				rotateRunnerToken: body.rotateRunnerToken === true,
+			});
+			return json({ ok: true, payload: { connection: result.connection, runnerToken: result.runnerToken } });
+		}
+		if (method === 'PUT' && third === 'environments' && fourth) return json({ ok: true, payload: await store.upsertProjectEnvironment(id, { environment: fourth, ...(await readJson(context)) }) });
+		if (method === 'POST' && third === 'resources') return json({ ok: true, payload: await store.upsertProjectInfrastructureResource(id, await readJson(context)) });
+		if (method === 'POST' && third === 'deployments') return json({ ok: true, payload: await store.createProjectDeployment(id, await readJson(context)) });
+		if (method === 'POST' && third === 'agent-pools') return json({ ok: true, payload: await store.upsertAgentPool(id, await readJson(context)) });
+		if (method === 'GET' && third === 'agent-pools' && fourth && fifth === 'registrations') return json({ ok: true, payload: await store.listAgentPoolRegistrations(fourth) });
+		if (method === 'GET' && third === 'agent-pools' && fourth && fifth === 'scale-decisions') return json({ ok: true, payload: await store.listAgentPoolScaleDecisions(fourth) });
+		if (method === 'PUT' && third === 'work-policy') return json({ ok: true, payload: await store.upsertProjectWorkPolicy(id, await readJson(context)) });
+		if (method === 'POST' && third === 'priority-overrides') return json({ ok: true, payload: await store.upsertProjectPriorityOverride(id, await readJson(context)) });
+		if (method === 'GET' && third === 'workdays' && fourth && fifth === 'task-credits') return json({ ok: true, payload: await store.listProjectTaskCredits(id, fourth) });
+		if (method === 'POST') {
+			const body = await readJson(context);
+			const operation = [third, fourth, fifth].filter(Boolean).join('/') || 'project_action';
+			const job = await createQueuedProjectJob(context, store, auth, id, 'workflow', operation, body);
+			return json({ ok: true, payload: job }, 202);
+		}
+	}
 
-	return new Response(response.body, {
-		status: response.status,
-		headers: responseHeaders(response.headers),
-	});
+	if (root === 'jobs' && id) {
+		if (method === 'GET' && !third) return json({ ok: true, payload: await store.findJobById(id) });
+		if (method === 'GET' && third === 'events') return json({ ok: true, payload: await store.listJobEvents(id) });
+		if (method === 'POST' && ['cancel', 'approve', 'reject'].includes(third ?? '')) {
+			if (third === 'cancel') return json({ ok: true, payload: await store.cancelJob(id) });
+			await store.appendJobEvent(id, third, await readJson(context));
+			return json({ ok: true, payload: await store.findJobById(id) });
+		}
+	}
+
+	if (root === 'catalog') {
+		if (method === 'GET' && !id) return json({ ok: true, payload: await store.listCatalogItems(auth.principal) });
+		if (method === 'GET' && id && !third) return json({ ok: true, payload: await store.getCatalogItem(id) });
+		if (method === 'GET' && id && third === 'artifacts') return json({ ok: true, payload: await store.listCatalogArtifactVersions(id) });
+		if (method === 'POST' && id && third === 'artifacts') {
+			const item = await store.getCatalogItem(id);
+			if (!item) return error(404, `Unknown catalog item "${id}".`);
+			return json({ ok: true, payload: await store.upsertCatalogArtifactVersion(item.teamId, id, await readJson(context)) });
+		}
+	}
+
+	if (method === 'GET' && root === 'templates') return json({ ok: true, payload: await store.listCatalogItems(auth.principal, { kind: 'template' }) });
+	if (method === 'GET' && root === 'knowledge-packs') return json({ ok: true, payload: await store.listKnowledgePacks(auth.principal) });
+	if (method === 'POST' && root === 'knowledge-packs' && id) {
+		return json({ ok: true, payload: await store.createKnowledgePack(id, await readJson(context)) });
+	}
+
+	return error(404, 'Unknown web API route.', { path: `/${parts.join('/')}` });
 };

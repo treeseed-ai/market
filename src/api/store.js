@@ -8,17 +8,37 @@ function fileUrlPath(url) {
 	return decodeURIComponent(url.pathname);
 }
 
-const migrationSql = [
+const migrationPaths = [
 	'../../migrations/0007_site_web_sessions.sql',
 	'../../migrations/0008_market_control_plane.sql',
 	'../../migrations/0009_team_content_catalog.sql',
 	'../../migrations/0010_project_hosting_topology.sql',
 	'../../migrations/0011_control_plane_reporting.sql',
 	'../../migrations/0012_knowledge_coop_views.sql',
-]
-	.map((relativePath) => fileUrlPath(new URL(relativePath, import.meta.url)))
-	.map((migrationPath) => getNodeBuiltin('fs')?.readFileSync(migrationPath, 'utf8') ?? '')
-	.join('\n');
+	'../../migrations/0013_better_auth_browser_accounts.sql',
+];
+
+let cachedMigrationSql = null;
+
+function loadMigrationSql() {
+	if (cachedMigrationSql !== null) {
+		return cachedMigrationSql;
+	}
+	const fs = getNodeBuiltin('fs');
+	if (!fs) {
+		cachedMigrationSql = '';
+		return cachedMigrationSql;
+	}
+	try {
+		cachedMigrationSql = migrationPaths
+			.map((relativePath) => fileUrlPath(new URL(relativePath, import.meta.url)))
+			.map((migrationPath) => fs.readFileSync(migrationPath, 'utf8'))
+			.join('\n');
+	} catch {
+		cachedMigrationSql = '';
+	}
+	return cachedMigrationSql;
+}
 
 function isoNow() {
 	return new Date().toISOString();
@@ -87,6 +107,59 @@ const KNOWLEDGE_COOP_ROLE_DESCRIPTIONS = {
 };
 
 const ALL_TEAM_CAPABILITIES = [...new Set(Object.values(TEAM_ROLE_CAPABILITIES).flat())];
+const TEAM_DELETION_CONFIRMATION_PREFIX = 'DELETE ';
+const TEAM_MANAGEMENT_ROLES = new Set(['team_owner']);
+const TEAM_RESERVED_NAMES = new Set([
+	'app',
+	'api',
+	'auth',
+	'market',
+	'templates',
+	'admin',
+	'settings',
+	'u',
+	't',
+	'users',
+	'teams',
+	'new',
+	'me',
+	'account',
+	'login',
+	'logout',
+	'signup',
+]);
+
+export function normalizeTeamName(value) {
+	return String(value ?? '').trim().toLowerCase();
+}
+
+export function validateTeamName(value) {
+	const name = normalizeTeamName(value);
+	if (!name) {
+		return { ok: false, code: 'missing', message: 'Team name is required.' };
+	}
+	if (TEAM_RESERVED_NAMES.has(name)) {
+		return { ok: false, code: 'reserved', message: 'That team name is reserved.' };
+	}
+	if (
+		name.length > 39
+		|| !/^[a-z0-9-]+$/u.test(name)
+		|| name.startsWith('-')
+		|| name.endsWith('-')
+		|| name.includes('--')
+	) {
+		return {
+			ok: false,
+			code: 'format',
+			message: 'Team names can use 1-39 letters, numbers, or single hyphens, with no leading or trailing hyphen.',
+		};
+	}
+	return { ok: true, name };
+}
+
+export function teamDeletionConfirmationMatches(value, teamName) {
+	return String(value ?? '') === `${TEAM_DELETION_CONFIRMATION_PREFIX}${normalizeTeamName(teamName)}`;
+}
 
 function normalizeBaseUrl(baseUrl) {
 	return String(baseUrl ?? '').trim().replace(/\/+$/u, '');
@@ -113,11 +186,16 @@ function projectConnectionModeFromHosting(kind, registration = 'none') {
 
 function serializeTeam(row) {
 	if (!row) return null;
+	const metadata = parseJson(row.metadata_json, {});
+	const handle = row.name ?? row.slug;
 	return {
 		id: row.id,
-		slug: row.slug,
-		name: row.name,
-		metadata: parseJson(row.metadata_json, {}),
+		slug: row.slug ?? handle,
+		name: handle,
+		displayName: row.display_name ?? metadata.displayName ?? row.name ?? row.slug,
+		logoUrl: row.logo_url ?? metadata.logoUrl ?? null,
+		profileSummary: row.profile_summary ?? metadata.profileSummary ?? metadata.description ?? null,
+		metadata,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -133,6 +211,23 @@ function serializeTeamMember(row, roles = []) {
 		displayName: row.display_name,
 		email: row.email,
 		roles,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeTeamInvite(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		email: row.email,
+		roleKey: row.role_key,
+		status: row.status,
+		invitedByUserId: row.invited_by_user_id,
+		acceptedByUserId: row.accepted_by_user_id,
+		acceptedAt: row.accepted_at,
+		expiresAt: row.expires_at,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -673,10 +768,53 @@ export class MarketControlPlaneStore {
 
 	ensureInitialized() {
 		if (!this.initializationPromise) {
-			this.initializationPromise = this.db.exec(migrationSql)
+			const migrationSql = loadMigrationSql();
+			this.initializationPromise = (migrationSql && this.db.exec ? this.db.exec(migrationSql) : Promise.resolve())
+				.then(() => this.ensureTeamManagementSchema())
 				.then(() => this.seedKnowledgeCoopRoles());
 		}
 		return this.initializationPromise;
+	}
+
+	async tableColumns(tableName) {
+		const result = await this.all(`PRAGMA table_info(${tableName})`);
+		return new Set(result.map((row) => row.name));
+	}
+
+	async ensureTeamManagementSchema() {
+		const columns = await this.tableColumns('teams');
+		if (!columns.has('display_name')) {
+			await this.run(`ALTER TABLE teams ADD COLUMN display_name TEXT`);
+		}
+		if (!columns.has('logo_url')) {
+			await this.run(`ALTER TABLE teams ADD COLUMN logo_url TEXT`);
+		}
+		if (!columns.has('profile_summary')) {
+			await this.run(`ALTER TABLE teams ADD COLUMN profile_summary TEXT`);
+		}
+		await this.run(`UPDATE teams SET display_name = name WHERE display_name IS NULL`);
+		await this.run(`UPDATE teams SET name = LOWER(slug) WHERE slug IS NOT NULL AND slug != '' AND name != LOWER(slug)`);
+		await this.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_name ON teams(name)`);
+		await this.run(`CREATE TABLE IF NOT EXISTS team_invites (
+			id TEXT PRIMARY KEY,
+			team_id TEXT NOT NULL,
+			email TEXT NOT NULL,
+			role_key TEXT NOT NULL,
+			token_prefix TEXT NOT NULL,
+			token_hash TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			invited_by_user_id TEXT,
+			accepted_by_user_id TEXT,
+			accepted_at TEXT,
+			expires_at TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+			FOREIGN KEY (invited_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+			FOREIGN KEY (accepted_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+		)`);
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_team_invites_team_status ON team_invites(team_id, status, created_at)`);
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_team_invites_token_prefix ON team_invites(token_prefix)`);
 	}
 
 	async seedKnowledgeCoopRoles() {
@@ -854,6 +992,13 @@ export class MarketControlPlaneStore {
 		return teamIds.includes(teamId);
 	}
 
+	async principalCanManageTeam(principal, teamId) {
+		if (!principal) return false;
+		if (principalIsAdmin(principal)) return true;
+		const context = await this.resolvePrincipalTeamContext(teamId, principal);
+		return Boolean(context?.roles?.some((role) => TEAM_MANAGEMENT_ROLES.has(role)));
+	}
+
 	async principalCanAccessCatalogItem(principal, item) {
 		if (!item) return false;
 		if (item.visibility === 'public') {
@@ -866,7 +1011,7 @@ export class MarketControlPlaneStore {
 		await this.ensureInitialized();
 		const prefix = tokenPrefix(token);
 		const rows = await this.all(
-			`SELECT team_api_keys.*, teams.slug AS team_slug, teams.name AS team_name
+			`SELECT team_api_keys.*, teams.name AS team_name, teams.display_name AS team_display_name
 			 FROM team_api_keys
 			 INNER JOIN teams ON teams.id = team_api_keys.team_id
 			 WHERE team_api_keys.key_prefix = ? AND team_api_keys.revoked_at IS NULL`,
@@ -895,8 +1040,8 @@ export class MarketControlPlaneStore {
 					scopes: ['auth:me'],
 					metadata: {
 						teamId: row.team_id,
-						teamSlug: row.team_slug,
 						teamName: row.team_name,
+						teamDisplayName: row.team_display_name ?? row.team_name,
 					},
 				},
 			};
@@ -908,10 +1053,32 @@ export class MarketControlPlaneStore {
 		await this.ensureInitialized();
 		const timestamp = isoNow();
 		const id = input.id ?? randomUUID();
+		const validation = validateTeamName(input.name ?? input.slug);
+		if (!validation.ok) {
+			throw new Error(validation.message);
+		}
+		const displayName = String(input.displayName ?? input.display_name ?? input.label ?? input.name ?? validation.name).trim() || validation.name;
+		const metadata = {
+			...(typeof input.metadata === 'object' && input.metadata ? input.metadata : {}),
+		};
 		await this.run(
-			`INSERT INTO teams (id, slug, name, metadata_json, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?)`,
-			[id, input.slug, input.name, JSON.stringify(input.metadata ?? {}), timestamp, timestamp],
+			`INSERT INTO teams (id, slug, name, display_name, logo_url, profile_summary, metadata_json, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				validation.name,
+				validation.name,
+				displayName,
+				typeof input.logoUrl === 'string' && input.logoUrl.trim() ? input.logoUrl.trim() : null,
+				typeof input.profileSummary === 'string' && input.profileSummary.trim()
+					? input.profileSummary.trim()
+					: typeof input.description === 'string' && input.description.trim()
+						? input.description.trim()
+						: null,
+				JSON.stringify(metadata),
+				timestamp,
+				timestamp,
+			],
 		);
 		if (input.ownerUserId) {
 			const membershipId = randomUUID();
@@ -932,7 +1099,58 @@ export class MarketControlPlaneStore {
 
 	async getTeamBySlug(slug) {
 		await this.ensureInitialized();
-		return serializeTeam(await this.first(`SELECT * FROM teams WHERE slug = ?`, [slug]));
+		const value = normalizeTeamName(slug);
+		return serializeTeam(await this.first(`SELECT * FROM teams WHERE LOWER(name) = LOWER(?) OR LOWER(slug) = LOWER(?) LIMIT 1`, [value, value]));
+	}
+
+	async getTeamByName(name) {
+		return this.getTeamBySlug(name);
+	}
+
+	async isTeamNameAvailable(name, excludeTeamId = null) {
+		await this.ensureInitialized();
+		const validation = validateTeamName(name);
+		if (!validation.ok) return false;
+		const row = await this.first(
+			`SELECT id FROM teams WHERE LOWER(name) = LOWER(?) ${excludeTeamId ? 'AND id != ?' : ''} LIMIT 1`,
+			excludeTeamId ? [validation.name, excludeTeamId] : [validation.name],
+		);
+		return !row?.id;
+	}
+
+	async updateTeamSettings(teamId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const existing = await this.getTeam(teamId);
+		if (!existing) return null;
+		const requestedName = input.name === undefined || input.name === null || String(input.name).trim() === ''
+			? existing.name
+			: String(input.name);
+		const validation = validateTeamName(requestedName);
+		if (!validation.ok) {
+			return { ok: false, code: validation.code, message: validation.message };
+		}
+		if (validation.name !== existing.name && !(await this.isTeamNameAvailable(validation.name, teamId))) {
+			return { ok: false, code: 'taken', message: 'That team name is already taken.' };
+		}
+		const displayName = String(input.displayName ?? existing.displayName ?? existing.name).trim() || existing.name;
+		const logoUrl = typeof input.logoUrl === 'string' && input.logoUrl.trim() ? input.logoUrl.trim() : null;
+		const profileSummary = typeof input.profileSummary === 'string' && input.profileSummary.trim()
+			? input.profileSummary.trim()
+			: typeof input.description === 'string' && input.description.trim()
+				? input.description.trim()
+				: null;
+		const metadata = {
+			...(existing.metadata ?? {}),
+			...(typeof input.metadata === 'object' && input.metadata ? input.metadata : {}),
+		};
+		await this.run(
+			`UPDATE teams
+			 SET slug = ?, name = ?, display_name = ?, logo_url = ?, profile_summary = ?, metadata_json = ?, updated_at = ?
+			 WHERE id = ?`,
+			[validation.name, validation.name, displayName, logoUrl, profileSummary, JSON.stringify(metadata), timestamp, teamId],
+		);
+		return { ok: true, team: await this.getTeam(teamId) };
 	}
 
 	async listTeamsForPrincipal(principal) {
@@ -978,6 +1196,168 @@ export class MarketControlPlaneStore {
 			rolesByMembership.set(row.team_membership_id, uniqueStrings(existing));
 		}
 		return rows.map((row) => serializeTeamMember(row, rolesByMembership.get(row.id) ?? []));
+	}
+
+	async listTeamInvites(teamId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM team_invites WHERE team_id = ? AND status = 'pending' ORDER BY created_at DESC`,
+			[teamId],
+		);
+		return rows.map(serializeTeamInvite);
+	}
+
+	async findUserByEmail(email) {
+		await this.ensureInitialized();
+		const normalized = String(email ?? '').trim().toLowerCase();
+		if (!normalized) return null;
+		return this.first(`SELECT * FROM users WHERE LOWER(email) = LOWER(?) AND status = 'active' LIMIT 1`, [normalized]);
+	}
+
+	async membershipOwnerCount(teamId) {
+		await this.ensureInitialized();
+		const row = await this.first(
+			`SELECT COUNT(*) AS count
+			 FROM team_memberships
+			 INNER JOIN team_role_bindings ON team_role_bindings.team_membership_id = team_memberships.id
+			 INNER JOIN roles ON roles.id = team_role_bindings.role_id
+			 WHERE team_memberships.team_id = ? AND team_memberships.status = 'active' AND roles.key = 'team_owner'`,
+			[teamId],
+		);
+		return Number(row?.count ?? 0);
+	}
+
+	async upsertTeamMember(teamId, userId, roleKey = 'contributor') {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const role = TEAM_ROLE_CAPABILITIES[roleKey] ? roleKey : 'contributor';
+		let membership = await this.first(
+			`SELECT * FROM team_memberships WHERE team_id = ? AND user_id = ? LIMIT 1`,
+			[teamId, userId],
+		);
+		if (!membership?.id) {
+			const membershipId = randomUUID();
+			await this.run(
+				`INSERT INTO team_memberships (id, team_id, user_id, status, created_at, updated_at)
+				 VALUES (?, ?, ?, 'active', ?, ?)`,
+				[membershipId, teamId, userId, timestamp, timestamp],
+			);
+			membership = { id: membershipId };
+		} else {
+			await this.run(
+				`UPDATE team_memberships SET status = 'active', updated_at = ? WHERE id = ?`,
+				[timestamp, membership.id],
+			);
+		}
+		await this.replaceMembershipRole(membership.id, role);
+		return (await this.listTeamMembers(teamId)).find((member) => member.id === membership.id) ?? null;
+	}
+
+	async replaceMembershipRole(membershipId, roleKey) {
+		await this.ensureInitialized();
+		const role = TEAM_ROLE_CAPABILITIES[roleKey] ? roleKey : 'contributor';
+		await this.run(`DELETE FROM team_role_bindings WHERE team_membership_id = ?`, [membershipId]);
+		await this.bindRoleToMembership(membershipId, role);
+	}
+
+	async updateTeamMemberRole(teamId, membershipId, roleKey) {
+		await this.ensureInitialized();
+		const membership = await this.first(`SELECT * FROM team_memberships WHERE id = ? AND team_id = ? LIMIT 1`, [membershipId, teamId]);
+		if (!membership?.id) return { ok: false, code: 'missing', message: 'Team member not found.' };
+		const currentRoles = await this.listRoleKeysForMembership(membershipId);
+		if (currentRoles.includes('team_owner') && roleKey !== 'team_owner' && (await this.membershipOwnerCount(teamId)) <= 1) {
+			return { ok: false, code: 'last_owner', message: 'A team must keep at least one owner.' };
+		}
+		await this.replaceMembershipRole(membershipId, roleKey);
+		await this.run(`UPDATE team_memberships SET updated_at = ? WHERE id = ?`, [isoNow(), membershipId]);
+		return { ok: true, member: (await this.listTeamMembers(teamId)).find((member) => member.id === membershipId) ?? null };
+	}
+
+	async removeTeamMember(teamId, membershipId) {
+		await this.ensureInitialized();
+		const membership = await this.first(`SELECT * FROM team_memberships WHERE id = ? AND team_id = ? LIMIT 1`, [membershipId, teamId]);
+		if (!membership?.id) return { ok: false, code: 'missing', message: 'Team member not found.' };
+		const currentRoles = await this.listRoleKeysForMembership(membershipId);
+		if (currentRoles.includes('team_owner') && (await this.membershipOwnerCount(teamId)) <= 1) {
+			return { ok: false, code: 'last_owner', message: 'A team must keep at least one owner.' };
+		}
+		await this.run(`DELETE FROM team_memberships WHERE id = ? AND team_id = ?`, [membershipId, teamId]);
+		return { ok: true };
+	}
+
+	async createTeamInvite(teamId, input) {
+		await this.ensureInitialized();
+		const email = String(input.email ?? '').trim().toLowerCase();
+		if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email)) {
+			return { ok: false, code: 'invalid_email', message: 'A valid invite email is required.' };
+		}
+		const roleKey = TEAM_ROLE_CAPABILITIES[input.roleKey] ? input.roleKey : 'contributor';
+		const token = `tiv_${randomUUID().replaceAll('-', '')}${randomUUID().replaceAll('-', '')}`;
+		const timestamp = isoNow();
+		const expiresAt = input.expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+		const existingUser = await this.findUserByEmail(email);
+		if (existingUser?.id && input.autoAddExisting !== false) {
+			const member = await this.upsertTeamMember(teamId, existingUser.id, roleKey);
+			return { ok: true, existingUser: true, member, invite: null, token: null };
+		}
+		const id = randomUUID();
+		await this.run(
+			`INSERT INTO team_invites (
+				id, team_id, email, role_key, token_prefix, token_hash, status, invited_by_user_id, expires_at, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+			[
+				id,
+				teamId,
+				email,
+				roleKey,
+				tokenPrefix(token),
+				stableHash(token, this.config.authSecret),
+				typeof input.invitedByUserId === 'string' ? input.invitedByUserId : null,
+				expiresAt,
+				timestamp,
+				timestamp,
+			],
+		);
+		return { ok: true, existingUser: false, invite: await this.getTeamInvite(id), token };
+	}
+
+	async getTeamInvite(inviteId) {
+		await this.ensureInitialized();
+		return serializeTeamInvite(await this.first(`SELECT * FROM team_invites WHERE id = ? LIMIT 1`, [inviteId]));
+	}
+
+	async revokeTeamInvite(teamId, inviteId) {
+		await this.ensureInitialized();
+		await this.run(
+			`UPDATE team_invites SET status = 'revoked', updated_at = ? WHERE id = ? AND team_id = ? AND status = 'pending'`,
+			[isoNow(), inviteId, teamId],
+		);
+		return { ok: true };
+	}
+
+	async acceptTeamInvite(token, userId) {
+		await this.ensureInitialized();
+		const prefix = tokenPrefix(String(token ?? ''));
+		const rows = await this.all(
+			`SELECT * FROM team_invites WHERE token_prefix = ? AND status = 'pending'`,
+			[prefix],
+		);
+		for (const row of rows) {
+			if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) {
+				await this.run(`UPDATE team_invites SET status = 'expired', updated_at = ? WHERE id = ?`, [isoNow(), row.id]);
+				continue;
+			}
+			if (!equalHash(stableHash(token, this.config.authSecret), row.token_hash)) continue;
+			const member = await this.upsertTeamMember(row.team_id, userId, row.role_key);
+			await this.run(
+				`UPDATE team_invites
+				 SET status = 'accepted', accepted_by_user_id = ?, accepted_at = ?, updated_at = ?
+				 WHERE id = ?`,
+				[userId, isoNow(), isoNow(), row.id],
+			);
+			return { ok: true, invite: serializeTeamInvite(row), member, team: await this.getTeam(row.team_id) };
+		}
+		return { ok: false, code: 'invalid', message: 'Invite link is invalid or expired.' };
 	}
 
 	async createTeamApiKey(teamId, input) {
@@ -1217,6 +1597,65 @@ export class MarketControlPlaneStore {
 			...item,
 			latestArtifact: latestArtifacts.get(item.id) ?? null,
 		}));
+	}
+
+	async loadTeamProfileByName(name, principal = null) {
+		const team = await this.getTeamByName(name);
+		if (!team) return null;
+		const [projects, products, knowledgePacks, members] = await Promise.all([
+			this.listTeamProjects(team.id),
+			this.listTeamProducts(team.id, principal),
+			this.all(`SELECT * FROM knowledge_packs WHERE team_id = ? ORDER BY updated_at DESC, created_at DESC`, [team.id]),
+			this.listTeamMembers(team.id),
+		]);
+		const canAccessPrivate = principal ? await this.principalCanAccessTeam(principal, team.id) : false;
+		return {
+			team,
+			members: canAccessPrivate ? members : [],
+			activity: {
+				projects: canAccessPrivate ? projects : projects.filter((project) => project.metadata?.publicSite === true || project.metadata?.visibility === 'public'),
+				catalogItems: products.filter((item) => item.visibility === 'public' && item.listingEnabled || canAccessPrivate),
+				knowledgePacks: knowledgePacks.map(serializeKnowledgePack).filter((pack) => pack.visibility === 'public' || canAccessPrivate),
+			},
+		};
+	}
+
+	async evaluateTeamDeletionBlockers(teamId) {
+		await this.ensureInitialized();
+		const [projects, catalogItems, knowledgePacks, jobs] = await Promise.all([
+			this.all(`SELECT id, slug, name FROM projects WHERE team_id = ? ORDER BY created_at ASC LIMIT 20`, [teamId]),
+			this.all(`SELECT id, kind, slug, title FROM catalog_items WHERE team_id = ? ORDER BY created_at ASC LIMIT 20`, [teamId]),
+			this.all(`SELECT id, slug, name FROM knowledge_packs WHERE team_id = ? ORDER BY created_at ASC LIMIT 20`, [teamId]),
+			this.all(
+				`SELECT remote_jobs.id, remote_jobs.operation, remote_jobs.status, projects.slug AS project_slug, projects.name AS project_name
+				 FROM remote_jobs
+				 INNER JOIN projects ON projects.id = remote_jobs.project_id
+				 WHERE projects.team_id = ? AND remote_jobs.status IN ('pending', 'claimed', 'running', 'waiting_for_approval')
+				 ORDER BY remote_jobs.created_at ASC LIMIT 20`,
+				[teamId],
+			),
+		]);
+		return [
+			...projects.map((row) => ({ code: 'project', id: row.id, label: row.name, href: `/app/teams/:team/projects/${row.slug}/overview` })),
+			...catalogItems.map((row) => ({ code: 'catalog_item', id: row.id, label: row.title, href: `/market/${row.kind === 'knowledge_pack' ? 'knowledge-packs' : 'templates'}/${row.slug}` })),
+			...knowledgePacks.map((row) => ({ code: 'knowledge_pack', id: row.id, label: row.name, href: `/market/knowledge-packs/${row.slug}` })),
+			...jobs.map((row) => ({ code: 'active_job', id: row.id, label: `${row.project_name}: ${row.operation}`, href: `/app/teams/:team/projects/${row.project_slug}/overview` })),
+		];
+	}
+
+	async deleteTeam(teamId, confirmation) {
+		await this.ensureInitialized();
+		const team = await this.getTeam(teamId);
+		if (!team) return { ok: false, code: 'missing', message: 'Team not found.' };
+		if (!teamDeletionConfirmationMatches(confirmation, team.name)) {
+			return { ok: false, code: 'confirmation', message: `Type DELETE ${team.name} to confirm.` };
+		}
+		const blockers = await this.evaluateTeamDeletionBlockers(teamId);
+		if (blockers.length > 0) {
+			return { ok: false, code: 'blocked', message: 'Team still has owned content.', blockers };
+		}
+		await this.run(`DELETE FROM teams WHERE id = ?`, [teamId]);
+		return { ok: true, team };
 	}
 
 	async listProjectsForPrincipal(principal) {
@@ -2426,7 +2865,7 @@ export class MarketControlPlaneStore {
 					state: 'action_required',
 					title: `${project.name}: ${failedJob.operation} failed`,
 					summary: `The latest ${failedJob.namespace}:${failedJob.operation} run failed and needs review.`,
-					href: `/app/teams/${team.slug}/projects/${project.slug}/overview`,
+					href: `/app/teams/${team.name}/projects/${project.slug}/overview`,
 					createdAt: latestDate(failedJob.finishedAt, failedJob.updatedAt, failedJob.createdAt),
 				});
 			}
@@ -2441,7 +2880,7 @@ export class MarketControlPlaneStore {
 						state: 'waiting_for_approval',
 						title: `${project.name}: staging candidate ready`,
 						summary: 'A verified staging deployment is ready for human release review.',
-						href: `/app/teams/${team.slug}/projects/${project.slug}/releases`,
+						href: `/app/teams/${team.name}/projects/${project.slug}/releases`,
 						createdAt: latestDate(summary.latestStagingDeployment.finishedAt, summary.latestStagingDeployment.startedAt),
 					});
 				}
@@ -2455,7 +2894,7 @@ export class MarketControlPlaneStore {
 					state: 'informational',
 					title: `${project.name}: artifacts available`,
 					summary: 'Release artifacts exist for this project and can be packaged for market distribution.',
-					href: `/app/teams/${team.slug}/projects/${project.slug}/share`,
+					href: `/app/teams/${team.name}/projects/${project.slug}/share`,
 					createdAt: products[0].publishedAt,
 				});
 			}

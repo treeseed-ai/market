@@ -9,7 +9,7 @@ if (!allowedSections.has(section)) {
 }
 
 if (!Astro.locals.auth?.principal) {
-	return Astro.redirect(`/auth/sign-in?provider=github&next=${encodeURIComponent(Astro.url.pathname)}`);
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 }
 
 const context = await loadProjectAppContext(Astro.locals, Astro.params.teamSlug ?? '', Astro.params.projectSlug ?? '');

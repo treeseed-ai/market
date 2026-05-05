@@ -1,11 +1,12 @@
 import type { APIRoute } from 'astro';
-import { createSiteBetterAuth } from '../../../lib/auth/better-auth';
-import { callRailwayApi } from '../../../lib/auth/api';
-import { createSiteWebSession } from '../../../lib/auth/session-store';
+import { createSiteBetterAuth, ensureBetterAuthD1Schema } from '../../../lib/auth/better-auth';
+import { assignImmutableUsername, deriveAvailableUsernameForAccount, normalizeUsername } from '../../../lib/auth/account';
+import { finalizeBetterAuthSession, isSupportedAuthProvider, normalizeReturnTo } from '../../../lib/auth/flow';
 
 export const prerender = false;
 
 export const GET: APIRoute = async (context) => {
+	await ensureBetterAuthD1Schema(context);
 	const auth = createSiteBetterAuth(context);
 	const sessionData = await auth.api.getSession({
 		headers: context.request.headers,
@@ -14,45 +15,36 @@ export const GET: APIRoute = async (context) => {
 		return context.redirect('/auth/sign-in?error=session_missing', 302);
 	}
 	const provider = context.params.provider ?? 'unknown';
-	const syncedResponse = await callRailwayApi(context, '/internal/auth/web/sync-user', {
-		method: 'POST',
-		json: {
+	if (!isSupportedAuthProvider(provider)) {
+		return context.redirect('/auth/sign-in?error=unsupported_provider', 302);
+	}
+	try {
+		const accounts = await auth.api.listUserAccounts({ headers: context.request.headers }).catch(() => []);
+		const providerAccount = accounts.find((account: any) => account.providerId === provider);
+		let user = sessionData.user;
+		if (!normalizeUsername((user as any).username)) {
+			const candidate = await deriveAvailableUsernameForAccount(context, { user, accounts });
+			if (!candidate) {
+				return context.redirect(`/auth/username?returnTo=${encodeURIComponent(normalizeReturnTo(context))}`, 302);
+			}
+			const assigned = await assignImmutableUsername(context, {
+				username: candidate,
+				betterAuthUserId: user.id,
+			});
+			if (!assigned.ok) {
+				return context.redirect(`/auth/username?returnTo=${encodeURIComponent(normalizeReturnTo(context))}`, 302);
+			}
+			user = { ...user, username: assigned.username };
+		}
+		await finalizeBetterAuthSession(context, {
 			provider,
-			providerSubject: sessionData.user.id,
-			email: sessionData.user.email ?? null,
-			emailVerified: Boolean(sessionData.user.emailVerified),
-			displayName: sessionData.user.name ?? sessionData.user.email ?? sessionData.user.id,
-			profile: {
-				image: sessionData.user.image ?? null,
-				betterAuthSessionId: sessionData.session.id,
-			},
-		},
-	});
-	if (!syncedResponse.ok) {
+			user,
+			session: sessionData.session,
+			providerSubject: providerAccount?.accountId ?? user.id,
+		});
+	} catch (error) {
+		console.error('[auth] OAuth account sync failed.', error);
 		return context.redirect('/auth/sign-in?error=sync_failed', 302);
 	}
-	const synced = await syncedResponse.json() as {
-		ok: true;
-		payload: {
-			principal: {
-				id: string;
-				displayName?: string;
-				scopes: string[];
-				roles: string[];
-				permissions: string[];
-				metadata?: Record<string, unknown>;
-			};
-			identityId: string | null;
-		};
-	};
-	await createSiteWebSession(context, {
-		userId: synced.payload.principal.id,
-		identityId: synced.payload.identityId,
-		provider,
-		providerSubject: sessionData.user.id,
-		email: sessionData.user.email ?? null,
-		displayName: sessionData.user.name ?? sessionData.user.email ?? sessionData.user.id,
-		principal: synced.payload.principal,
-	});
-	return context.redirect(context.url.searchParams.get('returnTo') ?? '/', 302);
+	return context.redirect(normalizeReturnTo(context), 302);
 };
