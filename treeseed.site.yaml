@@ -33,6 +33,8 @@ surfaces:
     rootDir: .
     publicBaseUrl: https://treeseed.ai
     localBaseUrl: http://127.0.0.1:4321
+    local:
+      runtime: provider
     environments:
       staging:
         domain: treeseed-market-staging-479e4625.treeseed.ai

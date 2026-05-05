@@ -1,0 +1,317 @@
+---
+import KnowledgeCoopAppLayout from '../../../../layouts/KnowledgeCoopAppLayout.astro';
+import { sendAuthEmail } from '../../../../lib/auth/email';
+import { loadTeamAppContext } from '../../../../lib/market/app-data.js';
+import { teamDeletionConfirmationMatches, validateTeamName } from '../../../../api/store.js';
+
+export const prerender = false;
+
+if (!Astro.locals.auth?.principal) {
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+}
+
+const context = await loadTeamAppContext(Astro.locals, Astro.params.teamSlug ?? '');
+if (!context.team || !context.store) {
+	return new Response('Not found', { status: 404 });
+}
+if (!(await context.store.principalCanManageTeam(context.principal, context.team.id))) {
+	return new Response('Permission denied', { status: 403 });
+}
+
+const roles = ['team_owner', 'market_steward', 'project_lead', 'contributor', 'reviewer', 'finance'];
+let status = Astro.url.searchParams.get('status') ?? (Astro.url.searchParams.get('created') ? 'created' : '');
+
+async function sendInviteEmail(email: string, teamName: string, token: string) {
+	const acceptUrl = new URL(`/team-invites/${encodeURIComponent(token)}/accept`, Astro.url.origin);
+	await sendAuthEmail(Astro, {
+		to: email,
+		subject: `You were invited to ${teamName} on Treeseed Market`,
+		text: [
+			`You were invited to join ${teamName} on Treeseed Market.`,
+			`Open this link to accept the invite: ${acceptUrl.href}`,
+			'If you did not expect this invite, you can ignore this email.',
+		].join('\n\n'),
+	});
+}
+
+if (Astro.request.method === 'POST') {
+	const form = await Astro.request.formData();
+	const action = String(form.get('action') ?? '');
+	if (action === 'settings') {
+		const requestedName = String(form.get('name') ?? '').trim();
+		const validation = validateTeamName(requestedName);
+		if (!validation.ok) {
+			return Astro.redirect(`/app/teams/${context.team.name}/edit?status=${validation.code}`, 303);
+		}
+		const result = await context.store.updateTeamSettings(context.team.id, {
+			name: requestedName,
+			displayName: String(form.get('displayName') ?? '').trim(),
+			logoUrl: String(form.get('logoUrl') ?? '').trim(),
+			profileSummary: String(form.get('profileSummary') ?? '').trim(),
+		});
+		if (!result?.ok) {
+			return Astro.redirect(`/app/teams/${context.team.name}/edit?status=${result?.code ?? 'settings_failed'}`, 303);
+		}
+		return Astro.redirect(`/app/teams/${result.team.name}/edit?status=settings`, 303);
+	}
+	if (action === 'invite') {
+		const result = await context.store.createTeamInvite(context.team.id, {
+			email: String(form.get('email') ?? ''),
+			roleKey: String(form.get('roleKey') ?? 'contributor'),
+			invitedByUserId: context.principal.id,
+		});
+		if (result.ok && result.token && result.invite) {
+			await sendInviteEmail(result.invite.email, context.team.displayName ?? context.team.name, result.token);
+		}
+		return Astro.redirect(`/app/teams/${context.team.name}/edit?status=${result.ok ? result.existingUser ? 'member_added' : 'invited' : result.code}`, 303);
+	}
+	if (action === 'role') {
+		const roleStatus = (await context.store.updateTeamMemberRole(
+			context.team.id,
+			String(form.get('membershipId') ?? ''),
+			String(form.get('roleKey') ?? 'contributor'),
+		)).ok ? 'role' : 'last_owner';
+		return Astro.redirect(`/app/teams/${context.team.name}/edit?status=${roleStatus}`, 303);
+	}
+	if (action === 'remove') {
+		const removeStatus = (await context.store.removeTeamMember(context.team.id, String(form.get('membershipId') ?? ''))).ok ? 'removed' : 'last_owner';
+		return Astro.redirect(`/app/teams/${context.team.name}/edit?status=${removeStatus}`, 303);
+	}
+	if (action === 'revoke_invite') {
+		await context.store.revokeTeamInvite(context.team.id, String(form.get('inviteId') ?? ''));
+		return Astro.redirect(`/app/teams/${context.team.name}/edit?status=invite_revoked`, 303);
+	}
+	if (action === 'delete') {
+		const confirmation = String(form.get('confirmation') ?? '');
+		if (!teamDeletionConfirmationMatches(confirmation, context.team.name)) {
+			return Astro.redirect(`/app/teams/${context.team.name}/edit?status=delete_confirmation`, 303);
+		}
+		const result = await context.store.deleteTeam(context.team.id, confirmation);
+		if (result.ok) {
+			return Astro.redirect('/app/?team=deleted', 303);
+		}
+		return Astro.redirect(`/app/teams/${context.team.name}/edit?status=${result.code}`, 303);
+	}
+}
+
+const refreshed = await loadTeamAppContext(Astro.locals, context.team.name);
+const team = refreshed.team ?? context.team;
+const [members, invites, blockers] = await Promise.all([
+	context.store.listTeamMembers(team.id),
+	context.store.listTeamInvites(team.id),
+	context.store.evaluateTeamDeletionBlockers(team.id),
+]);
+const statusLabels: Record<string, string> = {
+	created: 'Team created.',
+	settings: 'Team settings saved.',
+	invited: 'Invite email sent.',
+	member_added: 'Existing user added to the team.',
+	role: 'Member role updated.',
+	removed: 'Member removed.',
+	invite_revoked: 'Invite revoked.',
+	last_owner: 'A team must keep at least one owner.',
+	delete_confirmation: `Type DELETE ${team.name} to confirm deletion.`,
+	blocked: 'This team still owns content and cannot be deleted yet.',
+	missing: 'Team name is required.',
+	format: 'Team names can use 1-39 letters, numbers, or single hyphens, with no leading or trailing hyphen.',
+	reserved: 'That team name is reserved.',
+	taken: 'That team name is already taken.',
+	settings_failed: 'Team settings could not be saved.',
+};
+---
+
+<KnowledgeCoopAppLayout
+	title={`${team.displayName ?? team.name} · Edit Team`}
+	description="Manage team profile settings, members, invites, and deletion safeguards."
+	currentPath={Astro.url.pathname}
+	teams={refreshed.teams}
+	activeTeam={team}
+>
+	{status ? <p class="kc-status-pill" data-tone={['last_owner', 'delete_confirmation', 'blocked'].includes(status) ? 'danger' : 'success'}>{statusLabels[status] ?? status}</p> : null}
+	<section class="kc-grid-2">
+		<form class="kc-panel" method="POST">
+			<input type="hidden" name="action" value="settings" />
+			<div class="kc-panel__header">
+				<div>
+					<p class="kc-section__eyebrow">Team settings</p>
+					<h2>{team.displayName ?? team.name}</h2>
+					<p><a href={`/t/${team.name}`}>View public profile</a></p>
+				</div>
+			</div>
+			<div class="kc-list">
+				<label class="kc-list-item">
+					<strong>Team name</strong><br />
+					<span>Team name is public and used in URLs.</span>
+					<input data-team-name-input name="name" value={team.name} required maxlength="39" pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?" aria-describedby="team-name-status" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
+					<span id="team-name-status" data-team-name-status class="kc-field-help">Team name is public and used in URLs.</span>
+				</label>
+				<label class="kc-list-item"><strong>Display name</strong><br /><input name="displayName" value={team.displayName ?? team.name} required style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" /></label>
+				<label class="kc-list-item"><strong>Logo URL</strong><br /><input name="logoUrl" type="url" value={team.logoUrl ?? ''} style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" /></label>
+				<label class="kc-list-item"><strong>Profile summary</strong><br /><textarea name="profileSummary" rows="4" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;">{team.profileSummary ?? ''}</textarea></label>
+			</div>
+			<div class="kc-inline-actions" style="margin-top:1rem;"><button class="kc-button" type="submit">Save settings</button></div>
+		</form>
+
+		<form class="kc-panel" method="POST">
+			<input type="hidden" name="action" value="invite" />
+			<div class="kc-panel__header">
+				<div>
+					<p class="kc-section__eyebrow">Invite</p>
+					<h2>Add a member</h2>
+				</div>
+			</div>
+			<div class="kc-list">
+				<label class="kc-list-item"><strong>Email</strong><br /><input name="email" type="email" required style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" /></label>
+				<label class="kc-list-item"><strong>Role</strong><br /><select name="roleKey" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;">{roles.map((role) => <option value={role}>{role.replaceAll('_', ' ')}</option>)}</select></label>
+			</div>
+			<div class="kc-inline-actions" style="margin-top:1rem;"><button class="kc-button" type="submit">Invite member</button></div>
+		</form>
+	</section>
+
+	<section class="kc-table-shell" style="margin-top:1rem;">
+		<table class="kc-table">
+			<thead><tr><th>Member</th><th>Status</th><th>Role</th><th>Actions</th></tr></thead>
+			<tbody>
+				{members.map((member: any) => (
+					<tr>
+						<td><strong>{member.displayName ?? member.email ?? member.userId}</strong><br /><span class="kc-subtle">{member.email ?? member.userId}</span></td>
+						<td>{member.status}</td>
+						<td>
+							<form method="POST" class="kc-inline-form">
+								<input type="hidden" name="action" value="role" />
+								<input type="hidden" name="membershipId" value={member.id} />
+								<select name="roleKey">{roles.map((role) => <option value={role} selected={(member.roles[0] ?? 'contributor') === role}>{role.replaceAll('_', ' ')}</option>)}</select>
+								<button class="kc-button-secondary" type="submit">Save</button>
+							</form>
+						</td>
+						<td>
+							<form method="POST">
+								<input type="hidden" name="action" value="remove" />
+								<input type="hidden" name="membershipId" value={member.id} />
+								<button class="kc-button-secondary" type="submit">Remove</button>
+							</form>
+						</td>
+					</tr>
+				))}
+				{invites.map((invite: any) => (
+					<tr>
+						<td><strong>{invite.email}</strong><br /><span class="kc-subtle">Pending invite</span></td>
+						<td>{invite.status}</td>
+						<td>{invite.roleKey.replaceAll('_', ' ')}</td>
+						<td>
+							<form method="POST">
+								<input type="hidden" name="action" value="revoke_invite" />
+								<input type="hidden" name="inviteId" value={invite.id} />
+								<button class="kc-button-secondary" type="submit">Revoke</button>
+							</form>
+						</td>
+					</tr>
+				))}
+			</tbody>
+		</table>
+	</section>
+
+	<section class="kc-panel kc-danger-zone" style="margin-top:1rem;">
+		<div class="kc-panel__header"><div><p class="kc-section__eyebrow">Danger zone</p><h2>Delete team</h2></div></div>
+		{blockers.length > 0 ? (
+			<div class="kc-list">
+				{blockers.map((blocker: any) => (
+					<div class="kc-list-item"><strong>{blocker.label}</strong><br /><span>{blocker.code.replaceAll('_', ' ')}</span></div>
+				))}
+			</div>
+		) : (
+			<form method="POST">
+				<input type="hidden" name="action" value="delete" />
+				<label class="kc-list-item"><strong>Confirmation text</strong><br /><span>Type DELETE {team.name} to confirm.</span><input name="confirmation" autocomplete="off" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" /></label>
+				<div class="kc-inline-actions" style="margin-top:1rem;"><button class="kc-button kc-button-danger" type="submit">Delete team</button></div>
+			</form>
+		)}
+	</section>
+	<style>
+		.kc-inline-form {
+			display: flex;
+			gap: 0.5rem;
+			align-items: center;
+		}
+		.kc-inline-form select {
+			padding: 0.45rem;
+			border: 1px solid #d0d7de;
+			border-radius: 0.45rem;
+		}
+		.kc-danger-zone {
+			border-color: color-mix(in srgb, var(--kc-red) 35%, #d9ded4);
+		}
+		.kc-button-danger {
+			background: var(--kc-red);
+			border-color: var(--kc-red);
+		}
+		input[data-team-name-state="available"] {
+			border: 2px solid #1d7a42 !important;
+			padding: calc(0.75rem - 1px) !important;
+		}
+		input[data-team-name-state="taken"],
+		input[data-team-name-state="invalid"],
+		input[data-team-name-state="reserved"],
+		input[data-team-name-state="error"] {
+			border: 2px solid #9d2f20 !important;
+			padding: calc(0.75rem - 1px) !important;
+		}
+		.kc-field-help {
+			display: block;
+			margin-top: 0.35rem;
+			color: #667266;
+			font-size: 0.82rem;
+			font-weight: 600;
+		}
+		.kc-field-help[data-tone="success"] {
+			color: #1d7a42;
+		}
+		.kc-field-help[data-tone="danger"] {
+			color: #9d2f20;
+		}
+	</style>
+	<script is:inline define:vars={{ currentTeamId: team.id, currentTeamName: team.name }}>
+		const teamNameInput = document.querySelector('[data-team-name-input]');
+		const teamNameStatus = document.querySelector('[data-team-name-status]');
+		function setTeamNameState(status, message) {
+			if (!teamNameInput || !teamNameStatus) return;
+			if (!status || status === 'empty') {
+				teamNameInput.removeAttribute('data-team-name-state');
+				teamNameStatus.removeAttribute('data-tone');
+				teamNameStatus.textContent = message || 'Team name is public and used in URLs.';
+				return;
+			}
+			teamNameInput.setAttribute('data-team-name-state', status);
+			teamNameStatus.setAttribute('data-tone', status === 'available' ? 'success' : 'danger');
+			teamNameStatus.textContent = message;
+		}
+		let teamNameCheckSequence = 0;
+		async function updateTeamNameAvailability() {
+			if (!teamNameInput) return;
+			const value = teamNameInput.value.trim();
+			const sequence = ++teamNameCheckSequence;
+			if (!value) {
+				setTeamNameState('empty', 'Team name is public and used in URLs.');
+				return;
+			}
+			if (value.toLowerCase() === currentTeamName) {
+				setTeamNameState('available', 'This is your current team name.');
+				return;
+			}
+			try {
+				const response = await fetch(`/app/teams/name-check?name=${encodeURIComponent(value)}&teamId=${encodeURIComponent(currentTeamId)}`, {
+					headers: { accept: 'application/json' },
+				});
+				const result = await response.json();
+				if (sequence !== teamNameCheckSequence || teamNameInput.value.trim() !== value) return;
+				setTeamNameState(result.status, result.message);
+			} catch {
+				if (sequence !== teamNameCheckSequence) return;
+				setTeamNameState('error', 'Team name availability could not be checked.');
+			}
+		}
+		teamNameInput?.addEventListener('input', updateTeamNameAvailability);
+		teamNameInput?.addEventListener('change', updateTeamNameAvailability);
+		updateTeamNameAvailability();
+	</script>
+</KnowledgeCoopAppLayout>

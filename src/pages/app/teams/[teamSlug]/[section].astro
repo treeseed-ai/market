@@ -9,10 +9,11 @@ if (!allowedSections.has(section)) {
 }
 
 if (!Astro.locals.auth?.principal) {
-	return Astro.redirect(`/auth/sign-in?provider=github&next=${encodeURIComponent(Astro.url.pathname)}`);
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 }
 
 const context = await loadTeamAppContext(Astro.locals, Astro.params.teamSlug ?? '');
+const teamHandle = context.team?.name ?? context.team?.slug ?? '';
 if (!context.team || !context.store) {
 	Astro.response.status = 404;
 }
@@ -37,7 +38,7 @@ const currentSectionTitle = (sectionTitles as Record<string, string>)[section] ?
 ---
 
 <KnowledgeCoopAppLayout
-	title={`${context.team?.name ?? 'Team'} · ${currentSectionTitle}`}
+	title={`${context.team?.displayName ?? context.team?.name ?? 'Team'} · ${currentSectionTitle}`}
 	description="Operate projects, releases, market listings, and approvals from the same cooperative control plane."
 	currentPath={Astro.url.pathname}
 	teams={context.teams}
@@ -89,7 +90,7 @@ const currentSectionTitle = (sectionTitles as Record<string, string>)[section] ?
 									<span>{entry.latestProdDeployment?.releaseTag ?? 'no prod release yet'}</span>
 								</div>
 								<div class="kc-inline-actions">
-									<a class="kc-button-secondary" href={`/app/teams/${context.team?.slug}/projects/${entry.project.slug}/overview`}>Open project</a>
+									<a class="kc-button-secondary" href={`/app/teams/${teamHandle}/projects/${entry.project.slug}/overview`}>Open project</a>
 								</div>
 							</article>
 						)) : <div class="kc-empty">No projects have been launched for this team yet.</div>}
@@ -102,7 +103,7 @@ const currentSectionTitle = (sectionTitles as Record<string, string>)[section] ?
 							<p class="kc-section__eyebrow">Ready to release</p>
 							<h2>Human approvals needed</h2>
 						</div>
-						<a href={`/app/teams/${context.team?.slug}/inbox`}>Open inbox</a>
+						<a href={`/app/teams/${teamHandle}/inbox`}>Open inbox</a>
 					</div>
 					<div class="kc-card-list">
 						{teamHome?.readyToRelease?.length ? teamHome.readyToRelease.map((entry: any) => (
@@ -110,7 +111,7 @@ const currentSectionTitle = (sectionTitles as Record<string, string>)[section] ?
 								<h2 style="font-size:1rem;">{entry.project.name}</h2>
 								<p>{entry.latestStagingDeployment?.releaseTag ? `Staging candidate ${entry.latestStagingDeployment.releaseTag}` : 'Staging candidate ready for review.'}</p>
 								<div class="kc-inline-actions">
-									<a class="kc-button-secondary" href={`/app/teams/${context.team?.slug}/projects/${entry.project.slug}/releases`}>Review release</a>
+									<a class="kc-button-secondary" href={`/app/teams/${teamHandle}/projects/${entry.project.slug}/releases`}>Review release</a>
 								</div>
 							</article>
 						)) : <div class="kc-empty">No staging candidates are currently waiting for release approval.</div>}
@@ -219,7 +220,7 @@ const currentSectionTitle = (sectionTitles as Record<string, string>)[section] ?
 					</div>
 				</div>
 				<div class="kc-list">
-					<div class="kc-list-item"><strong>Slug</strong><br />{context.team?.slug}</div>
+					<div class="kc-list-item"><strong>Team name</strong><br />@{context.team?.name}</div>
 					<div class="kc-list-item"><strong>Members</strong><br />{members.length}</div>
 					<div class="kc-list-item"><strong>Products</strong><br />{products.length}</div>
 				</div>

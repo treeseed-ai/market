@@ -1,0 +1,31 @@
+---
+import KnowledgeCoopPublicLayout from '../../../layouts/KnowledgeCoopPublicLayout.astro';
+import { resolveMarketStore } from '../../../lib/market/store.js';
+
+export const prerender = false;
+
+const token = String(Astro.params.token ?? '');
+if (!Astro.locals.auth?.principal) {
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`, 302);
+}
+
+const store = resolveMarketStore(Astro.locals);
+const result: any = store
+	? await store.acceptTeamInvite(token, Astro.locals.auth.principal.id)
+	: { ok: false, message: 'Market storage is unavailable.' };
+
+if (result.ok && result.team) {
+	return Astro.redirect(`/app/teams/${result.team.name}/home?invite=accepted`, 303);
+}
+---
+
+<KnowledgeCoopPublicLayout title="Team invite" description="Accept a Treeseed Market team invite." currentPath={Astro.url.pathname}>
+	<main class="kc-section">
+		<section class="kc-panel">
+			<p class="kc-section__eyebrow">Team invite</p>
+			<h1>Invite could not be accepted</h1>
+			<p>{result.message ?? 'The invite link is invalid or expired.'}</p>
+			<a class="kc-button" href="/app/">Open app</a>
+		</section>
+	</main>
+</KnowledgeCoopPublicLayout>

@@ -1,22 +1,32 @@
 ---
+import KnowledgeCoopAppLayout from '../../layouts/KnowledgeCoopAppLayout.astro';
 import { loadAccessibleTeams } from '../../lib/market/store.js';
 
 if (!Astro.locals.auth?.principal) {
-	return Astro.redirect(`/auth/sign-in?provider=github&next=${encodeURIComponent('/app/')}`);
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/')}`);
 }
 
 const teams = await loadAccessibleTeams(Astro.locals);
 if (teams[0]) {
-	return Astro.redirect(`/app/teams/${teams[0].slug}/home`);
+	return Astro.redirect(`/app/teams/${teams[0].name}/home`);
 }
 ---
 
-<html lang="en">
-	<body>
-		<main style="padding: 2rem; font-family: sans-serif;">
-			<h1>Knowledge Coop</h1>
-			<p>No teams are available for this account yet.</p>
-			<p><a href="/v1/teams">Use the API to create a team</a></p>
-		</main>
-	</body>
-</html>
+<KnowledgeCoopAppLayout
+	title="Create Your First Team"
+	description="Teams organize projects, members, and public profiles. Create one when you are ready to start building."
+	currentPath={Astro.url.pathname}
+	teams={teams}
+	activeTeam={null}
+>
+	<section class="kc-panel">
+		<div class="kc-panel__header">
+			<div>
+				<p class="kc-section__eyebrow">No teams yet</p>
+				<h2>Start with a team</h2>
+				<p>Create a team to launch projects, invite collaborators, and publish a public team profile.</p>
+			</div>
+			<a class="kc-button" href="/app/teams/new">Create new team</a>
+		</div>
+	</section>
+</KnowledgeCoopAppLayout>

@@ -13,6 +13,7 @@ const store = resolveMarketStore(Astro.locals);
 const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
 const featuredTemplates = templateListing.items.slice(0, 3);
 const featuredPacks = knowledgePacks.slice(0, 3);
+const accountDeleted = Astro.url.searchParams.get('account') === 'deleted';
 ---
 
 <KnowledgeCoopPublicLayout
@@ -22,6 +23,7 @@ const featuredPacks = knowledgePacks.slice(0, 3);
 >
 	<section class="kc-hero">
 		<div class="kc-hero__main">
+			{accountDeleted ? <p class="kc-badge">Account deleted</p> : null}
 			<p class="kc-hero__eyebrow">Knowledge Coop</p>
 			<h1 class="kc-hero-copy">Launch, guide, release, and publish knowledge hubs from one operational home.</h1>
 			<p class="kc-hero-copy">

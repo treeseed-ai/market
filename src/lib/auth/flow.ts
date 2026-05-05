@@ -1,0 +1,246 @@
+import type { APIContext } from 'astro';
+import { D1AuthProvider } from '@treeseed/core/api/auth/d1-provider';
+import {
+	betterAuthCookieFromSetCookie,
+	createSiteBetterAuth,
+	ensureBetterAuthD1Schema,
+	getBetterAuthSetCookies,
+} from './better-auth';
+import { getSiteAuthConfig } from './config';
+import { createSiteWebSession } from './session-store';
+
+export const SUPPORTED_AUTH_PROVIDERS = ['github', 'google', 'microsoft', 'apple'] as const;
+export type SupportedAuthProvider = (typeof SUPPORTED_AUTH_PROVIDERS)[number];
+
+export function isSupportedAuthProvider(value: string | null | undefined): value is SupportedAuthProvider {
+	return Boolean(value && (SUPPORTED_AUTH_PROVIDERS as readonly string[]).includes(value));
+}
+
+export function normalizeReturnTo(context: Pick<APIContext, 'url'>) {
+	const value = context.url.searchParams.get('returnTo') ?? context.url.searchParams.get('next') ?? '/app/';
+	return value.startsWith('/') && !value.startsWith('//') ? value : '/app/';
+}
+
+type RedirectStatus = 300 | 301 | 302 | 303 | 304 | 307 | 308;
+
+export function redirectAuthenticatedToApp(context: Pick<APIContext, 'locals'> & { redirect: (path: string, status?: RedirectStatus) => Response }) {
+	return context.locals.auth?.principal ? context.redirect('/app/', 302) : null;
+}
+
+export function authProviderCapabilities(context: Pick<APIContext, 'locals'>) {
+	const config = getSiteAuthConfig(context);
+	const providerConfig = config.providers;
+	return {
+		mode: config.authMode,
+		internal: {
+			enabled: config.internalAuthEnabled,
+			signup: config.internalSignup,
+			signupEnabled: config.internalSignupEnabled,
+		},
+		providers: SUPPORTED_AUTH_PROVIDERS.map((id) => ({
+			id,
+			enabled: config.providersEnabled && Boolean(providerConfig[id].clientId && providerConfig[id].clientSecret),
+		})),
+	};
+}
+
+export function providerSignInPath(context: Pick<APIContext, 'locals' | 'url'>, provider: SupportedAuthProvider, returnTo = normalizeReturnTo(context)) {
+	const config = getSiteAuthConfig(context);
+	const callbackURL = `${config.betterAuthBaseUrl}/auth/callback/${provider}?returnTo=${encodeURIComponent(returnTo)}`;
+	return `/api/auth/sign-in/social?provider=${encodeURIComponent(provider)}&callbackURL=${encodeURIComponent(callbackURL)}`;
+}
+
+function createCoreAuthProvider(context: Pick<APIContext, 'locals' | 'url'>) {
+	const db = context.locals.runtime?.env?.SITE_DATA_DB;
+	if (!db) {
+		throw new Error('SITE_DATA_DB is required to finalize authentication in the web runtime.');
+	}
+	const siteConfig = getSiteAuthConfig(context);
+	const env = (context.locals.runtime?.env ?? {}) as Record<string, unknown>;
+	return new D1AuthProvider({
+		name: '@treeseed/market/web',
+		host: '127.0.0.1',
+		port: 0,
+		baseUrl: context.url.origin,
+		issuer: String(env.TREESEED_API_ISSUER ?? context.url.origin).replace(/\/+$/u, ''),
+		repoRoot: '.',
+		projectId: String(env.TREESEED_PROJECT_ID ?? 'treeseed-market'),
+		authSecret: String(env.TREESEED_API_AUTH_SECRET ?? siteConfig.betterAuthSecret),
+		projectApiLabel: 'Project API Key',
+		projectApiPermissions: ['sdk:execute:global', 'agent:execute:global', 'operations:execute:global'],
+		webServiceId: siteConfig.apiServiceId,
+		webServiceSecret: siteConfig.apiServiceSecret,
+		webAssertionSecret: siteConfig.apiAssertionSecret,
+		webExchangeTtlSeconds: Number(env.TREESEED_API_WEB_EXCHANGE_TTL ?? 300),
+		bootstrapAdminAllowlist: String(env.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST ?? '')
+			.split(',')
+			.map((entry) => entry.trim().toLowerCase())
+			.filter(Boolean),
+		accessTokenTtlSeconds: Number(env.TREESEED_API_ACCESS_TOKEN_TTL ?? 900),
+		refreshTokenTtlSeconds: Number(env.TREESEED_API_REFRESH_TOKEN_TTL ?? 7 * 24 * 60 * 60),
+		deviceCodeTtlSeconds: Number(env.TREESEED_API_DEVICE_CODE_TTL ?? 10 * 60),
+		deviceCodePollIntervalSeconds: Number(env.TREESEED_API_DEVICE_CODE_POLL_INTERVAL ?? 5),
+		providers: {
+			auth: 'd1',
+			agents: {
+				execution: 'stub',
+				queue: 'memory',
+				notification: 'stub',
+				repository: 'stub',
+				verification: 'stub',
+			},
+		},
+	}, { db });
+}
+
+export async function finalizeBetterAuthSession(
+	context: Pick<APIContext, 'locals' | 'url' | 'cookies' | 'request'>,
+	input: {
+		provider: string;
+		user: {
+			id: string;
+			email?: string | null;
+			emailVerified?: boolean;
+			username?: string | null;
+			firstName?: string | null;
+			lastName?: string | null;
+			name?: string | null;
+			image?: string | null;
+		};
+		session?: {
+			id?: string;
+		} | null;
+		providerSubject?: string | null;
+	},
+) {
+	const providerSubject = input.providerSubject ?? input.user.id;
+	const synced = await createCoreAuthProvider(context).syncUserIdentity({
+		provider: input.provider,
+		providerSubject,
+		email: input.user.email ?? null,
+		emailVerified: Boolean(input.user.emailVerified),
+		username: input.user.username ?? null,
+		displayName: input.user.name ?? input.user.email ?? input.user.id,
+		profile: {
+			image: input.user.image ?? null,
+			firstName: input.user.firstName ?? null,
+			lastName: input.user.lastName ?? null,
+			betterAuthSessionId: input.session?.id ?? null,
+		},
+	});
+	const principal = {
+		...synced.principal,
+		metadata: {
+			...(synced.principal.metadata ?? {}),
+			email: input.user.email ?? null,
+			username: input.user.username ?? synced.principal.metadata?.username ?? null,
+			firstName: input.user.firstName ?? synced.principal.metadata?.firstName ?? null,
+			lastName: input.user.lastName ?? synced.principal.metadata?.lastName ?? null,
+		},
+	};
+	await createSiteWebSession(context, {
+		userId: principal.id,
+		identityId: synced.identityId,
+		betterAuthSessionId: input.session?.id ?? null,
+		provider: input.provider,
+		providerSubject,
+		email: input.user.email ?? null,
+		displayName: input.user.name ?? input.user.email ?? input.user.id,
+		principal,
+	});
+	return principal;
+}
+
+export async function finalizeCurrentBetterAuthSession(
+	context: Pick<APIContext, 'locals' | 'url' | 'cookies' | 'request'>,
+	provider = 'credential',
+) {
+	await ensureBetterAuthD1Schema(context);
+	const auth = createSiteBetterAuth(context);
+	const sessionData = await auth.api.getSession({
+		headers: context.request.headers,
+	});
+	if (!sessionData?.user || !sessionData?.session) {
+		return null;
+	}
+	const accounts = await auth.api.listUserAccounts({ headers: context.request.headers }).catch(() => []);
+	const account = accounts.find((entry: any) => entry.providerId === provider);
+	return finalizeBetterAuthSession(context, {
+		provider,
+		user: sessionData.user,
+		session: sessionData.session,
+		providerSubject: account?.accountId ?? sessionData.user.id,
+	});
+}
+
+export async function submitBetterAuthEmailFlow(
+	context: Pick<APIContext, 'locals' | 'url' | 'cookies' | 'request'>,
+	path: 'sign-in/email' | 'sign-up/email',
+	body: Record<string, unknown>,
+	options: { finalize?: boolean } = {},
+) {
+	await ensureBetterAuthD1Schema(context);
+	const config = getSiteAuthConfig(context);
+	const auth = createSiteBetterAuth(context);
+	const headers = new Headers(context.request.headers);
+	headers.delete('content-length');
+	headers.set('content-type', 'application/json');
+	headers.set('accept', 'application/json');
+	const response = await auth.handler(new Request(`${config.betterAuthBaseUrl}/api/auth/${path}`, {
+		method: 'POST',
+		headers,
+		body: JSON.stringify(body),
+	}));
+	const payload = await response.json().catch(() => null) as {
+		user?: {
+			id: string;
+			email?: string | null;
+			emailVerified?: boolean;
+			username?: string | null;
+			firstName?: string | null;
+			lastName?: string | null;
+			name?: string | null;
+			image?: string | null;
+		};
+		error?: string;
+		message?: string;
+	} | null;
+	if (!response.ok || !payload?.user) {
+		return {
+			ok: false as const,
+			status: response.status,
+			error: payload?.message ?? payload?.error ?? 'Authentication failed.',
+			setCookies: getBetterAuthSetCookies(response),
+		};
+	}
+	const setCookies = getBetterAuthSetCookies(response);
+	if (options.finalize === false) {
+		return {
+			ok: true as const,
+			setCookies,
+			user: payload.user,
+		};
+	}
+	const cookieHeader = setCookies.map(betterAuthCookieFromSetCookie).filter(Boolean).join('; ');
+	const sessionData = await auth.api.getSession({
+		headers: new Headers(cookieHeader ? { cookie: cookieHeader } : undefined),
+	});
+	if (!sessionData?.session) {
+		return {
+			ok: false as const,
+			status: 401,
+			error: 'Authentication requires a verified email before sign-in can finish.',
+			setCookies,
+		};
+	}
+	await finalizeBetterAuthSession(context, {
+		provider: 'credential',
+		user: payload.user,
+		session: sessionData?.session ?? null,
+	});
+	return {
+		ok: true as const,
+		setCookies,
+		user: payload.user,
+	};
+}

@@ -178,14 +178,19 @@ CREATE TABLE IF NOT EXISTS web_sessions (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   identity_id TEXT,
+  better_auth_session_id TEXT,
   provider TEXT NOT NULL,
   provider_subject TEXT NOT NULL,
   email TEXT,
   display_name TEXT,
   principal_json TEXT NOT NULL,
   csrf_token TEXT NOT NULL,
+  ip_address TEXT,
+  user_agent TEXT,
   authenticated_at TEXT NOT NULL,
+  last_seen_at TEXT,
   expires_at TEXT NOT NULL,
+  revoked_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -194,3 +199,9 @@ CREATE TABLE IF NOT EXISTS web_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_web_sessions_user_id
   ON web_sessions(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_web_sessions_better_auth_session_id
+  ON web_sessions(better_auth_session_id);
+
+CREATE INDEX IF NOT EXISTS idx_web_sessions_active
+  ON web_sessions(user_id, revoked_at, expires_at);

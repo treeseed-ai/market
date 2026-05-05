@@ -1,0 +1,88 @@
+---
+import KnowledgeCoopAppLayout from '../../../layouts/KnowledgeCoopAppLayout.astro';
+import { loadAccessibleTeams, resolveMarketStore } from '../../../lib/market/store.js';
+import { validateTeamName } from '../../../api/store.js';
+
+export const prerender = false;
+
+if (!Astro.locals.auth?.principal) {
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/teams/new')}`);
+}
+
+const store = resolveMarketStore(Astro.locals);
+const teams = await loadAccessibleTeams(Astro.locals);
+let error = '';
+let submittedName = '';
+let submittedDisplayName = '';
+let submittedLogoUrl = '';
+let submittedSummary = '';
+
+if (Astro.request.method === 'POST' && store) {
+	const form = await Astro.request.formData();
+	submittedName = String(form.get('name') ?? '').trim();
+	submittedDisplayName = String(form.get('displayName') ?? '').trim();
+	submittedLogoUrl = String(form.get('logoUrl') ?? '').trim();
+	submittedSummary = String(form.get('profileSummary') ?? '').trim();
+	const validation = validateTeamName(submittedName);
+	if (!validation.ok) {
+		error = validation.message ?? 'Team name is invalid.';
+	} else if (!(await store.isTeamNameAvailable(validation.name))) {
+		error = 'That team name is already taken.';
+	} else {
+		try {
+			await store.createTeam({
+				name: validation.name,
+				displayName: submittedDisplayName || validation.name,
+				logoUrl: submittedLogoUrl || null,
+				profileSummary: submittedSummary || null,
+				ownerUserId: Astro.locals.auth.principal.id,
+				metadata: { source: 'team_create_page' },
+			});
+			return Astro.redirect(`/app/teams/${validation.name}/edit?created=1`, 303);
+		} catch (createError) {
+			error = createError instanceof Error ? createError.message : 'Unable to create team.';
+		}
+	}
+}
+---
+
+<KnowledgeCoopAppLayout
+	title="Create Team"
+	description="Create a team workspace for projects, members, releases, and market listings."
+	currentPath={Astro.url.pathname}
+	teams={teams}
+	activeTeam={teams[0] ?? null}
+>
+	<form class="kc-panel" method="POST">
+		<div class="kc-panel__header">
+			<div>
+				<p class="kc-section__eyebrow">New team</p>
+				<h2>Add a team</h2>
+				<p>The team name is public, used in URLs, and cannot be changed later.</p>
+			</div>
+		</div>
+		{error ? <p class="kc-status-pill" data-tone="danger">{error}</p> : null}
+		<div class="kc-list">
+			<label class="kc-list-item">
+				<strong>Team name</strong><br />
+				<span>Public handle for /t/name and app URLs.</span>
+				<input name="name" value={submittedName} required maxlength="39" pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
+			</label>
+			<label class="kc-list-item">
+				<strong>Display name</strong><br />
+				<input name="displayName" value={submittedDisplayName} required style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
+			</label>
+			<label class="kc-list-item">
+				<strong>Logo URL</strong><br />
+				<input name="logoUrl" type="url" value={submittedLogoUrl} placeholder="https://example.com/logo.png" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
+			</label>
+			<label class="kc-list-item">
+				<strong>Profile summary</strong><br />
+				<textarea name="profileSummary" rows="4" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;">{submittedSummary}</textarea>
+			</label>
+		</div>
+		<div class="kc-inline-actions" style="margin-top:1rem;">
+			<button class="kc-button" type="submit">Create team</button>
+		</div>
+	</form>
+</KnowledgeCoopAppLayout>

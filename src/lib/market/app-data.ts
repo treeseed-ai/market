@@ -1,6 +1,6 @@
 import { loadAccessibleTeams, resolveMarketPrincipal, resolveMarketStore } from './store.js';
 
-export async function loadTeamAppContext(locals: App.Locals, teamSlug: string) {
+export async function loadTeamAppContext(locals: App.Locals, teamName: string) {
 	const store = resolveMarketStore(locals);
 	const principal = resolveMarketPrincipal(locals);
 	if (!store || !principal) {
@@ -13,7 +13,8 @@ export async function loadTeamAppContext(locals: App.Locals, teamSlug: string) {
 	}
 
 	const teams = await loadAccessibleTeams(locals);
-	const team = teams.find((entry: any) => entry.slug === teamSlug) ?? null;
+	const requested = teamName.trim().toLowerCase();
+	const team = teams.find((entry: any) => entry.name === requested || entry.slug === requested) ?? null;
 	if (!team) {
 		return {
 			store,
@@ -31,8 +32,8 @@ export async function loadTeamAppContext(locals: App.Locals, teamSlug: string) {
 	};
 }
 
-export async function loadProjectAppContext(locals: App.Locals, teamSlug: string, projectSlug: string) {
-	const base = await loadTeamAppContext(locals, teamSlug);
+export async function loadProjectAppContext(locals: App.Locals, teamName: string, projectSlug: string) {
+	const base = await loadTeamAppContext(locals, teamName);
 	if (!base.store || !base.team) {
 		return {
 			...base,

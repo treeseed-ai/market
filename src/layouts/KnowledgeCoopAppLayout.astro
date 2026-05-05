@@ -3,8 +3,9 @@ import '../styles/knowledge-coop.css';
 
 interface TeamEntry {
 	id: string;
-	slug: string;
 	name: string;
+	slug?: string;
+	displayName?: string | null;
 }
 
 interface ProjectEntry {
@@ -32,7 +33,8 @@ const {
 	project = null,
 } = Astro.props as Props;
 
-const baseTeamPath = activeTeam ? `/app/teams/${activeTeam.slug}` : '/app';
+const activeTeamHandle = activeTeam?.name ?? activeTeam?.slug ?? '';
+const baseTeamPath = activeTeam ? `/app/teams/${activeTeamHandle}` : '/app';
 const railItems = [
 	{ label: 'Home', href: activeTeam ? `${baseTeamPath}/home` : '/app/' },
 	{ label: 'Market', href: '/market/' },
@@ -75,14 +77,21 @@ const projectTabs = project && activeTeam
 
 				<div class="kc-team-switcher">
 					<div class="kc-section__eyebrow">Active team</div>
-					<div style="font-weight: 700;">{activeTeam?.name ?? 'Choose a team'}</div>
-					<div class="kc-list" style="margin-top: 0.75rem;">
-						{teams.map((team) => (
-							<a class="kc-rail-link" href={`/app/teams/${team.slug}/home`} aria-current={activeTeam?.id === team.id ? 'page' : undefined}>
-								<span>{team.name}</span>
-							</a>
-						))}
-					</div>
+					{teams.length > 0 ? (
+						<div class="kc-team-selector">
+							<select aria-label="Active team" onchange="if (this.value) window.location.href = this.value;">
+								{teams.map((team) => (
+									<option value={`/app/teams/${team.name}/home`} selected={activeTeam?.id === team.id}>
+										{team.displayName ?? team.name}
+									</option>
+								))}
+							</select>
+							<a class="kc-icon-button" href={activeTeam ? `/app/teams/${activeTeamHandle}/edit` : '/app/teams/new'} title="Edit current team" aria-label="Edit current team">Edit</a>
+							<a class="kc-icon-button" href="/app/teams/new" title="Add a new team" aria-label="Add a new team">Add</a>
+						</div>
+					) : (
+						<a class="kc-create-team-button" href="/app/teams/new">Create new team</a>
+					)}
 				</div>
 
 				<nav class="kc-rail-section kc-rail-nav" aria-label="Application">
@@ -97,6 +106,7 @@ const projectTabs = project && activeTeam
 					<div class="kc-section__eyebrow">Quick actions</div>
 					<div class="kc-list" style="margin-top: 0.65rem;">
 						<a class="kc-button" href="/app/launch">Launch project</a>
+						<a class="kc-button-secondary" href="/app/account">Account</a>
 						<a class="kc-button-secondary" href="/auth/sign-out">Sign out</a>
 					</div>
 				</div>
@@ -145,3 +155,48 @@ const projectTabs = project && activeTeam
 		</div>
 	</body>
 </html>
+
+<style>
+	.kc-team-selector {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto auto;
+		gap: 0.35rem;
+		align-items: center;
+		margin-top: 0.55rem;
+	}
+	.kc-team-selector select {
+		min-width: 0;
+		width: 100%;
+		padding: 0.55rem;
+		border: 1px solid #d0d7de;
+		border-radius: 0.45rem;
+		background: #fff;
+	}
+	.kc-create-team-button {
+		display: grid;
+		place-items: center;
+		min-height: 2.5rem;
+		margin-top: 0.55rem;
+		padding: 0 0.75rem;
+		border-radius: 0.45rem;
+		background: #1f6f4a;
+		color: #fff;
+		text-decoration: none;
+		font-size: 0.86rem;
+		font-weight: 800;
+	}
+	.kc-icon-button {
+		display: inline-grid;
+		place-items: center;
+		min-width: 2.25rem;
+		height: 2.25rem;
+		padding: 0 0.45rem;
+		border: 1px solid #d0d7de;
+		border-radius: 0.45rem;
+		text-decoration: none;
+		font-size: 0.78rem;
+		font-weight: 700;
+		color: #1f352e;
+		background: #fff;
+	}
+</style>
