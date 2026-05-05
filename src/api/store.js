@@ -770,6 +770,7 @@ export class MarketControlPlaneStore {
 		if (!this.initializationPromise) {
 			const migrationSql = loadMigrationSql();
 			this.initializationPromise = (migrationSql && this.db.exec ? this.db.exec(migrationSql) : Promise.resolve())
+				.then(() => this.ensureWebSessionSchema())
 				.then(() => this.ensureTeamManagementSchema())
 				.then(() => this.seedKnowledgeCoopRoles());
 		}
@@ -779,6 +780,24 @@ export class MarketControlPlaneStore {
 	async tableColumns(tableName) {
 		const result = await this.all(`PRAGMA table_info(${tableName})`);
 		return new Set(result.map((row) => row.name));
+	}
+
+	async ensureWebSessionSchema() {
+		const columns = await this.tableColumns('web_sessions');
+		const columnMigrations = [
+			['better_auth_session_id', `ALTER TABLE web_sessions ADD COLUMN better_auth_session_id TEXT`],
+			['ip_address', `ALTER TABLE web_sessions ADD COLUMN ip_address TEXT`],
+			['user_agent', `ALTER TABLE web_sessions ADD COLUMN user_agent TEXT`],
+			['last_seen_at', `ALTER TABLE web_sessions ADD COLUMN last_seen_at TEXT`],
+			['revoked_at', `ALTER TABLE web_sessions ADD COLUMN revoked_at TEXT`],
+		];
+		for (const [column, statement] of columnMigrations) {
+			if (!columns.has(column)) {
+				await this.run(statement);
+			}
+		}
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_web_sessions_better_auth_session_id ON web_sessions(better_auth_session_id)`);
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_web_sessions_active ON web_sessions(user_id, revoked_at, expires_at)`);
 	}
 
 	async ensureTeamManagementSchema() {

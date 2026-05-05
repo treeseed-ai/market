@@ -128,6 +128,30 @@ async function json(response: Response) {
 	return response.json() as Promise<any>;
 }
 
+async function createLegacyWebSessionsDb() {
+	const db = new TestD1Database();
+	await db.prepare('DROP TABLE web_sessions').run();
+	await db.prepare(`CREATE TABLE web_sessions (
+		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL,
+		identity_id TEXT,
+		provider TEXT NOT NULL,
+		provider_subject TEXT NOT NULL,
+		email TEXT,
+		display_name TEXT,
+		principal_json TEXT NOT NULL,
+		csrf_token TEXT NOT NULL,
+		authenticated_at TEXT NOT NULL,
+		expires_at TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY (identity_id) REFERENCES user_identities(id) ON DELETE SET NULL
+	)`).run();
+	await db.prepare('CREATE INDEX IF NOT EXISTS idx_web_sessions_user_id ON web_sessions(user_id)').run();
+	return db;
+}
+
 async function authorizeApp(app: ReturnType<typeof createTestApp>, input: { principalId?: string; displayName?: string } = {}) {
 	const started = await json(await app.request('/auth/device/start', {
 		method: 'POST',
@@ -458,6 +482,29 @@ runtimeDescribe('market api', () => {
 		expect(runnerHealth.ok).toBe(true);
 		expect(Array.isArray(runnerHealth.payload.pools)).toBe(true);
 		expect(runnerHealth.payload.pools[0]?.latestRegistration?.managerId).toBe('manager-1');
+	});
+
+	it('repairs legacy web session columns before serving deep health', async () => {
+		const db = await createLegacyWebSessionsDb();
+		const app = createTestApp({ db });
+		const deepHealth = await json(await app.request('/healthz/deep'));
+		expect(deepHealth).toMatchObject({
+			ok: true,
+			status: 'ok',
+			checks: {
+				d1: true,
+			},
+		});
+
+		const tableInfo = await db.prepare('PRAGMA table_info(web_sessions)').all<{ name: string }>();
+		const columns = new Set((tableInfo.results ?? []).map((row) => row.name));
+		expect([...columns]).toEqual(expect.arrayContaining([
+			'better_auth_session_id',
+			'ip_address',
+			'user_agent',
+			'last_seen_at',
+			'revoked_at',
+		]));
 	});
 
 	it('queues project runner jobs and records lifecycle events', async () => {
