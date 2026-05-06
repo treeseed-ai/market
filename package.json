@@ -63,7 +63,7 @@
   "dependencies": {
     "@react-email/render": "^2.0.8",
     "@treeseed/cli": "0.6.21",
-    "@treeseed/core": "0.6.24",
+    "@treeseed/core": "^0.6.25-dev.staging.20260506T000812Z",
     "@treeseed/sdk": "0.6.23",
     "better-auth": "^1.6.2",
     "drizzle-orm": "^0.45.2",
