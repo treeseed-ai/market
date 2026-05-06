@@ -162,7 +162,7 @@ services:
 plugins:
   - package: "@treeseed/core/plugin-default"
 providers:
-  forms: store_only
+  forms: full_email
   agents:
     execution: copilot
     mutation: local_branch
