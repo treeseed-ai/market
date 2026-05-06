@@ -107,6 +107,17 @@ const KNOWLEDGE_COOP_ROLE_DESCRIPTIONS = {
 };
 
 const ALL_TEAM_CAPABILITIES = [...new Set(Object.values(TEAM_ROLE_CAPABILITIES).flat())];
+const CAPABILITY_PERMISSIONS = {
+	launch_projects: 'project:create',
+	edit_direct: 'project:edit',
+	manage_workstreams: 'project:workstream:manage',
+	stage_releases: 'project:stage:admin',
+	publish_releases: 'project:production:admin',
+	publish_market_listings: 'catalog:publish',
+	manage_products: 'catalog:manage',
+	manage_billing: 'billing:manage',
+	approve_remote_execution: 'remote:execution:approve',
+};
 const TEAM_DELETION_CONFIRMATION_PREFIX = 'DELETE ';
 const TEAM_MANAGEMENT_ROLES = new Set(['team_owner']);
 const TEAM_RESERVED_NAMES = new Set([
@@ -912,6 +923,56 @@ export class MarketControlPlaneStore {
 		};
 	}
 
+	async getTeamAccessSummary(teamId, principal) {
+		await this.ensureInitialized();
+		const context = await this.resolvePrincipalTeamContext(teamId, principal);
+		const roles = context?.roles ?? [];
+		const capabilities = context?.capabilities ?? [];
+		const permissions = uniqueStrings([
+			...capabilities.map((capability) => CAPABILITY_PERMISSIONS[capability]).filter(Boolean),
+			...(principal?.permissions ?? []),
+		]);
+		return {
+			teamId,
+			roles,
+			permissions,
+			summary: {
+				canAdminStaging: capabilities.includes('stage_releases') || capabilities.includes('publish_releases'),
+				canAdminProduction: capabilities.includes('publish_releases'),
+				canDownloadTemplates: Boolean(context) || principalIsAdmin(principal),
+				canDownloadKnowledgePacks: Boolean(context) || principalIsAdmin(principal),
+			},
+		};
+	}
+
+	async getProjectAccessSummary(projectId, principal) {
+		await this.ensureInitialized();
+		const details = await this.getProjectDetails(projectId);
+		if (!details) return null;
+		const team = await this.getTeamAccessSummary(details.project.teamId, principal);
+		const context = await this.resolvePrincipalTeamContext(details.project.teamId, principal);
+		const roles = context?.roles ?? [];
+		const subjectId = typeof principal?.id === 'string' && principal.id ? principal.id : details.project.teamId;
+		const subjectType = principal?.roles?.includes?.('team_api_key') ? 'api_key' : 'user';
+		const environmentRole = (environment) => {
+			if (team.summary.canAdminProduction || (environment === 'staging' && team.summary.canAdminStaging)) return 'admin';
+			if (roles.includes('contributor') || roles.includes('reviewer')) return 'operator';
+			return 'viewer';
+		};
+		const environments = ['staging', 'prod'].map((environment) => ({
+			projectId,
+			environment,
+			subjectType,
+			subjectId,
+			role: environmentRole(environment),
+		}));
+		return {
+			projectId,
+			team,
+			environments,
+		};
+	}
+
 	createTrustedUserAssertion(claims) {
 		const secret = typeof this.config.assertionSecret === 'string' ? this.config.assertionSecret.trim() : '';
 		if (!secret) return null;
@@ -1603,6 +1664,15 @@ export class MarketControlPlaneStore {
 			[itemId],
 		);
 		return rows.map(serializeCatalogArtifactVersion);
+	}
+
+	async getCatalogArtifactVersion(itemId, version) {
+		await this.ensureInitialized();
+		const row = await this.first(
+			`SELECT * FROM catalog_artifact_versions WHERE item_id = ? AND version = ? LIMIT 1`,
+			[itemId, version],
+		);
+		return serializeCatalogArtifactVersion(row);
 	}
 
 	async listTeamProducts(teamId, principal = null) {
