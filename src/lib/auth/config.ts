@@ -82,11 +82,12 @@ export function normalizeBetterAuthBaseUrl(value: string, fallback = 'http://127
 	return `${url.origin}${url.pathname}`;
 }
 
-export function getSiteAuthConfig(context?: Pick<APIContext, 'locals'>) {
+export function getSiteAuthConfig(context?: Pick<APIContext, 'locals'> & Partial<Pick<APIContext, 'url'>>) {
 	const env = runtimeEnv(context);
 	const authMode = parseEnumEnv('TREESEED_AUTH_MODE', AUTH_MODES, 'internal-first', env);
 	const internalSignup = parseEnumEnv('TREESEED_AUTH_INTERNAL_SIGNUP', INTERNAL_SIGNUP_MODES, 'open', env);
-	const configuredSiteBaseUrl = envValue('TREESEED_SITE_URL', env) || envValue('BETTER_AUTH_URL', env) || 'http://127.0.0.1:4321';
+	const requestOrigin = context?.url?.origin ?? '';
+	const configuredSiteBaseUrl = envValue('TREESEED_SITE_URL', env) || envValue('BETTER_AUTH_URL', env) || requestOrigin || 'http://127.0.0.1:4321';
 	const siteBaseUrl = normalizeSiteBaseUrl(configuredSiteBaseUrl);
 	return {
 		authMode,

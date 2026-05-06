@@ -98,6 +98,21 @@ describe('market auth password policy', () => {
 		});
 	});
 
+	it('uses the current request origin when hosted auth URL env vars are unset', () => {
+		return withEnv({
+			BETTER_AUTH_URL: undefined,
+			TREESEED_SITE_URL: undefined,
+		}, () => {
+			const config = getSiteAuthConfig({
+				locals: {},
+				url: new URL('https://treeseed-market-staging-479e4625.treeseed.ai/auth/register?returnTo=%2Fapp%2F'),
+			} as any);
+
+			expect(config.siteBaseUrl).toBe('https://treeseed-market-staging-479e4625.treeseed.ai');
+			expect(config.betterAuthBaseUrl).toBe('https://treeseed-market-staging-479e4625.treeseed.ai/api/auth');
+		});
+	});
+
 	it('routes mounted BetterAuth email sign-up requests when configured with an origin URL', async () => {
 		await withEnv({
 			BETTER_AUTH_URL: 'http://127.0.0.1:4321',
@@ -128,6 +143,51 @@ describe('market auth password policy', () => {
 			const payload = await response.json().catch(() => null) as { user?: { email?: string } } | null;
 			expect(response.status).toBe(200);
 			expect(payload?.user?.email).toBe(`debug-${suffix}@example.com`);
+		});
+	});
+
+	it('routes BetterAuth email sign-up requests with request-origin fallback config', async () => {
+		await withEnv({
+			BETTER_AUTH_URL: undefined,
+			TREESEED_SITE_URL: undefined,
+			TREESEED_AUTH_ALLOW_MEMORY_DB: undefined,
+			TREESEED_AUTH_MODE: undefined,
+			TREESEED_AUTH_INTERNAL_SIGNUP: undefined,
+			TREESEED_SMTP_HOST: undefined,
+			TREESEED_SMTP_PORT: undefined,
+			TREESEED_SMTP_FROM: undefined,
+		}, async () => {
+			const origin = 'https://treeseed-market-staging-479e4625.treeseed.ai';
+			const auth = createSiteBetterAuth({
+				locals: {
+					runtime: {
+						env: {
+							TREESEED_AUTH_ALLOW_MEMORY_DB: 'true',
+							TREESEED_AUTH_MODE: 'internal-first',
+							TREESEED_AUTH_INTERNAL_SIGNUP: 'open',
+						},
+					},
+				},
+				url: new URL(`${origin}/auth/register?returnTo=%2Fapp%2F`),
+			} as any);
+			const suffix = Date.now().toString(36);
+			const response = await auth.handler(new Request(`${origin}/api/auth/sign-up/email`, {
+				method: 'POST',
+				headers: {
+					accept: 'application/json',
+					'content-type': 'application/json',
+					origin,
+				},
+				body: JSON.stringify({
+					name: 'Hosted Debug User',
+					email: `hosted-debug-${suffix}@example.com`,
+					password: 'StrongPassword1!',
+					callbackURL: `${origin}/auth/verified?returnTo=%2Fapp%2F`,
+				}),
+			}));
+			const payload = await response.json().catch(() => null) as { user?: { email?: string } } | null;
+			expect(response.status).toBe(200);
+			expect(payload?.user?.email).toBe(`hosted-debug-${suffix}@example.com`);
 		});
 	});
 });
