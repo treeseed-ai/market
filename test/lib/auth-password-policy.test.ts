@@ -1,8 +1,31 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { getSiteAuthConfig } from '../../src/lib/auth/config';
+import { createSiteBetterAuth } from '../../src/lib/auth/better-auth';
+import { getSiteAuthConfig, normalizeBetterAuthBaseUrl, normalizeSiteBaseUrl } from '../../src/lib/auth/config';
 import { evaluatePasswordStrength, passwordMeetsPolicy, passwordPolicyMessage } from '../../src/lib/auth/password-policy';
+
+async function withEnv<T>(values: Record<string, string | undefined>, action: () => T | Promise<T>) {
+	const previous = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));
+	for (const [key, value] of Object.entries(values)) {
+		if (value == null) {
+			delete process.env[key];
+		} else {
+			process.env[key] = value;
+		}
+	}
+	try {
+		return await action();
+	} finally {
+		for (const [key, value] of Object.entries(previous)) {
+			if (value == null) {
+				delete process.env[key];
+			} else {
+				process.env[key] = value;
+			}
+		}
+	}
+}
 
 describe('market auth password policy', () => {
 	it('requires all strength rules', () => {
@@ -39,26 +62,16 @@ describe('market auth password policy', () => {
 	});
 
 	it('uses the shared SMTP settings for auth email with auth sender overrides', () => {
-		const previous = {
-			TREESEED_SMTP_USERNAME: process.env.TREESEED_SMTP_USERNAME,
-			TREESEED_SMTP_PASSWORD: process.env.TREESEED_SMTP_PASSWORD,
-			TREESEED_SMTP_HOST: process.env.TREESEED_SMTP_HOST,
-			TREESEED_SMTP_PORT: process.env.TREESEED_SMTP_PORT,
-			TREESEED_SMTP_FROM: process.env.TREESEED_SMTP_FROM,
-			TREESEED_SMTP_REPLY_TO: process.env.TREESEED_SMTP_REPLY_TO,
-			TREESEED_AUTH_EMAIL_FROM: process.env.TREESEED_AUTH_EMAIL_FROM,
-			TREESEED_AUTH_EMAIL_REPLY_TO: process.env.TREESEED_AUTH_EMAIL_REPLY_TO,
-		};
-		try {
-			process.env.TREESEED_SMTP_USERNAME = 'smtp-user';
-			process.env.TREESEED_SMTP_PASSWORD = 'smtp-password';
-			process.env.TREESEED_SMTP_HOST = '127.0.0.1';
-			process.env.TREESEED_SMTP_PORT = '1025';
-			process.env.TREESEED_SMTP_FROM = 'contact@example.com';
-			process.env.TREESEED_SMTP_REPLY_TO = 'support@example.com';
-			process.env.TREESEED_AUTH_EMAIL_FROM = 'Treeseed Auth <auth@example.com>';
-			process.env.TREESEED_AUTH_EMAIL_REPLY_TO = 'auth-support@example.com';
-
+		return withEnv({
+			TREESEED_SMTP_USERNAME: 'smtp-user',
+			TREESEED_SMTP_PASSWORD: 'smtp-password',
+			TREESEED_SMTP_HOST: '127.0.0.1',
+			TREESEED_SMTP_PORT: '1025',
+			TREESEED_SMTP_FROM: 'contact@example.com',
+			TREESEED_SMTP_REPLY_TO: 'support@example.com',
+			TREESEED_AUTH_EMAIL_FROM: 'Treeseed Auth <auth@example.com>',
+			TREESEED_AUTH_EMAIL_REPLY_TO: 'auth-support@example.com',
+		}, () => {
 			const config = getSiteAuthConfig();
 
 			expect(config.authEmail.host).toBe('127.0.0.1');
@@ -67,14 +80,54 @@ describe('market auth password policy', () => {
 			expect(config.authEmail.password).toBe('smtp-password');
 			expect(config.authEmail.from).toBe('Treeseed Auth <auth@example.com>');
 			expect(config.authEmail.replyTo).toBe('auth-support@example.com');
-		} finally {
-			for (const [key, value] of Object.entries(previous)) {
-				if (value == null) {
-					delete process.env[key];
-				} else {
-					process.env[key] = value;
-				}
-			}
-		}
+		});
+	});
+
+	it('separates public site URLs from the BetterAuth API mount', () => {
+		expect(normalizeSiteBaseUrl('https://treeseed.ai/api/auth')).toBe('https://treeseed.ai');
+		expect(normalizeBetterAuthBaseUrl('https://treeseed.ai')).toBe('https://treeseed.ai/api/auth');
+		expect(normalizeBetterAuthBaseUrl('https://treeseed.ai/api/auth')).toBe('https://treeseed.ai/api/auth');
+
+		return withEnv({
+			BETTER_AUTH_URL: undefined,
+			TREESEED_SITE_URL: 'https://treeseed.ai',
+		}, () => {
+			const config = getSiteAuthConfig();
+			expect(config.siteBaseUrl).toBe('https://treeseed.ai');
+			expect(config.betterAuthBaseUrl).toBe('https://treeseed.ai/api/auth');
+		});
+	});
+
+	it('routes mounted BetterAuth email sign-up requests when configured with an origin URL', async () => {
+		await withEnv({
+			BETTER_AUTH_URL: 'http://127.0.0.1:4321',
+			TREESEED_SITE_URL: undefined,
+			TREESEED_AUTH_ALLOW_MEMORY_DB: 'true',
+			TREESEED_AUTH_MODE: 'internal-first',
+			TREESEED_AUTH_INTERNAL_SIGNUP: 'open',
+			TREESEED_SMTP_HOST: undefined,
+			TREESEED_SMTP_PORT: undefined,
+			TREESEED_SMTP_FROM: undefined,
+		}, async () => {
+			const auth = createSiteBetterAuth();
+			const suffix = Date.now().toString(36);
+			const response = await auth.handler(new Request('http://127.0.0.1:4321/api/auth/sign-up/email', {
+				method: 'POST',
+				headers: {
+					accept: 'application/json',
+					'content-type': 'application/json',
+					origin: 'http://127.0.0.1:4321',
+				},
+				body: JSON.stringify({
+					name: 'Debug User',
+					email: `debug-${suffix}@example.com`,
+					password: 'StrongPassword1!',
+					callbackURL: 'http://127.0.0.1:4321/auth/verified?returnTo=%2Fapp%2F',
+				}),
+			}));
+			const payload = await response.json().catch(() => null) as { user?: { email?: string } } | null;
+			expect(response.status).toBe(200);
+			expect(payload?.user?.email).toBe(`debug-${suffix}@example.com`);
+		});
 	});
 });

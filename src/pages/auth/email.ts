@@ -21,13 +21,13 @@ export const POST: APIRoute = async (context) => {
 	await ensureBetterAuthD1Schema(context);
 	const config = getSiteAuthConfig(context);
 	const auth = createSiteBetterAuth(context);
-	const callbackURL = new URL('/auth/verified', config.betterAuthBaseUrl);
+	const callbackURL = new URL('/auth/verified', config.siteBaseUrl);
 	callbackURL.searchParams.set('returnTo', '/app/account?email=verified');
 	const headers = new Headers(context.request.headers);
 	headers.delete('content-length');
 	headers.set('content-type', 'application/json');
 	headers.set('accept', 'application/json');
-	const betterAuthResponse = await auth.handler(new Request(`${config.betterAuthBaseUrl}/api/auth/change-email`, {
+	const betterAuthResponse = await auth.handler(new Request(`${config.betterAuthBaseUrl}/change-email`, {
 		method: 'POST',
 		headers,
 		body: JSON.stringify({

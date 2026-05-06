@@ -46,7 +46,7 @@ export function authProviderCapabilities(context: Pick<APIContext, 'locals'>) {
 
 export function providerSignInPath(context: Pick<APIContext, 'locals' | 'url'>, provider: SupportedAuthProvider, returnTo = normalizeReturnTo(context)) {
 	const config = getSiteAuthConfig(context);
-	const callbackURL = `${config.betterAuthBaseUrl}/auth/callback/${provider}?returnTo=${encodeURIComponent(returnTo)}`;
+	const callbackURL = `${config.siteBaseUrl}/auth/callback/${provider}?returnTo=${encodeURIComponent(returnTo)}`;
 	return `/api/auth/sign-in/social?provider=${encodeURIComponent(provider)}&callbackURL=${encodeURIComponent(callbackURL)}`;
 }
 
@@ -186,7 +186,7 @@ export async function submitBetterAuthEmailFlow(
 	headers.delete('content-length');
 	headers.set('content-type', 'application/json');
 	headers.set('accept', 'application/json');
-	const response = await auth.handler(new Request(`${config.betterAuthBaseUrl}/api/auth/${path}`, {
+	const response = await auth.handler(new Request(`${config.betterAuthBaseUrl}/${path}`, {
 		method: 'POST',
 		headers,
 		body: JSON.stringify(body),

@@ -252,11 +252,11 @@ export async function sendAuthEmail(context: Pick<APIContext, 'locals'> | undefi
 	assertSmtpConfigured(smtp);
 
 	try {
-		await sendWithCloudflareSockets(message, smtp, config.betterAuthBaseUrl);
+		await sendWithCloudflareSockets(message, smtp, config.siteBaseUrl);
 		return;
 	} catch (cloudflareError) {
 		try {
-			await sendWithNodeSockets(message, smtp, config.betterAuthBaseUrl);
+			await sendWithNodeSockets(message, smtp, config.siteBaseUrl);
 			return;
 		} catch (nodeError) {
 			if (isLocalAuthUrl(config.betterAuthBaseUrl)) {
