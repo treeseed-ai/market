@@ -58,6 +58,7 @@ describe('market auth password policy', () => {
 		expect(sdkRegistry.entries.TREESEED_SMTP_PORT.localDefaultValueRef).toBe('localSmtpPortDefault');
 		expect(registry.entries.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST.description).toContain('platform_admin');
 		expect(registry.entries.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST.howToGet).toContain('Root user');
+		expect(registry.entries.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST.targets).toEqual(expect.arrayContaining(['cloudflare-var', 'railway-var']));
 		expect(passwordPolicyMessage()).toContain('at least 12 characters');
 	});
 
