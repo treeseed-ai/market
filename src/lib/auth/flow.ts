@@ -191,12 +191,26 @@ export async function submitBetterAuthEmailFlow(
 		status?: number;
 	};
 	try {
-		result = await invokeEmailFlow({
-			body,
-			headers,
-			returnHeaders: true,
-			returnStatus: true,
-		} as any) as unknown as typeof result;
+		if (path === 'sign-in/email') {
+			const config = getSiteAuthConfig(context);
+			const response = await auth.handler(new Request(`${config.betterAuthBaseUrl}/${path}`, {
+				method: 'POST',
+				headers,
+				body: JSON.stringify(body),
+			}));
+			result = {
+				response: await response.json().catch(() => null),
+				headers: response.headers,
+				status: response.status,
+			};
+		} else {
+			result = await invokeEmailFlow({
+				body,
+				headers,
+				returnHeaders: true,
+				returnStatus: true,
+			} as any) as unknown as typeof result;
+		}
 	} catch (error: any) {
 		const errorBody = error?.body as { message?: string; code?: string } | undefined;
 		return {
