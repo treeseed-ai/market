@@ -45,7 +45,7 @@ if (Astro.request.method === 'POST') {
 		error = 'That username is already taken.';
 	} else {
 		const config = getSiteAuthConfig(Astro);
-		const callbackURL = new URL('/auth/verified', config.betterAuthBaseUrl);
+		const callbackURL = new URL('/auth/verified', config.siteBaseUrl);
 		callbackURL.searchParams.set('returnTo', returnTo);
 		const result = await submitBetterAuthEmailFlow(Astro, 'sign-up/email', {
 			name,

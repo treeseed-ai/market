@@ -5,6 +5,7 @@ export const WEB_SESSION_COOKIE = 'ts_session';
 export const WEB_CSRF_COOKIE = 'ts_csrf';
 const DEFAULT_WEB_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 const DEFAULT_EMAIL_TOKEN_TTL_SECONDS = 60 * 60;
+export const BETTER_AUTH_BASE_PATH = '/api/auth';
 const AUTH_MODES = new Set(['internal-first', 'internal-only', 'providers-only']);
 const INTERNAL_SIGNUP_MODES = new Set(['open', 'invite', 'admin']);
 
@@ -54,10 +55,40 @@ function parseEnumEnv<T extends string>(name: string, allowed: Set<T>, fallback:
 	return allowed.has(value) ? value : fallback;
 }
 
-export function getSiteAuthConfig(context?: Pick<APIContext, 'locals'>) {
+function normalizeUrl(value: string, fallback: string) {
+	try {
+		const url = new URL(value || fallback);
+		url.search = '';
+		url.hash = '';
+		return url;
+	} catch {
+		return new URL(fallback);
+	}
+}
+
+export function normalizeSiteBaseUrl(value: string, fallback = 'http://127.0.0.1:4321') {
+	const url = normalizeUrl(value, fallback);
+	const pathname = url.pathname.replace(/\/+$/u, '');
+	url.pathname = pathname.endsWith(BETTER_AUTH_BASE_PATH)
+		? pathname.slice(0, -BETTER_AUTH_BASE_PATH.length) || '/'
+		: pathname || '/';
+	return url.pathname === '/' ? url.origin : `${url.origin}${url.pathname}`;
+}
+
+export function normalizeBetterAuthBaseUrl(value: string, fallback = 'http://127.0.0.1:4321') {
+	const url = normalizeUrl(value, fallback);
+	const pathname = url.pathname.replace(/\/+$/u, '');
+	url.pathname = pathname.endsWith(BETTER_AUTH_BASE_PATH) ? pathname : BETTER_AUTH_BASE_PATH;
+	return `${url.origin}${url.pathname}`;
+}
+
+export function getSiteAuthConfig(context?: Pick<APIContext, 'locals'> & Partial<Pick<APIContext, 'url'>>) {
 	const env = runtimeEnv(context);
 	const authMode = parseEnumEnv('TREESEED_AUTH_MODE', AUTH_MODES, 'internal-first', env);
 	const internalSignup = parseEnumEnv('TREESEED_AUTH_INTERNAL_SIGNUP', INTERNAL_SIGNUP_MODES, 'open', env);
+	const requestOrigin = context?.url?.origin ?? '';
+	const configuredSiteBaseUrl = envValue('TREESEED_SITE_URL', env) || envValue('BETTER_AUTH_URL', env) || requestOrigin || 'http://127.0.0.1:4321';
+	const siteBaseUrl = normalizeSiteBaseUrl(configuredSiteBaseUrl);
 	return {
 		authMode,
 		internalAuthEnabled: authMode !== 'providers-only',
@@ -67,7 +98,8 @@ export function getSiteAuthConfig(context?: Pick<APIContext, 'locals'>) {
 		emailLinkingEnabled: parseBooleanEnv('TREESEED_AUTH_EMAIL_LINKING', true, env),
 		allowMemoryAuthDb: parseBooleanEnv('TREESEED_AUTH_ALLOW_MEMORY_DB', false, env),
 		betterAuthSecret: envValue('TREESEED_BETTER_AUTH_SECRET', env) || 'treeseed-local-better-auth-secret-minimum-32-characters',
-		betterAuthBaseUrl: envValue('BETTER_AUTH_URL', env) || envValue('TREESEED_SITE_URL', env) || 'http://127.0.0.1:4321',
+		siteBaseUrl,
+		betterAuthBaseUrl: normalizeBetterAuthBaseUrl(envValue('BETTER_AUTH_URL', env) || siteBaseUrl),
 		apiServiceId: envValue('TREESEED_WEB_SERVICE_ID', env) || 'web',
 		apiServiceSecret: envValue('TREESEED_WEB_SERVICE_SECRET', env) || 'treeseed-web-service-dev-secret',
 		apiAssertionSecret: envValue('TREESEED_WEB_ASSERTION_SECRET', env) || envValue('TREESEED_API_WEB_ASSERTION_SECRET', env) || 'treeseed-web-assertion-dev-secret',

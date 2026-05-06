@@ -30,7 +30,7 @@ export const POST: APIRoute = async (context) => {
 	headers.delete('content-length');
 	headers.set('content-type', 'application/json');
 	headers.set('accept', 'application/json');
-	const betterAuthResponse = await auth.handler(new Request(`${config.betterAuthBaseUrl}/api/auth/update-user`, {
+	const betterAuthResponse = await auth.handler(new Request(`${config.betterAuthBaseUrl}/update-user`, {
 		method: 'POST',
 		headers,
 		body: JSON.stringify({

@@ -121,7 +121,7 @@ async function sendWithCloudflareSockets(message: AuthEmailMessage, smtp: SmtpCo
 	const { connect } = await import('cloudflare:sockets');
 	let socket = connect(
 		{ hostname: smtp.host, port: smtp.port },
-		{ secureTransport: smtp.port === 465 ? 'on' : 'off' },
+		{ secureTransport: smtp.port === 465 ? 'on' : smtp.port === 587 ? 'starttls' : 'off' },
 	);
 	let context: StreamSocketContext = {
 		socket,
@@ -138,6 +138,8 @@ async function sendWithCloudflareSockets(message: AuthEmailMessage, smtp: SmtpCo
 		if (!context.socket?.startTls) {
 			throw new Error('SMTP socket does not support STARTTLS.');
 		}
+		context.reader.releaseLock();
+		context.writer.releaseLock();
 		socket = context.socket.startTls();
 		context = {
 			socket,
@@ -222,6 +224,10 @@ function logConsoleFallback(message: AuthEmailMessage) {
 	console.warn(`[auth-email] ${message.subject} for ${message.to}\n${message.text}`);
 }
 
+function errorMessage(error: unknown) {
+	return error instanceof Error ? error.message : String(error);
+}
+
 function isLocalAuthUrl(value: string) {
 	const hostname = new URL(value).hostname;
 	return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
@@ -252,11 +258,14 @@ export async function sendAuthEmail(context: Pick<APIContext, 'locals'> | undefi
 	assertSmtpConfigured(smtp);
 
 	try {
-		await sendWithCloudflareSockets(message, smtp, config.betterAuthBaseUrl);
+		await sendWithCloudflareSockets(message, smtp, config.siteBaseUrl);
 		return;
 	} catch (cloudflareError) {
+		if (smtp.port === 465 || smtp.port === 587) {
+			throw new Error(`Cloudflare SMTP delivery failed: ${errorMessage(cloudflareError)}`);
+		}
 		try {
-			await sendWithNodeSockets(message, smtp, config.betterAuthBaseUrl);
+			await sendWithNodeSockets(message, smtp, config.siteBaseUrl);
 			return;
 		} catch (nodeError) {
 			if (isLocalAuthUrl(config.betterAuthBaseUrl)) {

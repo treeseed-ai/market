@@ -148,7 +148,7 @@ export async function sendWelcomeEmail(
 	if (!email) return;
 	const config = getSiteAuthConfig(context);
 	const displayName = firstName(input.displayName?.trim() || email.split('@')[0] || 'there');
-	const signInUrl = input.signInUrl ?? `${config.betterAuthBaseUrl.replace(/\/+$/u, '')}/auth/sign-in?verified=1`;
+	const signInUrl = input.signInUrl ?? `${config.siteBaseUrl.replace(/\/+$/u, '')}/auth/sign-in?verified=1`;
 	const element = React.createElement(WelcomeEmail, { displayName, signInUrl });
 	const [html, text] = await Promise.all([
 		render(element),

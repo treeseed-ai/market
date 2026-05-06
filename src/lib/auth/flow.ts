@@ -4,7 +4,6 @@ import {
 	betterAuthCookieFromSetCookie,
 	createSiteBetterAuth,
 	ensureBetterAuthD1Schema,
-	getBetterAuthSetCookies,
 } from './better-auth';
 import { getSiteAuthConfig } from './config';
 import { createSiteWebSession } from './session-store';
@@ -46,7 +45,7 @@ export function authProviderCapabilities(context: Pick<APIContext, 'locals'>) {
 
 export function providerSignInPath(context: Pick<APIContext, 'locals' | 'url'>, provider: SupportedAuthProvider, returnTo = normalizeReturnTo(context)) {
 	const config = getSiteAuthConfig(context);
-	const callbackURL = `${config.betterAuthBaseUrl}/auth/callback/${provider}?returnTo=${encodeURIComponent(returnTo)}`;
+	const callbackURL = `${config.siteBaseUrl}/auth/callback/${provider}?returnTo=${encodeURIComponent(returnTo)}`;
 	return `/api/auth/sign-in/social?provider=${encodeURIComponent(provider)}&callbackURL=${encodeURIComponent(callbackURL)}`;
 }
 
@@ -180,18 +179,34 @@ export async function submitBetterAuthEmailFlow(
 	options: { finalize?: boolean } = {},
 ) {
 	await ensureBetterAuthD1Schema(context);
-	const config = getSiteAuthConfig(context);
 	const auth = createSiteBetterAuth(context);
 	const headers = new Headers(context.request.headers);
 	headers.delete('content-length');
 	headers.set('content-type', 'application/json');
 	headers.set('accept', 'application/json');
-	const response = await auth.handler(new Request(`${config.betterAuthBaseUrl}/api/auth/${path}`, {
-		method: 'POST',
-		headers,
-		body: JSON.stringify(body),
-	}));
-	const payload = await response.json().catch(() => null) as {
+	const invokeEmailFlow = path === 'sign-up/email' ? auth.api.signUpEmail : auth.api.signInEmail;
+	let result: {
+		response: unknown;
+		headers?: Headers | null;
+		status?: number;
+	};
+	try {
+		result = await invokeEmailFlow({
+			body,
+			headers,
+			returnHeaders: true,
+			returnStatus: true,
+		} as any) as unknown as typeof result;
+	} catch (error: any) {
+		const errorBody = error?.body as { message?: string; code?: string } | undefined;
+		return {
+			ok: false as const,
+			status: typeof error?.statusCode === 'number' ? error.statusCode : 500,
+			error: errorBody?.message ?? error?.message ?? errorBody?.code ?? 'Authentication failed.',
+			setCookies: getSetCookiesFromHeaders(error?.headers),
+		};
+	}
+	const payload = result.response as {
 		user?: {
 			id: string;
 			email?: string | null;
@@ -205,15 +220,15 @@ export async function submitBetterAuthEmailFlow(
 		error?: string;
 		message?: string;
 	} | null;
-	if (!response.ok || !payload?.user) {
+	if ((result.status && result.status >= 400) || !payload?.user) {
 		return {
 			ok: false as const,
-			status: response.status,
+			status: result.status ?? 500,
 			error: payload?.message ?? payload?.error ?? 'Authentication failed.',
-			setCookies: getBetterAuthSetCookies(response),
+			setCookies: getSetCookiesFromHeaders(result.headers),
 		};
 	}
-	const setCookies = getBetterAuthSetCookies(response);
+	const setCookies = getSetCookiesFromHeaders(result.headers);
 	if (options.finalize === false) {
 		return {
 			ok: true as const,
@@ -243,4 +258,8 @@ export async function submitBetterAuthEmailFlow(
 		setCookies,
 		user: payload.user,
 	};
+}
+
+function getSetCookiesFromHeaders(headers: Headers | null | undefined) {
+	return headers?.getSetCookie?.() ?? (headers?.get('set-cookie') ? [headers.get('set-cookie')!] : []);
 }
