@@ -37,6 +37,84 @@ function normalizeBaseUrl(baseUrl) {
 	return String(baseUrl ?? '').trim().replace(/\/+$/u, '');
 }
 
+function centralMarketProfile(baseUrl) {
+	return {
+		id: 'central',
+		label: 'TreeSeed Central Market',
+		baseUrl: normalizeBaseUrl(baseUrl),
+		kind: 'central',
+		alwaysAvailable: true,
+	};
+}
+
+function normalizeMarketProfile(value, fallbackTeamId = null) {
+	if (!value || typeof value !== 'object') {
+		return null;
+	}
+	const id = typeof value.id === 'string' && value.id.trim() ? value.id.trim() : null;
+	const baseUrl = typeof value.baseUrl === 'string' && value.baseUrl.trim() ? normalizeBaseUrl(value.baseUrl) : null;
+	if (!id || !baseUrl) {
+		return null;
+	}
+	return {
+		id,
+		label: typeof value.label === 'string' && value.label.trim() ? value.label.trim() : id,
+		baseUrl,
+		kind: value.kind === 'central' ? 'central' : 'specialized',
+		teamId: typeof value.teamId === 'string' && value.teamId.trim() ? value.teamId.trim() : fallbackTeamId,
+		alwaysAvailable: value.alwaysAvailable === true || value.kind === 'central',
+	};
+}
+
+function marketProfilesForTeams(teams = [], baseUrl) {
+	const byId = new Map();
+	const central = centralMarketProfile(baseUrl);
+	byId.set(central.id, central);
+	for (const team of teams) {
+		const metadata = team?.metadata && typeof team.metadata === 'object' ? team.metadata : {};
+		const profiles = Array.isArray(metadata.marketProfiles)
+			? metadata.marketProfiles
+			: Array.isArray(metadata.markets)
+				? metadata.markets
+				: [];
+		for (const profile of profiles) {
+			const normalized = normalizeMarketProfile(profile, team.id);
+			if (normalized) {
+				byId.set(normalized.id, normalized);
+			}
+		}
+	}
+	return [...byId.values()];
+}
+
+function artifactDownloadPayload(baseUrl, item, artifact) {
+	const metadata = artifact.metadata && typeof artifact.metadata === 'object' ? artifact.metadata : {};
+	const downloadUrl = typeof metadata.downloadUrl === 'string' && metadata.downloadUrl.trim()
+		? metadata.downloadUrl
+		: typeof metadata.publicUrl === 'string' && metadata.publicUrl.trim()
+			? metadata.publicUrl
+			: `${normalizeBaseUrl(baseUrl)}/v1/catalog/${encodeURIComponent(item.id)}/artifacts/${encodeURIComponent(artifact.version)}/content`;
+	return {
+		itemId: item.id,
+		slug: item.slug,
+		kind: item.kind,
+		version: artifact.version,
+		contentType: typeof metadata.contentType === 'string' && metadata.contentType.trim()
+			? metadata.contentType
+			: item.kind === 'knowledge_pack'
+				? 'application/vnd.treeseed.knowledge-pack+tar'
+				: 'application/vnd.treeseed.template+tar',
+		sha256: typeof metadata.sha256 === 'string' && metadata.sha256.trim() ? metadata.sha256.trim() : null,
+		downloadUrl,
+		expiresAt: typeof metadata.expiresAt === 'string' ? metadata.expiresAt : null,
+		installStrategy: typeof metadata.installStrategy === 'string'
+			? metadata.installStrategy
+			: typeof item.metadata?.installStrategy === 'string'
+				? item.metadata.installStrategy
+				: null,
+	};
+}
+
 function principalHasPermission(principal, permission) {
 	return Boolean(
 		principal
@@ -422,6 +500,7 @@ export function createMarketApiApp(options = {}) {
 	}, db);
 	const configuredAuthProviderId = config.providers?.auth ?? 'd1';
 	const authProviderId = configuredAuthProviderId === 'd1' ? 'market-d1' : configuredAuthProviderId;
+	const marketAuthProvider = new D1AuthProvider(config, { db });
 	const sharedSdk = options.sdk ?? AgentSdk.createLocal({
 		repoRoot: config.repoRoot,
 		databaseName: config.d1DatabaseName ?? `${config.projectId}-market`,
@@ -492,15 +571,61 @@ export function createMarketApiApp(options = {}) {
 				await next();
 			});
 
+			app.get('/v1/markets/current', async (c) => c.json({
+				ok: true,
+				payload: centralMarketProfile(runtime.resolved.config.baseUrl),
+			}));
+
+			app.post('/v1/auth/device/start', async (c) => {
+				const body = await c.req.json().catch(() => ({}));
+				const started = await marketAuthProvider.startDeviceFlow({
+					clientName: typeof body.clientName === 'string' ? body.clientName : 'treeseed-cli',
+					scopes: Array.isArray(body.scopes) ? body.scopes.map(String) : ['auth:me'],
+				});
+				return c.json(started);
+			});
+
+			app.post('/v1/auth/device/poll', async (c) => {
+				const body = await c.req.json().catch(() => ({}));
+				const response = await marketAuthProvider.pollDeviceFlow({ deviceCode: String(body.deviceCode ?? '') });
+				return c.json(response, { status: response.ok ? 200 : response.status === 'expired' ? 410 : 400 });
+			});
+
+			app.post('/v1/auth/token/refresh', async (c) => {
+				const body = await c.req.json().catch(() => ({}));
+				try {
+					return c.json(await marketAuthProvider.refreshAccessToken({ refreshToken: String(body.refreshToken ?? '') }));
+				} catch (error) {
+					return jsonError(c, 401, error instanceof Error ? error.message : String(error));
+				}
+			});
+
+			app.post('/v1/auth/logout', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				return c.json({ ok: true });
+			});
+
 			app.get('/v1/me', async (c) => {
 				const auth = await ensurePrincipal(c);
 				if (auth.response) return auth.response;
+				const teams = await store.listTeamsForPrincipal(auth.principal);
 				return c.json({
 					ok: true,
 					payload: {
 						principal: auth.principal,
-						teams: await store.listTeamsForPrincipal(auth.principal),
+						teams,
 					},
+				});
+			});
+
+			app.get('/v1/me/markets', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const teams = await store.listTeamsForPrincipal(auth.principal);
+				return c.json({
+					ok: true,
+					payload: marketProfilesForTeams(teams, runtime.resolved.config.baseUrl),
 				});
 			});
 
@@ -544,6 +669,15 @@ export function createMarketApiApp(options = {}) {
 				return c.json({
 					ok: true,
 					payload: await store.listTeamMembers(c.req.param('teamId')),
+				});
+			});
+
+			app.get('/v1/teams/:teamId/permissions', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.getTeamAccessSummary(c.req.param('teamId'), access.principal),
 				});
 			});
 
@@ -653,6 +787,16 @@ export function createMarketApiApp(options = {}) {
 			app.get('/v1/projects', async (c) => {
 				const auth = await ensurePrincipal(c);
 				if (auth.response) return auth.response;
+				const teamId = typeof c.req.query('teamId') === 'string' ? c.req.query('teamId') : null;
+				if (teamId) {
+					const access = await requireTeamAccess(c, store, teamId, 'projects:read:team');
+					if (access.response) return access.response;
+					const projects = await store.listProjectsForPrincipal(auth.principal);
+					return c.json({
+						ok: true,
+						payload: projects.filter((project) => project.teamId === teamId),
+					});
+				}
 				return c.json({
 					ok: true,
 					payload: await store.listProjectsForPrincipal(auth.principal),
@@ -1117,6 +1261,15 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
 				if (access.response) return access.response;
 				return c.json({ ok: true, payload: access.details });
+			});
+
+			app.get('/v1/projects/:projectId/access', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.getProjectAccessSummary(c.req.param('projectId'), access.principal),
+				});
 			});
 
 			app.get('/v1/projects/:projectId/summary', async (c) => {
@@ -2337,6 +2490,25 @@ export function createMarketApiApp(options = {}) {
 				return c.json({
 					ok: true,
 					payload: await store.listCatalogArtifactVersions(item.id),
+				});
+			});
+
+			app.get('/v1/catalog/:itemId/artifacts/:version/download', async (c) => {
+				const item = await store.getCatalogItem(c.req.param('itemId'));
+				if (!item) {
+					return jsonError(c, 404, `Unknown catalog item "${c.req.param('itemId')}".`);
+				}
+				const canAccess = await store.principalCanAccessCatalogItem(c.get('principal'), item);
+				if (!canAccess) {
+					return jsonError(c, 404, `Unknown catalog item "${c.req.param('itemId')}".`);
+				}
+				const artifact = await store.getCatalogArtifactVersion(item.id, c.req.param('version'));
+				if (!artifact) {
+					return jsonError(c, 404, `Unknown catalog artifact version "${c.req.param('version')}".`);
+				}
+				return c.json({
+					ok: true,
+					payload: artifactDownloadPayload(runtime.resolved.config.baseUrl, item, artifact),
 				});
 			});
 
