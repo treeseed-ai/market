@@ -62,9 +62,9 @@
   },
   "dependencies": {
     "@react-email/render": "^2.0.8",
-    "@treeseed/cli": "0.6.29",
-    "@treeseed/core": "0.6.32",
-    "@treeseed/sdk": "0.6.31",
+    "@treeseed/cli": "^0.6.30-dev.staging.20260507T044621Z",
+    "@treeseed/core": "^0.6.33-dev.staging.20260507T044621Z",
+    "@treeseed/sdk": "^0.6.32-dev.staging.20260507T044543Z",
     "better-auth": "^1.6.2",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.8.2",

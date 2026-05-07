@@ -14,6 +14,10 @@ export default {
 	...config,
 	vite: {
 		...(config.vite ?? {}),
+		build: {
+			...(config.vite?.build ?? {}),
+			chunkSizeWarningLimit: Math.max(config.vite?.build?.chunkSizeWarningLimit ?? 0, 1200),
+		},
 		plugins: [
 			...vitePlugins,
 			{
