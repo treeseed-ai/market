@@ -1,5 +1,6 @@
 ---
 import KnowledgeCoopAppLayout from '../../layouts/KnowledgeCoopAppLayout.astro';
+import { listTreeseedManagedHostsFromConfig } from '../../lib/market/managed-hosts.js';
 import { loadAccessibleTeams, resolveMarketStore } from '../../lib/market/store.js';
 
 if (!Astro.locals.auth?.principal) {
@@ -8,72 +9,19 @@ if (!Astro.locals.auth?.principal) {
 
 const store = resolveMarketStore(Astro.locals);
 const teams = await loadAccessibleTeams(Astro.locals);
-
-if (Astro.request.method === 'POST' && store) {
-	const form = await Astro.request.formData();
-	const teamId = String(form.get('teamId') ?? '');
-	const slug = String(form.get('slug') ?? '').trim();
-	const name = String(form.get('name') ?? '').trim();
-	const summary = String(form.get('summary') ?? '').trim();
-	const sourceKind = String(form.get('sourceKind') ?? 'blank').trim();
-	const hostingMode = String(form.get('hostingMode') ?? 'managed').trim();
-	const team = teams.find((entry: any) => entry.id === teamId);
-	if (team && slug && name) {
-		const details: any = await store.createProject(team.id, {
-			slug,
-			name,
-			description: summary || null,
-			metadata: {
-				sourceKind,
-				publicSite: true,
-				enableDefaultAgents: true,
-				launchMode: hostingMode,
-			},
-			entitlementTier: 'free',
-		});
-		if (details?.project?.id) {
-			await store.upsertProjectHosting(details.project.id, {
-				kind: hostingMode === 'managed' ? 'hosted_project' : 'self_hosted_project',
-				registration: hostingMode === 'hybrid' ? 'optional' : 'none',
-				marketBaseUrl: Astro.url.origin,
-				projectApiBaseUrl: null,
-				executionOwner: hostingMode === 'managed' ? 'project_api' : 'project_runner',
-				metadata: {
-					repoProvider: 'github',
-					repoVisibility: 'private',
-					publicSite: true,
-				},
-			});
-			for (const environment of ['local', 'staging', 'prod'] as const) {
-				await store.upsertProjectEnvironment(details.project.id, {
-					environment,
-					deploymentProfile: hostingMode === 'managed' ? 'hosted_project' : 'self_hosted_project',
-					baseUrl: null,
-					metadata: {
-						launchMode: hostingMode,
-					},
-				});
-			}
-			await store.createJob({
-				projectId: details.project.id,
-				namespace: 'workflow',
-				operation: 'launch_project',
-				preferredMode: 'auto',
-				selectedTarget: hostingMode === 'managed' ? 'project_api' : 'project_runner',
-				requestedByType: 'user',
-				requestedById: Astro.locals.auth.principal.id,
-				input: {
-					projectId: details.project.id,
-					teamId: team.id,
-					sourceKind,
-					hostingMode,
-					repoProvider: 'github',
-				},
-			});
-			return Astro.redirect(`/app/teams/${team.name}/projects/${details.project.slug}/overview`);
-		}
-	}
-}
+const hostsByTeamEntries = store
+	? await Promise.all(teams.map(async (team: any) => [
+			team.id,
+			[
+			...(await listTreeseedManagedHostsFromConfig(team.id, (Astro.locals as any).runtime ?? Astro.locals)),
+			...(await store.listTeamWebHosts(team.id)),
+		],
+	]))
+	: [];
+const launchJson = JSON.stringify({
+	teams,
+	hostsByTeam: Object.fromEntries(hostsByTeamEntries),
+}).replace(/</gu, '\\u003c');
 ---
 
 <KnowledgeCoopAppLayout
@@ -96,7 +44,7 @@ if (Astro.request.method === 'POST' && store) {
 		</section>
 	) : (
 		<section class="kc-grid-2">
-			<form class="kc-panel" method="POST">
+			<form class="kc-panel" id="project-launch-form">
 			<div class="kc-panel__header">
 				<div>
 					<p class="kc-section__eyebrow">Launch</p>
@@ -105,43 +53,58 @@ if (Astro.request.method === 'POST' && store) {
 				</div>
 			</div>
 			<div class="kc-list">
-				<label class="kc-list-item">
-					<strong>Team</strong><br />
-					<select name="teamId" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.8rem;">
+				<label class="kc-list-item kc-field">
+					<span class="kc-field__label">Team</span>
+					<select class="kc-control" name="teamId">
 						{teams.map((team: any) => <option value={team.id}>{team.name}</option>)}
 					</select>
 				</label>
-				<label class="kc-list-item">
-					<strong>Name</strong><br />
-					<input name="name" required placeholder="Applied Systems Coop" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.8rem;" />
+				<label class="kc-list-item kc-field">
+					<span class="kc-field__label">Name</span>
+					<input class="kc-control" name="name" required placeholder="Applied Systems Coop" />
 				</label>
-				<label class="kc-list-item">
-					<strong>Slug</strong><br />
-					<input name="slug" required placeholder="applied-systems-coop" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.8rem;" />
+				<label class="kc-list-item kc-field">
+					<span class="kc-field__label">Slug</span>
+					<input class="kc-control" name="slug" required placeholder="applied-systems-coop" />
 				</label>
-				<label class="kc-list-item">
-					<strong>Summary</strong><br />
-					<textarea name="summary" rows="4" placeholder="Short statement of what this hub exists to operate." style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.8rem;"></textarea>
+				<label class="kc-list-item kc-field">
+					<span class="kc-field__label">Summary</span>
+					<textarea class="kc-control" name="summary" rows="4" placeholder="Short statement of what this hub exists to operate."></textarea>
 				</label>
-				<label class="kc-list-item">
-					<strong>Source kind</strong><br />
-					<select name="sourceKind" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.8rem;">
+				<label class="kc-list-item kc-field">
+					<span class="kc-field__label">Source kind</span>
+					<select class="kc-control" name="sourceKind">
 						<option value="blank">Blank</option>
 						<option value="template">Template</option>
 						<option value="knowledge_pack">Knowledge pack</option>
 					</select>
 				</label>
-				<label class="kc-list-item">
-					<strong>Hosting mode</strong><br />
-					<select name="hostingMode" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.8rem;">
+				<label class="kc-list-item kc-field">
+					<span class="kc-field__label">Hosting mode</span>
+					<select class="kc-control" name="hostingMode">
 						<option value="managed">Managed</option>
-						<option value="hybrid">Hybrid</option>
-						<option value="self_hosted">Self hosted</option>
 					</select>
+				</label>
+				<label class="kc-list-item kc-field">
+					<span class="kc-field__label">Web Host</span>
+					<select class="kc-control" name="cloudflareHostChoice" required></select>
+				</label>
+				<label class="kc-list-item kc-field" id="cloudflare-passphrase-field">
+					<span class="kc-field__label">Host passphrase</span>
+					<input class="kc-control" name="cloudflareHostPassphrase" type="password" autocomplete="off" placeholder="Required for team-owned hosts" />
+				</label>
+				<label class="kc-list-item kc-field">
+					<span class="kc-field__label">Processing Host</span>
+					<select class="kc-control" name="processingHostChoice" required></select>
+				</label>
+				<label class="kc-list-item kc-field" id="processing-passphrase-field">
+					<span class="kc-field__label">Processing passphrase</span>
+					<input class="kc-control" name="processingHostPassphrase" type="password" autocomplete="off" placeholder="Required for team-owned hosts" />
 				</label>
 			</div>
 			<div class="kc-inline-actions" style="margin-top: 1rem;">
-				<button class="kc-button" type="submit">Create project</button>
+				<button class="kc-button" type="submit">Launch project</button>
+				<span class="kc-subtle" id="project-launch-status" role="status"></span>
 			</div>
 			</form>
 
@@ -160,4 +123,123 @@ if (Astro.request.method === 'POST' && store) {
 			</section>
 		</section>
 	)}
+	<script is:inline type="application/json" id="launch-data" set:html={launchJson}></script>
 </KnowledgeCoopAppLayout>
+
+<script>
+	import { decryptHostConfig } from '../../lib/cloudflare-host-crypto.js';
+
+	const dataElement = document.getElementById('launch-data');
+	const data = dataElement?.textContent ? JSON.parse(dataElement.textContent) : { teams: [], hostsByTeam: {} };
+	const launchForm = document.getElementById('project-launch-form') as HTMLFormElement | null;
+	const hostSelect = launchForm?.elements.namedItem('cloudflareHostChoice') as HTMLSelectElement | null;
+	const processingHostSelect = launchForm?.elements.namedItem('processingHostChoice') as HTMLSelectElement | null;
+	const teamSelect = launchForm?.elements.namedItem('teamId') as HTMLSelectElement | null;
+	const passphraseField = document.getElementById('cloudflare-passphrase-field');
+	const processingPassphraseField = document.getElementById('processing-passphrase-field');
+	const statusElement = document.getElementById('project-launch-status');
+
+	function setStatus(message: string) {
+		if (statusElement) statusElement.textContent = message;
+	}
+
+	function hostsForSelectedTeam(hostType = 'web', provider = 'cloudflare') {
+		return (data.hostsByTeam?.[teamSelect?.value ?? ''] ?? [])
+			.filter((host: any) => host.provider === provider && ((host.metadata?.hostType === 'agent' ? 'processing' : host.metadata?.hostType) ?? 'web') === hostType);
+	}
+
+	function refreshOneHostSelect(select: HTMLSelectElement | null, hostType: string, provider: string) {
+		if (!select) return;
+		const previous = select.value;
+		select.replaceChildren();
+		for (const host of hostsForSelectedTeam(hostType, provider)) {
+			const mode = host.ownership === 'treeseed_managed' ? 'treeseed_managed' : 'team_owned';
+			const labelSuffix = mode === 'treeseed_managed' ? 'paid managed' : (host.accountLabel ?? provider);
+			select.append(new Option(`${host.name} (${labelSuffix})`, `${mode}:${host.id}`));
+		}
+		if ([...select.options].some((option) => option.value === previous)) select.value = previous;
+	}
+
+	function refreshHostChoices() {
+		refreshOneHostSelect(hostSelect, 'web', 'cloudflare');
+		refreshOneHostSelect(processingHostSelect, 'processing', 'railway');
+		refreshPassphraseVisibility();
+	}
+
+	function selectedHost(select: HTMLSelectElement | null, hostType = 'web', provider = 'cloudflare') {
+		const [, hostId] = String(select?.value ?? '').split(':');
+		return hostsForSelectedTeam(hostType, provider).find((host: any) => host.id === hostId) ?? null;
+	}
+
+	function selectedHostMode(select: HTMLSelectElement | null) {
+		return String(select?.value ?? '').startsWith('team_owned:') ? 'team_owned' : 'treeseed_managed';
+	}
+
+	function refreshPassphraseVisibility() {
+		if (passphraseField) passphraseField.style.display = selectedHostMode(hostSelect) === 'team_owned' ? '' : 'none';
+		if (processingPassphraseField) processingPassphraseField.style.display = selectedHostMode(processingHostSelect) === 'team_owned' ? '' : 'none';
+	}
+
+	teamSelect?.addEventListener('change', refreshHostChoices);
+	hostSelect?.addEventListener('change', refreshPassphraseVisibility);
+	processingHostSelect?.addEventListener('change', refreshPassphraseVisibility);
+	refreshHostChoices();
+
+	launchForm?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const form = new FormData(launchForm);
+		const teamId = String(form.get('teamId') ?? '');
+		const slug = String(form.get('slug') ?? '').trim();
+		const mode = selectedHostMode(hostSelect);
+		const processingMode = selectedHostMode(processingHostSelect);
+		let cloudflareHostConfig = null;
+		let cloudflareHostId = null;
+		let processingHostConfig = null;
+		let processingHostId = null;
+		setStatus('Preparing launch...');
+		try {
+			const selectedWebHost: any = selectedHost(hostSelect, 'web', 'cloudflare');
+			cloudflareHostId = selectedWebHost?.id ?? null;
+			const selectedProcessingHost: any = selectedHost(processingHostSelect, 'processing', 'railway');
+			processingHostId = selectedProcessingHost?.id ?? null;
+			if (mode === 'team_owned') {
+				const passphrase = String(form.get('cloudflareHostPassphrase') ?? '');
+				cloudflareHostConfig = await decryptHostConfig(selectedWebHost?.encryptedPayload, passphrase);
+			}
+			if (processingMode === 'team_owned') {
+				const passphrase = String(form.get('processingHostPassphrase') ?? '');
+				processingHostConfig = await decryptHostConfig(selectedProcessingHost?.encryptedPayload, passphrase);
+			}
+			const response = await fetch(`/v1/teams/${encodeURIComponent(teamId)}/projects/launch`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					slug,
+					name: String(form.get('name') ?? '').trim(),
+					summary: String(form.get('summary') ?? '').trim(),
+					sourceKind: String(form.get('sourceKind') ?? 'blank'),
+					hostingMode: 'managed',
+					repoProvider: 'github',
+					repoVisibility: 'private',
+					cloudflareHostMode: mode,
+					cloudflareHostId,
+					cloudflareHostConfig,
+					processingHostMode: processingMode,
+					processingHostId,
+					processingHostConfig,
+					targetEnvironments: ['staging', 'prod'],
+					publicSite: true,
+					enableDefaultAgents: true,
+				}),
+			});
+			const payload = await response.json().catch(() => null);
+			if (!response.ok || payload?.ok === false) {
+				throw new Error(payload?.error ?? `Launch failed with ${response.status}`);
+			}
+			const team = data.teams.find((entry: any) => entry.id === teamId);
+			window.location.href = `/app/teams/${team?.name ?? team?.slug}/projects/${slug}/overview`;
+		} catch (error) {
+			setStatus(error instanceof Error ? error.message : String(error));
+		}
+	});
+</script>

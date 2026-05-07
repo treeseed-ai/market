@@ -5,6 +5,7 @@ import * as treeseedCore from '@treeseed/core';
 import { AgentSdk } from '@treeseed/sdk';
 import type { D1DatabaseLike, D1PreparedStatementLike } from '@treeseed/core/types/cloudflare';
 import { createMarketApiApp } from '../../src/api/app.js';
+import { listTreeseedManagedHostsFromConfig } from '../../src/lib/market/managed-hosts.js';
 
 const packageRoot = process.cwd();
 const authMigrationPathCandidates = [
@@ -27,6 +28,11 @@ const topologyMigrationPathCandidates = [
 	resolve(packageRoot, '../migrations/0010_project_hosting_topology.sql'),
 ];
 const topologyMigrationPath = topologyMigrationPathCandidates.find((candidate) => existsSync(candidate));
+const webHostsMigrationPathCandidates = [
+	resolve(packageRoot, 'migrations/0014_team_web_hosts.sql'),
+	resolve(packageRoot, '../migrations/0014_team_web_hosts.sql'),
+];
+const webHostsMigrationPath = webHostsMigrationPathCandidates.find((candidate) => existsSync(candidate));
 const sqliteModule = await import('node:sqlite').catch(() => null);
 const DatabaseSyncCtor = sqliteModule?.DatabaseSync ?? null;
 const DatabaseSync = DatabaseSyncCtor as NonNullable<typeof DatabaseSyncCtor>;
@@ -35,9 +41,32 @@ const resolvedAuthMigrationPath = authMigrationPath as string;
 const resolvedMarketMigrationPath = marketMigrationPath as string;
 const resolvedCatalogMigrationPath = catalogMigrationPath as string;
 const resolvedTopologyMigrationPath = topologyMigrationPath as string;
+const resolvedWebHostsMigrationPath = webHostsMigrationPath as string;
 
-if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath) {
+if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !webHostsMigrationPath) {
 	throw new Error('Unable to resolve required market migration fixtures.');
+}
+
+async function withEnv<T>(values: Record<string, string | undefined>, action: () => T | Promise<T>) {
+	const previous = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));
+	for (const [key, value] of Object.entries(values)) {
+		if (value == null) {
+			delete process.env[key];
+		} else {
+			process.env[key] = value;
+		}
+	}
+	try {
+		return await action();
+	} finally {
+		for (const [key, value] of Object.entries(previous)) {
+			if (value == null) {
+				delete process.env[key];
+			} else {
+				process.env[key] = value;
+			}
+		}
+	}
 }
 
 class TestPreparedStatement implements D1PreparedStatementLike {
@@ -82,6 +111,7 @@ class TestD1Database implements D1DatabaseLike {
 		this.db.exec(readFileSync(resolvedMarketMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedCatalogMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedTopologyMigrationPath, 'utf8'));
+		this.db.exec(readFileSync(resolvedWebHostsMigrationPath, 'utf8'));
 	}
 
 	prepare(query: string) {
@@ -211,9 +241,516 @@ async function createTeam(app: ReturnType<typeof createTestApp>, token: string) 
 	return team.payload;
 }
 
+function encryptedHostEnvelope(overrides: Record<string, unknown> = {}) {
+	return {
+		version: 1,
+		algorithm: 'secretbox',
+		kdf: {
+			algorithm: 'argon2id',
+			opsLimit: 2,
+			memLimit: 67108864,
+		},
+		salt: 'c2FsdA==',
+		nonce: 'bm9uY2U=',
+		ciphertext: 'Y2lwaGVydGV4dA==',
+		...overrides,
+	};
+}
+
 runtimeDescribe('market api', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
+	});
+
+	it('stores team Cloudflare web hosts as opaque encrypted payloads', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+		const created = await app.request(`/v1/teams/${team.id}/web-hosts`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Team Cloudflare',
+				provider: 'cloudflare',
+				ownership: 'team_owned',
+				accountLabel: 'Example Account',
+				allowedEnvironments: ['staging', 'prod'],
+				encryptedPayload: encryptedHostEnvelope(),
+				metadata: {
+					accountHint: 'example',
+				},
+			}),
+		});
+		expect(created.status).toBe(201);
+		const payload = await json(created);
+		expect(payload.payload.encryptedPayload.ciphertext).toBe('Y2lwaGVydGV4dA==');
+		expect(JSON.stringify(payload)).not.toContain('cf-secret-token');
+
+		const listed = await json(await app.request(`/v1/teams/${team.id}/web-hosts`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(listed.payload).toHaveLength(1);
+		expect(listed.payload[0].ownership).toBe('team_owned');
+		expect(listed.payload[0].allowedEnvironments).toEqual(['staging', 'prod']);
+
+		const updated = await json(await app.request(`/v1/teams/${team.id}/web-hosts/${payload.payload.id}`, {
+			method: 'PUT',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Team Cloudflare Updated',
+				metadata: { accountHint: 'updated' },
+			}),
+		}));
+		expect(updated.payload.name).toBe('Team Cloudflare Updated');
+		expect(updated.payload.encryptedPayload.ciphertext).toBe('Y2lwaGVydGV4dA==');
+
+		const deleted = await json(await app.request(`/v1/teams/${team.id}/web-hosts/${payload.payload.id}`, {
+			method: 'DELETE',
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(deleted.ok).toBe(true);
+	});
+
+	it('stores team Railway agent hosts as opaque encrypted payloads', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+		const created = await app.request(`/v1/teams/${team.id}/web-hosts`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Team Agents',
+				provider: 'railway',
+				ownership: 'team_owned',
+				accountLabel: 'Agent Workspace',
+				allowedEnvironments: ['staging', 'prod'],
+				encryptedPayload: encryptedHostEnvelope(),
+				metadata: {
+					hostType: 'agent',
+					configuredKeys: ['RAILWAY_API_TOKEN', 'TREESEED_RAILWAY_WORKSPACE', 'TREESEED_WORKER_POOL_SCALER'],
+				},
+			}),
+		});
+		expect(created.status).toBe(201);
+		const payload = await json(created);
+		expect(payload.payload.provider).toBe('railway');
+		expect(payload.payload.metadata.hostType).toBe('agent');
+		expect(payload.payload.encryptedPayload.ciphertext).toBe('Y2lwaGVydGV4dA==');
+		expect(JSON.stringify(payload)).not.toContain('railway-secret-token');
+
+		const validated = await json(await app.request(`/v1/teams/${team.id}/web-hosts/${payload.payload.id}/validate`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				decryptedConfig: {
+					RAILWAY_API_TOKEN: 'railway-secret-token',
+					TREESEED_RAILWAY_WORKSPACE: 'knowledge-coop',
+					TREESEED_WORKER_POOL_SCALER: 'railway',
+				},
+			}),
+		}));
+		expect(validated.payload.validation.receivedKeys).toEqual([
+			'RAILWAY_API_TOKEN',
+			'TREESEED_RAILWAY_WORKSPACE',
+			'TREESEED_WORKER_POOL_SCALER',
+		]);
+		expect(JSON.stringify(validated)).not.toContain('railway-secret-token');
+	});
+
+	it('lists generic hosts with TreeSeed managed web and processing options', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+		const created = await app.request(`/v1/teams/${team.id}/hosts`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Team Processing',
+				provider: 'railway',
+				ownership: 'team_owned',
+				accountLabel: 'Processing Workspace',
+				allowedEnvironments: ['staging', 'prod'],
+				encryptedPayload: encryptedHostEnvelope(),
+				metadata: {
+					hostType: 'processing',
+					configuredKeys: ['RAILWAY_API_TOKEN', 'TREESEED_RAILWAY_WORKSPACE', 'TREESEED_WORKER_POOL_SCALER'],
+				},
+			}),
+		});
+		expect(created.status).toBe(201);
+
+		const listed = await json(await app.request(`/v1/teams/${team.id}/hosts`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(listed.payload.map((host: any) => host.id)).toEqual(expect.arrayContaining([
+			'treeseed-managed-web',
+			'treeseed-managed-processing',
+		]));
+		expect(listed.payload.find((host: any) => host.id === 'treeseed-managed-processing')).toMatchObject({
+			provider: 'railway',
+			ownership: 'treeseed_managed',
+			name: 'TreeSeed Processing Host',
+			metadata: expect.objectContaining({ hostType: 'processing' }),
+		});
+		expect(listed.payload.find((host: any) => host.name === 'Team Processing')).toMatchObject({
+			provider: 'railway',
+			ownership: 'team_owned',
+		});
+		expect(JSON.stringify(listed)).not.toContain('railway-secret-token');
+	});
+
+	it('marks TreeSeed managed hosts active from existing platform provider env vars', async () => {
+		await withEnv({
+			TREESEED_MANAGED_CLOUDFLARE_API_TOKEN: undefined,
+			TREESEED_MANAGED_CLOUDFLARE_ACCOUNT_ID: undefined,
+			TREESEED_MANAGED_RAILWAY_API_TOKEN: undefined,
+			TREESEED_MANAGED_RAILWAY_WORKSPACE: undefined,
+			CLOUDFLARE_API_TOKEN: 'platform-cloudflare-token',
+			CLOUDFLARE_ACCOUNT_ID: 'platform-cloudflare-account',
+			RAILWAY_API_TOKEN: 'platform-railway-token',
+			TREESEED_RAILWAY_WORKSPACE: 'platform-workspace',
+		}, async () => {
+			const app = createTestApp();
+			const token = await authorizeApp(app);
+			const team = await createTeam(app, token);
+
+			const listed = await json(await app.request(`/v1/teams/${team.id}/hosts`, {
+				headers: { authorization: `Bearer ${token}` },
+			}));
+			const web = listed.payload.find((host: any) => host.id === 'treeseed-managed-web');
+			const processing = listed.payload.find((host: any) => host.id === 'treeseed-managed-processing');
+			expect(web.status).toBe('active');
+			expect(web.metadata.missingConfigKeys).toEqual([]);
+			expect(processing.status).toBe('active');
+			expect(processing.metadata.missingConfigKeys).toEqual([]);
+			expect(JSON.stringify(listed)).not.toContain('platform-cloudflare-token');
+			expect(JSON.stringify(listed)).not.toContain('platform-railway-token');
+		});
+	});
+
+	it('does not read local machine config for remote managed host status', async () => {
+		await withEnv({
+			TREESEED_LOCAL_DEV_MODE: undefined,
+			TREESEED_ENVIRONMENT: 'staging',
+			TREESEED_MANAGED_CLOUDFLARE_API_TOKEN: undefined,
+			TREESEED_MANAGED_CLOUDFLARE_ACCOUNT_ID: undefined,
+			TREESEED_MANAGED_RAILWAY_API_TOKEN: undefined,
+			TREESEED_MANAGED_RAILWAY_WORKSPACE: undefined,
+			CLOUDFLARE_API_TOKEN: undefined,
+			CLOUDFLARE_ACCOUNT_ID: undefined,
+			RAILWAY_API_TOKEN: undefined,
+			TREESEED_RAILWAY_WORKSPACE: undefined,
+		}, async () => {
+			const hosts = await listTreeseedManagedHostsFromConfig('team_remote', {
+				env: {
+					TREESEED_ENVIRONMENT: 'staging',
+				},
+			});
+			expect(hosts.find((host: any) => host.id === 'treeseed-managed-web')?.status).toBe('configuration_required');
+			expect(hosts.find((host: any) => host.id === 'treeseed-managed-processing')?.status).toBe('configuration_required');
+		});
+	});
+
+	it('validates team-owned Cloudflare hosts only with caller-provided decrypted config and does not persist values', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+		const created = await json(await app.request(`/v1/teams/${team.id}/web-hosts`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Team Cloudflare',
+				ownership: 'team_owned',
+				encryptedPayload: encryptedHostEnvelope(),
+			}),
+		}));
+
+		const validated = await json(await app.request(`/v1/teams/${team.id}/web-hosts/${created.payload.id}/validate`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				decryptedConfig: {
+					CLOUDFLARE_API_TOKEN: 'cf-secret-token',
+					CLOUDFLARE_ACCOUNT_ID: 'account-1',
+				},
+			}),
+		}));
+		expect(validated.payload.validation.receivedKeys).toEqual(['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN']);
+		expect(JSON.stringify(validated)).not.toContain('cf-secret-token');
+
+		const listed = await json(await app.request(`/v1/teams/${team.id}/web-hosts`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(JSON.stringify(listed)).not.toContain('cf-secret-token');
+	});
+
+	it('prevents deleting Cloudflare hosts that are still assigned to projects', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+		const host = await json(await app.request(`/v1/teams/${team.id}/web-hosts`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Team Cloudflare',
+				ownership: 'team_owned',
+				encryptedPayload: encryptedHostEnvelope(),
+			}),
+		}));
+		await json(await app.request(`/v1/teams/${team.id}/projects`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				slug: 'hosted-project',
+				name: 'Hosted Project',
+				metadata: {
+					cloudflareHost: {
+						mode: 'team_owned',
+						hostId: host.payload.id,
+					},
+				},
+			}),
+		}));
+
+		const deleted = await app.request(`/v1/teams/${team.id}/web-hosts/${host.payload.id}`, {
+			method: 'DELETE',
+			headers: { authorization: `Bearer ${token}` },
+		});
+		expect(deleted.status).toBe(409);
+		const payload = await json(deleted);
+		expect(payload.error).toBe('in_use');
+		expect(payload.projects).toEqual([
+			expect.objectContaining({ slug: 'hosted-project', name: 'Hosted Project' }),
+		]);
+	});
+
+	it('launch accepts an unlocked team Cloudflare host without persisting plaintext config', async () => {
+		const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeCoopManagedLaunch').mockRejectedValue(new Error('launch intentionally stopped'));
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+		const host = await json(await app.request(`/v1/teams/${team.id}/web-hosts`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Team Cloudflare',
+				ownership: 'team_owned',
+				encryptedPayload: encryptedHostEnvelope(),
+			}),
+		}));
+
+		const launched = await app.request(`/v1/teams/${team.id}/projects/launch`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				slug: 'hosted-with-team-cloudflare',
+				name: 'Hosted With Team Cloudflare',
+				sourceKind: 'blank',
+				hostingMode: 'managed',
+				cloudflareHostMode: 'team_owned',
+				cloudflareHostId: host.payload.id,
+				targetEnvironments: ['staging', 'prod'],
+				cloudflareHostConfig: {
+					CLOUDFLARE_API_TOKEN: 'cf-secret-token',
+					CLOUDFLARE_ACCOUNT_ID: 'account-1',
+				},
+			}),
+		});
+		expect(launched.status).toBe(502);
+		const launchPayload = await json(launched);
+		expect(JSON.stringify(launchPayload)).not.toContain('cf-secret-token');
+		expect(launchSpy).toHaveBeenCalledWith(expect.objectContaining({
+			cloudflareHost: expect.objectContaining({
+				mode: 'team_owned',
+				hostId: host.payload.id,
+				targetEnvironments: ['staging', 'prod'],
+				config: expect.objectContaining({
+					CLOUDFLARE_API_TOKEN: 'cf-secret-token',
+					CLOUDFLARE_ACCOUNT_ID: 'account-1',
+				}),
+			}),
+		}));
+		const projects = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		const projectId = projects.payload.find((project: { slug: string }) => project.slug === 'hosted-with-team-cloudflare')?.id;
+		expect(projectId).toBeTruthy();
+
+		const details = await json(await app.request(`/v1/projects/${projectId}`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(details.payload.project.metadata.cloudflareHost.mode).toBe('team_owned');
+		expect(details.payload.project.metadata.cloudflareHost.hostId).toBe(host.payload.id);
+		expect(JSON.stringify(details)).not.toContain('cf-secret-token');
+	});
+
+	it('launch with TreeSeed managed Cloudflare host records paid hosting metadata', async () => {
+		await withEnv({
+			TREESEED_MANAGED_CLOUDFLARE_API_TOKEN: 'managed-token',
+			TREESEED_MANAGED_CLOUDFLARE_ACCOUNT_ID: 'managed-account',
+		}, async () => {
+			const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeCoopManagedLaunch').mockRejectedValue(new Error('launch intentionally stopped'));
+			const app = createTestApp();
+			const token = await authorizeApp(app);
+			const team = await createTeam(app, token);
+
+			const launched = await app.request(`/v1/teams/${team.id}/projects/launch`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					slug: 'hosted-with-treeseed-cloudflare',
+					name: 'Hosted With TreeSeed Cloudflare',
+					sourceKind: 'blank',
+					hostingMode: 'managed',
+					cloudflareHostMode: 'treeseed_managed',
+				}),
+			});
+			expect(launched.status).toBe(502);
+			expect(launchSpy).toHaveBeenCalledWith(expect.objectContaining({
+				cloudflareHost: expect.objectContaining({
+					mode: 'treeseed_managed',
+					config: expect.objectContaining({
+						CLOUDFLARE_API_TOKEN: 'managed-token',
+						CLOUDFLARE_ACCOUNT_ID: 'managed-account',
+					}),
+				}),
+			}));
+			const projects = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
+				headers: { authorization: `Bearer ${token}` },
+			}));
+			const projectId = projects.payload.find((project: { slug: string }) => project.slug === 'hosted-with-treeseed-cloudflare')?.id;
+			expect(projectId).toBeTruthy();
+			const details = await json(await app.request(`/v1/projects/${projectId}`, {
+				headers: { authorization: `Bearer ${token}` },
+			}));
+			expect(details.payload.project.metadata.cloudflareHost.mode).toBe('treeseed_managed');
+			expect(details.payload.project.metadata.cloudflareHost.billing.fee).toBe('treeseed_cloudflare_hosting');
+			expect(details.payload.entitlement.tier).toBe('paid_hosting');
+		});
+	});
+
+	it('launch with TreeSeed managed processing host passes Railway config and records paid hosting metadata', async () => {
+		await withEnv({
+			TREESEED_MANAGED_CLOUDFLARE_API_TOKEN: 'managed-token',
+			TREESEED_MANAGED_CLOUDFLARE_ACCOUNT_ID: 'managed-account',
+			TREESEED_MANAGED_RAILWAY_API_TOKEN: 'managed-railway-token',
+			TREESEED_MANAGED_RAILWAY_WORKSPACE: 'treeseed-processing',
+		}, async () => {
+			const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeCoopManagedLaunch').mockRejectedValue(new Error('launch intentionally stopped'));
+			const app = createTestApp();
+			const token = await authorizeApp(app);
+			const team = await createTeam(app, token);
+
+			const launched = await app.request(`/v1/teams/${team.id}/projects/launch`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					slug: 'hosted-with-treeseed-processing',
+					name: 'Hosted With TreeSeed Processing',
+					sourceKind: 'blank',
+					hostingMode: 'managed',
+					cloudflareHostMode: 'treeseed_managed',
+					processingHostMode: 'treeseed_managed',
+					processingHostId: 'treeseed-managed-processing',
+				}),
+			});
+			expect(launched.status).toBe(502);
+			expect(launchSpy).toHaveBeenCalledWith(expect.objectContaining({
+				processingHost: expect.objectContaining({
+					mode: 'treeseed_managed',
+					hostId: 'treeseed-managed-processing',
+					config: expect.objectContaining({
+						RAILWAY_API_TOKEN: 'managed-railway-token',
+						TREESEED_RAILWAY_WORKSPACE: 'treeseed-processing',
+						TREESEED_WORKER_POOL_SCALER: 'railway',
+					}),
+				}),
+			}));
+			const projects = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
+				headers: { authorization: `Bearer ${token}` },
+			}));
+			const projectId = projects.payload.find((project: { slug: string }) => project.slug === 'hosted-with-treeseed-processing')?.id;
+			const details = await json(await app.request(`/v1/projects/${projectId}`, {
+				headers: { authorization: `Bearer ${token}` },
+			}));
+			expect(details.payload.project.metadata.processingHost.mode).toBe('treeseed_managed');
+			expect(details.payload.project.metadata.processingHost.billing.fee).toBe('treeseed_processing_hosting');
+			expect(JSON.stringify(details)).not.toContain('managed-railway-token');
+		});
+	});
+
+	it('launch with TreeSeed managed Cloudflare host fails when operational credentials are missing', async () => {
+		await withEnv({
+			TREESEED_MANAGED_CLOUDFLARE_API_TOKEN: undefined,
+			TREESEED_MANAGED_CLOUDFLARE_ACCOUNT_ID: undefined,
+			CLOUDFLARE_API_TOKEN: undefined,
+			CLOUDFLARE_ACCOUNT_ID: undefined,
+		}, async () => {
+			vi.spyOn(process, 'cwd').mockReturnValue('/tmp/treeseed-missing-managed-host-config');
+			const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeCoopManagedLaunch').mockRejectedValue(new Error('launch should not run'));
+			const app = createTestApp();
+			const token = await authorizeApp(app);
+			const team = await createTeam(app, token);
+
+			const launched = await app.request(`/v1/teams/${team.id}/projects/launch`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					slug: 'hosted-with-missing-treeseed-cloudflare',
+					name: 'Hosted With Missing TreeSeed Cloudflare',
+					sourceKind: 'blank',
+					hostingMode: 'managed',
+					cloudflareHostMode: 'treeseed_managed',
+				}),
+			});
+			expect(launched.status).toBe(500);
+			const payload = await json(launched);
+			expect(payload.error).toBe('TreeSeed managed Cloudflare hosting is not configured.');
+			expect(payload.missing).toEqual(['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID']);
+			expect(launchSpy).not.toHaveBeenCalled();
+		});
 	});
 
 	it('routes remote inline dispatch through a hosted project api connection', async () => {

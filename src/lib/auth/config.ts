@@ -5,9 +5,13 @@ export const WEB_SESSION_COOKIE = 'ts_session';
 export const WEB_CSRF_COOKIE = 'ts_csrf';
 const DEFAULT_WEB_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 const DEFAULT_EMAIL_TOKEN_TTL_SECONDS = 60 * 60;
+const DEFAULT_LOCAL_SMTP_HOST = '127.0.0.1';
+const DEFAULT_LOCAL_SMTP_PORT = 1025;
+const DEFAULT_LOCAL_AUTH_EMAIL_FROM = 'Treeseed Market <auth@treeseed.local>';
 export const BETTER_AUTH_BASE_PATH = '/api/auth';
 const AUTH_MODES = new Set(['internal-first', 'internal-only', 'providers-only']);
 const INTERNAL_SIGNUP_MODES = new Set(['open', 'invite', 'admin']);
+const LOCAL_AUTH_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
 
 type RuntimeEnv = CloudflareRuntime['env'];
 
@@ -66,6 +70,14 @@ function normalizeUrl(value: string, fallback: string) {
 	}
 }
 
+function isLocalUrl(value: string) {
+	try {
+		return LOCAL_AUTH_HOSTNAMES.has(new URL(value).hostname);
+	} catch {
+		return false;
+	}
+}
+
 export function normalizeSiteBaseUrl(value: string, fallback = 'http://127.0.0.1:4321') {
 	const url = normalizeUrl(value, fallback);
 	const pathname = url.pathname.replace(/\/+$/u, '');
@@ -89,6 +101,12 @@ export function getSiteAuthConfig(context?: Pick<APIContext, 'locals'> & Partial
 	const requestOrigin = context?.url?.origin ?? '';
 	const configuredSiteBaseUrl = envValue('TREESEED_SITE_URL', env) || envValue('BETTER_AUTH_URL', env) || requestOrigin || 'http://127.0.0.1:4321';
 	const siteBaseUrl = normalizeSiteBaseUrl(configuredSiteBaseUrl);
+	const betterAuthBaseUrl = normalizeBetterAuthBaseUrl(envValue('BETTER_AUTH_URL', env) || siteBaseUrl);
+	const localAuthEmail = isLocalUrl(siteBaseUrl) || isLocalUrl(betterAuthBaseUrl);
+	const localMailpitHost = envValue('TREESEED_MAILPIT_SMTP_HOST', env) || DEFAULT_LOCAL_SMTP_HOST;
+	const localMailpitPort = parseIntEnv('TREESEED_MAILPIT_SMTP_PORT', DEFAULT_LOCAL_SMTP_PORT, env);
+	const authEmailFrom = firstEnvValue(env, 'TREESEED_AUTH_EMAIL_FROM', 'TREESEED_SMTP_FROM')
+		|| (localAuthEmail ? DEFAULT_LOCAL_AUTH_EMAIL_FROM : '');
 	return {
 		authMode,
 		internalAuthEnabled: authMode !== 'providers-only',
@@ -99,7 +117,7 @@ export function getSiteAuthConfig(context?: Pick<APIContext, 'locals'> & Partial
 		allowMemoryAuthDb: parseBooleanEnv('TREESEED_AUTH_ALLOW_MEMORY_DB', false, env),
 		betterAuthSecret: envValue('TREESEED_BETTER_AUTH_SECRET', env) || 'treeseed-local-better-auth-secret-minimum-32-characters',
 		siteBaseUrl,
-		betterAuthBaseUrl: normalizeBetterAuthBaseUrl(envValue('BETTER_AUTH_URL', env) || siteBaseUrl),
+		betterAuthBaseUrl,
 		apiServiceId: envValue('TREESEED_WEB_SERVICE_ID', env) || 'web',
 		apiServiceSecret: envValue('TREESEED_WEB_SERVICE_SECRET', env) || 'treeseed-web-service-dev-secret',
 		apiAssertionSecret: envValue('TREESEED_WEB_ASSERTION_SECRET', env) || envValue('TREESEED_API_WEB_ASSERTION_SECRET', env) || 'treeseed-web-assertion-dev-secret',
@@ -108,11 +126,11 @@ export function getSiteAuthConfig(context?: Pick<APIContext, 'locals'> & Partial
 		passwordResetTtlSeconds: parseIntEnv('TREESEED_AUTH_PASSWORD_RESET_TTL', DEFAULT_EMAIL_TOKEN_TTL_SECONDS, env),
 		emailVerificationTtlSeconds: parseIntEnv('TREESEED_AUTH_EMAIL_VERIFICATION_TTL', DEFAULT_EMAIL_TOKEN_TTL_SECONDS, env),
 		authEmail: {
-			host: envValue('TREESEED_SMTP_HOST', env),
-			port: parseIntEnv('TREESEED_SMTP_PORT', 465, env),
-			username: envValue('TREESEED_SMTP_USERNAME', env),
-			password: envValue('TREESEED_SMTP_PASSWORD', env),
-			from: firstEnvValue(env, 'TREESEED_AUTH_EMAIL_FROM', 'TREESEED_SMTP_FROM'),
+			host: localAuthEmail ? localMailpitHost : envValue('TREESEED_SMTP_HOST', env),
+			port: localAuthEmail ? localMailpitPort : parseIntEnv('TREESEED_SMTP_PORT', 465, env),
+			username: localAuthEmail ? '' : envValue('TREESEED_SMTP_USERNAME', env),
+			password: localAuthEmail ? '' : envValue('TREESEED_SMTP_PASSWORD', env),
+			from: authEmailFrom,
 			replyTo: firstEnvValue(env, 'TREESEED_AUTH_EMAIL_REPLY_TO', 'TREESEED_SMTP_REPLY_TO'),
 		},
 		providers: {

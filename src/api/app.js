@@ -17,6 +17,13 @@ import {
 } from '@treeseed/core/api';
 import { executeKnowledgeCoopManagedLaunch } from '@treeseed/core';
 import { MarketControlPlaneStore } from './store.js';
+import {
+	listTreeseedManagedHostsFromConfig,
+	managedCloudflareConfigMissing,
+	managedProcessingConfigMissing,
+	resolveTreeseedManagedCloudflareHostConfigFromConfig,
+	resolveTreeseedManagedProcessingHostConfigFromConfig,
+} from '../lib/market/managed-hosts.js';
 
 function jsonError(c, status, error, details = {}) {
 	return c.json({
@@ -63,6 +70,29 @@ function normalizeMarketProfile(value, fallbackTeamId = null) {
 		kind: value.kind === 'central' ? 'central' : 'specialized',
 		teamId: typeof value.teamId === 'string' && value.teamId.trim() ? value.teamId.trim() : fallbackTeamId,
 		alwaysAvailable: value.alwaysAvailable === true || value.kind === 'central',
+	};
+}
+
+function encryptedHostPayloadLooksValid(value) {
+	return Boolean(
+		value
+		&& typeof value === 'object'
+		&& typeof value.version === 'number'
+		&& typeof value.algorithm === 'string'
+		&& typeof value.kdf === 'object'
+		&& typeof value.salt === 'string'
+		&& typeof value.nonce === 'string'
+		&& typeof value.ciphertext === 'string',
+	);
+}
+
+function decryptedHostConfigSummary(value) {
+	if (!value || typeof value !== 'object') {
+		return { provided: false, keys: [] };
+	}
+	return {
+		provided: true,
+		keys: Object.keys(value).filter((key) => typeof key === 'string' && key.trim()).sort(),
 	};
 }
 
@@ -784,6 +814,200 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
+			app.get('/v1/teams/:teamId/web-hosts', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.listTeamWebHosts(c.req.param('teamId')),
+				});
+			});
+
+			app.get('/v1/teams/:teamId/hosts', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const teamId = c.req.param('teamId');
+				return c.json({
+					ok: true,
+					payload: [
+						...(await listTreeseedManagedHostsFromConfig(teamId, runtime)),
+						...(await store.listTeamWebHosts(teamId)),
+					],
+				});
+			});
+
+			app.post('/v1/teams/:teamId/web-hosts', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.name) {
+					return jsonError(c, 400, 'name is required.');
+				}
+				if ((body.ownership ?? 'team_owned') === 'team_owned' && !encryptedHostPayloadLooksValid(body.encryptedPayload)) {
+					return jsonError(c, 400, 'A valid encryptedPayload is required for team-owned hosts.');
+				}
+				try {
+					return c.json({
+						ok: true,
+						payload: await store.createTeamWebHost(c.req.param('teamId'), {
+							...body,
+							provider: typeof body.provider === 'string' ? body.provider : 'cloudflare',
+							createdById: access.principal.id,
+							updatedById: access.principal.id,
+						}),
+					}, { status: 201 });
+				} catch (error) {
+					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
+				}
+			});
+
+			app.post('/v1/teams/:teamId/hosts', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.name) {
+					return jsonError(c, 400, 'name is required.');
+				}
+				if ((body.ownership ?? 'team_owned') === 'team_owned' && !encryptedHostPayloadLooksValid(body.encryptedPayload)) {
+					return jsonError(c, 400, 'A valid encryptedPayload is required for team-owned hosts.');
+				}
+				try {
+					return c.json({
+						ok: true,
+						payload: await store.createTeamWebHost(c.req.param('teamId'), {
+							...body,
+							provider: typeof body.provider === 'string' ? body.provider : 'cloudflare',
+							createdById: access.principal.id,
+							updatedById: access.principal.id,
+						}),
+					}, { status: 201 });
+				} catch (error) {
+					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
+				}
+			});
+
+			app.put('/v1/teams/:teamId/web-hosts/:hostId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (body.encryptedPayload !== undefined && !encryptedHostPayloadLooksValid(body.encryptedPayload)) {
+					return jsonError(c, 400, 'encryptedPayload must be a valid encrypted host envelope.');
+				}
+				try {
+					const payload = await store.updateTeamWebHost(c.req.param('teamId'), c.req.param('hostId'), {
+						...body,
+						updatedById: access.principal.id,
+					});
+					if (!payload) {
+						return jsonError(c, 404, 'Unknown web host.');
+					}
+					return c.json({ ok: true, payload });
+				} catch (error) {
+					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
+				}
+			});
+
+			app.put('/v1/teams/:teamId/hosts/:hostId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (body.encryptedPayload !== undefined && !encryptedHostPayloadLooksValid(body.encryptedPayload)) {
+					return jsonError(c, 400, 'encryptedPayload must be a valid encrypted host envelope.');
+				}
+				try {
+					const payload = await store.updateTeamWebHost(c.req.param('teamId'), c.req.param('hostId'), {
+						...body,
+						updatedById: access.principal.id,
+					});
+					if (!payload) {
+						return jsonError(c, 404, 'Unknown host.');
+					}
+					return c.json({ ok: true, payload });
+				} catch (error) {
+					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
+				}
+			});
+
+			app.delete('/v1/teams/:teamId/web-hosts/:hostId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const result = await store.deleteTeamWebHost(c.req.param('teamId'), c.req.param('hostId'));
+				return c.json(result, result.ok ? 200 : result.error === 'in_use' ? 409 : 404);
+			});
+
+			app.delete('/v1/teams/:teamId/hosts/:hostId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const result = await store.deleteTeamWebHost(c.req.param('teamId'), c.req.param('hostId'));
+				return c.json(result, result.ok ? 200 : result.error === 'in_use' ? 409 : 404);
+			});
+
+			app.post('/v1/teams/:teamId/web-hosts/:hostId/validate', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const host = await store.getTeamWebHost(c.req.param('teamId'), c.req.param('hostId'));
+				if (!host) {
+					return jsonError(c, 404, 'Unknown web host.');
+				}
+				const body = await c.req.json().catch(() => ({}));
+				if (host.ownership === 'team_owned' && (!body.decryptedConfig || typeof body.decryptedConfig !== 'object')) {
+					return jsonError(c, 400, 'decryptedConfig is required to validate a team-owned host.');
+				}
+				const summary = decryptedHostConfigSummary(body.decryptedConfig);
+				const validated = await store.updateTeamWebHost(c.req.param('teamId'), c.req.param('hostId'), {
+					metadata: {
+						...(host.metadata ?? {}),
+						lastValidation: {
+							status: 'unchecked',
+							checkedAt: new Date().toISOString(),
+							receivedKeys: summary.keys,
+							mode: host.ownership,
+						},
+					},
+					updatedById: access.principal.id,
+				});
+				return c.json({
+					ok: true,
+					payload: {
+						host: validated,
+						validation: validated?.metadata?.lastValidation ?? null,
+					},
+				});
+			});
+
+			app.post('/v1/teams/:teamId/hosts/:hostId/validate', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const host = await store.getTeamWebHost(c.req.param('teamId'), c.req.param('hostId'));
+				if (!host) {
+					return jsonError(c, 404, 'Unknown host.');
+				}
+				const body = await c.req.json().catch(() => ({}));
+				if (host.ownership === 'team_owned' && (!body.decryptedConfig || typeof body.decryptedConfig !== 'object')) {
+					return jsonError(c, 400, 'decryptedConfig is required to validate a team-owned host.');
+				}
+				const summary = decryptedHostConfigSummary(body.decryptedConfig);
+				const validated = await store.updateTeamWebHost(c.req.param('teamId'), c.req.param('hostId'), {
+					metadata: {
+						...(host.metadata ?? {}),
+						lastValidation: {
+							status: 'unchecked',
+							checkedAt: new Date().toISOString(),
+							receivedKeys: summary.keys,
+							mode: host.ownership,
+						},
+					},
+					updatedById: access.principal.id,
+				});
+				return c.json({
+					ok: true,
+					payload: {
+						host: validated,
+						validation: validated?.metadata?.lastValidation ?? null,
+					},
+				});
+			});
+
 			app.get('/v1/projects', async (c) => {
 				const auth = await ensurePrincipal(c);
 				if (auth.response) return auth.response;
@@ -846,6 +1070,99 @@ export function createMarketApiApp(options = {}) {
 					return jsonError(c, 400, 'Live project launch currently supports managed hosting only. Use treeseed config --connect-market for hybrid pairing.');
 				}
 				const team = await store.getTeam(teamId);
+				const cloudflareHostMode = body.cloudflareHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.cloudflareHostMode === 'team_owned' ? 'team_owned' : null;
+				const cloudflareHostId = typeof body.cloudflareHostId === 'string' && body.cloudflareHostId.trim() ? body.cloudflareHostId.trim() : null;
+				const processingHostMode = body.processingHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.processingHostMode === 'team_owned' ? 'team_owned' : null;
+				const processingHostId = typeof body.processingHostId === 'string' && body.processingHostId.trim() ? body.processingHostId.trim() : null;
+				let cloudflareHost = null;
+				if (cloudflareHostMode === 'team_owned') {
+					if (!cloudflareHostId) {
+						return jsonError(c, 400, 'cloudflareHostId is required when cloudflareHostMode is team_owned.');
+					}
+					cloudflareHost = await store.getTeamWebHost(teamId, cloudflareHostId);
+					if (!cloudflareHost || cloudflareHost.provider !== 'cloudflare' || cloudflareHost.ownership !== 'team_owned') {
+						return jsonError(c, 400, 'Selected team-owned Cloudflare host is not available for this team.');
+					}
+					if (!body.cloudflareHostConfig || typeof body.cloudflareHostConfig !== 'object') {
+						return jsonError(c, 400, 'cloudflareHostConfig is required after unlocking a team-owned Cloudflare host.');
+					}
+				}
+				let processingHost = null;
+				if (processingHostMode === 'team_owned') {
+					if (!processingHostId) {
+						return jsonError(c, 400, 'processingHostId is required when processingHostMode is team_owned.');
+					}
+					processingHost = await store.getTeamWebHost(teamId, processingHostId);
+					const hostType = processingHost?.metadata?.hostType === 'agent' ? 'processing' : processingHost?.metadata?.hostType;
+					if (!processingHost || processingHost.provider !== 'railway' || processingHost.ownership !== 'team_owned' || hostType !== 'processing') {
+						return jsonError(c, 400, 'Selected team-owned Processing host is not available for this team.');
+					}
+					if (!body.processingHostConfig || typeof body.processingHostConfig !== 'object') {
+						return jsonError(c, 400, 'processingHostConfig is required after unlocking a team-owned Processing host.');
+					}
+				}
+				const cloudflareLaunchConfig = cloudflareHostMode === 'team_owned'
+					? body.cloudflareHostConfig
+					: cloudflareHostMode === 'treeseed_managed'
+						? await resolveTreeseedManagedCloudflareHostConfigFromConfig(runtime)
+						: null;
+				const processingLaunchConfig = processingHostMode === 'team_owned'
+					? body.processingHostConfig
+					: processingHostMode === 'treeseed_managed'
+						? await resolveTreeseedManagedProcessingHostConfigFromConfig(runtime)
+						: null;
+				if (cloudflareHostMode === 'treeseed_managed') {
+					const missingManagedConfig = managedCloudflareConfigMissing(cloudflareLaunchConfig);
+					if (missingManagedConfig.length > 0) {
+						return jsonError(c, 500, 'TreeSeed managed Cloudflare hosting is not configured.', {
+							missing: missingManagedConfig,
+						});
+					}
+				}
+				if (processingHostMode === 'treeseed_managed') {
+					const missingManagedConfig = managedProcessingConfigMissing(processingLaunchConfig);
+					if (missingManagedConfig.length > 0) {
+						return jsonError(c, 500, 'TreeSeed managed Processing hosting is not configured.', {
+							missing: missingManagedConfig,
+						});
+					}
+				}
+				const targetEnvironments = ['staging', 'prod'];
+				const cloudflareHostMetadata = cloudflareHostMode
+					? {
+						mode: cloudflareHostMode,
+						hostId: cloudflareHostId,
+						hostName: cloudflareHost?.name ?? (cloudflareHostMode === 'treeseed_managed' ? 'TreeSeed Web Host' : null),
+						ownership: cloudflareHost?.ownership ?? cloudflareHostMode,
+						targetEnvironments,
+						billing: cloudflareHostMode === 'treeseed_managed'
+							? {
+								fee: 'treeseed_cloudflare_hosting',
+								status: 'pending_activation',
+							}
+							: null,
+					}
+					: null;
+				const processingHostMetadata = processingHostMode
+					? {
+						mode: processingHostMode,
+						hostId: processingHostId,
+						hostName: processingHost?.name ?? (processingHostMode === 'treeseed_managed' ? 'TreeSeed Processing Host' : null),
+						ownership: processingHost?.ownership ?? processingHostMode,
+						provider: processingHost?.provider ?? 'railway',
+						targetEnvironments,
+						billing: processingHostMode === 'treeseed_managed'
+							? {
+								fee: 'treeseed_processing_hosting',
+								status: 'pending_activation',
+							}
+							: null,
+					}
+					: null;
+				const hostMetadata = {
+					...(cloudflareHostMetadata ? { cloudflareHost: cloudflareHostMetadata } : {}),
+					...(processingHostMetadata ? { processingHost: processingHostMetadata } : {}),
+				};
 				const details = await store.createProject(c.req.param('teamId'), {
 					id: typeof body.id === 'string' ? body.id : undefined,
 					slug: String(body.slug),
@@ -858,9 +1175,14 @@ export function createMarketApiApp(options = {}) {
 						enableDefaultAgents: body.enableDefaultAgents !== false,
 						launchMode: hostingMode,
 						launchPhase: 'queued',
+						...hostMetadata,
 						...(typeof body.metadata === 'object' && body.metadata ? body.metadata : {}),
 					},
-					entitlementTier: typeof body.entitlementTier === 'string' ? body.entitlementTier : 'free',
+					entitlementTier: typeof body.entitlementTier === 'string'
+						? body.entitlementTier
+						: cloudflareHostMode === 'treeseed_managed' || processingHostMode === 'treeseed_managed'
+							? 'paid_hosting'
+							: 'free',
 				});
 				await store.upsertProjectHosting(details.project.id, {
 					kind: hostingKind,
@@ -879,6 +1201,7 @@ export function createMarketApiApp(options = {}) {
 						sourceKind,
 						sourceRef,
 						launchPhase: 'queued',
+						...hostMetadata,
 					},
 				});
 				await store.upsertProjectConnection(details.project.id, {
@@ -893,6 +1216,7 @@ export function createMarketApiApp(options = {}) {
 						sourceKind,
 						sourceRef,
 						launchPhase: 'queued',
+						...hostMetadata,
 					},
 				});
 				for (const environment of ['local', 'staging', 'prod']) {
@@ -923,7 +1247,11 @@ export function createMarketApiApp(options = {}) {
 						sourceRef,
 						repoProvider,
 						repoVisibility,
-					},
+						cloudflareHostMode,
+						cloudflareHostId,
+						processingHostMode,
+						processingHostId,
+						},
 				});
 				const href = await projectAppHref(store, teamId, details.project.slug, 'overview');
 				const launchItemKey = `launch:${details.project.id}`;
@@ -950,6 +1278,22 @@ export function createMarketApiApp(options = {}) {
 						projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
 						contactEmail: typeof body.contactEmail === 'string' ? body.contactEmail : null,
 						enableDefaultAgents: body.enableDefaultAgents !== false,
+						cloudflareHost: cloudflareHostMode
+							? {
+								mode: cloudflareHostMode,
+								hostId: cloudflareHostId,
+								targetEnvironments,
+								config: cloudflareLaunchConfig,
+							}
+							: null,
+						processingHost: processingHostMode
+							? {
+								mode: processingHostMode,
+								hostId: processingHostId,
+								targetEnvironments,
+								config: processingLaunchConfig,
+							}
+							: null,
 					});
 
 					for (const phase of launch.phases) {
@@ -1007,15 +1351,16 @@ export function createMarketApiApp(options = {}) {
 						executionOwner: hostingMode === 'managed' ? 'project_api' : 'project_runner',
 						metadata: {
 							repoProvider,
-							repoVisibility: launch.repository.visibility,
-							publicSite: body.publicSite !== false,
-							sourceKind,
-							sourceRef,
-							launchPhase: 'completed',
-							lastSuccessfulPhase: 'runtime_connection',
-							repository: launch.repository,
-							workflows: launch.workflows,
-						},
+						repoVisibility: launch.repository.visibility,
+						publicSite: body.publicSite !== false,
+						sourceKind,
+						sourceRef,
+						launchPhase: 'completed',
+						lastSuccessfulPhase: 'runtime_connection',
+						...hostMetadata,
+						repository: launch.repository,
+						workflows: launch.workflows,
+					},
 					});
 					const connectionResult = await store.upsertProjectConnection(details.project.id, {
 						mode: hostingMode === 'managed' ? 'hosted' : hostingMode === 'hybrid' ? 'hybrid' : 'self_hosted',
@@ -1030,6 +1375,7 @@ export function createMarketApiApp(options = {}) {
 							sourceRef,
 							launchPhase: 'completed',
 							lastSuccessfulPhase: 'runtime_connection',
+							...hostMetadata,
 							repository: launch.repository,
 							workflows: launch.workflows,
 							templatePackage: {
@@ -1156,6 +1502,7 @@ export function createMarketApiApp(options = {}) {
 						launchJobId: launchJob.id,
 						launchPhase: 'failed',
 						lastSuccessfulPhase,
+						...hostMetadata,
 						launchFailure: {
 							code: launchFailureCode(error),
 							message,
@@ -1198,6 +1545,7 @@ export function createMarketApiApp(options = {}) {
 							sourceRef,
 							launchPhase: 'failed',
 							lastSuccessfulPhase,
+							...hostMetadata,
 							launchFailure: {
 								code: launchFailureCode(error),
 								message,
@@ -1217,6 +1565,7 @@ export function createMarketApiApp(options = {}) {
 							sourceRef,
 							launchPhase: 'failed',
 							lastSuccessfulPhase,
+							...hostMetadata,
 							launchFailure: {
 								code: launchFailureCode(error),
 								message,
