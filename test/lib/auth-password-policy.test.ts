@@ -64,6 +64,8 @@ describe('market auth password policy', () => {
 
 	it('uses the shared SMTP settings for auth email with auth sender overrides', () => {
 		return withEnv({
+			BETTER_AUTH_URL: 'https://treeseed.ai',
+			TREESEED_SITE_URL: 'https://treeseed.ai',
 			TREESEED_SMTP_USERNAME: 'smtp-user',
 			TREESEED_SMTP_PASSWORD: 'smtp-password',
 			TREESEED_SMTP_HOST: '127.0.0.1',
@@ -81,6 +83,32 @@ describe('market auth password policy', () => {
 			expect(config.authEmail.password).toBe('smtp-password');
 			expect(config.authEmail.from).toBe('Treeseed Auth <auth@example.com>');
 			expect(config.authEmail.replyTo).toBe('auth-support@example.com');
+		});
+	});
+
+	it('uses Mailpit SMTP defaults for local auth email even when hosted SMTP env vars are present', () => {
+		return withEnv({
+			BETTER_AUTH_URL: 'http://127.0.0.1:4321',
+			TREESEED_SITE_URL: undefined,
+			TREESEED_MAILPIT_SMTP_HOST: undefined,
+			TREESEED_MAILPIT_SMTP_PORT: undefined,
+			TREESEED_SMTP_USERNAME: 'hosted-user',
+			TREESEED_SMTP_PASSWORD: 'hosted-password',
+			TREESEED_SMTP_HOST: 'smtp.mailgun.org',
+			TREESEED_SMTP_PORT: '587',
+			TREESEED_SMTP_FROM: 'contact@example.com',
+			TREESEED_SMTP_REPLY_TO: 'support@example.com',
+			TREESEED_AUTH_EMAIL_FROM: undefined,
+			TREESEED_AUTH_EMAIL_REPLY_TO: undefined,
+		}, () => {
+			const config = getSiteAuthConfig();
+
+			expect(config.authEmail.host).toBe('127.0.0.1');
+			expect(config.authEmail.port).toBe(1025);
+			expect(config.authEmail.username).toBe('');
+			expect(config.authEmail.password).toBe('');
+			expect(config.authEmail.from).toBe('contact@example.com');
+			expect(config.authEmail.replyTo).toBe('support@example.com');
 		});
 	});
 

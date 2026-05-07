@@ -16,6 +16,7 @@ const migrationPaths = [
 	'../../migrations/0011_control_plane_reporting.sql',
 	'../../migrations/0012_knowledge_coop_views.sql',
 	'../../migrations/0013_better_auth_browser_accounts.sql',
+	'../../migrations/0014_team_web_hosts.sql',
 ];
 
 let cachedMigrationSql = null;
@@ -226,6 +227,28 @@ function serializeTeamMember(row, roles = []) {
 		updatedAt: row.updated_at,
 	};
 }
+
+function serializeTeamWebHost(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		provider: row.provider,
+		ownership: row.ownership,
+		name: row.name,
+		accountLabel: row.account_label,
+		allowedEnvironments: parseJson(row.allowed_environments_json, []),
+		status: row.status,
+		encryptedPayload: parseJson(row.encrypted_payload_json, null),
+		metadata: parseJson(row.metadata_json, {}),
+		createdById: row.created_by_id,
+		updatedById: row.updated_by_id,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+const SUPPORTED_TEAM_HOST_PROVIDERS = new Set(['cloudflare', 'railway']);
 
 function serializeTeamInvite(row) {
 	if (!row) return null;
@@ -1276,6 +1299,140 @@ export class MarketControlPlaneStore {
 			rolesByMembership.set(row.team_membership_id, uniqueStrings(existing));
 		}
 		return rows.map((row) => serializeTeamMember(row, rolesByMembership.get(row.id) ?? []));
+	}
+
+	async listTeamWebHosts(teamId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM team_web_hosts WHERE team_id = ? ORDER BY created_at ASC`,
+			[teamId],
+		);
+		return rows.map(serializeTeamWebHost);
+	}
+
+	async getTeamWebHost(teamId, hostId) {
+		await this.ensureInitialized();
+		const row = await this.first(
+			`SELECT * FROM team_web_hosts WHERE team_id = ? AND id = ? LIMIT 1`,
+			[teamId, hostId],
+		);
+		return serializeTeamWebHost(row);
+	}
+
+	async createTeamWebHost(teamId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		const provider = String(input.provider ?? 'cloudflare');
+		const ownership = String(input.ownership ?? 'team_owned');
+		const name = String(input.name ?? '').trim();
+		if (!name) {
+			throw new Error('name is required.');
+		}
+		if (!SUPPORTED_TEAM_HOST_PROVIDERS.has(provider)) {
+			throw new Error(`Unsupported host provider "${provider}".`);
+		}
+		if (!['team_owned', 'treeseed_managed'].includes(ownership)) {
+			throw new Error(`Unsupported web host ownership "${ownership}".`);
+		}
+		const encryptedPayload = ownership === 'team_owned' ? input.encryptedPayload ?? null : null;
+		if (ownership === 'team_owned' && (!encryptedPayload || typeof encryptedPayload !== 'object')) {
+			throw new Error('encryptedPayload is required for team-owned hosts.');
+		}
+		await this.run(
+			`INSERT INTO team_web_hosts (
+				id, team_id, provider, ownership, name, account_label, allowed_environments_json, status,
+				encrypted_payload_json, metadata_json, created_by_id, updated_by_id, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				teamId,
+				provider,
+				ownership,
+				name,
+				typeof input.accountLabel === 'string' && input.accountLabel.trim() ? input.accountLabel.trim() : null,
+				JSON.stringify(Array.isArray(input.allowedEnvironments) && input.allowedEnvironments.length > 0
+					? input.allowedEnvironments.map(String)
+					: ['staging', 'prod']),
+				typeof input.status === 'string' ? input.status : 'active',
+				encryptedPayload ? JSON.stringify(encryptedPayload) : null,
+				JSON.stringify(typeof input.metadata === 'object' && input.metadata ? input.metadata : {}),
+				typeof input.createdById === 'string' ? input.createdById : null,
+				typeof input.updatedById === 'string' ? input.updatedById : typeof input.createdById === 'string' ? input.createdById : null,
+				timestamp,
+				timestamp,
+			],
+		);
+		return this.getTeamWebHost(teamId, id);
+	}
+
+	async updateTeamWebHost(teamId, hostId, input) {
+		await this.ensureInitialized();
+		const existing = await this.getTeamWebHost(teamId, hostId);
+		if (!existing) return null;
+		const timestamp = isoNow();
+		const ownership = String(input.ownership ?? existing.ownership);
+		if (!['team_owned', 'treeseed_managed'].includes(ownership)) {
+			throw new Error(`Unsupported web host ownership "${ownership}".`);
+		}
+		const encryptedPayload = ownership === 'team_owned'
+			? input.encryptedPayload === undefined ? existing.encryptedPayload : input.encryptedPayload
+			: null;
+		if (ownership === 'team_owned' && (!encryptedPayload || typeof encryptedPayload !== 'object')) {
+			throw new Error('encryptedPayload is required for team-owned hosts.');
+		}
+		await this.run(
+			`UPDATE team_web_hosts
+			 SET ownership = ?, name = ?, account_label = ?, allowed_environments_json = ?, status = ?,
+			     encrypted_payload_json = ?, metadata_json = ?, updated_by_id = ?, updated_at = ?
+			 WHERE team_id = ? AND id = ?`,
+			[
+				ownership,
+				typeof input.name === 'string' && input.name.trim() ? input.name.trim() : existing.name,
+				input.accountLabel === undefined
+					? existing.accountLabel
+					: typeof input.accountLabel === 'string' && input.accountLabel.trim()
+						? input.accountLabel.trim()
+						: null,
+				JSON.stringify(Array.isArray(input.allowedEnvironments) ? input.allowedEnvironments.map(String) : existing.allowedEnvironments),
+				typeof input.status === 'string' ? input.status : existing.status,
+				encryptedPayload ? JSON.stringify(encryptedPayload) : null,
+				JSON.stringify(input.metadata === undefined ? existing.metadata : typeof input.metadata === 'object' && input.metadata ? input.metadata : {}),
+				typeof input.updatedById === 'string' ? input.updatedById : existing.updatedById,
+				timestamp,
+				teamId,
+				hostId,
+			],
+		);
+		return this.getTeamWebHost(teamId, hostId);
+	}
+
+	async listProjectsUsingTeamWebHost(teamId, hostId) {
+		const projects = await this.listTeamProjects(teamId);
+		return projects.filter((project) => {
+			const host = project.metadata?.cloudflareHost;
+			return host?.mode === 'team_owned' && host.hostId === hostId;
+		});
+	}
+
+	async deleteTeamWebHost(teamId, hostId) {
+		await this.ensureInitialized();
+		const existing = await this.getTeamWebHost(teamId, hostId);
+		if (!existing) return { ok: false, error: 'not_found' };
+		const projects = await this.listProjectsUsingTeamWebHost(teamId, hostId);
+		if (projects.length > 0) {
+			return {
+				ok: false,
+				error: 'in_use',
+				projects: projects.map((project) => ({
+					id: project.id,
+					slug: project.slug,
+					name: project.name,
+				})),
+			};
+		}
+		await this.run(`DELETE FROM team_web_hosts WHERE team_id = ? AND id = ?`, [teamId, hostId]);
+		return { ok: true, payload: existing };
 	}
 
 	async listTeamInvites(teamId) {

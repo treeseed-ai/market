@@ -1,9 +1,13 @@
 ---
 import KnowledgeCoopAppLayout from '../../../../layouts/KnowledgeCoopAppLayout.astro';
 import { loadTeamAppContext } from '../../../../lib/market/app-data.js';
+import { listTreeseedManagedHostsFromConfig } from '../../../../lib/market/managed-hosts.js';
 
 const section = Astro.params.section ?? 'home';
-const allowedSections = new Set(['home', 'inbox', 'members', 'products', 'settings']);
+if (section === 'web-hosts') {
+	return Astro.redirect(`/app/teams/${encodeURIComponent(Astro.params.teamSlug ?? '')}/hosts`);
+}
+const allowedSections = new Set(['home', 'inbox', 'members', 'products', 'hosts', 'settings']);
 if (!allowedSections.has(section)) {
 	Astro.response.status = 404;
 }
@@ -18,23 +22,53 @@ if (!context.team || !context.store) {
 	Astro.response.status = 404;
 }
 
-const [teamHome, inbox, members, products] = context.team && context.store
+const [teamHome, inbox, members, products, webHosts, teamProjects] = context.team && context.store
 	? await Promise.all([
 		context.store.getTeamHomeSummary(context.team.id, context.principal as any),
 		context.store.listTeamInboxItems(context.team.id, context.principal as any),
 		context.store.listTeamMembers(context.team.id),
 		context.store.listTeamProducts(context.team.id, context.principal as any),
+		context.store.listTeamWebHosts(context.team.id),
+		context.store.listTeamProjects(context.team.id),
 	])
-	: [null, [], [], []];
+	: [null, [], [], [], [], []];
+
+const webHostUsageById = new Map<string, any[]>();
+for (const project of teamProjects) {
+	for (const host of [project.metadata?.cloudflareHost, project.metadata?.processingHost]) {
+		if (host?.mode === 'team_owned' && typeof host.hostId === 'string' && host.hostId) {
+			const usage = webHostUsageById.get(host.hostId) ?? [];
+			usage.push(project);
+			webHostUsageById.set(host.hostId, usage);
+		}
+	}
+}
+
+function projectsUsingWebHost(hostId: string) {
+	return webHostUsageById.get(hostId) ?? [];
+}
+
+function hostTypeFor(host: any) {
+	return host?.metadata?.hostType === 'processing' || host?.metadata?.hostType === 'agent' || host?.provider === 'railway' ? 'processing' : 'web';
+}
 
 const sectionTitles = {
 	home: 'Team Home',
 	inbox: 'Inbox',
 	members: 'Team Members',
 	products: 'Team Products',
+	hosts: 'Hosts',
 	settings: 'Team Settings',
 };
 const currentSectionTitle = (sectionTitles as Record<string, string>)[section] ?? 'Team';
+const defaultHostName = `${context.team?.displayName ?? context.team?.name ?? 'Team'} host`;
+const treeseedManagedHosts = context.team
+	? await listTreeseedManagedHostsFromConfig(context.team.id, (Astro.locals as any).runtime ?? Astro.locals)
+	: [];
+const webHostsJson = JSON.stringify({
+	teamId: context.team?.id ?? null,
+	hosts: webHosts,
+}).replace(/</gu, '\\u003c');
 ---
 
 <KnowledgeCoopAppLayout
@@ -210,6 +244,213 @@ const currentSectionTitle = (sectionTitles as Record<string, string>)[section] ?
 		</section>
 	) : null}
 
+	{section === 'hosts' ? (
+		<section class="kc-grid-2">
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Hosts</p>
+						<h2>Team hosts</h2>
+						<p>Saved hosts keep provider deployment values encrypted with a team passphrase.</p>
+					</div>
+				</div>
+				<div class="kc-card-list" id="web-host-list">
+					{treeseedManagedHosts.map((host: any) => (
+						<article class="kc-card">
+							<div class="kc-panel__header">
+								<div>
+									<h2 style="font-size:1.05rem; margin:0;">{host.name}</h2>
+									<p>{host.metadata?.hostType === 'processing' ? 'Paid managed processing in the TreeSeed Railway workspace.' : 'Paid managed web hosting in the TreeSeed Cloudflare account.'}</p>
+								</div>
+								<span class="kc-status-pill" data-tone={host.status === 'active' ? 'info' : 'warning'}>{host.status === 'active' ? 'always available' : 'configuration required'}</span>
+							</div>
+							<div class="kc-card__meta">
+								<span>{host.ownership}</span>
+								<span>{host.metadata?.hostType}</span>
+								<span>{host.provider}</span>
+								<span>staging + prod</span>
+								<span>no passphrase</span>
+							</div>
+						</article>
+					))}
+					{webHosts.length > 0 ? webHosts.map((host: any) => {
+						const usedByProjects = projectsUsingWebHost(host.id);
+						const hostType = hostTypeFor(host);
+						return (
+							<article class="kc-card" data-host-card={host.id}>
+								<div class="kc-panel__header">
+									<div>
+										<h2 style="font-size:1.05rem; margin:0;">{host.name}</h2>
+										<p>{host.accountLabel ?? 'Web account'}</p>
+									</div>
+									<span class="kc-status-pill" data-tone={host.status === 'active' ? 'success' : 'warning'}>{host.status}</span>
+								</div>
+								<div class="kc-card__meta">
+									<span>{host.ownership}</span>
+									<span>{hostType}</span>
+									<span>{host.provider}</span>
+									<span>staging + prod</span>
+									<span>{host.metadata?.lastValidation?.status ?? 'not validated'}</span>
+									<span>{usedByProjects.length === 1 ? '1 project' : `${usedByProjects.length} projects`}</span>
+								</div>
+								{usedByProjects.length > 0 ? (
+									<div class="kc-host-usage">
+										<span class="kc-field__label">Projects using this host</span>
+										<div class="kc-badges" style="margin-top:0.45rem;">
+											{usedByProjects.map((project: any) => (
+												<a class="kc-badge" href={`/app/teams/${teamHandle}/projects/${project.slug}/settings`}>{project.name}</a>
+											))}
+										</div>
+										<span class="kc-field__help">Create a new host, then move these projects before deleting this configuration.</span>
+									</div>
+								) : null}
+								<div class="kc-host-actions">
+									<input class="kc-control" data-host-passphrase={host.id} type="password" placeholder="Passphrase" autocomplete="off" aria-label={`Passphrase for ${host.name}`} />
+									<button class="kc-button-secondary" type="button" data-host-validate={host.id}>Validate</button>
+									{usedByProjects.length === 0 ? (
+										<button class="kc-button-secondary" data-tone="danger" type="button" data-host-delete={host.id}>Delete</button>
+									) : null}
+								</div>
+							</article>
+						);
+					}) : <div class="kc-empty">No team-owned hosts have been saved yet.</div>}
+				</div>
+			</div>
+
+			<form class="kc-panel" id="web-host-create-form">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">New host</p>
+						<h2>Create Host</h2>
+						<p>Provider values are encrypted in this browser before they are saved. TreeSeed cannot recover the passphrase.</p>
+					</div>
+				</div>
+				<div class="kc-passphrase-warning">
+					<strong>Save this passphrase somewhere safe.</strong>
+					<span>If it is lost, this host cannot be unlocked. Create a new host with a new passphrase, enter the same provider information if needed, move affected projects to the new host, then delete the unused host.</span>
+				</div>
+				<div class="kc-list-item kc-field kc-field--full">
+					<span class="kc-field__label">Encryption strength</span>
+					<span class="kc-field__help">Host values are encrypted in the browser with libsodium `crypto_secretbox_easy`, which uses XSalsa20-Poly1305 authenticated encryption. The passphrase is stretched with Argon2id using a fresh salt, then every save gets a fresh nonce. TreeSeed stores only the versioned envelope, KDF parameters, salt, nonce, and ciphertext.</span>
+				</div>
+				<div class="kc-list kc-form-grid">
+					<label class="kc-list-item kc-field">
+						<span class="kc-field__label">Display name</span>
+						<input class="kc-control" name="name" required value={defaultHostName} />
+					</label>
+					<label class="kc-list-item kc-field">
+						<span class="kc-field__label">Account label</span>
+						<input class="kc-control" name="accountLabel" />
+					</label>
+					<label class="kc-list-item kc-field">
+						<span class="kc-field__label">Host type</span>
+						<select class="kc-control" name="hostType" required>
+							<option value="web">Web</option>
+							<option value="processing">Processing</option>
+						</select>
+						<span class="kc-field__help">Web hosts run public project surfaces. Processing hosts run project API, manager, workers, and scheduled jobs.</span>
+					</label>
+					<label class="kc-list-item kc-field">
+						<span class="kc-field__label">Hosting provider</span>
+						<select class="kc-control" name="provider" required>
+							<option value="cloudflare">Cloudflare</option>
+						</select>
+					</label>
+					<div class="kc-list-item kc-field kc-field--full" data-provider-panel="cloudflare">
+						<span class="kc-field__label">Web provider configuration</span>
+						<span class="kc-field__help">The Cloudflare adapter is the first supported web provider. These values are encrypted into this host entry and unlocked only for validation, launch, and secret sync operations.</span>
+					</div>
+					<label class="kc-list-item kc-field kc-field--full" data-provider-panel="cloudflare">
+						<span class="kc-field__label">API token</span>
+						<span class="kc-field__help">Use a scoped token for the account and zones this team will host from.</span>
+						<input class="kc-control" name="CLOUDFLARE_API_TOKEN" data-required-when-active type="password" autocomplete="off" />
+					</label>
+					<label class="kc-list-item kc-field kc-field--full" data-provider-panel="cloudflare">
+						<span class="kc-field__label">Account ID</span>
+						<span class="kc-field__help">The account where TreeSeed should create or update project web resources.</span>
+						<input class="kc-control" name="CLOUDFLARE_ACCOUNT_ID" data-required-when-active />
+					</label>
+					<div class="kc-list-item kc-field kc-field--full" data-provider-panel="cloudflare">
+						<span class="kc-field__label">What TreeSeed provisions</span>
+						<ul class="kc-field__help kc-help-list">
+							<li>Cloudflare Pages projects for production and staging deploys.</li>
+							<li>R2 content bucket and `TREESEED_CONTENT_BUCKET` binding.</li>
+							<li>D1 database, Worker/KV bindings, and agent queue plus dead-letter queue when selected project features need them.</li>
+							<li>Optional DNS records or custom domain attachment when the launched project uses Cloudflare-hosted zones.</li>
+						</ul>
+					</div>
+					<div class="kc-list-item kc-field kc-field--full" data-provider-panel="cloudflare">
+						<span class="kc-field__label">Token scope</span>
+						<ul class="kc-field__help kc-help-list">
+							<li>Account permissions: Cloudflare Pages Edit, Workers R2 Storage Edit, D1 Edit, Queues Edit, Workers Scripts Edit, and Workers KV Storage Edit.</li>
+							<li>Zone permissions: Zone Read and DNS Edit/Write for every zone TreeSeed may attach project domains to.</li>
+							<li>Restrict account resources to the account ID above and zone resources to the specific domains this team controls.</li>
+						</ul>
+					</div>
+					<div class="kc-list-item kc-field kc-field--full" data-provider-panel="cloudflare">
+						<span class="kc-field__label">Naming generated at launch</span>
+						<ul class="kc-field__help kc-help-list">
+							<li>Resource names start with the normalized project slug, such as `project-slug`.</li>
+							<li>Staging Pages defaults to `project-slug-staging`; production Pages defaults to `project-slug`.</li>
+							<li>Content storage defaults to `project-slug-content`; queues default to `project-slug-agent-work` and `project-slug-agent-work-dlq`.</li>
+							<li>Persistent environment resources add the target environment where Cloudflare requires separate staging and production resources.</li>
+						</ul>
+					</div>
+					<div class="kc-list-item kc-field kc-field--full" data-provider-panel="railway" hidden>
+						<span class="kc-field__label">Processing provider configuration</span>
+						<span class="kc-field__help">The Railway adapter is the first supported processing provider. These values are encrypted into this host entry and unlocked only for validation, launch, and secret sync operations.</span>
+					</div>
+					<label class="kc-list-item kc-field kc-field--full" data-provider-panel="railway" hidden>
+						<span class="kc-field__label">API token</span>
+						<span class="kc-field__help">Use a Railway user or workspace token that can create and manage projects, environments, services, variables, and deployments in the selected workspace.</span>
+						<input class="kc-control" name="RAILWAY_API_TOKEN" data-required-when-active type="password" autocomplete="off" disabled />
+					</label>
+					<label class="kc-list-item kc-field kc-field--full" data-provider-panel="railway" hidden>
+						<span class="kc-field__label">Workspace</span>
+						<span class="kc-field__help">Use the Railway workspace slug or name where TreeSeed should create each project's agent runtime.</span>
+						<input class="kc-control" name="TREESEED_RAILWAY_WORKSPACE" data-required-when-active disabled />
+					</label>
+					<div class="kc-list-item kc-field kc-field--full" data-provider-panel="railway" hidden>
+						<span class="kc-field__label">What TreeSeed provisions</span>
+						<ul class="kc-field__help kc-help-list">
+							<li>Railway project and staging/production environments for each launched TreeSeed project.</li>
+							<li>API, manager, scalable worker, workday start, and workday report services when selected project features need them.</li>
+							<li>Runtime secrets and variables needed by Railway services, synced during launch and repair operations.</li>
+							<li>Worker pool scaling configuration so the manager can adjust agent capacity.</li>
+						</ul>
+					</div>
+					<div class="kc-list-item kc-field kc-field--full" data-provider-panel="railway" hidden>
+						<span class="kc-field__label">Token scope</span>
+						<ul class="kc-field__help kc-help-list">
+							<li>Create and manage projects, environments, services, variables, deploys, and service settings in the selected Railway workspace.</li>
+							<li>Restrict the token to the workspace above when Railway allows scoped token creation for your account.</li>
+							<li>Do not enter project IDs, environment IDs, or service IDs here; TreeSeed records those after provisioning.</li>
+						</ul>
+					</div>
+					<div class="kc-list-item kc-field kc-field--full" data-provider-panel="railway" hidden>
+						<span class="kc-field__label">Naming generated at launch</span>
+						<ul class="kc-field__help kc-help-list">
+							<li>Railway projects and services start from the normalized TreeSeed project slug.</li>
+							<li>Staging and production environments are always created or matched for each project.</li>
+							<li>Service names follow the TreeSeed service role: `api`, `manager`, `worker`, `workday-start`, and `workday-report`.</li>
+							<li>Provisioned IDs are saved back as project state and GitHub environment variables, not requested up front.</li>
+						</ul>
+					</div>
+					<label class="kc-list-item kc-field">
+						<span class="kc-field__label">Host passphrase</span>
+						<span class="kc-field__help">This passphrase is required later for validation and project launch.</span>
+						<input class="kc-control" name="passphrase" required type="password" autocomplete="new-password" />
+					</label>
+				</div>
+				<div class="kc-inline-actions" style="margin-top: 1rem;">
+					<button class="kc-button" type="submit">Save encrypted host</button>
+					<span class="kc-subtle" id="web-host-status" role="status"></span>
+				</div>
+			</form>
+			<script is:inline type="application/json" id="web-hosts-data" set:html={webHostsJson}></script>
+		</section>
+	) : null}
+
 	{section === 'settings' ? (
 		<section class="kc-grid-2">
 			<div class="kc-panel">
@@ -241,3 +482,172 @@ const currentSectionTitle = (sectionTitles as Record<string, string>)[section] ?
 		</section>
 	) : null}
 </KnowledgeCoopAppLayout>
+
+<script>
+	import { decryptHostConfig, encryptHostConfig } from '../../../../lib/cloudflare-host-crypto.js';
+
+	const dataElement = document.getElementById('web-hosts-data');
+	const createForm = document.getElementById('web-host-create-form') as HTMLFormElement | null;
+	const statusElement = document.getElementById('web-host-status');
+	const hostTypeSelect = createForm?.elements.namedItem('hostType') as HTMLSelectElement | null;
+	const providerSelect = createForm?.elements.namedItem('provider') as HTMLSelectElement | null;
+	const data = dataElement?.textContent ? JSON.parse(dataElement.textContent) : null;
+	const teamId = data?.teamId;
+	const hosts = new Map((data?.hosts ?? []).map((host: any) => [host.id, host]));
+	const apiHeaders = { 'content-type': 'application/json' };
+	const supportedHostProviders = [
+		{ hostType: 'web', provider: 'cloudflare', label: 'Cloudflare' },
+		{ hostType: 'processing', provider: 'railway', label: 'Railway' },
+	];
+
+	function formString(form: FormData, key: string) {
+		return String(form.get(key) ?? '').trim();
+	}
+
+	function activeHostProvider() {
+		return providerSelect?.value || 'cloudflare';
+	}
+
+	function hostConfigKeys(provider: string) {
+		if (provider === 'railway') {
+			return [
+				'RAILWAY_API_TOKEN',
+				'TREESEED_RAILWAY_WORKSPACE',
+			];
+		}
+		return [
+			'CLOUDFLARE_API_TOKEN',
+			'CLOUDFLARE_ACCOUNT_ID',
+		];
+	}
+
+	function hostConfigFromForm(form: FormData, provider = activeHostProvider()) {
+		const keys = hostConfigKeys(provider);
+		const config = Object.fromEntries(
+			keys
+				.map((key) => [key, formString(form, key)])
+				.filter(([, value]) => value),
+		);
+		if (provider === 'railway') {
+			config.TREESEED_WORKER_POOL_SCALER = 'railway';
+		}
+		return config;
+	}
+
+	function refreshProviderControls() {
+		if (!hostTypeSelect || !providerSelect) return;
+		const hostType = hostTypeSelect.value || 'web';
+		const previousProvider = providerSelect.value;
+		providerSelect.replaceChildren();
+		const availableProviders = supportedHostProviders.filter((entry) => entry.hostType === hostType);
+		for (const option of availableProviders) {
+			providerSelect.append(new Option(option.label, option.provider));
+		}
+		if (availableProviders.some((option) => option.provider === previousProvider)) {
+			providerSelect.value = previousProvider;
+		} else if (availableProviders[0]) {
+			providerSelect.value = availableProviders[0].provider;
+		}
+		const provider = providerSelect.value || availableProviders[0]?.provider || '';
+		for (const panel of createForm?.querySelectorAll('[data-provider-panel]') ?? []) {
+			const active = (panel as HTMLElement).dataset.providerPanel === provider;
+			(panel as HTMLElement).hidden = !active;
+			(panel as HTMLElement).setAttribute('aria-hidden', active ? 'false' : 'true');
+			(panel as HTMLElement).dataset.providerActive = active ? 'true' : 'false';
+			for (const input of panel.querySelectorAll('input, select, textarea')) {
+				const control = input as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+				control.disabled = !active;
+				control.required = active && control.hasAttribute('data-required-when-active');
+			}
+		}
+	}
+
+	hostTypeSelect?.addEventListener('change', refreshProviderControls);
+	providerSelect?.addEventListener('change', refreshProviderControls);
+	refreshProviderControls();
+
+	function setStatus(message: string) {
+		if (statusElement) statusElement.textContent = message;
+	}
+
+	async function requestJson(url: string, init: RequestInit) {
+		const response = await fetch(url, init);
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			throw new Error(payload?.error ?? `Request failed with ${response.status}`);
+		}
+		return payload;
+	}
+
+	createForm?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		if (!teamId) return;
+		const form = new FormData(createForm);
+		const passphrase = formString(form, 'passphrase');
+		const hostType = formString(form, 'hostType') || 'web';
+		const provider = formString(form, 'provider') || 'cloudflare';
+		if (!((hostType === 'web' && provider === 'cloudflare') || (hostType === 'processing' && provider === 'railway'))) {
+			setStatus('This host provider is not supported yet.');
+			return;
+		}
+		setStatus('Encrypting host...');
+		try {
+			const hostConfig = hostConfigFromForm(form, provider);
+			const encryptedPayload = await encryptHostConfig(hostConfig, passphrase);
+			await requestJson(`/v1/teams/${encodeURIComponent(teamId)}/hosts`, {
+				method: 'POST',
+				headers: apiHeaders,
+				body: JSON.stringify({
+					name: formString(form, 'name'),
+					accountLabel: formString(form, 'accountLabel') || null,
+					provider,
+					ownership: 'team_owned',
+					allowedEnvironments: ['staging', 'prod'],
+					encryptedPayload,
+					metadata: { hostType, configuredKeys: Object.keys(hostConfig).sort() },
+				}),
+			});
+			setStatus('Host saved. Reloading...');
+			window.location.reload();
+		} catch (error) {
+			setStatus(error instanceof Error ? error.message : String(error));
+		}
+	});
+
+	for (const button of document.querySelectorAll('[data-host-validate]')) {
+		button.addEventListener('click', async () => {
+			const hostId = (button as HTMLElement).dataset.hostValidate ?? '';
+			const host: any = hosts.get(hostId);
+			const passphrase = (document.querySelector(`[data-host-passphrase="${CSS.escape(hostId)}"]`) as HTMLInputElement | null)?.value ?? '';
+			setStatus('Validating host...');
+			try {
+				const decryptedConfig = await decryptHostConfig(host.encryptedPayload, passphrase);
+				await requestJson(`/v1/teams/${encodeURIComponent(teamId)}/hosts/${encodeURIComponent(hostId)}/validate`, {
+					method: 'POST',
+					headers: apiHeaders,
+					body: JSON.stringify({ decryptedConfig }),
+				});
+				setStatus('Host validation recorded. Reloading...');
+				window.location.reload();
+			} catch (error) {
+				setStatus(error instanceof Error ? error.message : String(error));
+			}
+		});
+	}
+
+	for (const button of document.querySelectorAll('[data-host-delete]')) {
+		button.addEventListener('click', async () => {
+			const hostId = (button as HTMLElement).dataset.hostDelete ?? '';
+			if (!hostId || !window.confirm('Delete this host?')) return;
+			setStatus('Deleting host...');
+			try {
+				await requestJson(`/v1/teams/${encodeURIComponent(teamId)}/hosts/${encodeURIComponent(hostId)}`, {
+					method: 'DELETE',
+				});
+				window.location.reload();
+			} catch (error) {
+				setStatus(error instanceof Error ? error.message : String(error));
+			}
+		});
+	}
+</script>
