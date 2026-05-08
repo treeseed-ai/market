@@ -33,6 +33,11 @@ const webHostsMigrationPathCandidates = [
 	resolve(packageRoot, '../migrations/0014_team_web_hosts.sql'),
 ];
 const webHostsMigrationPath = webHostsMigrationPathCandidates.find((candidate) => existsSync(candidate));
+const capacityMigrationPathCandidates = [
+	resolve(packageRoot, 'migrations/0018_capacity_providers.sql'),
+	resolve(packageRoot, '../migrations/0018_capacity_providers.sql'),
+];
+const capacityMigrationPath = capacityMigrationPathCandidates.find((candidate) => existsSync(candidate));
 const sqliteModule = await import('node:sqlite').catch(() => null);
 const DatabaseSyncCtor = sqliteModule?.DatabaseSync ?? null;
 const DatabaseSync = DatabaseSyncCtor as NonNullable<typeof DatabaseSyncCtor>;
@@ -42,8 +47,9 @@ const resolvedMarketMigrationPath = marketMigrationPath as string;
 const resolvedCatalogMigrationPath = catalogMigrationPath as string;
 const resolvedTopologyMigrationPath = topologyMigrationPath as string;
 const resolvedWebHostsMigrationPath = webHostsMigrationPath as string;
+const resolvedCapacityMigrationPath = capacityMigrationPath as string;
 
-if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !webHostsMigrationPath) {
+if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !webHostsMigrationPath || !capacityMigrationPath) {
 	throw new Error('Unable to resolve required market migration fixtures.');
 }
 
@@ -112,6 +118,7 @@ class TestD1Database implements D1DatabaseLike {
 		this.db.exec(readFileSync(resolvedCatalogMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedTopologyMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedWebHostsMigrationPath, 'utf8'));
+		this.db.exec(readFileSync(resolvedCapacityMigrationPath, 'utf8'));
 	}
 
 	prepare(query: string) {
@@ -2169,5 +2176,76 @@ runtimeDescribe('market api', () => {
 			},
 		}));
 		expect(inbox.payload.some((entry: { kind: string; title: string }) => entry.kind === 'launch_failure' && entry.title.includes('Failed Launch'))).toBe(true);
+	});
+
+	it('manages capacity providers, lanes, grants, and project plans', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { team, project } = await createTeamAndProject(app, token, {
+			slug: 'capacity-project',
+			name: 'Capacity Project',
+		});
+
+		const providerResponse = await app.request(`/v1/teams/${team.id}/capacity-providers`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'OpenRouter Pool',
+				provider: 'openrouter',
+				kind: 'team_owned',
+				billingScope: 'team',
+				dailyCreditBudget: 500,
+				monthlyCreditBudget: 5000,
+			}),
+		});
+		expect(providerResponse.status).toBe(201);
+		const provider = (await json(providerResponse)).payload;
+
+		const laneResponse = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/lanes`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Cheap summaries',
+				businessModel: 'token_metered',
+				unit: 'token_usd',
+				scarcityLevel: 'low',
+				modelClass: 'small',
+			}),
+		});
+		expect(laneResponse.status).toBe(201);
+		const lane = (await json(laneResponse)).payload;
+
+		const grantResponse = await app.request(`/v1/teams/${team.id}/capacity-grants`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				capacityProviderId: provider.id,
+				laneId: lane.id,
+				grantScope: 'project',
+				projectId: project.id,
+				environment: 'staging',
+				dailyCreditLimit: 120,
+				dailyUsdLimit: 2,
+			}),
+		});
+		expect(grantResponse.status).toBe(201);
+
+		const plan = await json(await app.request(`/v1/projects/${project.id}/capacity-plan?environment=staging`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(plan.payload.providers[0]).toMatchObject({ id: provider.id, provider: 'openrouter' });
+		expect(plan.payload.lanes[0]).toMatchObject({ id: lane.id, businessModel: 'token_metered' });
+		expect(plan.payload.remaining.dailyCredits).toBe(120);
 	});
 });

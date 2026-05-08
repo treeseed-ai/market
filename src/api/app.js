@@ -1008,6 +1008,117 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
+			app.get('/v1/teams/:teamId/capacity-providers', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const teamId = c.req.param('teamId');
+				const providers = await store.listTeamCapacityProviders(teamId);
+				const payload = await Promise.all(providers.map(async (provider) => ({
+					...provider,
+					hosts: await store.listCapacityProviderHosts(teamId, provider.id),
+					lanes: await store.listCapacityProviderLanes(teamId, provider.id),
+				})));
+				return c.json({ ok: true, payload });
+			});
+
+			app.post('/v1/teams/:teamId/capacity-providers', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.name || !body.provider) return jsonError(c, 400, 'name and provider are required.');
+				const provider = await store.upsertCapacityProvider(c.req.param('teamId'), body);
+				for (const host of Array.isArray(body.hosts) ? body.hosts : []) {
+					if (host && typeof host === 'object' && typeof host.hostId === 'string' && typeof host.role === 'string') {
+						await store.upsertCapacityProviderHost(c.req.param('teamId'), provider.id, host);
+					}
+				}
+				return c.json({ ok: true, payload: provider }, { status: 201 });
+			});
+
+			app.patch('/v1/teams/:teamId/capacity-providers/:providerId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const existing = await store.getCapacityProvider(c.req.param('teamId'), c.req.param('providerId'));
+				if (!existing) return jsonError(c, 404, 'Unknown capacity provider.');
+				const body = await c.req.json().catch(() => ({}));
+				return c.json({
+					ok: true,
+					payload: await store.upsertCapacityProvider(c.req.param('teamId'), {
+						...existing,
+						...body,
+						id: c.req.param('providerId'),
+					}),
+				});
+			});
+
+			app.get('/v1/teams/:teamId/capacity-providers/:providerId/lanes', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({ ok: true, payload: await store.listCapacityProviderLanes(c.req.param('teamId'), c.req.param('providerId')) });
+			});
+
+			app.post('/v1/teams/:teamId/capacity-providers/:providerId/lanes', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.name) return jsonError(c, 400, 'name is required.');
+				const lane = await store.upsertCapacityProviderLane(c.req.param('teamId'), c.req.param('providerId'), body);
+				return lane ? c.json({ ok: true, payload: lane }, { status: 201 }) : jsonError(c, 404, 'Unknown capacity provider.');
+			});
+
+			app.patch('/v1/teams/:teamId/capacity-providers/:providerId/lanes/:laneId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const lane = await store.upsertCapacityProviderLane(c.req.param('teamId'), c.req.param('providerId'), {
+					...body,
+					id: c.req.param('laneId'),
+					name: typeof body.name === 'string' ? body.name : 'Capacity Lane',
+				});
+				return lane ? c.json({ ok: true, payload: lane }) : jsonError(c, 404, 'Unknown capacity provider.');
+			});
+
+			app.get('/v1/teams/:teamId/capacity-grants', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.listCapacityGrants(c.req.param('teamId'), {
+						projectId: typeof c.req.query('projectId') === 'string' ? c.req.query('projectId') : null,
+						providerId: typeof c.req.query('providerId') === 'string' ? c.req.query('providerId') : null,
+					}),
+				});
+			});
+
+			app.post('/v1/teams/:teamId/capacity-grants', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.capacityProviderId) return jsonError(c, 400, 'capacityProviderId is required.');
+				return c.json({
+					ok: true,
+					payload: await store.upsertCapacityGrant(c.req.param('teamId'), {
+						...body,
+						teamId: typeof body.teamId === 'string' ? body.teamId : c.req.param('teamId'),
+					}),
+				}, { status: 201 });
+			});
+
+			app.patch('/v1/teams/:teamId/capacity-grants/:grantId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.capacityProviderId) return jsonError(c, 400, 'capacityProviderId is required.');
+				return c.json({
+					ok: true,
+					payload: await store.upsertCapacityGrant(c.req.param('teamId'), {
+						...body,
+						id: c.req.param('grantId'),
+						teamId: typeof body.teamId === 'string' ? body.teamId : c.req.param('teamId'),
+					}),
+				});
+			});
+
 			app.get('/v1/projects', async (c) => {
 				const auth = await ensurePrincipal(c);
 				if (auth.response) return auth.response;
@@ -2431,6 +2542,32 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
+			app.post('/v1/approval-requests/:approvalRequestId/decide', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const request = await store.getApprovalRequest(c.req.param('approvalRequestId'));
+				if (!request) {
+					return jsonError(c, 404, 'Unknown approval request.');
+				}
+				const access = await requireProjectAccess(c, store, request.projectId, 'projects:manage:team');
+				if (access.response) return access.response;
+				if (request.state !== 'pending') {
+					return jsonError(c, 409, 'This approval request is not pending.', { state: request.state });
+				}
+				const body = await c.req.json().catch(() => ({}));
+				const decided = await store.decideApprovalRequest(request.id, {
+					state: body.state === 'rejected' ? 'rejected' : 'approved',
+					decidedByType: c.get('actorType') === 'service' ? 'service' : 'user',
+					decidedById: access.principal.id,
+					decision: typeof body.decision === 'object' && body.decision ? body.decision : {
+						optionId: typeof body.optionId === 'string' ? body.optionId : null,
+						note: typeof body.note === 'string' ? body.note : null,
+					},
+				});
+				await store.deleteTeamInboxItemsByItemKey(request.teamId, request.id);
+				return c.json({ ok: true, payload: decided });
+			});
+
 			app.get('/v1/jobs/:jobId/events', async (c) => {
 				const auth = await ensurePrincipal(c);
 				if (auth.response) return auth.response;
@@ -2648,6 +2785,148 @@ export function createMarketApiApp(options = {}) {
 						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
 					}),
 				});
+			});
+
+			app.get('/v1/projects/:projectId/capacity-plan', async (c) => {
+				const token = bearerTokenFromRequest(c.req.raw);
+				const runner = token ? await store.authenticateRunner(c.req.param('projectId'), token) : null;
+				if (!runner) {
+					const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+					if (access.response) return access.response;
+				}
+				const environment = typeof c.req.query('environment') === 'string' ? c.req.query('environment') : 'staging';
+				const payload = await store.getProjectCapacityPlan(c.req.param('projectId'), environment);
+				return payload ? c.json({ ok: true, payload }) : jsonError(c, 404, 'Unknown project.');
+			});
+
+			app.post('/v1/projects/:projectId/runner/capacity/estimates', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const body = await c.req.json().catch(() => ({}));
+				const inputs = Array.isArray(body.estimates) ? body.estimates : [body];
+				const payload = [];
+				for (const input of inputs) {
+					if (!input?.taskSignature || !input?.estimatePhase || !input?.confidence) {
+						return jsonError(c, 400, 'taskSignature, estimatePhase, and confidence are required.');
+					}
+					payload.push(await store.createTaskEstimate({
+						...input,
+						projectId: c.req.param('projectId'),
+					}));
+				}
+				return c.json({ ok: true, payload: Array.isArray(body.estimates) ? payload : payload[0] }, { status: 201 });
+			});
+
+			app.post('/v1/projects/:projectId/runner/capacity/reservations', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const project = await store.getProject(c.req.param('projectId'));
+				if (!project) return jsonError(c, 404, 'Unknown project.');
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.capacityProviderId || !body.laneId || !Number.isFinite(Number(body.reservedCredits))) {
+					return jsonError(c, 400, 'capacityProviderId, laneId, and reservedCredits are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.createCapacityReservation({
+						...body,
+						teamId: typeof body.teamId === 'string' ? body.teamId : project.teamId,
+						projectId: c.req.param('projectId'),
+					}),
+				}, { status: 201 });
+			});
+
+			app.post('/v1/projects/:projectId/runner/capacity/usage', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const project = await store.getProject(c.req.param('projectId'));
+				if (!project) return jsonError(c, 404, 'Unknown project.');
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.capacityProviderId || !Number.isFinite(Number(body.credits))) {
+					return jsonError(c, 400, 'capacityProviderId and credits are required.');
+				}
+				const entry = await store.recordCapacityUsage({
+					...body,
+					teamId: typeof body.teamId === 'string' ? body.teamId : project.teamId,
+					projectId: c.req.param('projectId'),
+				});
+				if (body.workDayId && (body.phase ?? 'consume') === 'consume') {
+					await store.recordProjectTaskCredits(c.req.param('projectId'), {
+						workDayId: String(body.workDayId),
+						taskId: typeof body.taskId === 'string' ? body.taskId : null,
+						phase: 'consume',
+						credits: Number(body.credits),
+						metadata: {
+							capacityProviderId: body.capacityProviderId,
+							laneId: body.laneId ?? null,
+							reservationId: body.reservationId ?? null,
+							providerUnits: body.providerUnits ?? null,
+							usd: body.usd ?? null,
+						},
+					});
+				}
+				let usageActual = null;
+				if (body.usageActual && typeof body.usageActual === 'object') {
+					usageActual = await store.createTaskUsageActual({
+						...body.usageActual,
+						projectId: c.req.param('projectId'),
+						taskId: body.usageActual.taskId ?? body.taskId ?? null,
+						workDayId: body.usageActual.workDayId ?? body.workDayId ?? null,
+						capacityProviderId: body.usageActual.capacityProviderId ?? body.capacityProviderId,
+						laneId: body.usageActual.laneId ?? body.laneId ?? null,
+					});
+				}
+				return c.json({ ok: true, payload: { entry, usageActual } }, { status: 201 });
+			});
+
+			app.post('/v1/projects/:projectId/runner/capacity/routing-decisions', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.selectedProviderId || !body.selectedLaneId || !body.reason) {
+					return jsonError(c, 400, 'selectedProviderId, selectedLaneId, and reason are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.createCapacityRoutingDecision({
+						...body,
+						projectId: c.req.param('projectId'),
+					}),
+				}, { status: 201 });
+			});
+
+			app.post('/v1/projects/:projectId/runner/approval-requests', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const project = await store.getProject(c.req.param('projectId'));
+				if (!project) return jsonError(c, 404, 'Unknown project.');
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.kind || !body.title || !body.summary) {
+					return jsonError(c, 400, 'kind, title, and summary are required.');
+				}
+				const request = await store.createApprovalRequest({
+					...body,
+					teamId: typeof body.teamId === 'string' ? body.teamId : project.teamId,
+					projectId: c.req.param('projectId'),
+					requestedByType: typeof body.requestedByType === 'string' ? body.requestedByType : 'worker',
+				});
+				await store.upsertTeamInboxItem(request.teamId, {
+					id: `approval-request:${request.id}`,
+					projectId: request.projectId,
+					kind: 'approval',
+					state: 'waiting_for_approval',
+					title: request.title,
+					summary: request.summary,
+					href: await projectAppHref(store, request.teamId, project.slug, 'workdays'),
+					itemKey: request.id,
+					metadata: {
+						approvalRequestId: request.id,
+						approvalKind: request.kind,
+						workDayId: request.workDayId,
+						taskId: request.taskId,
+					},
+				});
+				return c.json({ ok: true, payload: request }, { status: 201 });
 			});
 
 			app.get('/v1/projects/:projectId/workdays', async (c) => {
