@@ -91,7 +91,7 @@ Managed executables:
 - On this Linux x64 workspace, current tool discovery usually reports `gh` at `/home/adrian/.cache/treeseed/tools/gh/2.90.0/linux-x64/bin/gh`, `ghConfigDir` at `/home/adrian/.cache/treeseed/tools/gh-config`, npm-backed Wrangler at `node node_modules/wrangler/bin/wrangler.js`, and npm-backed Railway at `node node_modules/@railway/cli/bin/railway.js`; still prefer the live JSON over hard-coding these paths.
 - Npm-backed Treeseed tools such as Wrangler, Railway, GitHub Copilot, and the Copilot language server resolve through the local package graph. Prefer Treeseed commands that resolve these paths for you; when scripting directly, read the tool's `invocation` object and use `node <binaryPath> ...` only when the invocation reports `mode: "node"`.
 - Use the Treeseed provider wrappers when a tool needs decrypted machine configuration values. `npx trsd gh`, `npx trsd railway`, and `npx trsd wrangler` load the selected Treeseed environment scope, inject unencrypted provider credentials into the child process environment, resolve the managed executable, and then forward arguments to the real CLI.
-- Provider wrappers default to `--environment staging`. Pass `--environment local`, `--environment staging`, or `--environment prod` before the forwarded command when you need a specific scope. Put target CLI flags after `--`, for example `npx trsd railway --environment staging -- status`, `npx trsd railway --environment staging -- whoami`, `npx trsd gh --environment staging -- run view <run-id> --repo <owner/repo> --log-failed`, and `npx trsd wrangler --environment staging -- whoami`.
+- Provider wrappers default to `--environment staging`. Pass `--environment local`, `--environment staging`, or `--environment prod` before the forwarded command when you need a specific scope. The Railway wrapper also selects the matching Railway environment (`staging` or `production`) before forwarding the command, so `--environment prod` does not accidentally inspect the locally linked staging environment. Put target CLI flags after `--`, for example `npx trsd railway --environment staging -- status`, `npx trsd railway --environment prod -- status`, `npx trsd railway --environment staging -- whoami`, `npx trsd gh --environment staging -- run view <run-id> --repo <owner/repo> --log-failed`, and `npx trsd wrangler --environment staging -- whoami`.
 - Do not print or echo wrapper environments. The wrappers intentionally pass decrypted values such as `GH_TOKEN`, `RAILWAY_API_TOKEN`, and `CLOUDFLARE_API_TOKEN` only to the child process so provider CLIs can authenticate without exposing secrets in shell history or logs.
 
 Railway worker-runner volumes:
@@ -108,8 +108,8 @@ For agents and automation:
 
 - Start with `npx trsd status --json` to inspect branch role, dirty state, locks, package state, and next safe actions.
 - Use `npx trsd switch <task-branch> --json`; when the result includes `payload.worktreePath`, run all future commands from that worktree path.
-- Use `npx trsd save --json` for checkpoints. Save is optimized for fast local iteration by default.
-- Use `npx trsd stage "message" --json` when the task is ready for staging. Stage waits for required hosted CI/CD gates before cleanup.
+- Use `npx trsd save --json` for checkpoints. Save is optimized for fast local iteration by default. Add `--verify-deployed-resources` on staging or production branches when the checkpoint should wait for hosted deploy checks that verify provider resources.
+- Use `npx trsd stage "message" --json` when the task is ready for staging. Stage waits for required hosted CI/CD gates before cleanup; add `--verify-deployed-resources` when the staging promotion must force deployed resource verification even if another option would skip waiting.
 - Use `npx trsd close "reason" --json` when abandoning a task. Close archives the branch and cleans up managed worktrees.
 - Use `npx trsd recover --json`, `npx trsd recover --prune-stale --json`, and `npx trsd resume <run-id> --json` after interrupted workflow commands.
 
@@ -122,6 +122,7 @@ For humans:
 For releases:
 
 - Release only after staging is green.
+- Release waits for production CI/CD and the deployment monitor must verify managed provider resources before returning success.
 - Use `npx trsd release --patch --json`, `npx trsd release --minor --json`, or `npx trsd release --major --json`.
 - Release waits required hosted package and market workflows and reports GitHub run metadata.
 
