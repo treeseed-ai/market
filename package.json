@@ -64,7 +64,7 @@
   },
   "dependencies": {
     "@react-email/render": "^2.0.8",
-    "@treeseed/cli": "0.6.45",
+    "@treeseed/cli": "^0.6.46-dev.staging.20260508T202431Z",
     "@treeseed/core": "0.6.48",
     "@treeseed/sdk": "0.6.49",
     "better-auth": "^1.6.2",
