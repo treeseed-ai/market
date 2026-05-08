@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.40] - 2026-05-08
+
+### Dependencies
+
+- build(deps): sync integrated package updates (da2426c425ff)
+- Release @treeseed/market 0.3.40.
+- Release package @treeseed/cli: 0.6.43.
+- Release package @treeseed/core: 0.6.46.
+- Release package @treeseed/sdk: 0.6.47.
+
 ## [0.3.39] - 2026-05-08
 
 ### Dependencies
