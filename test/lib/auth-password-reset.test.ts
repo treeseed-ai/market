@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getSiteAuthConfig } from '../../src/lib/auth/config';
 import { requestPasswordResetEmail } from '../../src/lib/auth/password-reset';
 
@@ -210,19 +210,24 @@ describe('password reset email flow', () => {
 	});
 
 	it('cleans up the reset token when email delivery fails', async () => {
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const { db, verifications } = createFakeDb([{ id: 'user-1', email: 'user@example.com' }]);
 
-		const result = await requestPasswordResetEmail(contextWithDb(db), {
-			email: 'user@example.com',
-			redirectTo: 'https://treeseed-market-staging-479e4625.treeseed.ai/auth/reset-password?returnTo=%2Fapp%2F',
-		}, {
-			tokenFactory: () => 'fixed-token',
-			sendEmail: async () => {
-				throw new Error('SMTP refused the message');
-			},
-		});
+		try {
+			const result = await requestPasswordResetEmail(contextWithDb(db), {
+				email: 'user@example.com',
+				redirectTo: 'https://treeseed-market-staging-479e4625.treeseed.ai/auth/reset-password?returnTo=%2Fapp%2F',
+			}, {
+				tokenFactory: () => 'fixed-token',
+				sendEmail: async () => {
+					throw new Error('SMTP refused the message');
+				},
+			});
 
-		expect(result.ok).toBe(false);
-		expect(verifications).toEqual([]);
+			expect(result.ok).toBe(false);
+			expect(verifications).toEqual([]);
+		} finally {
+			consoleError.mockRestore();
+		}
 	});
 });

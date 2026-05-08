@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { redirectAuthenticatedToApp, submitBetterAuthEmailFlow } from '../../src/lib/auth/flow';
 
 function redirect(path: string, status: 300 | 301 | 302 | 303 | 304 | 307 | 308 = 302) {
@@ -45,6 +45,7 @@ describe('market auth page flow', () => {
 						TREESEED_AUTH_ALLOW_MEMORY_DB: 'true',
 						TREESEED_AUTH_MODE: 'internal-first',
 						TREESEED_AUTH_INTERNAL_SIGNUP: 'open',
+						TREESEED_AUTH_EMAIL_VERIFICATION_ENABLED: 'false',
 					},
 				},
 			},
@@ -71,35 +72,40 @@ describe('market auth page flow', () => {
 	});
 
 	it('renders hosted sign-in failures instead of surfacing a not-found response', async () => {
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const origin = 'https://treeseed-market-staging-479e4625.treeseed.ai';
-		const result = await submitBetterAuthEmailFlow({
-			locals: {
-				runtime: {
-					env: {
-						TREESEED_AUTH_ALLOW_MEMORY_DB: 'true',
-						TREESEED_AUTH_MODE: 'internal-first',
+		try {
+			const result = await submitBetterAuthEmailFlow({
+				locals: {
+					runtime: {
+						env: {
+							TREESEED_AUTH_ALLOW_MEMORY_DB: 'true',
+							TREESEED_AUTH_MODE: 'internal-first',
+						},
 					},
 				},
-			},
-			url: new URL(`${origin}/auth/sign-in?returnTo=%2Fapp%2F`),
-			request: new Request(`${origin}/auth/sign-in?returnTo=%2Fapp%2F`, {
-				method: 'POST',
-				headers: {
-					origin,
-					'content-type': 'application/x-www-form-urlencoded',
-				},
-			}),
-			cookies: {},
-		} as any, 'sign-in/email', {
-			email: 'missing-user@example.com',
-			password: 'WrongPassword1!',
-			rememberMe: true,
-		});
+				url: new URL(`${origin}/auth/sign-in?returnTo=%2Fapp%2F`),
+				request: new Request(`${origin}/auth/sign-in?returnTo=%2Fapp%2F`, {
+					method: 'POST',
+					headers: {
+						origin,
+						'content-type': 'application/x-www-form-urlencoded',
+					},
+				}),
+				cookies: {},
+			} as any, 'sign-in/email', {
+				email: 'missing-user@example.com',
+				password: 'WrongPassword1!',
+				rememberMe: true,
+			});
 
-		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.status).toBe(401);
-			expect(result.error).toBe('Invalid email or password');
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.status).toBe(401);
+				expect(result.error).toBe('Invalid email or password');
+			}
+		} finally {
+			consoleError.mockRestore();
 		}
 	});
 });

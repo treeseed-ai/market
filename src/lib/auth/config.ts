@@ -125,6 +125,7 @@ export function getSiteAuthConfig(context?: Pick<APIContext, 'locals'> & Partial
 		sessionTtlSeconds: parseIntEnv('TREESEED_WEB_SESSION_TTL', DEFAULT_WEB_SESSION_TTL_SECONDS, env),
 		passwordResetTtlSeconds: parseIntEnv('TREESEED_AUTH_PASSWORD_RESET_TTL', DEFAULT_EMAIL_TOKEN_TTL_SECONDS, env),
 		emailVerificationTtlSeconds: parseIntEnv('TREESEED_AUTH_EMAIL_VERIFICATION_TTL', DEFAULT_EMAIL_TOKEN_TTL_SECONDS, env),
+		emailVerificationEnabled: parseBooleanEnv('TREESEED_AUTH_EMAIL_VERIFICATION_ENABLED', true, env),
 		authEmail: {
 			host: localAuthEmail ? localMailpitHost : envValue('TREESEED_SMTP_HOST', env),
 			port: localAuthEmail ? localMailpitPort : parseIntEnv('TREESEED_SMTP_PORT', 465, env),
