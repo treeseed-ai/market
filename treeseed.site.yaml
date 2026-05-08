@@ -114,7 +114,6 @@ services:
     provider: railway
     railway:
       projectName: treeseed-market
-      serviceName: treeseed-market-worker-runner-01
       rootDir: .
       buildCommand: npm run build:api
       startCommand: node ./node_modules/@treeseed/core/dist/services/worker.js
