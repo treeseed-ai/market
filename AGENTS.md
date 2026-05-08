@@ -122,9 +122,9 @@ For humans:
 For releases:
 
 - Release only after staging is green.
-- Release waits for production CI/CD and the deployment monitor must verify managed provider resources before returning success.
+- Release waits for production CI/CD and the deployment monitor must verify managed provider resources and settled Railway deployment status before returning success.
 - Use `npx trsd release --patch --json`, `npx trsd release --minor --json`, or `npx trsd release --major --json`.
-- Release waits required hosted package and market workflows and reports GitHub run metadata.
+- Release waits required hosted package and market workflows and reports active GitHub jobs/steps plus run metadata.
 
 Workflow guidance:
 
