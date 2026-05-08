@@ -97,7 +97,7 @@ services:
     provider: railway
     railway:
       projectName: treeseed-market
-      serviceName: treeseed-market-workday-start
+      serviceName: treeseed-market-workday-manager
       rootDir: .
       buildCommand: npm run build:api
       startCommand: node ./node_modules/@treeseed/core/dist/services/workday-manager.js
