@@ -81,12 +81,15 @@ Treeseed development commands are the preferred interface for humans and agents 
 Managed executables:
 
 - Run `npx trsd install --json` before assuming a required executable is missing. The install command downloads or verifies Treeseed-managed tools and reports their exact locations in JSON.
-- Run `npx trsd tools --json` to inspect managed executable locations without installing. Use its `toolsHome`, `ghConfigDir`, per-tool `binaryPath`, invocation mode, and GitHub auth status before scripting against tools.
-- Do not expect Treeseed-managed tools to be on the global `PATH`. Use the `toolsHome`, `ghConfigDir`, and per-tool `binaryPath` values from `npx trsd tools --json` or `npx trsd install --json`.
+- Run `npx trsd tools --json` to inspect managed executable locations without installing. This is the first command to run when an executable such as `gh`, `wrangler`, `railway`, `docker`, Copilot, or `gh-act` appears to be missing from the shell.
+- Do not expect Treeseed-managed tools to be on the global `PATH`. Use the JSON returned by `npx trsd tools --json` or `npx trsd install --json`, especially top-level `toolsHome`, `ghConfigDir`, `auth.github`, and each `tools[]` entry.
+- Each `tools[]` entry reports `name`, `kind`, `status`, `binaryPath`, and `invocation`. For direct tools, call `invocation.command` with `invocation.argsPrefix` plus your tool arguments. For npm-backed tools, `invocation.mode` is usually `node`; call `invocation.command` followed by `invocation.argsPrefix` and then your tool arguments.
 - The default managed tools home is `$TREESEED_TOOLS_HOME` when set, then `$XDG_CACHE_HOME/treeseed/tools`, otherwise `$HOME/.cache/treeseed/tools`.
 - Managed GitHub CLI is installed at `<toolsHome>/gh/2.90.0/<platform>-<arch>/bin/gh`; on this Linux x64 workspace that is usually `$HOME/.cache/treeseed/tools/gh/2.90.0/linux-x64/bin/gh`.
-- Managed GitHub CLI configuration and extensions live in `$TREESEED_GH_CONFIG_DIR` when set, otherwise `<toolsHome>/gh-config`. The `gh-act` integration is a `gh` extension, so invoke it through the managed `gh` binary, for example `<managed-gh> act ...`.
-- Npm-backed Treeseed tools such as Wrangler, Railway, GitHub Copilot, and the Copilot language server resolve through the local package graph. Prefer Treeseed commands that resolve these paths for you; when scripting directly, read `binaryPath` from `npx trsd install --json` and invoke npm-backed JavaScript entrypoints with `node <binaryPath> ...` if needed.
+- Managed GitHub CLI configuration and extensions live in `$TREESEED_GH_CONFIG_DIR` when set, otherwise `<toolsHome>/gh-config`. The `gh-act` integration is a `gh` extension, so invoke it through the managed `gh` binary and managed config directory, for example `GH_CONFIG_DIR=<ghConfigDir> <managed-gh> act ...`.
+- `npx trsd tools --json` also reports GitHub auth under `auth.github`, including the managed `binaryPath`, the exact `command` used to check auth, whether it is `authenticated`, and remediation steps. Use this before concluding that GitHub auth or `gh` is unavailable.
+- On this Linux x64 workspace, current tool discovery usually reports `gh` at `/home/adrian/.cache/treeseed/tools/gh/2.90.0/linux-x64/bin/gh`, `ghConfigDir` at `/home/adrian/.cache/treeseed/tools/gh-config`, npm-backed Wrangler at `node node_modules/wrangler/bin/wrangler.js`, and npm-backed Railway at `node node_modules/@railway/cli/bin/railway.js`; still prefer the live JSON over hard-coding these paths.
+- Npm-backed Treeseed tools such as Wrangler, Railway, GitHub Copilot, and the Copilot language server resolve through the local package graph. Prefer Treeseed commands that resolve these paths for you; when scripting directly, read the tool's `invocation` object and use `node <binaryPath> ...` only when the invocation reports `mode: "node"`.
 
 For agents and automation:
 
