@@ -28,6 +28,11 @@ const topologyMigrationPathCandidates = [
 	resolve(packageRoot, '../migrations/0010_project_hosting_topology.sql'),
 ];
 const topologyMigrationPath = topologyMigrationPathCandidates.find((candidate) => existsSync(candidate));
+const reportingMigrationPathCandidates = [
+	resolve(packageRoot, 'migrations/0011_control_plane_reporting.sql'),
+	resolve(packageRoot, '../migrations/0011_control_plane_reporting.sql'),
+];
+const reportingMigrationPath = reportingMigrationPathCandidates.find((candidate) => existsSync(candidate));
 const webHostsMigrationPathCandidates = [
 	resolve(packageRoot, 'migrations/0014_team_web_hosts.sql'),
 	resolve(packageRoot, '../migrations/0014_team_web_hosts.sql'),
@@ -38,6 +43,11 @@ const capacityMigrationPathCandidates = [
 	resolve(packageRoot, '../migrations/0018_capacity_providers.sql'),
 ];
 const capacityMigrationPath = capacityMigrationPathCandidates.find((candidate) => existsSync(candidate));
+const workdayManagerMigrationPathCandidates = [
+	resolve(packageRoot, 'migrations/0019_workday_manager_runners.sql'),
+	resolve(packageRoot, '../migrations/0019_workday_manager_runners.sql'),
+];
+const workdayManagerMigrationPath = workdayManagerMigrationPathCandidates.find((candidate) => existsSync(candidate));
 const sqliteModule = await import('node:sqlite').catch(() => null);
 const DatabaseSyncCtor = sqliteModule?.DatabaseSync ?? null;
 const DatabaseSync = DatabaseSyncCtor as NonNullable<typeof DatabaseSyncCtor>;
@@ -46,10 +56,12 @@ const resolvedAuthMigrationPath = authMigrationPath as string;
 const resolvedMarketMigrationPath = marketMigrationPath as string;
 const resolvedCatalogMigrationPath = catalogMigrationPath as string;
 const resolvedTopologyMigrationPath = topologyMigrationPath as string;
+const resolvedReportingMigrationPath = reportingMigrationPath as string;
 const resolvedWebHostsMigrationPath = webHostsMigrationPath as string;
 const resolvedCapacityMigrationPath = capacityMigrationPath as string;
+const resolvedWorkdayManagerMigrationPath = workdayManagerMigrationPath as string;
 
-if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !webHostsMigrationPath || !capacityMigrationPath) {
+if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !reportingMigrationPath || !webHostsMigrationPath || !capacityMigrationPath || !workdayManagerMigrationPath) {
 	throw new Error('Unable to resolve required market migration fixtures.');
 }
 
@@ -117,8 +129,10 @@ class TestD1Database implements D1DatabaseLike {
 		this.db.exec(readFileSync(resolvedMarketMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedCatalogMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedTopologyMigrationPath, 'utf8'));
+		this.db.exec(readFileSync(resolvedReportingMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedWebHostsMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedCapacityMigrationPath, 'utf8'));
+		this.db.exec(readFileSync(resolvedWorkdayManagerMigrationPath, 'utf8'));
 	}
 
 	prepare(query: string) {

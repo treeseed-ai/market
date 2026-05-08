@@ -2251,6 +2251,16 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
+			app.get('/v1/projects/:projectId/workday-policy', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const environment = typeof c.req.query('environment') === 'string' ? c.req.query('environment') : 'staging';
+				return c.json({
+					ok: true,
+					payload: await store.getProjectWorkPolicy(c.req.param('projectId'), environment),
+				});
+			});
+
 			app.put('/v1/projects/:projectId/work-policy', async (c) => {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
 				if (access.response) return access.response;
@@ -2271,6 +2281,93 @@ export function createMarketApiApp(options = {}) {
 						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
 					}),
 				});
+			});
+
+			app.put('/v1/projects/:projectId/workday-policy', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.environment) {
+					return jsonError(c, 400, 'environment is required.');
+				}
+				const dailyCreditBudget = Number.isFinite(Number(body.dailyCreditBudget ?? body.dailyTaskCreditBudget))
+					? Number(body.dailyCreditBudget ?? body.dailyTaskCreditBudget)
+					: 0;
+				return c.json({
+					ok: true,
+					payload: await store.upsertProjectWorkPolicy(c.req.param('projectId'), {
+						environment: String(body.environment),
+						schedule: typeof body.schedule === 'object' && body.schedule ? body.schedule : {
+							timezone: typeof body.timezone === 'string' ? body.timezone : 'UTC',
+							windows: [],
+						},
+						enabled: body.enabled !== false,
+						startCron: typeof body.startCron === 'string' ? body.startCron : '0 9 * * 1-5',
+						durationMinutes: Number.isFinite(Number(body.durationMinutes)) ? Number(body.durationMinutes) : 480,
+						maxRunners: Number.isFinite(Number(body.maxRunners)) ? Number(body.maxRunners) : 1,
+						maxWorkersPerRunner: Number.isFinite(Number(body.maxWorkersPerRunner)) ? Number(body.maxWorkersPerRunner) : 4,
+						dailyCreditBudget,
+						dailyTaskCreditBudget: dailyCreditBudget,
+						closeoutGraceMinutes: Number.isFinite(Number(body.closeoutGraceMinutes)) ? Number(body.closeoutGraceMinutes) : 15,
+						maxQueuedTasks: Number.isFinite(Number(body.maxQueuedTasks)) ? Number(body.maxQueuedTasks) : 0,
+						maxQueuedCredits: Number.isFinite(Number(body.maxQueuedCredits)) ? Number(body.maxQueuedCredits) : 0,
+						autoscale: typeof body.autoscale === 'object' && body.autoscale ? body.autoscale : {
+							minWorkers: 0,
+							maxWorkers: Number.isFinite(Number(body.maxRunners)) ? Number(body.maxRunners) : 1,
+							targetQueueDepth: 1,
+							cooldownSeconds: 60,
+						},
+						creditWeights: Array.isArray(body.creditWeights) ? body.creditWeights : [],
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/workday-status', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const environment = typeof c.req.query('environment') === 'string' ? c.req.query('environment') : 'staging';
+				const [policy, requests, runners, workdays, runnerScaleDecisions] = await Promise.all([
+					store.getProjectWorkPolicy(c.req.param('projectId'), environment),
+					store.listWorkdayRequests(c.req.param('projectId'), environment, 'pending'),
+					store.listWorkerRunners(c.req.param('projectId'), environment),
+					store.listProjectWorkdaySummaries(c.req.param('projectId'), environment),
+					store.listRunnerScaleDecisions(c.req.param('projectId'), environment),
+				]);
+				return c.json({
+					ok: true,
+					payload: {
+						environment,
+						policy,
+						pendingRequests: requests,
+						runners,
+						latestWorkday: workdays[0] ?? null,
+						recentRunnerScaleDecisions: runnerScaleDecisions.slice(0, 10),
+					},
+				});
+			});
+
+			app.post('/v1/projects/:projectId/workday-requests', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const allowedTypes = new Set(['one_off_run', 'early_close', 'pause', 'retry_open']);
+				const type = typeof body.type === 'string' && allowedTypes.has(body.type) ? body.type : null;
+				if (!type || typeof body.environment !== 'string') {
+					return jsonError(c, 400, 'environment and a supported request type are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.createWorkdayRequest(c.req.param('projectId'), {
+						environment: body.environment,
+						type,
+						workDayId: typeof body.workDayId === 'string' ? body.workDayId : null,
+						requestedBy: access.principal.id,
+						reason: typeof body.reason === 'string' ? body.reason : null,
+						payload: typeof body.payload === 'object' && body.payload ? body.payload : {},
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				}, 202);
 			});
 
 			app.get('/v1/projects/:projectId/priority-overrides', async (c) => {
@@ -2684,11 +2781,13 @@ export function createMarketApiApp(options = {}) {
 				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
 				if (runnerAccess.response) return runnerAccess.response;
 				const environment = typeof c.req.query('environment') === 'string' ? c.req.query('environment') : 'staging';
-				const [resources, deployments, pools, workdays] = await Promise.all([
+				const [resources, deployments, pools, workdays, runners, runnerScaleDecisions] = await Promise.all([
 					store.listProjectInfrastructureResources(c.req.param('projectId'), environment),
 					store.listProjectDeployments(c.req.param('projectId'), environment),
 					store.listAgentPools(c.req.param('projectId'), environment),
 					store.listProjectWorkdaySummaries(c.req.param('projectId'), environment),
+					store.listWorkerRunners(c.req.param('projectId'), environment),
+					store.listRunnerScaleDecisions(c.req.param('projectId'), environment),
 				]);
 				const poolDetails = await Promise.all(pools.map(async (pool) => ({
 					pool,
@@ -2703,7 +2802,97 @@ export function createMarketApiApp(options = {}) {
 						deployments: deployments.slice(0, 10),
 						pools: poolDetails,
 						workdays: workdays.slice(0, 5),
+						runners,
+						runnerScaleDecisions: runnerScaleDecisions.slice(0, 10),
 					},
+				});
+			});
+
+			app.post('/v1/projects/:projectId/runner/worker-runners', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.environment || !body.runnerId || !body.runnerServiceName || !body.volumeIdentity) {
+					return jsonError(c, 400, 'environment, runnerId, runnerServiceName, and volumeIdentity are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.recordWorkerRunner(c.req.param('projectId'), {
+						id: typeof body.id === 'string' ? body.id : undefined,
+						environment: String(body.environment),
+						runnerId: String(body.runnerId),
+						runnerServiceName: String(body.runnerServiceName),
+						volumeIdentity: String(body.volumeIdentity),
+						state: typeof body.state === 'string' ? body.state : 'active',
+						maxLocalWorkers: Number.isFinite(Number(body.maxLocalWorkers)) ? Number(body.maxLocalWorkers) : 4,
+						activeLocalWorkers: Number.isFinite(Number(body.activeLocalWorkers)) ? Number(body.activeLocalWorkers) : 0,
+						claimedRepositoryIds: Array.isArray(body.claimedRepositoryIds) ? body.claimedRepositoryIds.map(String) : [],
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/runner/worker-runners', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const environment = typeof c.req.query('environment') === 'string' ? c.req.query('environment') : 'staging';
+				return c.json({
+					ok: true,
+					payload: await store.listWorkerRunners(c.req.param('projectId'), environment),
+				});
+			});
+
+			app.post('/v1/projects/:projectId/runner/repository-claims', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.repositoryId || !body.runnerId || !body.runnerServiceName || !body.volumeIdentity) {
+					return jsonError(c, 400, 'repositoryId, runnerId, runnerServiceName, and volumeIdentity are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.recordRepositoryClaim(c.req.param('projectId'), {
+						id: typeof body.id === 'string' ? body.id : undefined,
+						repositoryId: String(body.repositoryId),
+						runnerId: String(body.runnerId),
+						runnerServiceName: String(body.runnerServiceName),
+						volumeIdentity: String(body.volumeIdentity),
+						lastSeenCommit: typeof body.lastSeenCommit === 'string' ? body.lastSeenCommit : null,
+						lastTaskAt: typeof body.lastTaskAt === 'string' ? body.lastTaskAt : null,
+						claimState: typeof body.claimState === 'string' ? body.claimState : 'active',
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/runner/repository-claims', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const repositoryId = typeof c.req.query('repositoryId') === 'string' ? c.req.query('repositoryId') : null;
+				return c.json({
+					ok: true,
+					payload: await store.listRepositoryClaims(c.req.param('projectId'), repositoryId),
+				});
+			});
+
+			app.post('/v1/projects/:projectId/runner/runner-scale-decisions', async (c) => {
+				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
+				if (runnerAccess.response) return runnerAccess.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.environment || !body.action || !body.reason) {
+					return jsonError(c, 400, 'environment, action, and reason are required.');
+				}
+				return c.json({
+					ok: true,
+					payload: await store.recordRunnerScaleDecision(c.req.param('projectId'), {
+						environment: String(body.environment),
+						workDayId: typeof body.workDayId === 'string' ? body.workDayId : null,
+						runnerId: typeof body.runnerId === 'string' ? body.runnerId : null,
+						runnerServiceName: typeof body.runnerServiceName === 'string' ? body.runnerServiceName : null,
+						action: String(body.action),
+						reason: String(body.reason),
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+					}),
 				});
 			});
 

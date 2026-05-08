@@ -939,18 +939,101 @@ function serializeProjectWorkdaySummary(row) {
 
 function serializeWorkPolicy(row) {
 	if (!row) return null;
+	const metadata = parseJson(row.metadata_json, {});
+	const autoscale = parseJson(row.autoscale_json, {});
+	const dailyCreditBudget = Number(row.daily_credit_budget ?? row.daily_task_credit_budget ?? 0);
 	return {
 		projectId: row.project_id,
 		environment: row.environment,
 		schedule: parseJson(row.schedule_json, { timezone: 'UTC', windows: [] }),
-		dailyTaskCreditBudget: Number(row.daily_task_credit_budget ?? 0),
+		enabled: row.enabled === undefined || row.enabled === null ? metadata.enabled !== false : Number(row.enabled) !== 0,
+		startCron: row.start_cron ?? metadata.startCron ?? '0 9 * * 1-5',
+		durationMinutes: Number(row.duration_minutes ?? metadata.durationMinutes ?? 480),
+		maxRunners: Number(row.max_runners ?? metadata.maxRunners ?? autoscale.maxWorkers ?? 1),
+		maxWorkersPerRunner: Number(row.max_workers_per_runner ?? metadata.maxWorkersPerRunner ?? 4),
+		dailyCreditBudget,
+		closeoutGraceMinutes: Number(row.closeout_grace_minutes ?? metadata.closeoutGraceMinutes ?? 15),
+		dailyTaskCreditBudget: dailyCreditBudget,
 		maxQueuedTasks: Number(row.max_queued_tasks ?? 0),
 		maxQueuedCredits: Number(row.max_queued_credits ?? 0),
-		autoscale: parseJson(row.autoscale_json, {}),
+		autoscale,
 		creditWeights: parseJson(row.credit_weights_json, []),
+		metadata,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeWorkdayRequest(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		environment: row.environment,
+		type: row.type,
+		state: row.state,
+		workDayId: row.work_day_id,
+		requestedBy: row.requested_by,
+		reason: row.reason,
+		payload: parseJson(row.payload_json, {}),
 		metadata: parseJson(row.metadata_json, {}),
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
+	};
+}
+
+function serializeWorkerRunner(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		environment: row.environment,
+		runnerId: row.runner_id,
+		runnerServiceName: row.runner_service_name,
+		volumeIdentity: row.volume_identity,
+		state: row.state,
+		maxLocalWorkers: Number(row.max_local_workers ?? 4),
+		activeLocalWorkers: Number(row.active_local_workers ?? 0),
+		availableCapacity: Number(row.available_capacity ?? 0),
+		lastHeartbeatAt: row.last_heartbeat_at,
+		claimedRepositoryIds: parseJson(row.claimed_repository_ids_json, []),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeRepositoryClaim(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		repositoryId: row.repository_id,
+		runnerId: row.runner_id,
+		runnerServiceName: row.runner_service_name,
+		volumeIdentity: row.volume_identity,
+		lastSeenCommit: row.last_seen_commit,
+		lastTaskAt: row.last_task_at,
+		claimState: row.claim_state,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeRunnerScaleDecision(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		environment: row.environment,
+		workDayId: row.work_day_id,
+		runnerId: row.runner_id,
+		runnerServiceName: row.runner_service_name,
+		action: row.action,
+		reason: row.reason,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
 	};
 }
 
@@ -1054,6 +1137,7 @@ export class MarketControlPlaneStore {
 			this.initializationPromise = (migrationSql && this.db.exec ? this.db.exec(migrationSql) : Promise.resolve())
 				.then(() => this.ensureWebSessionSchema())
 				.then(() => this.ensureTeamManagementSchema())
+				.then(() => this.ensureWorkdayManagerSchema())
 				.then(() => this.seedKnowledgeCoopRoles());
 		}
 		return this.initializationPromise;
@@ -1062,6 +1146,101 @@ export class MarketControlPlaneStore {
 	async tableColumns(tableName) {
 		const result = await this.all(`PRAGMA table_info(${tableName})`);
 		return new Set(result.map((row) => row.name));
+	}
+
+	async ensureWorkdayManagerSchema() {
+		const workPolicyColumns = await this.tableColumns('work_policies');
+		const addColumn = async (name, definition) => {
+			if (!workPolicyColumns.has(name)) {
+				await this.run(`ALTER TABLE work_policies ADD COLUMN ${name} ${definition}`);
+				workPolicyColumns.add(name);
+			}
+		};
+		await addColumn('enabled', 'INTEGER NOT NULL DEFAULT 1');
+		await addColumn('start_cron', "TEXT NOT NULL DEFAULT '0 9 * * 1-5'");
+		await addColumn('duration_minutes', 'INTEGER NOT NULL DEFAULT 480');
+		await addColumn('max_runners', 'INTEGER NOT NULL DEFAULT 1');
+		await addColumn('max_workers_per_runner', 'INTEGER NOT NULL DEFAULT 4');
+		await addColumn('daily_credit_budget', 'INTEGER NOT NULL DEFAULT 0');
+		await addColumn('closeout_grace_minutes', 'INTEGER NOT NULL DEFAULT 15');
+		await this.run(`UPDATE work_policies SET daily_credit_budget = daily_task_credit_budget WHERE daily_credit_budget = 0 AND daily_task_credit_budget > 0`);
+		await this.run(`CREATE TABLE IF NOT EXISTS workday_requests (
+			id TEXT PRIMARY KEY,
+			project_id TEXT NOT NULL,
+			environment TEXT NOT NULL,
+			type TEXT NOT NULL,
+			state TEXT NOT NULL DEFAULT 'pending',
+			work_day_id TEXT,
+			requested_by TEXT,
+			reason TEXT,
+			payload_json TEXT NOT NULL,
+			metadata_json TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`);
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_workday_requests_project_environment_state ON workday_requests(project_id, environment, state, created_at ASC)`);
+		await this.run(`CREATE TABLE IF NOT EXISTS workday_manager_leases (
+			id TEXT PRIMARY KEY,
+			project_id TEXT NOT NULL,
+			environment TEXT NOT NULL,
+			work_day_id TEXT,
+			manager_id TEXT NOT NULL,
+			state TEXT NOT NULL DEFAULT 'active',
+			heartbeat_at TEXT NOT NULL,
+			expires_at TEXT NOT NULL,
+			metadata_json TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`);
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_workday_manager_leases_active ON workday_manager_leases(project_id, environment, state, heartbeat_at DESC)`);
+		await this.run(`CREATE TABLE IF NOT EXISTS worker_runners (
+			id TEXT PRIMARY KEY,
+			project_id TEXT NOT NULL,
+			environment TEXT NOT NULL,
+			runner_id TEXT NOT NULL,
+			runner_service_name TEXT NOT NULL,
+			volume_identity TEXT NOT NULL,
+			state TEXT NOT NULL DEFAULT 'active',
+			max_local_workers INTEGER NOT NULL DEFAULT 4,
+			active_local_workers INTEGER NOT NULL DEFAULT 0,
+			available_capacity INTEGER NOT NULL DEFAULT 4,
+			last_heartbeat_at TEXT,
+			claimed_repository_ids_json TEXT NOT NULL,
+			metadata_json TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`);
+		await this.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_runners_identity ON worker_runners(project_id, environment, runner_id)`);
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_worker_runners_state_capacity ON worker_runners(project_id, environment, state, available_capacity DESC)`);
+		await this.run(`CREATE TABLE IF NOT EXISTS repository_claims (
+			id TEXT PRIMARY KEY,
+			project_id TEXT NOT NULL,
+			repository_id TEXT NOT NULL,
+			runner_id TEXT NOT NULL,
+			runner_service_name TEXT NOT NULL,
+			volume_identity TEXT NOT NULL,
+			last_seen_commit TEXT,
+			last_task_at TEXT,
+			claim_state TEXT NOT NULL DEFAULT 'active',
+			metadata_json TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`);
+		await this.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_repository_claims_runner_repo ON repository_claims(project_id, repository_id, runner_id)`);
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_repository_claims_repo_state ON repository_claims(project_id, repository_id, claim_state, updated_at DESC)`);
+		await this.run(`CREATE TABLE IF NOT EXISTS runner_scale_decisions (
+			id TEXT PRIMARY KEY,
+			project_id TEXT NOT NULL,
+			environment TEXT NOT NULL,
+			work_day_id TEXT,
+			runner_id TEXT,
+			runner_service_name TEXT,
+			action TEXT NOT NULL,
+			reason TEXT NOT NULL,
+			metadata_json TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		)`);
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_runner_scale_decisions_project_workday ON runner_scale_decisions(project_id, environment, work_day_id, created_at DESC)`);
 	}
 
 	async ensureWebSessionSchema() {
@@ -3304,12 +3483,14 @@ export class MarketControlPlaneStore {
 	async upsertProjectWorkPolicy(projectId, input) {
 		await this.ensureInitialized();
 		const timestamp = isoNow();
+		const dailyCreditBudget = Number(input.dailyCreditBudget ?? input.dailyTaskCreditBudget ?? 0);
 		await this.run(
 			`INSERT OR REPLACE INTO work_policies (
-				project_id, environment, schedule_json, daily_task_credit_budget, max_queued_tasks, max_queued_credits,
+				project_id, environment, schedule_json, enabled, start_cron, duration_minutes, max_runners, max_workers_per_runner,
+				daily_credit_budget, closeout_grace_minutes, daily_task_credit_budget, max_queued_tasks, max_queued_credits,
 				autoscale_json, credit_weights_json, metadata_json, created_at, updated_at
 			) VALUES (
-				?, ?, ?, ?, ?, ?, ?, ?, ?,
+				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
 				COALESCE((SELECT created_at FROM work_policies WHERE project_id = ? AND environment = ?), ?),
 				?
 			)`,
@@ -3317,7 +3498,14 @@ export class MarketControlPlaneStore {
 				projectId,
 				input.environment,
 				JSON.stringify(input.schedule ?? { timezone: 'UTC', windows: [] }),
-				Number(input.dailyTaskCreditBudget ?? 0),
+				input.enabled === false ? 0 : 1,
+				input.startCron ?? '0 9 * * 1-5',
+				Number(input.durationMinutes ?? 480),
+				Number(input.maxRunners ?? input.autoscale?.maxWorkers ?? 1),
+				Number(input.maxWorkersPerRunner ?? 4),
+				dailyCreditBudget,
+				Number(input.closeoutGraceMinutes ?? 15),
+				dailyCreditBudget,
 				Number(input.maxQueuedTasks ?? 0),
 				Number(input.maxQueuedCredits ?? 0),
 				JSON.stringify(input.autoscale ?? {}),
@@ -3330,6 +3518,173 @@ export class MarketControlPlaneStore {
 			],
 		);
 		return this.getProjectWorkPolicy(projectId, input.environment);
+	}
+
+	async createWorkdayRequest(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO workday_requests (
+				id, project_id, environment, type, state, work_day_id, requested_by, reason, payload_json, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				projectId,
+				input.environment,
+				input.type,
+				input.state ?? 'pending',
+				input.workDayId ?? null,
+				input.requestedBy ?? null,
+				input.reason ?? null,
+				JSON.stringify(input.payload ?? {}),
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeWorkdayRequest(await this.first(`SELECT * FROM workday_requests WHERE id = ?`, [id]));
+	}
+
+	async listWorkdayRequests(projectId, environment, state = null) {
+		await this.ensureInitialized();
+		const rows = state
+			? await this.all(
+				`SELECT * FROM workday_requests WHERE project_id = ? AND environment = ? AND state = ? ORDER BY created_at ASC`,
+				[projectId, environment, state],
+			)
+			: await this.all(
+				`SELECT * FROM workday_requests WHERE project_id = ? AND environment = ? ORDER BY created_at ASC`,
+				[projectId, environment],
+			);
+		return rows.map(serializeWorkdayRequest);
+	}
+
+	async recordWorkerRunner(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? `${projectId}:${input.environment}:${input.runnerId}`;
+		const maxLocalWorkers = Number(input.maxLocalWorkers ?? 4);
+		const activeLocalWorkers = Number(input.activeLocalWorkers ?? 0);
+		await this.run(
+			`INSERT OR REPLACE INTO worker_runners (
+				id, project_id, environment, runner_id, runner_service_name, volume_identity, state, max_local_workers, active_local_workers,
+				available_capacity, last_heartbeat_at, claimed_repository_ids_json, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				COALESCE((SELECT created_at FROM worker_runners WHERE id = ?), ?),
+				?
+			)`,
+			[
+				id,
+				projectId,
+				input.environment,
+				input.runnerId,
+				input.runnerServiceName,
+				input.volumeIdentity,
+				input.state ?? 'active',
+				maxLocalWorkers,
+				activeLocalWorkers,
+				Math.max(0, maxLocalWorkers - activeLocalWorkers),
+				input.lastHeartbeatAt ?? timestamp,
+				JSON.stringify(input.claimedRepositoryIds ?? []),
+				JSON.stringify(input.metadata ?? {}),
+				id,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeWorkerRunner(await this.first(`SELECT * FROM worker_runners WHERE id = ?`, [id]));
+	}
+
+	async listWorkerRunners(projectId, environment) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM worker_runners WHERE project_id = ? AND environment = ? ORDER BY runner_id ASC`,
+			[projectId, environment],
+		);
+		return rows.map(serializeWorkerRunner);
+	}
+
+	async recordRepositoryClaim(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? `${projectId}:${input.repositoryId}:${input.runnerId}`;
+		await this.run(
+			`INSERT OR REPLACE INTO repository_claims (
+				id, project_id, repository_id, runner_id, runner_service_name, volume_identity, last_seen_commit, last_task_at, claim_state, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				COALESCE((SELECT created_at FROM repository_claims WHERE id = ?), ?),
+				?
+			)`,
+			[
+				id,
+				projectId,
+				input.repositoryId,
+				input.runnerId,
+				input.runnerServiceName,
+				input.volumeIdentity,
+				input.lastSeenCommit ?? null,
+				input.lastTaskAt ?? timestamp,
+				input.claimState ?? 'active',
+				JSON.stringify(input.metadata ?? {}),
+				id,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeRepositoryClaim(await this.first(`SELECT * FROM repository_claims WHERE id = ?`, [id]));
+	}
+
+	async listRepositoryClaims(projectId, repositoryId = null) {
+		await this.ensureInitialized();
+		const rows = repositoryId
+			? await this.all(
+				`SELECT * FROM repository_claims WHERE project_id = ? AND repository_id = ? ORDER BY updated_at DESC`,
+				[projectId, repositoryId],
+			)
+			: await this.all(
+				`SELECT * FROM repository_claims WHERE project_id = ? ORDER BY updated_at DESC`,
+				[projectId],
+			);
+		return rows.map(serializeRepositoryClaim);
+	}
+
+	async recordRunnerScaleDecision(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO runner_scale_decisions (
+				id, project_id, environment, work_day_id, runner_id, runner_service_name, action, reason, metadata_json, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				projectId,
+				input.environment,
+				input.workDayId ?? null,
+				input.runnerId ?? null,
+				input.runnerServiceName ?? null,
+				input.action,
+				input.reason,
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+			],
+		);
+		return serializeRunnerScaleDecision(await this.first(`SELECT * FROM runner_scale_decisions WHERE id = ?`, [id]));
+	}
+
+	async listRunnerScaleDecisions(projectId, environment, workDayId = null) {
+		await this.ensureInitialized();
+		const rows = workDayId
+			? await this.all(
+				`SELECT * FROM runner_scale_decisions WHERE project_id = ? AND environment = ? AND work_day_id = ? ORDER BY created_at DESC`,
+				[projectId, environment, workDayId],
+			)
+			: await this.all(
+				`SELECT * FROM runner_scale_decisions WHERE project_id = ? AND environment = ? ORDER BY created_at DESC`,
+				[projectId, environment],
+			);
+		return rows.map(serializeRunnerScaleDecision);
 	}
 
 	async listProjectPriorityOverrides(projectId) {

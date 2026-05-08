@@ -50,8 +50,7 @@ setTimeout(() => {
 		'dist/services/agents.js',
 		'dist/services/manager.js',
 		'dist/services/worker.js',
-		'dist/services/workday-start.js',
-		'dist/services/workday-report.js',
+		'dist/services/workday-manager.js',
 	]) {
 		const output = join(coreRoot, relativePath);
 		mkdirSync(dirname(output), { recursive: true });

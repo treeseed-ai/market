@@ -92,40 +92,7 @@ services:
         railwayEnvironment: staging
       prod:
         railwayEnvironment: prod
-  manager:
-    enabled: true
-    provider: railway
-    railway:
-      projectName: treeseed-market
-      serviceName: treeseed-market-manager
-      rootDir: .
-      buildCommand: npm run build:api
-      startCommand: node ./node_modules/@treeseed/core/dist/services/manager.js
-      schedule: "*/5 * * * *"
-    environments:
-      local:
-        railwayEnvironment: local
-      staging:
-        railwayEnvironment: staging
-      prod:
-        railwayEnvironment: prod
-  worker:
-    enabled: true
-    provider: railway
-    railway:
-      projectName: treeseed-market
-      serviceName: treeseed-market-worker
-      rootDir: .
-      buildCommand: npm run build:api
-      startCommand: node ./node_modules/@treeseed/core/dist/services/worker.js
-    environments:
-      local:
-        railwayEnvironment: local
-      staging:
-        railwayEnvironment: staging
-      prod:
-        railwayEnvironment: prod
-  workdayStart:
+  workdayManager:
     enabled: true
     provider: railway
     railway:
@@ -133,7 +100,7 @@ services:
       serviceName: treeseed-market-workday-start
       rootDir: .
       buildCommand: npm run build:api
-      startCommand: node ./node_modules/@treeseed/core/dist/services/workday-start.js
+      startCommand: node ./node_modules/@treeseed/core/dist/services/workday-manager.js
       schedule: 0 9 * * 1-5
     environments:
       local:
@@ -142,16 +109,15 @@ services:
         railwayEnvironment: staging
       prod:
         railwayEnvironment: prod
-  workdayReport:
+  workerRunner:
     enabled: true
     provider: railway
     railway:
       projectName: treeseed-market
-      serviceName: treeseed-market-workday-report
+      serviceName: treeseed-market-worker-runner-01
       rootDir: .
       buildCommand: npm run build:api
-      startCommand: node ./node_modules/@treeseed/core/dist/services/workday-report.js
-      schedule: 5 17 * * 1-5
+      startCommand: node ./node_modules/@treeseed/core/dist/services/worker.js
     environments:
       local:
         railwayEnvironment: local

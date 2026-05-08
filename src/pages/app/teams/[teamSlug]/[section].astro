@@ -440,7 +440,7 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 						<ul class="kc-field__help kc-help-list">
 							<li>Railway projects and services start from the normalized TreeSeed project slug.</li>
 							<li>Staging and production environments are always created or matched for each project.</li>
-							<li>Service names follow the TreeSeed service role: `api`, `manager`, `worker`, `workday-start`, and `workday-report`.</li>
+							<li>Service names follow the TreeSeed service role: `api`, `workday-manager`, and `worker-runner`.</li>
 							<li>Provisioned IDs are saved back as project state and GitHub environment variables, not requested up front.</li>
 						</ul>
 					</div>

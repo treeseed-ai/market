@@ -17,10 +17,8 @@ const requiredWorkspaceOutputs = [
 	'dist/config.js',
 	'dist/config.d.ts',
 	'dist/services/agents.js',
-	'dist/services/manager.js',
+	'dist/services/workday-manager.js',
 	'dist/services/worker.js',
-	'dist/services/workday-start.js',
-	'dist/services/workday-report.js',
 ].map((relativePath) => resolve(coreRoot, relativePath));
 
 const buildInputs = [
