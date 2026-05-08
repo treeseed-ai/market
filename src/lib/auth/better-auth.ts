@@ -225,7 +225,7 @@ export function createSiteBetterAuth(context?: Pick<APIContext, 'locals'>) {
 			enabled: config.internalAuthEnabled,
 			disableSignUp: !config.internalSignupEnabled,
 			minPasswordLength: 12,
-			requireEmailVerification: true,
+			requireEmailVerification: config.emailVerificationEnabled,
 			resetPasswordTokenExpiresIn: config.passwordResetTtlSeconds,
 			revokeSessionsOnPasswordReset: true,
 			sendResetPassword: async ({ user, url }) => {
@@ -243,7 +243,7 @@ export function createSiteBetterAuth(context?: Pick<APIContext, 'locals'>) {
 			},
 		},
 		emailVerification: {
-			sendOnSignUp: true,
+			sendOnSignUp: config.emailVerificationEnabled,
 			autoSignInAfterVerification: true,
 			expiresIn: config.emailVerificationTtlSeconds,
 			sendVerificationEmail: async ({ user, url }) => {

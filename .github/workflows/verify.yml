@@ -2,6 +2,8 @@ name: Verify
 
 on:
   push:
+    branches-ignore:
+      - staging
   pull_request:
   workflow_dispatch:
 

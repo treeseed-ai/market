@@ -81,12 +81,28 @@ Treeseed development commands are the preferred interface for humans and agents 
 Managed executables:
 
 - Run `npx trsd install --json` before assuming a required executable is missing. The install command downloads or verifies Treeseed-managed tools and reports their exact locations in JSON.
-- Run `npx trsd tools --json` to inspect managed executable locations without installing. Use its `toolsHome`, `ghConfigDir`, per-tool `binaryPath`, invocation mode, and GitHub auth status before scripting against tools.
-- Do not expect Treeseed-managed tools to be on the global `PATH`. Use the `toolsHome`, `ghConfigDir`, and per-tool `binaryPath` values from `npx trsd tools --json` or `npx trsd install --json`.
+- Run `npx trsd tools --json` to inspect managed executable locations without installing. This is the first command to run when an executable such as `gh`, `wrangler`, `railway`, `docker`, Copilot, or `gh-act` appears to be missing from the shell.
+- Do not expect Treeseed-managed tools to be on the global `PATH`. Use the JSON returned by `npx trsd tools --json` or `npx trsd install --json`, especially top-level `toolsHome`, `ghConfigDir`, `auth.github`, and each `tools[]` entry.
+- Each `tools[]` entry reports `name`, `kind`, `status`, `binaryPath`, and `invocation`. For direct tools, call `invocation.command` with `invocation.argsPrefix` plus your tool arguments. For npm-backed tools, `invocation.mode` is usually `node`; call `invocation.command` followed by `invocation.argsPrefix` and then your tool arguments.
 - The default managed tools home is `$TREESEED_TOOLS_HOME` when set, then `$XDG_CACHE_HOME/treeseed/tools`, otherwise `$HOME/.cache/treeseed/tools`.
 - Managed GitHub CLI is installed at `<toolsHome>/gh/2.90.0/<platform>-<arch>/bin/gh`; on this Linux x64 workspace that is usually `$HOME/.cache/treeseed/tools/gh/2.90.0/linux-x64/bin/gh`.
-- Managed GitHub CLI configuration and extensions live in `$TREESEED_GH_CONFIG_DIR` when set, otherwise `<toolsHome>/gh-config`. The `gh-act` integration is a `gh` extension, so invoke it through the managed `gh` binary, for example `<managed-gh> act ...`.
-- Npm-backed Treeseed tools such as Wrangler, Railway, GitHub Copilot, and the Copilot language server resolve through the local package graph. Prefer Treeseed commands that resolve these paths for you; when scripting directly, read `binaryPath` from `npx trsd install --json` and invoke npm-backed JavaScript entrypoints with `node <binaryPath> ...` if needed.
+- Managed GitHub CLI configuration and extensions live in `$TREESEED_GH_CONFIG_DIR` when set, otherwise `<toolsHome>/gh-config`. The `gh-act` integration is a `gh` extension, so invoke it through the managed `gh` binary and managed config directory, for example `GH_CONFIG_DIR=<ghConfigDir> <managed-gh> act ...`.
+- `npx trsd tools --json` also reports GitHub auth under `auth.github`, including the managed `binaryPath`, the exact `command` used to check auth, whether it is `authenticated`, and remediation steps. Use this before concluding that GitHub auth or `gh` is unavailable.
+- On this Linux x64 workspace, current tool discovery usually reports `gh` at `/home/adrian/.cache/treeseed/tools/gh/2.90.0/linux-x64/bin/gh`, `ghConfigDir` at `/home/adrian/.cache/treeseed/tools/gh-config`, npm-backed Wrangler at `node node_modules/wrangler/bin/wrangler.js`, and npm-backed Railway at `node node_modules/@railway/cli/bin/railway.js`; still prefer the live JSON over hard-coding these paths.
+- Npm-backed Treeseed tools such as Wrangler, Railway, GitHub Copilot, and the Copilot language server resolve through the local package graph. Prefer Treeseed commands that resolve these paths for you; when scripting directly, read the tool's `invocation` object and use `node <binaryPath> ...` only when the invocation reports `mode: "node"`.
+- Use the Treeseed provider wrappers when a tool needs decrypted machine configuration values. `npx trsd gh`, `npx trsd railway`, and `npx trsd wrangler` load the selected Treeseed environment scope, inject unencrypted provider credentials into the child process environment, resolve the managed executable, and then forward arguments to the real CLI.
+- Provider wrappers default to `--environment staging`. Pass `--environment local`, `--environment staging`, or `--environment prod` before the forwarded command when you need a specific scope. Put target CLI flags after `--`, for example `npx trsd railway --environment staging -- status`, `npx trsd railway --environment staging -- whoami`, `npx trsd gh --environment staging -- run view <run-id> --repo <owner/repo> --log-failed`, and `npx trsd wrangler --environment staging -- whoami`.
+- Do not print or echo wrapper environments. The wrappers intentionally pass decrypted values such as `GH_TOKEN`, `RAILWAY_API_TOKEN`, and `CLOUDFLARE_API_TOKEN` only to the child process so provider CLIs can authenticate without exposing secrets in shell history or logs.
+
+Railway worker-runner volumes:
+
+- `treeseed.site.yaml` defines the logical `workerRunner` role only. Do not add concrete runner service names, volume names, or repeated mount paths to version-controlled config.
+- Treeseed derives runner services as `<project>-worker-runner-01`, `<project>-worker-runner-02`, etc. Each runner service gets one Railway volume named `<runner-service>-data`, mounted at `/data`.
+- Worker repositories must live under the attached volume, specifically `/data/repositories/<repository-id>/bare.git` and `/data/repositories/<repository-id>/worktrees/<task-id>`.
+- To inspect staging runner services, run `npx trsd railway --environment staging -- service list --json` and look for `*-worker-runner-*`.
+- To inspect attached volumes, run `npx trsd railway --environment staging -- volume list --json`. Railway reports volume attachment metadata and size/capacity in its volume details/dashboard/API output; do not infer volume size from Treeseed YAML.
+- Workday Manager must be started by Railway cron, not by a long-running service process. Inspect schedule reconciliation with `npx trsd railway --environment staging -- service list --json` plus the Treeseed deploy/reconcile output; the cron command should be the real workday manager entrypoint while the service start command is a scheduled-only idle guard.
+- Worker runners are cold by default. They are woken by Railway named-runner actions from API enqueue or Workday Manager scaling decisions, then self-exit after `TREESEED_WORKER_IDLE_EXIT_MS` of empty queue polling.
 
 For agents and automation:
 

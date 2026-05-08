@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.3.33] - 2026-05-08
+
+### Added
+
+- feat(market): implement capacity management and provider infrastructure (ca9ae8e8c2b6)
+
+### Fixed
+
+- fix(auth): allow disabling email verification (868569ecbfa7)
+
+### Infrastructure
+
+- release: sync package staging heads (bb94279adead)
+
+### Tests
+
+- build(deps): sync integrated package updates (5bc98fa4969a)
+- build(deps): sync integrated package updates (f95738669b13)
+- ci(deps): sync integrated package updates (28a391d8884d)
+- build(deps): sync integrated package updates (ec61604a7f17)
+
+### Dependencies
+
+- build(deps): add provider cli wrappers and refresh railway sdk lock (e504754b21dd)
+- build(deps): sync integrated package updates (8735743dd1e3)
+- build(deps): sync integrated package updates (bf4feafafa59)
+- Release @treeseed/market 0.3.33.
+- Release package @treeseed/cli: 0.6.36.
+- Release package @treeseed/core: 0.6.39.
+- Release package @treeseed/sdk: 0.6.40.
+
 ## [0.3.32] - 2026-05-07
 
 ### Infrastructure

@@ -7,7 +7,7 @@ const section = Astro.params.section ?? 'home';
 if (section === 'web-hosts') {
 	return Astro.redirect(`/app/teams/${encodeURIComponent(Astro.params.teamSlug ?? '')}/hosts`);
 }
-const allowedSections = new Set(['home', 'inbox', 'members', 'products', 'hosts', 'settings']);
+const allowedSections = new Set(['home', 'inbox', 'members', 'products', 'hosts', 'capacity', 'settings']);
 if (!allowedSections.has(section)) {
 	Astro.response.status = 404;
 }
@@ -22,7 +22,7 @@ if (!context.team || !context.store) {
 	Astro.response.status = 404;
 }
 
-const [teamHome, inbox, members, products, webHosts, teamProjects] = context.team && context.store
+const [teamHome, inbox, members, products, webHosts, teamProjects, capacityProviders, capacityGrants] = context.team && context.store
 	? await Promise.all([
 		context.store.getTeamHomeSummary(context.team.id, context.principal as any),
 		context.store.listTeamInboxItems(context.team.id, context.principal as any),
@@ -30,8 +30,10 @@ const [teamHome, inbox, members, products, webHosts, teamProjects] = context.tea
 		context.store.listTeamProducts(context.team.id, context.principal as any),
 		context.store.listTeamWebHosts(context.team.id),
 		context.store.listTeamProjects(context.team.id),
+		context.store.listTeamCapacityProviders(context.team.id),
+		context.store.listCapacityGrants(context.team.id),
 	])
-	: [null, [], [], [], [], []];
+	: [null, [], [], [], [], [], [], []];
 
 const webHostUsageById = new Map<string, any[]>();
 for (const project of teamProjects) {
@@ -58,6 +60,7 @@ const sectionTitles = {
 	members: 'Team Members',
 	products: 'Team Products',
 	hosts: 'Hosts',
+	capacity: 'Processing Capacity',
 	settings: 'Team Settings',
 };
 const currentSectionTitle = (sectionTitles as Record<string, string>)[section] ?? 'Team';
@@ -69,6 +72,11 @@ const webHostsJson = JSON.stringify({
 	teamId: context.team?.id ?? null,
 	hosts: webHosts,
 }).replace(/</gu, '\\u003c');
+const capacityDetails = await Promise.all((capacityProviders as any[]).map(async (provider: any) => ({
+	...provider,
+	lanes: context.store ? await context.store.listCapacityProviderLanes(context.team?.id ?? '', provider.id) : [],
+	grants: (capacityGrants as any[]).filter((grant) => grant.capacityProviderId === provider.id),
+})));
 ---
 
 <KnowledgeCoopAppLayout
@@ -432,7 +440,7 @@ const webHostsJson = JSON.stringify({
 						<ul class="kc-field__help kc-help-list">
 							<li>Railway projects and services start from the normalized TreeSeed project slug.</li>
 							<li>Staging and production environments are always created or matched for each project.</li>
-							<li>Service names follow the TreeSeed service role: `api`, `manager`, `worker`, `workday-start`, and `workday-report`.</li>
+							<li>Service names follow the TreeSeed service role: `api`, `workday-manager`, and `worker-runner`.</li>
 							<li>Provisioned IDs are saved back as project state and GitHub environment variables, not requested up front.</li>
 						</ul>
 					</div>
@@ -448,6 +456,64 @@ const webHostsJson = JSON.stringify({
 				</div>
 			</form>
 			<script is:inline type="application/json" id="web-hosts-data" set:html={webHostsJson}></script>
+		</section>
+	) : null}
+
+	{section === 'capacity' ? (
+		<section class="kc-panel">
+			<div class="kc-panel__header">
+				<div>
+					<p class="kc-section__eyebrow">Processing Capacity</p>
+					<h2>Provider lanes and project budgets</h2>
+				</div>
+				<a class="kc-button-secondary" href={`/app/teams/${teamHandle}/hosts`}>Manage hosts</a>
+			</div>
+			<div class="kc-card-list">
+				{capacityDetails.length > 0 ? capacityDetails.map((provider: any) => {
+					const dailyBudget = Number(provider.dailyCreditBudget ?? 0);
+					const grantedDaily = provider.grants.reduce((total: number, grant: any) => total + Number(grant.dailyCreditLimit ?? 0), 0);
+					return (
+						<article class="kc-card">
+							<div class="kc-panel__header">
+								<div>
+									<h2 style="font-size:1.05rem; margin:0;">{provider.name}</h2>
+									<p>{provider.provider} · {provider.kind.replaceAll('_', ' ')} · {provider.billingScope.replaceAll('_', ' ')}</p>
+								</div>
+								<span class="kc-status-pill" data-tone={provider.status === 'active' ? 'success' : provider.status === 'configuration_required' ? 'warning' : 'info'}>{provider.status.replaceAll('_', ' ')}</span>
+							</div>
+							<div class="kc-metric-strip" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+								<div class="kc-metric">
+									<span class="kc-metric__label">Daily credits</span>
+									<span class="kc-metric__value">{dailyBudget || 'N/A'}</span>
+								</div>
+								<div class="kc-metric">
+									<span class="kc-metric__label">Granted</span>
+									<span class="kc-metric__value">{grantedDaily || 'N/A'}</span>
+								</div>
+								<div class="kc-metric">
+									<span class="kc-metric__label">Workdays</span>
+									<span class="kc-metric__value">{provider.maxConcurrentWorkdays}</span>
+								</div>
+								<div class="kc-metric">
+									<span class="kc-metric__label">Workers</span>
+									<span class="kc-metric__value">{provider.maxConcurrentWorkers}</span>
+								</div>
+							</div>
+							<div class="kc-card__meta">
+								{provider.lanes.length > 0 ? provider.lanes.map((lane: any) => (
+									<span>{lane.name}: {lane.businessModel.replaceAll('_', ' ')} · {lane.scarcityLevel}</span>
+								)) : <span>No lanes configured</span>}
+							</div>
+							<div class="kc-card__meta">
+								{provider.grants.length > 0 ? provider.grants.map((grant: any) => {
+									const project = teamProjects.find((entry: any) => entry.id === grant.projectId);
+									return <span>{project?.name ?? grant.grantScope}: {grant.dailyCreditLimit ?? grant.weeklyQuotaMinutes ?? grant.dailyUsdLimit ?? 'policy'} {grant.dailyCreditLimit ? 'credits/day' : grant.weeklyQuotaMinutes ? 'min/week' : grant.dailyUsdLimit ? 'USD/day' : ''}</span>;
+								}) : <span>No project grants yet</span>}
+							</div>
+						</article>
+					);
+				}) : <div class="kc-empty">No processing capacity providers have been configured yet.</div>}
+			</div>
 		</section>
 	) : null}
 

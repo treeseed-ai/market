@@ -17,6 +17,7 @@ const migrationPaths = [
 	'../../migrations/0012_knowledge_coop_views.sql',
 	'../../migrations/0013_better_auth_browser_accounts.sql',
 	'../../migrations/0014_team_web_hosts.sql',
+	'../../migrations/0018_capacity_providers.sql',
 ];
 
 let cachedMigrationSql = null;
@@ -248,7 +249,254 @@ function serializeTeamWebHost(row) {
 	};
 }
 
-const SUPPORTED_TEAM_HOST_PROVIDERS = new Set(['cloudflare', 'railway']);
+const SUPPORTED_TEAM_HOST_PROVIDERS = new Set(['cloudflare', 'railway', 'openai', 'github_copilot', 'openrouter', 'custom']);
+
+function serializeCapacityProvider(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		ownerTeamId: row.owner_team_id,
+		name: row.name,
+		kind: row.kind,
+		status: row.status,
+		provider: row.provider,
+		billingScope: row.billing_scope,
+		monthlyCreditBudget: Number(row.monthly_credit_budget ?? 0),
+		dailyCreditBudget: Number(row.daily_credit_budget ?? 0),
+		maxConcurrentWorkdays: Number(row.max_concurrent_workdays ?? 1),
+		maxConcurrentWorkers: Number(row.max_concurrent_workers ?? 1),
+		capacityModel: parseJson(row.capacity_model_json, {}),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeCapacityProviderHost(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		capacityProviderId: row.capacity_provider_id,
+		hostId: row.host_id,
+		role: row.role,
+		required: Number(row.required ?? 1) === 1,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeCapacityProviderLane(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		capacityProviderId: row.capacity_provider_id,
+		name: row.name,
+		businessModel: row.business_model,
+		modelFamily: row.model_family,
+		modelClass: row.model_class,
+		regionPolicy: row.region_policy,
+		unit: row.unit,
+		scarcityLevel: row.scarcity_level,
+		hardLimits: parseJson(row.hard_limits_json, {}),
+		routingPolicy: parseJson(row.routing_policy_json, {}),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeCapacityGrant(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		capacityProviderId: row.capacity_provider_id,
+		laneId: row.lane_id,
+		grantScope: row.grant_scope,
+		teamId: row.team_id,
+		projectId: row.project_id,
+		environment: row.environment,
+		state: row.state,
+		dailyCreditLimit: row.daily_credit_limit == null ? null : Number(row.daily_credit_limit),
+		weeklyCreditLimit: row.weekly_credit_limit == null ? null : Number(row.weekly_credit_limit),
+		monthlyCreditLimit: row.monthly_credit_limit == null ? null : Number(row.monthly_credit_limit),
+		dailyUsdLimit: row.daily_usd_limit == null ? null : Number(row.daily_usd_limit),
+		weeklyQuotaMinutes: row.weekly_quota_minutes == null ? null : Number(row.weekly_quota_minutes),
+		monthlyProviderUnits: row.monthly_provider_units == null ? null : Number(row.monthly_provider_units),
+		priorityWeight: Number(row.priority_weight ?? 1),
+		overflowPolicy: row.overflow_policy,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeCapacityReservation(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		capacityProviderId: row.capacity_provider_id,
+		laneId: row.lane_id,
+		teamId: row.team_id,
+		projectId: row.project_id,
+		workDayId: row.work_day_id,
+		taskId: row.task_id,
+		state: row.state,
+		reservedCredits: Number(row.reserved_credits ?? 0),
+		consumedCredits: Number(row.consumed_credits ?? 0),
+		reservedProviderUnits: row.reserved_provider_units == null ? null : Number(row.reserved_provider_units),
+		consumedProviderUnits: row.consumed_provider_units == null ? null : Number(row.consumed_provider_units),
+		reservedUsd: row.reserved_usd == null ? null : Number(row.reserved_usd),
+		consumedUsd: row.consumed_usd == null ? null : Number(row.consumed_usd),
+		expiresAt: row.expires_at,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeCapacityLedgerEntry(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		capacityProviderId: row.capacity_provider_id,
+		laneId: row.lane_id,
+		reservationId: row.reservation_id,
+		teamId: row.team_id,
+		projectId: row.project_id,
+		workDayId: row.work_day_id,
+		taskId: row.task_id,
+		phase: row.phase,
+		credits: Number(row.credits ?? 0),
+		providerUnits: row.provider_units == null ? null : Number(row.provider_units),
+		usd: row.usd == null ? null : Number(row.usd),
+		source: row.source,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+	};
+}
+
+function serializeCapacityRoutingDecision(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		taskId: row.task_id,
+		workDayId: row.work_day_id,
+		projectId: row.project_id,
+		selectedProviderId: row.selected_provider_id,
+		selectedLaneId: row.selected_lane_id,
+		selectedModel: row.selected_model,
+		decision: row.decision,
+		reason: row.reason,
+		candidates: parseJson(row.candidate_json, []),
+		scores: parseJson(row.score_json, {}),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+	};
+}
+
+function serializeTaskEstimate(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		taskId: row.task_id,
+		workDayId: row.work_day_id,
+		projectId: row.project_id,
+		estimatePhase: row.estimate_phase,
+		taskSignature: row.task_signature,
+		confidence: row.confidence,
+		estimatedCreditsP50: Number(row.estimated_credits_p50 ?? 0),
+		estimatedCreditsP90: Number(row.estimated_credits_p90 ?? 0),
+		reservedCredits: Number(row.reserved_credits ?? 0),
+		estimatedInputTokensP50: row.estimated_input_tokens_p50 == null ? null : Number(row.estimated_input_tokens_p50),
+		estimatedInputTokensP90: row.estimated_input_tokens_p90 == null ? null : Number(row.estimated_input_tokens_p90),
+		estimatedOutputTokensP50: row.estimated_output_tokens_p50 == null ? null : Number(row.estimated_output_tokens_p50),
+		estimatedOutputTokensP90: row.estimated_output_tokens_p90 == null ? null : Number(row.estimated_output_tokens_p90),
+		estimatedQuotaMinutesP50: row.estimated_quota_minutes_p50 == null ? null : Number(row.estimated_quota_minutes_p50),
+		estimatedQuotaMinutesP90: row.estimated_quota_minutes_p90 == null ? null : Number(row.estimated_quota_minutes_p90),
+		features: parseJson(row.features_json, {}),
+		createdAt: row.created_at,
+	};
+}
+
+function serializeTaskUsageActual(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		taskId: row.task_id,
+		workDayId: row.work_day_id,
+		projectId: row.project_id,
+		taskSignature: row.task_signature,
+		capacityProviderId: row.capacity_provider_id,
+		laneId: row.lane_id,
+		businessModel: row.business_model,
+		modelName: row.model_name,
+		inputTokens: row.input_tokens == null ? null : Number(row.input_tokens),
+		outputTokens: row.output_tokens == null ? null : Number(row.output_tokens),
+		cachedInputTokens: row.cached_input_tokens == null ? null : Number(row.cached_input_tokens),
+		quotaMinutes: row.quota_minutes == null ? null : Number(row.quota_minutes),
+		wallMinutes: row.wall_minutes == null ? null : Number(row.wall_minutes),
+		filesOpened: row.files_opened == null ? null : Number(row.files_opened),
+		filesChanged: row.files_changed == null ? null : Number(row.files_changed),
+		diffLinesAdded: row.diff_lines_added == null ? null : Number(row.diff_lines_added),
+		diffLinesRemoved: row.diff_lines_removed == null ? null : Number(row.diff_lines_removed),
+		testRuns: row.test_runs == null ? null : Number(row.test_runs),
+		retryCount: row.retry_count == null ? null : Number(row.retry_count),
+		actualCredits: Number(row.actual_credits ?? 0),
+		actualUsd: row.actual_usd == null ? null : Number(row.actual_usd),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+	};
+}
+
+function serializeTaskEstimateProfile(row) {
+	if (!row) return null;
+	return {
+		taskSignature: row.task_signature,
+		sampleCount: Number(row.sample_count ?? 0),
+		inputTokensP50: row.input_tokens_p50 == null ? null : Number(row.input_tokens_p50),
+		inputTokensP90: row.input_tokens_p90 == null ? null : Number(row.input_tokens_p90),
+		outputTokensP50: row.output_tokens_p50 == null ? null : Number(row.output_tokens_p50),
+		outputTokensP90: row.output_tokens_p90 == null ? null : Number(row.output_tokens_p90),
+		quotaMinutesP50: row.quota_minutes_p50 == null ? null : Number(row.quota_minutes_p50),
+		quotaMinutesP90: row.quota_minutes_p90 == null ? null : Number(row.quota_minutes_p90),
+		filesChangedP50: row.files_changed_p50 == null ? null : Number(row.files_changed_p50),
+		filesChangedP90: row.files_changed_p90 == null ? null : Number(row.files_changed_p90),
+		creditsP50: row.credits_p50 == null ? null : Number(row.credits_p50),
+		creditsP90: row.credits_p90 == null ? null : Number(row.credits_p90),
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeApprovalRequest(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		projectId: row.project_id,
+		workDayId: row.work_day_id,
+		taskId: row.task_id,
+		kind: row.kind,
+		state: row.state,
+		severity: row.severity,
+		requestedByType: row.requested_by_type,
+		requestedById: row.requested_by_id,
+		title: row.title,
+		summary: row.summary,
+		options: parseJson(row.options_json, []),
+		recommendation: parseJson(row.recommendation_json, {}),
+		policySnapshot: parseJson(row.policy_snapshot_json, {}),
+		expiresAt: row.expires_at,
+		decidedByType: row.decided_by_type,
+		decidedById: row.decided_by_id,
+		decidedAt: row.decided_at,
+		decision: parseJson(row.decision_json, null),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
 
 function serializeTeamInvite(row) {
 	if (!row) return null;
@@ -691,18 +939,101 @@ function serializeProjectWorkdaySummary(row) {
 
 function serializeWorkPolicy(row) {
 	if (!row) return null;
+	const metadata = parseJson(row.metadata_json, {});
+	const autoscale = parseJson(row.autoscale_json, {});
+	const dailyCreditBudget = Number(row.daily_credit_budget ?? row.daily_task_credit_budget ?? 0);
 	return {
 		projectId: row.project_id,
 		environment: row.environment,
 		schedule: parseJson(row.schedule_json, { timezone: 'UTC', windows: [] }),
-		dailyTaskCreditBudget: Number(row.daily_task_credit_budget ?? 0),
+		enabled: row.enabled === undefined || row.enabled === null ? metadata.enabled !== false : Number(row.enabled) !== 0,
+		startCron: row.start_cron ?? metadata.startCron ?? '0 9 * * 1-5',
+		durationMinutes: Number(row.duration_minutes ?? metadata.durationMinutes ?? 480),
+		maxRunners: Number(row.max_runners ?? metadata.maxRunners ?? autoscale.maxWorkers ?? 1),
+		maxWorkersPerRunner: Number(row.max_workers_per_runner ?? metadata.maxWorkersPerRunner ?? 4),
+		dailyCreditBudget,
+		closeoutGraceMinutes: Number(row.closeout_grace_minutes ?? metadata.closeoutGraceMinutes ?? 15),
+		dailyTaskCreditBudget: dailyCreditBudget,
 		maxQueuedTasks: Number(row.max_queued_tasks ?? 0),
 		maxQueuedCredits: Number(row.max_queued_credits ?? 0),
-		autoscale: parseJson(row.autoscale_json, {}),
+		autoscale,
 		creditWeights: parseJson(row.credit_weights_json, []),
+		metadata,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeWorkdayRequest(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		environment: row.environment,
+		type: row.type,
+		state: row.state,
+		workDayId: row.work_day_id,
+		requestedBy: row.requested_by,
+		reason: row.reason,
+		payload: parseJson(row.payload_json, {}),
 		metadata: parseJson(row.metadata_json, {}),
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
+	};
+}
+
+function serializeWorkerRunner(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		environment: row.environment,
+		runnerId: row.runner_id,
+		runnerServiceName: row.runner_service_name,
+		volumeIdentity: row.volume_identity,
+		state: row.state,
+		maxLocalWorkers: Number(row.max_local_workers ?? 4),
+		activeLocalWorkers: Number(row.active_local_workers ?? 0),
+		availableCapacity: Number(row.available_capacity ?? 0),
+		lastHeartbeatAt: row.last_heartbeat_at,
+		claimedRepositoryIds: parseJson(row.claimed_repository_ids_json, []),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeRepositoryClaim(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		repositoryId: row.repository_id,
+		runnerId: row.runner_id,
+		runnerServiceName: row.runner_service_name,
+		volumeIdentity: row.volume_identity,
+		lastSeenCommit: row.last_seen_commit,
+		lastTaskAt: row.last_task_at,
+		claimState: row.claim_state,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeRunnerScaleDecision(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		environment: row.environment,
+		workDayId: row.work_day_id,
+		runnerId: row.runner_id,
+		runnerServiceName: row.runner_service_name,
+		action: row.action,
+		reason: row.reason,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
 	};
 }
 
@@ -806,6 +1137,7 @@ export class MarketControlPlaneStore {
 			this.initializationPromise = (migrationSql && this.db.exec ? this.db.exec(migrationSql) : Promise.resolve())
 				.then(() => this.ensureWebSessionSchema())
 				.then(() => this.ensureTeamManagementSchema())
+				.then(() => this.ensureWorkdayManagerSchema())
 				.then(() => this.seedKnowledgeCoopRoles());
 		}
 		return this.initializationPromise;
@@ -814,6 +1146,101 @@ export class MarketControlPlaneStore {
 	async tableColumns(tableName) {
 		const result = await this.all(`PRAGMA table_info(${tableName})`);
 		return new Set(result.map((row) => row.name));
+	}
+
+	async ensureWorkdayManagerSchema() {
+		const workPolicyColumns = await this.tableColumns('work_policies');
+		const addColumn = async (name, definition) => {
+			if (!workPolicyColumns.has(name)) {
+				await this.run(`ALTER TABLE work_policies ADD COLUMN ${name} ${definition}`);
+				workPolicyColumns.add(name);
+			}
+		};
+		await addColumn('enabled', 'INTEGER NOT NULL DEFAULT 1');
+		await addColumn('start_cron', "TEXT NOT NULL DEFAULT '0 9 * * 1-5'");
+		await addColumn('duration_minutes', 'INTEGER NOT NULL DEFAULT 480');
+		await addColumn('max_runners', 'INTEGER NOT NULL DEFAULT 1');
+		await addColumn('max_workers_per_runner', 'INTEGER NOT NULL DEFAULT 4');
+		await addColumn('daily_credit_budget', 'INTEGER NOT NULL DEFAULT 0');
+		await addColumn('closeout_grace_minutes', 'INTEGER NOT NULL DEFAULT 15');
+		await this.run(`UPDATE work_policies SET daily_credit_budget = daily_task_credit_budget WHERE daily_credit_budget = 0 AND daily_task_credit_budget > 0`);
+		await this.run(`CREATE TABLE IF NOT EXISTS workday_requests (
+			id TEXT PRIMARY KEY,
+			project_id TEXT NOT NULL,
+			environment TEXT NOT NULL,
+			type TEXT NOT NULL,
+			state TEXT NOT NULL DEFAULT 'pending',
+			work_day_id TEXT,
+			requested_by TEXT,
+			reason TEXT,
+			payload_json TEXT NOT NULL,
+			metadata_json TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`);
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_workday_requests_project_environment_state ON workday_requests(project_id, environment, state, created_at ASC)`);
+		await this.run(`CREATE TABLE IF NOT EXISTS workday_manager_leases (
+			id TEXT PRIMARY KEY,
+			project_id TEXT NOT NULL,
+			environment TEXT NOT NULL,
+			work_day_id TEXT,
+			manager_id TEXT NOT NULL,
+			state TEXT NOT NULL DEFAULT 'active',
+			heartbeat_at TEXT NOT NULL,
+			expires_at TEXT NOT NULL,
+			metadata_json TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`);
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_workday_manager_leases_active ON workday_manager_leases(project_id, environment, state, heartbeat_at DESC)`);
+		await this.run(`CREATE TABLE IF NOT EXISTS worker_runners (
+			id TEXT PRIMARY KEY,
+			project_id TEXT NOT NULL,
+			environment TEXT NOT NULL,
+			runner_id TEXT NOT NULL,
+			runner_service_name TEXT NOT NULL,
+			volume_identity TEXT NOT NULL,
+			state TEXT NOT NULL DEFAULT 'active',
+			max_local_workers INTEGER NOT NULL DEFAULT 4,
+			active_local_workers INTEGER NOT NULL DEFAULT 0,
+			available_capacity INTEGER NOT NULL DEFAULT 4,
+			last_heartbeat_at TEXT,
+			claimed_repository_ids_json TEXT NOT NULL,
+			metadata_json TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`);
+		await this.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_runners_identity ON worker_runners(project_id, environment, runner_id)`);
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_worker_runners_state_capacity ON worker_runners(project_id, environment, state, available_capacity DESC)`);
+		await this.run(`CREATE TABLE IF NOT EXISTS repository_claims (
+			id TEXT PRIMARY KEY,
+			project_id TEXT NOT NULL,
+			repository_id TEXT NOT NULL,
+			runner_id TEXT NOT NULL,
+			runner_service_name TEXT NOT NULL,
+			volume_identity TEXT NOT NULL,
+			last_seen_commit TEXT,
+			last_task_at TEXT,
+			claim_state TEXT NOT NULL DEFAULT 'active',
+			metadata_json TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`);
+		await this.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_repository_claims_runner_repo ON repository_claims(project_id, repository_id, runner_id)`);
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_repository_claims_repo_state ON repository_claims(project_id, repository_id, claim_state, updated_at DESC)`);
+		await this.run(`CREATE TABLE IF NOT EXISTS runner_scale_decisions (
+			id TEXT PRIMARY KEY,
+			project_id TEXT NOT NULL,
+			environment TEXT NOT NULL,
+			work_day_id TEXT,
+			runner_id TEXT,
+			runner_service_name TEXT,
+			action TEXT NOT NULL,
+			reason TEXT NOT NULL,
+			metadata_json TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		)`);
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_runner_scale_decisions_project_workday ON runner_scale_decisions(project_id, environment, work_day_id, created_at DESC)`);
 	}
 
 	async ensureWebSessionSchema() {
@@ -1433,6 +1860,613 @@ export class MarketControlPlaneStore {
 		}
 		await this.run(`DELETE FROM team_web_hosts WHERE team_id = ? AND id = ?`, [teamId, hostId]);
 		return { ok: true, payload: existing };
+	}
+
+	async listTeamCapacityProviders(teamId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM capacity_providers
+			 WHERE team_id = ? OR owner_team_id = ?
+			 ORDER BY created_at ASC`,
+			[teamId, teamId],
+		);
+		return rows.map(serializeCapacityProvider);
+	}
+
+	async getCapacityProvider(teamId, providerId) {
+		await this.ensureInitialized();
+		return serializeCapacityProvider(await this.first(
+			`SELECT * FROM capacity_providers
+			 WHERE id = ? AND (team_id = ? OR owner_team_id = ?)
+			 LIMIT 1`,
+			[providerId, teamId, teamId],
+		));
+	}
+
+	async upsertCapacityProvider(teamId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		const existing = await this.first(`SELECT * FROM capacity_providers WHERE id = ? LIMIT 1`, [id]);
+		const values = [
+			input.teamId ?? teamId,
+			input.ownerTeamId ?? input.teamId ?? teamId,
+			String(input.name ?? existing?.name ?? '').trim(),
+			String(input.kind ?? existing?.kind ?? 'team_owned'),
+			String(input.status ?? existing?.status ?? 'active'),
+			String(input.provider ?? existing?.provider ?? 'custom'),
+			String(input.billingScope ?? existing?.billing_scope ?? 'team'),
+			Number(input.monthlyCreditBudget ?? existing?.monthly_credit_budget ?? 0),
+			Number(input.dailyCreditBudget ?? existing?.daily_credit_budget ?? 0),
+			Number(input.maxConcurrentWorkdays ?? existing?.max_concurrent_workdays ?? 1),
+			Number(input.maxConcurrentWorkers ?? existing?.max_concurrent_workers ?? 1),
+			JSON.stringify(input.capacityModel ?? parseJson(existing?.capacity_model_json, {})),
+			JSON.stringify(input.metadata ?? parseJson(existing?.metadata_json, {})),
+			timestamp,
+			id,
+		];
+		if (!values[2]) {
+			throw new Error('name is required.');
+		}
+		if (existing) {
+			await this.run(
+				`UPDATE capacity_providers
+				 SET team_id = ?, owner_team_id = ?, name = ?, kind = ?, status = ?, provider = ?, billing_scope = ?,
+				     monthly_credit_budget = ?, daily_credit_budget = ?, max_concurrent_workdays = ?, max_concurrent_workers = ?,
+				     capacity_model_json = ?, metadata_json = ?, updated_at = ?
+				 WHERE id = ?`,
+				values,
+			);
+		} else {
+			await this.run(
+				`INSERT INTO capacity_providers (
+					id, team_id, owner_team_id, name, kind, status, provider, billing_scope,
+					monthly_credit_budget, daily_credit_budget, max_concurrent_workdays, max_concurrent_workers,
+					capacity_model_json, metadata_json, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[
+					id,
+					input.teamId ?? teamId,
+					input.ownerTeamId ?? input.teamId ?? teamId,
+					String(input.name).trim(),
+					String(input.kind ?? 'team_owned'),
+					String(input.status ?? 'active'),
+					String(input.provider ?? 'custom'),
+					String(input.billingScope ?? 'team'),
+					Number(input.monthlyCreditBudget ?? 0),
+					Number(input.dailyCreditBudget ?? 0),
+					Number(input.maxConcurrentWorkdays ?? 1),
+					Number(input.maxConcurrentWorkers ?? 1),
+					JSON.stringify(input.capacityModel ?? {}),
+					JSON.stringify(input.metadata ?? {}),
+					timestamp,
+					timestamp,
+				],
+			);
+		}
+		return this.getCapacityProvider(teamId, id);
+	}
+
+	async upsertCapacityProviderHost(teamId, providerId, input) {
+		await this.ensureInitialized();
+		if (!(await this.getCapacityProvider(teamId, providerId))) return null;
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT OR REPLACE INTO capacity_provider_hosts (
+				id, capacity_provider_id, host_id, role, required, metadata_json, created_at, updated_at
+			) VALUES (
+				?, ?, ?, ?, ?, ?,
+				COALESCE((SELECT created_at FROM capacity_provider_hosts WHERE id = ?), ?),
+				?
+			)`,
+			[
+				id,
+				providerId,
+				String(input.hostId),
+				String(input.role),
+				input.required === false ? 0 : 1,
+				JSON.stringify(input.metadata ?? {}),
+				id,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeCapacityProviderHost(await this.first(`SELECT * FROM capacity_provider_hosts WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async listCapacityProviderHosts(teamId, providerId) {
+		await this.ensureInitialized();
+		if (!(await this.getCapacityProvider(teamId, providerId))) return [];
+		const rows = await this.all(
+			`SELECT * FROM capacity_provider_hosts WHERE capacity_provider_id = ? ORDER BY created_at ASC`,
+			[providerId],
+		);
+		return rows.map(serializeCapacityProviderHost);
+	}
+
+	async listCapacityProviderLanes(teamId, providerId) {
+		await this.ensureInitialized();
+		if (!(await this.getCapacityProvider(teamId, providerId))) return [];
+		const rows = await this.all(
+			`SELECT * FROM capacity_provider_lanes WHERE capacity_provider_id = ? ORDER BY created_at ASC`,
+			[providerId],
+		);
+		return rows.map(serializeCapacityProviderLane);
+	}
+
+	async upsertCapacityProviderLane(teamId, providerId, input) {
+		await this.ensureInitialized();
+		if (!(await this.getCapacityProvider(teamId, providerId))) return null;
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		const existing = await this.first(`SELECT * FROM capacity_provider_lanes WHERE id = ? LIMIT 1`, [id]);
+		await this.run(
+			`INSERT OR REPLACE INTO capacity_provider_lanes (
+				id, capacity_provider_id, name, business_model, model_family, model_class, region_policy, unit,
+				scarcity_level, hard_limits_json, routing_policy_json, metadata_json, created_at, updated_at
+			) VALUES (
+				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				COALESCE((SELECT created_at FROM capacity_provider_lanes WHERE id = ?), ?),
+				?
+			)`,
+			[
+				id,
+				providerId,
+				String(input.name ?? existing?.name ?? '').trim(),
+				String(input.businessModel ?? existing?.business_model ?? 'custom'),
+				input.modelFamily ?? existing?.model_family ?? null,
+				input.modelClass ?? existing?.model_class ?? null,
+				input.regionPolicy ?? existing?.region_policy ?? null,
+				String(input.unit ?? existing?.unit ?? 'treeseed_credit'),
+				String(input.scarcityLevel ?? existing?.scarcity_level ?? 'medium'),
+				JSON.stringify(input.hardLimits ?? parseJson(existing?.hard_limits_json, {})),
+				JSON.stringify(input.routingPolicy ?? parseJson(existing?.routing_policy_json, {})),
+				JSON.stringify(input.metadata ?? parseJson(existing?.metadata_json, {})),
+				id,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeCapacityProviderLane(await this.first(`SELECT * FROM capacity_provider_lanes WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async listCapacityGrants(teamId, filters = {}) {
+		await this.ensureInitialized();
+		const clauses = ['team_id = ?'];
+		const values = [teamId];
+		if (filters.projectId) {
+			clauses.push('(project_id = ? OR project_id IS NULL)');
+			values.push(filters.projectId);
+		}
+		if (filters.providerId) {
+			clauses.push('capacity_provider_id = ?');
+			values.push(filters.providerId);
+		}
+		const rows = await this.all(
+			`SELECT * FROM capacity_grants WHERE ${clauses.join(' AND ')} ORDER BY created_at ASC`,
+			values,
+		);
+		return rows.map(serializeCapacityGrant);
+	}
+
+	async upsertCapacityGrant(teamId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT OR REPLACE INTO capacity_grants (
+				id, capacity_provider_id, lane_id, grant_scope, team_id, project_id, environment, state,
+				daily_credit_limit, weekly_credit_limit, monthly_credit_limit, daily_usd_limit,
+				weekly_quota_minutes, monthly_provider_units, priority_weight, overflow_policy,
+				metadata_json, created_at, updated_at
+			) VALUES (
+				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				COALESCE((SELECT created_at FROM capacity_grants WHERE id = ?), ?),
+				?
+			)`,
+			[
+				id,
+				input.capacityProviderId,
+				input.laneId ?? null,
+				input.grantScope ?? 'team',
+				input.teamId ?? teamId,
+				input.projectId ?? null,
+				input.environment ?? null,
+				input.state ?? 'active',
+				input.dailyCreditLimit ?? null,
+				input.weeklyCreditLimit ?? null,
+				input.monthlyCreditLimit ?? null,
+				input.dailyUsdLimit ?? null,
+				input.weeklyQuotaMinutes ?? null,
+				input.monthlyProviderUnits ?? null,
+				Number(input.priorityWeight ?? 1),
+				input.overflowPolicy ?? 'soft_grant',
+				JSON.stringify(input.metadata ?? {}),
+				id,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeCapacityGrant(await this.first(`SELECT * FROM capacity_grants WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async createCapacityReservation(input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO capacity_reservations (
+				id, capacity_provider_id, lane_id, team_id, project_id, work_day_id, task_id, state,
+				reserved_credits, consumed_credits, reserved_provider_units, consumed_provider_units,
+				reserved_usd, consumed_usd, expires_at, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, NULL, ?, NULL, ?, ?, ?, ?)`,
+			[
+				id,
+				input.capacityProviderId,
+				input.laneId,
+				input.teamId,
+				input.projectId,
+				input.workDayId ?? null,
+				input.taskId ?? null,
+				input.state ?? 'reserved',
+				Number(input.reservedCredits ?? 0),
+				input.reservedProviderUnits ?? null,
+				input.reservedUsd ?? null,
+				input.expiresAt ?? null,
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeCapacityReservation(await this.first(`SELECT * FROM capacity_reservations WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async listCapacityReservationsForProject(projectId, workDayId = null) {
+		await this.ensureInitialized();
+		const rows = workDayId
+			? await this.all(
+				`SELECT * FROM capacity_reservations WHERE project_id = ? AND work_day_id = ? ORDER BY created_at DESC`,
+				[projectId, workDayId],
+			)
+			: await this.all(
+				`SELECT * FROM capacity_reservations WHERE project_id = ? ORDER BY created_at DESC`,
+				[projectId],
+			);
+		return rows.map(serializeCapacityReservation);
+	}
+
+	async recordCapacityUsage(input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		const phase = input.phase ?? 'consume';
+		await this.run(
+			`INSERT INTO capacity_ledger_entries (
+				id, capacity_provider_id, lane_id, reservation_id, team_id, project_id, work_day_id, task_id,
+				phase, credits, provider_units, usd, source, metadata_json, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				input.capacityProviderId,
+				input.laneId ?? null,
+				input.reservationId ?? null,
+				input.teamId,
+				input.projectId ?? null,
+				input.workDayId ?? null,
+				input.taskId ?? null,
+				phase,
+				Number(input.credits ?? 0),
+				input.providerUnits ?? null,
+				input.usd ?? null,
+				input.source ?? 'runner',
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+			],
+		);
+		if (input.reservationId && phase === 'consume') {
+			await this.run(
+				`UPDATE capacity_reservations
+				 SET consumed_credits = consumed_credits + ?,
+				     consumed_provider_units = COALESCE(consumed_provider_units, 0) + COALESCE(?, 0),
+				     consumed_usd = COALESCE(consumed_usd, 0) + COALESCE(?, 0),
+				     state = CASE WHEN consumed_credits + ? >= reserved_credits THEN 'consumed' ELSE state END,
+				     updated_at = ?
+				 WHERE id = ?`,
+				[
+					Number(input.credits ?? 0),
+					input.providerUnits ?? null,
+					input.usd ?? null,
+					Number(input.credits ?? 0),
+					timestamp,
+					input.reservationId,
+				],
+			);
+		}
+		return serializeCapacityLedgerEntry(await this.first(`SELECT * FROM capacity_ledger_entries WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async listCapacityLedgerEntries(projectId, workDayId = null) {
+		await this.ensureInitialized();
+		const rows = workDayId
+			? await this.all(
+				`SELECT * FROM capacity_ledger_entries WHERE project_id = ? AND work_day_id = ? ORDER BY created_at ASC`,
+				[projectId, workDayId],
+			)
+			: await this.all(
+				`SELECT * FROM capacity_ledger_entries WHERE project_id = ? ORDER BY created_at DESC LIMIT 200`,
+				[projectId],
+			);
+		return rows.map(serializeCapacityLedgerEntry);
+	}
+
+	async createCapacityRoutingDecision(input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO capacity_routing_decisions (
+				id, task_id, work_day_id, project_id, selected_provider_id, selected_lane_id, selected_model,
+				decision, reason, candidate_json, score_json, metadata_json, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				input.taskId ?? null,
+				input.workDayId ?? null,
+				input.projectId,
+				input.selectedProviderId,
+				input.selectedLaneId,
+				input.selectedModel ?? null,
+				input.decision ?? 'selected',
+				input.reason,
+				JSON.stringify(input.candidates ?? []),
+				JSON.stringify(input.scores ?? {}),
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+			],
+		);
+		return serializeCapacityRoutingDecision(await this.first(`SELECT * FROM capacity_routing_decisions WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async createTaskEstimate(input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO task_estimates (
+				id, task_id, work_day_id, project_id, estimate_phase, task_signature, confidence,
+				estimated_credits_p50, estimated_credits_p90, reserved_credits,
+				estimated_input_tokens_p50, estimated_input_tokens_p90, estimated_output_tokens_p50,
+				estimated_output_tokens_p90, estimated_quota_minutes_p50, estimated_quota_minutes_p90,
+				features_json, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				input.taskId ?? null,
+				input.workDayId ?? null,
+				input.projectId,
+				input.estimatePhase,
+				input.taskSignature,
+				input.confidence,
+				Number(input.estimatedCreditsP50 ?? 0),
+				Number(input.estimatedCreditsP90 ?? 0),
+				Number(input.reservedCredits ?? input.estimatedCreditsP90 ?? input.estimatedCreditsP50 ?? 0),
+				input.estimatedInputTokensP50 ?? null,
+				input.estimatedInputTokensP90 ?? null,
+				input.estimatedOutputTokensP50 ?? null,
+				input.estimatedOutputTokensP90 ?? null,
+				input.estimatedQuotaMinutesP50 ?? null,
+				input.estimatedQuotaMinutesP90 ?? null,
+				JSON.stringify(input.features ?? {}),
+				timestamp,
+			],
+		);
+		return serializeTaskEstimate(await this.first(`SELECT * FROM task_estimates WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async createTaskUsageActual(input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO task_usage_actuals (
+				id, task_id, work_day_id, project_id, task_signature, capacity_provider_id, lane_id,
+				business_model, model_name, input_tokens, output_tokens, cached_input_tokens, quota_minutes,
+				wall_minutes, files_opened, files_changed, diff_lines_added, diff_lines_removed,
+				test_runs, retry_count, actual_credits, actual_usd, metadata_json, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				input.taskId ?? null,
+				input.workDayId ?? null,
+				input.projectId,
+				input.taskSignature,
+				input.capacityProviderId ?? null,
+				input.laneId ?? null,
+				input.businessModel,
+				input.modelName ?? null,
+				input.inputTokens ?? null,
+				input.outputTokens ?? null,
+				input.cachedInputTokens ?? null,
+				input.quotaMinutes ?? null,
+				input.wallMinutes ?? null,
+				input.filesOpened ?? null,
+				input.filesChanged ?? null,
+				input.diffLinesAdded ?? null,
+				input.diffLinesRemoved ?? null,
+				input.testRuns ?? null,
+				input.retryCount ?? null,
+				Number(input.actualCredits ?? 0),
+				input.actualUsd ?? null,
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+			],
+		);
+		await this.upsertTaskEstimateProfileFromActual(input.taskSignature, {
+			inputTokens: input.inputTokens,
+			outputTokens: input.outputTokens,
+			quotaMinutes: input.quotaMinutes,
+			filesChanged: input.filesChanged,
+			actualCredits: input.actualCredits,
+		});
+		return serializeTaskUsageActual(await this.first(`SELECT * FROM task_usage_actuals WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async upsertTaskEstimateProfileFromActual(taskSignature, actual) {
+		const timestamp = isoNow();
+		const existing = await this.first(`SELECT * FROM task_estimate_profiles WHERE task_signature = ? LIMIT 1`, [taskSignature]);
+		const sampleCount = Number(existing?.sample_count ?? 0);
+		const nextCount = sampleCount + 1;
+		const blend = (oldValue, nextValue) => {
+			if (nextValue === null || nextValue === undefined || !Number.isFinite(Number(nextValue))) {
+				return oldValue ?? null;
+			}
+			if (oldValue === null || oldValue === undefined) {
+				return Number(nextValue);
+			}
+			return ((Number(oldValue) * sampleCount) + Number(nextValue)) / nextCount;
+		};
+		await this.run(
+			`INSERT OR REPLACE INTO task_estimate_profiles (
+				task_signature, sample_count, input_tokens_p50, input_tokens_p90, output_tokens_p50, output_tokens_p90,
+				quota_minutes_p50, quota_minutes_p90, files_changed_p50, files_changed_p90, credits_p50, credits_p90, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				taskSignature,
+				nextCount,
+				blend(existing?.input_tokens_p50, actual.inputTokens),
+				Math.max(blend(existing?.input_tokens_p90, actual.inputTokens) ?? 0, Number(actual.inputTokens ?? 0)) || null,
+				blend(existing?.output_tokens_p50, actual.outputTokens),
+				Math.max(blend(existing?.output_tokens_p90, actual.outputTokens) ?? 0, Number(actual.outputTokens ?? 0)) || null,
+				blend(existing?.quota_minutes_p50, actual.quotaMinutes),
+				Math.max(blend(existing?.quota_minutes_p90, actual.quotaMinutes) ?? 0, Number(actual.quotaMinutes ?? 0)) || null,
+				blend(existing?.files_changed_p50, actual.filesChanged),
+				Math.max(blend(existing?.files_changed_p90, actual.filesChanged) ?? 0, Number(actual.filesChanged ?? 0)) || null,
+				blend(existing?.credits_p50, actual.actualCredits),
+				Math.max(blend(existing?.credits_p90, actual.actualCredits) ?? 0, Number(actual.actualCredits ?? 0)) || null,
+				timestamp,
+			],
+		);
+		return serializeTaskEstimateProfile(await this.first(`SELECT * FROM task_estimate_profiles WHERE task_signature = ? LIMIT 1`, [taskSignature]));
+	}
+
+	async listTaskEstimateProfiles(limit = 100) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM task_estimate_profiles ORDER BY updated_at DESC LIMIT ?`,
+			[Math.max(1, Math.min(500, Number(limit) || 100))],
+		);
+		return rows.map(serializeTaskEstimateProfile);
+	}
+
+	async createApprovalRequest(input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO approval_requests (
+				id, team_id, project_id, work_day_id, task_id, kind, state, severity, requested_by_type,
+				requested_by_id, title, summary, options_json, recommendation_json, policy_snapshot_json,
+				expires_at, decision_json, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+			[
+				id,
+				input.teamId,
+				input.projectId,
+				input.workDayId ?? null,
+				input.taskId ?? null,
+				input.kind,
+				input.severity ?? 'medium',
+				input.requestedByType ?? 'worker',
+				input.requestedById ?? null,
+				input.title,
+				input.summary,
+				JSON.stringify(input.options ?? []),
+				JSON.stringify(input.recommendation ?? {}),
+				JSON.stringify(input.policySnapshot ?? {}),
+				input.expiresAt ?? null,
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeApprovalRequest(await this.first(`SELECT * FROM approval_requests WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async getApprovalRequest(id) {
+		await this.ensureInitialized();
+		return serializeApprovalRequest(await this.first(`SELECT * FROM approval_requests WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async decideApprovalRequest(id, input) {
+		await this.ensureInitialized();
+		const existing = await this.getApprovalRequest(id);
+		if (!existing) return null;
+		const timestamp = isoNow();
+		const state = input.state === 'rejected' ? 'rejected' : input.state === 'expired' ? 'expired' : 'approved';
+		await this.run(
+			`UPDATE approval_requests
+			 SET state = ?, decided_by_type = ?, decided_by_id = ?, decided_at = ?, decision_json = ?, updated_at = ?
+			 WHERE id = ?`,
+			[
+				state,
+				input.decidedByType ?? 'user',
+				input.decidedById ?? null,
+				timestamp,
+				JSON.stringify(input.decision ?? {}),
+				timestamp,
+				id,
+			],
+		);
+		return this.getApprovalRequest(id);
+	}
+
+	async getProjectCapacityPlan(projectId, environment = 'staging') {
+		await this.ensureInitialized();
+		const project = await this.getProject(projectId);
+		if (!project) return null;
+		const grants = await this.listCapacityGrants(project.teamId, { projectId });
+		const providerIds = [...new Set(grants.map((grant) => grant.capacityProviderId))];
+		const providers = providerIds.length
+			? (await this.all(
+				`SELECT * FROM capacity_providers WHERE id IN (${providerIds.map(() => '?').join(',')}) ORDER BY created_at ASC`,
+				providerIds,
+			)).map(serializeCapacityProvider)
+			: [];
+		const lanes = providerIds.length
+			? (await this.all(
+				`SELECT * FROM capacity_provider_lanes WHERE capacity_provider_id IN (${providerIds.map(() => '?').join(',')}) ORDER BY created_at ASC`,
+				providerIds,
+			)).map(serializeCapacityProviderLane)
+			: [];
+		const activeReservations = (await this.listCapacityReservationsForProject(projectId))
+			.filter((reservation) => ['reserved', 'consumed'].includes(reservation.state));
+		const profiles = await this.listTaskEstimateProfiles(100);
+		const dailyCredits = grants.reduce((total, grant) => total + Number(grant.dailyCreditLimit ?? 0), 0);
+		const weeklyCredits = grants.reduce((total, grant) => total + Number(grant.weeklyCreditLimit ?? 0), 0);
+		const monthlyCredits = grants.reduce((total, grant) => total + Number(grant.monthlyCreditLimit ?? 0), 0);
+		const weeklyQuotaMinutes = grants.reduce((total, grant) => total + Number(grant.weeklyQuotaMinutes ?? 0), 0);
+		const dailyUsd = grants.reduce((total, grant) => total + Number(grant.dailyUsdLimit ?? 0), 0);
+		const reservedCredits = activeReservations
+			.filter((reservation) => reservation.state === 'reserved')
+			.reduce((total, reservation) => total + Number(reservation.reservedCredits ?? 0), 0);
+		return {
+			projectId,
+			teamId: project.teamId,
+			environment,
+			providers,
+			lanes,
+			grants,
+			activeReservations,
+			estimateProfiles: profiles,
+			remaining: {
+				dailyCredits: dailyCredits > 0 ? Math.max(0, dailyCredits - reservedCredits) : null,
+				weeklyCredits: weeklyCredits || null,
+				monthlyCredits: monthlyCredits || null,
+				weeklyQuotaMinutes: weeklyQuotaMinutes || null,
+				dailyUsd: dailyUsd || null,
+			},
+		};
 	}
 
 	async listTeamInvites(teamId) {
@@ -2449,12 +3483,14 @@ export class MarketControlPlaneStore {
 	async upsertProjectWorkPolicy(projectId, input) {
 		await this.ensureInitialized();
 		const timestamp = isoNow();
+		const dailyCreditBudget = Number(input.dailyCreditBudget ?? input.dailyTaskCreditBudget ?? 0);
 		await this.run(
 			`INSERT OR REPLACE INTO work_policies (
-				project_id, environment, schedule_json, daily_task_credit_budget, max_queued_tasks, max_queued_credits,
+				project_id, environment, schedule_json, enabled, start_cron, duration_minutes, max_runners, max_workers_per_runner,
+				daily_credit_budget, closeout_grace_minutes, daily_task_credit_budget, max_queued_tasks, max_queued_credits,
 				autoscale_json, credit_weights_json, metadata_json, created_at, updated_at
 			) VALUES (
-				?, ?, ?, ?, ?, ?, ?, ?, ?,
+				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
 				COALESCE((SELECT created_at FROM work_policies WHERE project_id = ? AND environment = ?), ?),
 				?
 			)`,
@@ -2462,7 +3498,14 @@ export class MarketControlPlaneStore {
 				projectId,
 				input.environment,
 				JSON.stringify(input.schedule ?? { timezone: 'UTC', windows: [] }),
-				Number(input.dailyTaskCreditBudget ?? 0),
+				input.enabled === false ? 0 : 1,
+				input.startCron ?? '0 9 * * 1-5',
+				Number(input.durationMinutes ?? 480),
+				Number(input.maxRunners ?? input.autoscale?.maxWorkers ?? 1),
+				Number(input.maxWorkersPerRunner ?? 4),
+				dailyCreditBudget,
+				Number(input.closeoutGraceMinutes ?? 15),
+				dailyCreditBudget,
 				Number(input.maxQueuedTasks ?? 0),
 				Number(input.maxQueuedCredits ?? 0),
 				JSON.stringify(input.autoscale ?? {}),
@@ -2475,6 +3518,173 @@ export class MarketControlPlaneStore {
 			],
 		);
 		return this.getProjectWorkPolicy(projectId, input.environment);
+	}
+
+	async createWorkdayRequest(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO workday_requests (
+				id, project_id, environment, type, state, work_day_id, requested_by, reason, payload_json, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				projectId,
+				input.environment,
+				input.type,
+				input.state ?? 'pending',
+				input.workDayId ?? null,
+				input.requestedBy ?? null,
+				input.reason ?? null,
+				JSON.stringify(input.payload ?? {}),
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeWorkdayRequest(await this.first(`SELECT * FROM workday_requests WHERE id = ?`, [id]));
+	}
+
+	async listWorkdayRequests(projectId, environment, state = null) {
+		await this.ensureInitialized();
+		const rows = state
+			? await this.all(
+				`SELECT * FROM workday_requests WHERE project_id = ? AND environment = ? AND state = ? ORDER BY created_at ASC`,
+				[projectId, environment, state],
+			)
+			: await this.all(
+				`SELECT * FROM workday_requests WHERE project_id = ? AND environment = ? ORDER BY created_at ASC`,
+				[projectId, environment],
+			);
+		return rows.map(serializeWorkdayRequest);
+	}
+
+	async recordWorkerRunner(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? `${projectId}:${input.environment}:${input.runnerId}`;
+		const maxLocalWorkers = Number(input.maxLocalWorkers ?? 4);
+		const activeLocalWorkers = Number(input.activeLocalWorkers ?? 0);
+		await this.run(
+			`INSERT OR REPLACE INTO worker_runners (
+				id, project_id, environment, runner_id, runner_service_name, volume_identity, state, max_local_workers, active_local_workers,
+				available_capacity, last_heartbeat_at, claimed_repository_ids_json, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				COALESCE((SELECT created_at FROM worker_runners WHERE id = ?), ?),
+				?
+			)`,
+			[
+				id,
+				projectId,
+				input.environment,
+				input.runnerId,
+				input.runnerServiceName,
+				input.volumeIdentity,
+				input.state ?? 'active',
+				maxLocalWorkers,
+				activeLocalWorkers,
+				Math.max(0, maxLocalWorkers - activeLocalWorkers),
+				input.lastHeartbeatAt ?? timestamp,
+				JSON.stringify(input.claimedRepositoryIds ?? []),
+				JSON.stringify(input.metadata ?? {}),
+				id,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeWorkerRunner(await this.first(`SELECT * FROM worker_runners WHERE id = ?`, [id]));
+	}
+
+	async listWorkerRunners(projectId, environment) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM worker_runners WHERE project_id = ? AND environment = ? ORDER BY runner_id ASC`,
+			[projectId, environment],
+		);
+		return rows.map(serializeWorkerRunner);
+	}
+
+	async recordRepositoryClaim(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? `${projectId}:${input.repositoryId}:${input.runnerId}`;
+		await this.run(
+			`INSERT OR REPLACE INTO repository_claims (
+				id, project_id, repository_id, runner_id, runner_service_name, volume_identity, last_seen_commit, last_task_at, claim_state, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				COALESCE((SELECT created_at FROM repository_claims WHERE id = ?), ?),
+				?
+			)`,
+			[
+				id,
+				projectId,
+				input.repositoryId,
+				input.runnerId,
+				input.runnerServiceName,
+				input.volumeIdentity,
+				input.lastSeenCommit ?? null,
+				input.lastTaskAt ?? timestamp,
+				input.claimState ?? 'active',
+				JSON.stringify(input.metadata ?? {}),
+				id,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeRepositoryClaim(await this.first(`SELECT * FROM repository_claims WHERE id = ?`, [id]));
+	}
+
+	async listRepositoryClaims(projectId, repositoryId = null) {
+		await this.ensureInitialized();
+		const rows = repositoryId
+			? await this.all(
+				`SELECT * FROM repository_claims WHERE project_id = ? AND repository_id = ? ORDER BY updated_at DESC`,
+				[projectId, repositoryId],
+			)
+			: await this.all(
+				`SELECT * FROM repository_claims WHERE project_id = ? ORDER BY updated_at DESC`,
+				[projectId],
+			);
+		return rows.map(serializeRepositoryClaim);
+	}
+
+	async recordRunnerScaleDecision(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO runner_scale_decisions (
+				id, project_id, environment, work_day_id, runner_id, runner_service_name, action, reason, metadata_json, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				projectId,
+				input.environment,
+				input.workDayId ?? null,
+				input.runnerId ?? null,
+				input.runnerServiceName ?? null,
+				input.action,
+				input.reason,
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+			],
+		);
+		return serializeRunnerScaleDecision(await this.first(`SELECT * FROM runner_scale_decisions WHERE id = ?`, [id]));
+	}
+
+	async listRunnerScaleDecisions(projectId, environment, workDayId = null) {
+		await this.ensureInitialized();
+		const rows = workDayId
+			? await this.all(
+				`SELECT * FROM runner_scale_decisions WHERE project_id = ? AND environment = ? AND work_day_id = ? ORDER BY created_at DESC`,
+				[projectId, environment, workDayId],
+			)
+			: await this.all(
+				`SELECT * FROM runner_scale_decisions WHERE project_id = ? AND environment = ? ORDER BY created_at DESC`,
+				[projectId, environment],
+			);
+		return rows.map(serializeRunnerScaleDecision);
 	}
 
 	async listProjectPriorityOverrides(projectId) {

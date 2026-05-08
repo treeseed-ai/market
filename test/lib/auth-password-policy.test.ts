@@ -194,6 +194,7 @@ describe('market auth password policy', () => {
 							TREESEED_AUTH_ALLOW_MEMORY_DB: 'true',
 							TREESEED_AUTH_MODE: 'internal-first',
 							TREESEED_AUTH_INTERNAL_SIGNUP: 'open',
+							TREESEED_AUTH_EMAIL_VERIFICATION_ENABLED: 'false',
 						},
 					},
 				},
