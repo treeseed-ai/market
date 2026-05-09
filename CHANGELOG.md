@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.44] - 2026-05-09
+
+### Infrastructure
+
+- release: sync package staging heads (617d4294db7f)
+
+### Dependencies
+
+- build(deps): sync integrated package updates (257f51d57975)
+- Release @treeseed/market 0.3.44.
+- Release package @treeseed/cli: 0.6.47.
+- Release package @treeseed/core: 0.6.50.
+- Release package @treeseed/sdk: 0.6.51.
+
 ## [0.3.43] - 2026-05-08
 
 ### Infrastructure
