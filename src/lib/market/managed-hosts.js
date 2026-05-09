@@ -141,6 +141,25 @@ export function listTreeseedManagedHosts(teamId, runtime, values = {}) {
 			createdAt: now,
 			updatedAt: now,
 		},
+		{
+			id: 'treeseed-managed-email',
+			teamId,
+			provider: 'smtp',
+			ownership: 'treeseed_managed',
+			name: 'TreeSeed Email Host',
+			accountLabel: 'TreeSeed email service',
+			allowedEnvironments: ['staging', 'prod'],
+			status: 'active',
+			encryptedPayload: null,
+			metadata: {
+				hostType: 'email',
+				managed: true,
+				configured: true,
+				pricing: '$0.01/email sent',
+			},
+			createdAt: now,
+			updatedAt: now,
+		},
 	];
 }
 

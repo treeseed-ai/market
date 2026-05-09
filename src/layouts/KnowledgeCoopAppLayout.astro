@@ -69,10 +69,12 @@ const projectTabs = project && activeTeam
 		<div class="kc-page kc-app-shell">
 			<aside class="kc-rail">
 				<a class="kc-brand" href="/app/">
-					<span class="kc-brand__mark">KC</span>
+					<span class="kc-brand__mark">
+						<img src="/logo.svg" alt="" width="40" height="40" loading="eager" />
+					</span>
 					<span class="kc-brand__text">
-						<span class="kc-brand__name">Knowledge Coop</span>
-						<span class="kc-brand__tag">knowledge.coop</span>
+						<span class="kc-brand__name">TreeSeed Platform</span>
+						<span class="kc-brand__tag">Knowledge: Evolved, Shared, and Operationalized</span>
 					</span>
 				</a>
 
@@ -116,10 +118,20 @@ const projectTabs = project && activeTeam
 			<main class="kc-app-main">
 				<header class="kc-app-header">
 					<div>
-						<p class="kc-section__eyebrow">Knowledge Coop</p>
 						<h1>{title}</h1>
 						<p>{description}</p>
 					</div>
+					<button class="kc-sensitive-lock-button" type="button" data-sensitive-unlock-button data-state="locked" aria-haspopup="dialog" aria-controls="sensitive-unlock-modal">
+						<span class="kc-sensitive-lock-button__icons" aria-hidden="true">
+							<svg data-sensitive-lock-icon="locked" viewBox="0 0 24 24" focusable="false">
+								<path d="M7 10V8a5 5 0 0 1 10 0v2h1a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h1Zm2 0h6V8a3 3 0 0 0-6 0v2Zm3 4.25a1.25 1.25 0 0 0-.65 2.32V18h1.3v-1.43A1.25 1.25 0 0 0 12 14.25Z" />
+							</svg>
+							<svg data-sensitive-lock-icon="unlocked" viewBox="0 0 24 24" focusable="false">
+								<path d="M9 10h9a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h1V8a5 5 0 0 1 9.5-2.18l-1.8.88A3 3 0 0 0 9 8v2Zm3 4.25a1.25 1.25 0 0 0-.65 2.32V18h1.3v-1.43A1.25 1.25 0 0 0 12 14.25Z" />
+							</svg>
+						</span>
+						<span data-sensitive-unlock-label>Unlock sensitive data</span>
+					</button>
 				</header>
 
 				{project ? (
@@ -154,6 +166,216 @@ const projectTabs = project && activeTeam
 				<slot />
 			</main>
 		</div>
+		<div class="kc-sensitive-modal" id="sensitive-unlock-modal" data-sensitive-modal hidden>
+			<div class="kc-sensitive-modal__scrim" data-sensitive-modal-close></div>
+			<section class="kc-sensitive-dialog" role="dialog" aria-modal="true" aria-labelledby="sensitive-unlock-title">
+				<div class="kc-sensitive-dialog__main">
+					<div class="kc-panel__header">
+						<div>
+							<p class="kc-section__eyebrow">Sensitive Data</p>
+							<h2 id="sensitive-unlock-title">Unlock encrypted team data</h2>
+							<p>One passphrase unlocks host credentials and sensitive actions on this page until refresh or navigation.</p>
+						</div>
+						<button class="kc-icon-button" type="button" data-sensitive-modal-close aria-label="Close sensitive data unlock">Close</button>
+					</div>
+					<div class="kc-tabs" role="tablist" aria-label="Sensitive data modes">
+						<button class="kc-tab" type="button" role="tab" data-sensitive-modal-mode-button="unlock" aria-selected="true">Unlock/Create</button>
+						<button class="kc-tab" type="button" role="tab" data-sensitive-modal-mode-button="reset" aria-selected="false">Reset passphrase</button>
+					</div>
+					<form class="kc-sensitive-mode" data-sensitive-mode="unlock">
+						<label class="kc-list-item kc-field">
+							<span class="kc-field__label">Team sensitive data passphrase</span>
+							<span class="kc-field__help">Use the same passphrase for Repository, Web, and Processing host secrets.</span>
+							<input class="kc-control" name="treeseedSensitivePassphrase" type="password" autocomplete="current-password" required />
+						</label>
+						<div class="kc-inline-actions">
+							<button class="kc-button" type="submit">Unlock sensitive data</button>
+							<button class="kc-button-secondary" type="button" data-sensitive-lock-now>Lock</button>
+						</div>
+					</form>
+					<form class="kc-sensitive-mode" data-sensitive-mode="reset" hidden>
+						<label class="kc-list-item kc-field">
+							<span class="kc-field__label">Current passphrase</span>
+							<span class="kc-field__help">Reset needs the current passphrase so saved encrypted values can be re-encrypted.</span>
+							<input class="kc-control" name="currentPassphrase" type="password" autocomplete="current-password" required />
+						</label>
+						<label class="kc-list-item kc-field">
+							<span class="kc-field__label">New passphrase</span>
+							<input class="kc-control" name="newPassphrase" type="password" autocomplete="new-password" required />
+						</label>
+						<label class="kc-list-item kc-field">
+							<span class="kc-field__label">Confirm new passphrase</span>
+							<input class="kc-control" name="confirmPassphrase" type="password" autocomplete="new-password" required />
+						</label>
+						<div class="kc-sensitive-forgot">
+							Forgot the current passphrase? Existing encrypted provider values cannot be recovered. Create replacement hosts with a new passphrase.
+						</div>
+						<div class="kc-inline-actions">
+							<button class="kc-button" type="submit">Re-encrypt saved data</button>
+						</div>
+					</form>
+					<p class="kc-subtle" data-sensitive-modal-status role="status"></p>
+				</div>
+				<aside class="kc-sensitive-dialog__help">
+					<strong>Provider values are encrypted in your browser and are not available to TreeSeed.</strong>
+					<p>Your passphrase stays in this tab's memory only. It is not saved in local storage, cookies, or project metadata. Refreshing or navigating locks the page again.</p>
+					<p>When you save host credentials, the browser stretches your passphrase with Argon2id, then encrypts the values with XSalsa20-Poly1305 authenticated encryption. Each save uses a fresh salt and nonce, and TreeSeed stores only the encrypted envelope.</p>
+					<p>Launch and validation actions use short-lived server sessions. The server receives the passphrase only for that unlock request, re-encrypts the provider values for the job/session, and does not return secrets in normal API responses.</p>
+				</aside>
+			</section>
+		</div>
+		<script>
+			type SensitiveResetHandler = (input: { currentPassphrase: string; newPassphrase: string }) => Promise<void> | void;
+			const sensitiveApiWindow = window as Window & typeof globalThis & { treeseedSensitiveUnlock?: any };
+			const sensitiveState = { passphrase: '' };
+			const resetHandlers = new Set<SensitiveResetHandler>();
+			const unlockButton = document.querySelector<HTMLElement>('[data-sensitive-unlock-button]');
+			const unlockLabel = document.querySelector<HTMLElement>('[data-sensitive-unlock-label]');
+			const modal = document.querySelector<HTMLElement>('[data-sensitive-modal]');
+			const statusElement = document.querySelector<HTMLElement>('[data-sensitive-modal-status]');
+			const modeButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-sensitive-modal-mode-button]')];
+			const modePanels = [...document.querySelectorAll<HTMLElement>('[data-sensitive-mode]')];
+			const unlockForm = document.querySelector<HTMLFormElement>('[data-sensitive-mode="unlock"]');
+			const resetForm = document.querySelector<HTMLFormElement>('[data-sensitive-mode="reset"]');
+
+			function setSensitiveStatus(message: string, tone = '') {
+				if (!statusElement) return;
+				statusElement.textContent = message;
+				statusElement.setAttribute('data-tone', tone);
+			}
+
+			function isSensitiveUnlocked() {
+				return Boolean(sensitiveState.passphrase);
+			}
+
+			function dispatchSensitiveChange() {
+				window.dispatchEvent(new CustomEvent('treeseed:sensitive-unlock-change', {
+					detail: { unlocked: isSensitiveUnlocked() },
+				}));
+			}
+
+			function refreshSensitiveUi() {
+				const unlocked = isSensitiveUnlocked();
+				document.documentElement.dataset.sensitiveUnlocked = unlocked ? 'true' : 'false';
+				unlockButton?.setAttribute('data-state', unlocked ? 'unlocked' : 'locked');
+				if (unlockLabel) unlockLabel.textContent = unlocked ? 'Sensitive data unlocked' : 'Unlock sensitive data';
+				for (const element of document.querySelectorAll('[data-sensitive-lock]')) {
+					if ('disabled' in element) element.disabled = !unlocked;
+					element.setAttribute('aria-disabled', unlocked ? 'false' : 'true');
+					element.closest('[data-sensitive-lock-wrap]')?.classList.toggle('kc-sensitive-locked', !unlocked);
+				}
+				for (const message of document.querySelectorAll<HTMLElement>('[data-sensitive-lock-message]')) {
+					message.hidden = unlocked;
+				}
+				dispatchSensitiveChange();
+			}
+
+			function selectSensitiveMode(mode: string | null) {
+				const selected = mode === 'reset' ? 'reset' : 'unlock';
+				for (const button of modeButtons) {
+					const active = button.getAttribute('data-sensitive-modal-mode-button') === selected;
+					button.setAttribute('aria-selected', active ? 'true' : 'false');
+					button.setAttribute('aria-current', active ? 'page' : 'false');
+				}
+				for (const panel of modePanels) {
+					panel.hidden = panel.getAttribute('data-sensitive-mode') !== selected;
+				}
+			}
+
+			function openSensitiveModal(mode = 'unlock') {
+				selectSensitiveMode(mode);
+				modal?.removeAttribute('hidden');
+				setSensitiveStatus('');
+				setTimeout(() => {
+					const input = modal?.querySelector<HTMLElement>(`[data-sensitive-mode="${mode === 'reset' ? 'reset' : 'unlock'}"] input`);
+					input?.focus();
+				}, 0);
+			}
+
+			function closeSensitiveModal() {
+				modal?.setAttribute('hidden', '');
+			}
+
+			function setPassphrase(passphrase: string) {
+				sensitiveState.passphrase = passphrase;
+				refreshSensitiveUi();
+			}
+
+			sensitiveApiWindow.treeseedSensitiveUnlock = {
+				isUnlocked: isSensitiveUnlocked,
+				getPassphrase() {
+					return sensitiveState.passphrase || null;
+				},
+				requirePassphrase() {
+					if (!sensitiveState.passphrase) openSensitiveModal('unlock');
+					return sensitiveState.passphrase || null;
+				},
+				open: openSensitiveModal,
+				lock() {
+					setPassphrase('');
+					setSensitiveStatus('Sensitive data is locked.', 'info');
+				},
+				refresh: refreshSensitiveUi,
+				registerResetHandler(handler: SensitiveResetHandler) {
+					resetHandlers.add(handler);
+					return () => resetHandlers.delete(handler);
+				},
+			};
+
+			unlockButton?.addEventListener('click', () => openSensitiveModal('unlock'));
+			for (const closeButton of document.querySelectorAll('[data-sensitive-modal-close]')) {
+				closeButton.addEventListener('click', closeSensitiveModal);
+			}
+			for (const button of modeButtons) {
+				button.addEventListener('click', () => selectSensitiveMode(button.getAttribute('data-sensitive-modal-mode-button')));
+			}
+			document.querySelector('[data-sensitive-lock-now]')?.addEventListener('click', () => {
+				sensitiveApiWindow.treeseedSensitiveUnlock?.lock();
+				closeSensitiveModal();
+			});
+			unlockForm?.addEventListener('submit', (event) => {
+				event.preventDefault();
+				const form = new FormData(unlockForm);
+				const passphrase = String(form.get('treeseedSensitivePassphrase') ?? '');
+				if (!passphrase) {
+					setSensitiveStatus('Enter the team sensitive data passphrase.', 'error');
+					return;
+				}
+				setPassphrase(passphrase);
+				setSensitiveStatus('Sensitive data unlocked for this page.', 'success');
+				closeSensitiveModal();
+			});
+			resetForm?.addEventListener('submit', async (event) => {
+				event.preventDefault();
+				const form = new FormData(resetForm);
+				const currentPassphrase = String(form.get('currentPassphrase') ?? '');
+				const newPassphrase = String(form.get('newPassphrase') ?? '');
+				const confirmPassphrase = String(form.get('confirmPassphrase') ?? '');
+				if (!currentPassphrase || !newPassphrase) {
+					setSensitiveStatus('Enter the current and new passphrases.', 'error');
+					return;
+				}
+				if (newPassphrase !== confirmPassphrase) {
+					setSensitiveStatus('The new passphrases do not match.', 'error');
+					return;
+				}
+				setSensitiveStatus('Re-encrypting saved sensitive data...');
+				try {
+					for (const handler of resetHandlers) {
+						await handler({ currentPassphrase, newPassphrase });
+					}
+					setPassphrase(newPassphrase);
+					setSensitiveStatus(resetHandlers.size > 0 ? 'Saved sensitive data was re-encrypted.' : 'Passphrase changed for this page.', 'success');
+					closeSensitiveModal();
+				} catch (error) {
+					setSensitiveStatus(error instanceof Error ? error.message : String(error), 'error');
+				}
+			});
+			document.addEventListener('keydown', (event) => {
+				if (event.key === 'Escape' && !modal?.hasAttribute('hidden')) closeSensitiveModal();
+			});
+			refreshSensitiveUi();
+		</script>
 	</body>
 </html>
 
@@ -170,7 +392,7 @@ const projectTabs = project && activeTeam
 		width: 100%;
 		padding: 0.55rem;
 		border: 1px solid #d0d7de;
-		border-radius: 0.45rem;
+		border-radius: 0.35rem;
 		background: #fff;
 	}
 	.kc-create-team-button {
@@ -179,7 +401,7 @@ const projectTabs = project && activeTeam
 		min-height: 2.5rem;
 		margin-top: 0.55rem;
 		padding: 0 0.75rem;
-		border-radius: 0.45rem;
+		border-radius: 0.35rem;
 		background: #1f6f4a;
 		color: #fff;
 		text-decoration: none;
@@ -193,7 +415,7 @@ const projectTabs = project && activeTeam
 		height: 2.25rem;
 		padding: 0 0.45rem;
 		border: 1px solid #d0d7de;
-		border-radius: 0.45rem;
+		border-radius: 0.35rem;
 		text-decoration: none;
 		font-size: 0.78rem;
 		font-weight: 700;

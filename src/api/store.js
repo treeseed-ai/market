@@ -2172,7 +2172,7 @@ export class MarketControlPlaneStore {
 		const hostKind = String(input.hostKind ?? '');
 		const hostId = String(input.hostId ?? '');
 		const purpose = String(input.purpose ?? 'launch_project');
-		if (!['repository_host', 'web_host', 'processing_host'].includes(hostKind)) {
+		if (!['repository_host', 'web_host', 'processing_host', 'email_host'].includes(hostKind)) {
 			throw new Error(`Unsupported credential session hostKind "${hostKind}".`);
 		}
 		if (!hostId) {
