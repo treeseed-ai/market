@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.1] - 2026-05-09
+
+### Infrastructure
+
+- docs(source): update workflow documentation (5c7e1bae4e4e)
+- release: sync package staging heads (a8712ce651be)
+
+### Dependencies
+
+- Release @treeseed/market 0.5.1.
+- Release package @treeseed/cli: 0.8.1.
+- Release package @treeseed/core: 0.8.1.
+- Release package @treeseed/sdk: 0.8.1.
+
 ## [0.5.0] - 2026-05-09
 
 ### Dependencies
