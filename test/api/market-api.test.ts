@@ -278,6 +278,14 @@ function encryptedHostEnvelope(overrides: Record<string, unknown> = {}) {
 	};
 }
 
+function encryptedTestHostEnvelope(config: Record<string, unknown>, passphrase: string) {
+	return encryptedHostEnvelope({
+		algorithm: 'test-json',
+		passphrase,
+		ciphertext: Buffer.from(JSON.stringify(config), 'utf8').toString('base64'),
+	});
+}
+
 runtimeDescribe('market api', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -573,10 +581,11 @@ runtimeDescribe('market api', () => {
 	});
 
 	it('launch accepts an unlocked team Cloudflare host without persisting plaintext config', async () => {
-		const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeCoopManagedLaunch').mockRejectedValue(new Error('launch intentionally stopped'));
+		const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeHubProviderLaunch').mockRejectedValue(new Error('launch intentionally stopped'));
 		const app = createTestApp();
 		const token = await authorizeApp(app);
 		const team = await createTeam(app, token);
+		const passphrase = 'correct horse battery staple';
 		const host = await json(await app.request(`/v1/teams/${team.id}/web-hosts`, {
 			method: 'POST',
 			headers: {
@@ -586,9 +595,27 @@ runtimeDescribe('market api', () => {
 			body: JSON.stringify({
 				name: 'Team Cloudflare',
 				ownership: 'team_owned',
-				encryptedPayload: encryptedHostEnvelope(),
+				encryptedPayload: encryptedTestHostEnvelope({
+					CLOUDFLARE_API_TOKEN: 'cf-secret-token',
+					CLOUDFLARE_ACCOUNT_ID: 'account-1',
+				}, passphrase),
 			}),
 		}));
+		const session = await json(await app.request(`/v1/teams/${team.id}/provider-credential-sessions`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				hostKind: 'web_host',
+				hostId: host.payload.id,
+				passphrase,
+				purpose: 'launch_project',
+				expiresInSeconds: 600,
+			}),
+		}));
+		expect(session.payload.id).toBeTruthy();
 
 		const launched = await app.request(`/v1/teams/${team.id}/projects/launch`, {
 			method: 'POST',
@@ -604,26 +631,16 @@ runtimeDescribe('market api', () => {
 				cloudflareHostMode: 'team_owned',
 				cloudflareHostId: host.payload.id,
 				targetEnvironments: ['staging', 'prod'],
-				cloudflareHostConfig: {
-					CLOUDFLARE_API_TOKEN: 'cf-secret-token',
-					CLOUDFLARE_ACCOUNT_ID: 'account-1',
+				credentialSessions: {
+					webHost: session.payload.id,
 				},
 			}),
 		});
-		expect(launched.status).toBe(502);
+		expect(launched.status).toBe(202);
 		const launchPayload = await json(launched);
 		expect(JSON.stringify(launchPayload)).not.toContain('cf-secret-token');
-		expect(launchSpy).toHaveBeenCalledWith(expect.objectContaining({
-			cloudflareHost: expect.objectContaining({
-				mode: 'team_owned',
-				hostId: host.payload.id,
-				targetEnvironments: ['staging', 'prod'],
-				config: expect.objectContaining({
-					CLOUDFLARE_API_TOKEN: 'cf-secret-token',
-					CLOUDFLARE_ACCOUNT_ID: 'account-1',
-				}),
-			}),
-		}));
+		expect(launchPayload.payload.launchJob.status).toBe('pending');
+		expect(launchSpy).not.toHaveBeenCalled();
 		const projects = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
 			headers: { authorization: `Bearer ${token}` },
 		}));
@@ -635,7 +652,30 @@ runtimeDescribe('market api', () => {
 		}));
 		expect(details.payload.project.metadata.cloudflareHost.mode).toBe('team_owned');
 		expect(details.payload.project.metadata.cloudflareHost.hostId).toBe(host.payload.id);
+		expect(details.payload.latestLaunch.state).toBe('queued');
 		expect(JSON.stringify(details)).not.toContain('cf-secret-token');
+		const connection = await json(await app.request(`/v1/projects/${projectId}/connection`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				mode: 'hosted',
+				rotateRunnerToken: true,
+			}),
+		}));
+		const consumed = await json(await app.request(`/v1/jobs/${launchPayload.payload.launchJob.id}/provider-credential-sessions/${session.payload.id}/consume`, {
+			method: 'POST',
+			headers: { authorization: `Bearer ${connection.payload.runnerToken}` },
+		}));
+		expect(consumed.payload.hostKind).toBe('web_host');
+		expect(consumed.payload.config.CLOUDFLARE_API_TOKEN).toBe('cf-secret-token');
+		const consumedAgain = await app.request(`/v1/jobs/${launchPayload.payload.launchJob.id}/provider-credential-sessions/${session.payload.id}/consume`, {
+			method: 'POST',
+			headers: { authorization: `Bearer ${connection.payload.runnerToken}` },
+		});
+		expect(consumedAgain.status).toBe(404);
 	});
 
 	it('launch with TreeSeed managed Cloudflare host records paid hosting metadata', async () => {
@@ -643,7 +683,7 @@ runtimeDescribe('market api', () => {
 			TREESEED_MANAGED_CLOUDFLARE_API_TOKEN: 'managed-token',
 			TREESEED_MANAGED_CLOUDFLARE_ACCOUNT_ID: 'managed-account',
 		}, async () => {
-			const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeCoopManagedLaunch').mockRejectedValue(new Error('launch intentionally stopped'));
+			const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeHubProviderLaunch').mockRejectedValue(new Error('launch intentionally stopped'));
 			const app = createTestApp();
 			const token = await authorizeApp(app);
 			const team = await createTeam(app, token);
@@ -662,16 +702,10 @@ runtimeDescribe('market api', () => {
 					cloudflareHostMode: 'treeseed_managed',
 				}),
 			});
-			expect(launched.status).toBe(502);
-			expect(launchSpy).toHaveBeenCalledWith(expect.objectContaining({
-				cloudflareHost: expect.objectContaining({
-					mode: 'treeseed_managed',
-					config: expect.objectContaining({
-						CLOUDFLARE_API_TOKEN: 'managed-token',
-						CLOUDFLARE_ACCOUNT_ID: 'managed-account',
-					}),
-				}),
-			}));
+			expect(launched.status).toBe(202);
+			const launchPayload = await json(launched);
+			expect(launchPayload.payload.launchJob.status).toBe('pending');
+			expect(launchSpy).not.toHaveBeenCalled();
 			const projects = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
 				headers: { authorization: `Bearer ${token}` },
 			}));
@@ -693,7 +727,7 @@ runtimeDescribe('market api', () => {
 			TREESEED_MANAGED_RAILWAY_API_TOKEN: 'managed-railway-token',
 			TREESEED_MANAGED_RAILWAY_WORKSPACE: 'treeseed-processing',
 		}, async () => {
-			const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeCoopManagedLaunch').mockRejectedValue(new Error('launch intentionally stopped'));
+			const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeHubProviderLaunch').mockRejectedValue(new Error('launch intentionally stopped'));
 			const app = createTestApp();
 			const token = await authorizeApp(app);
 			const team = await createTeam(app, token);
@@ -714,18 +748,10 @@ runtimeDescribe('market api', () => {
 					processingHostId: 'treeseed-managed-processing',
 				}),
 			});
-			expect(launched.status).toBe(502);
-			expect(launchSpy).toHaveBeenCalledWith(expect.objectContaining({
-				processingHost: expect.objectContaining({
-					mode: 'treeseed_managed',
-					hostId: 'treeseed-managed-processing',
-					config: expect.objectContaining({
-						RAILWAY_API_TOKEN: 'managed-railway-token',
-						TREESEED_RAILWAY_WORKSPACE: 'treeseed-processing',
-						TREESEED_WORKER_POOL_SCALER: 'railway',
-					}),
-				}),
-			}));
+			expect(launched.status).toBe(202);
+			const launchPayload = await json(launched);
+			expect(launchPayload.payload.launchJob.status).toBe('pending');
+			expect(launchSpy).not.toHaveBeenCalled();
 			const projects = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
 				headers: { authorization: `Bearer ${token}` },
 			}));
@@ -747,7 +773,7 @@ runtimeDescribe('market api', () => {
 			CLOUDFLARE_ACCOUNT_ID: undefined,
 		}, async () => {
 			vi.spyOn(process, 'cwd').mockReturnValue('/tmp/treeseed-missing-managed-host-config');
-			const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeCoopManagedLaunch').mockRejectedValue(new Error('launch should not run'));
+			const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeHubProviderLaunch').mockRejectedValue(new Error('launch should not run'));
 			const app = createTestApp();
 			const token = await authorizeApp(app);
 			const team = await createTeam(app, token);
@@ -1986,8 +2012,8 @@ runtimeDescribe('market api', () => {
 	});
 
 	it('executes the managed project launch pipeline and persists launch topology', async () => {
-		const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeCoopManagedLaunch').mockResolvedValue({
-			workingRoot: '/tmp/knowledge-coop-launch-success',
+		const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeHubProviderLaunch').mockResolvedValue({
+			workingRoot: '/tmp/hub-provider-launch-success',
 			repository: {
 				slug: 'treeseed-ai/launch-project',
 				owner: 'treeseed-ai',
@@ -2062,9 +2088,9 @@ runtimeDescribe('market api', () => {
 				{ phase: 'runtime_connection', status: 'completed', detail: 'Connected Railway runtime.', timestamp: '2026-04-16T00:00:04.000Z' },
 			],
 			templatePackage: {
-				outputRoot: '/tmp/knowledge-coop-launch-success/template',
-				payloadRoot: '/tmp/knowledge-coop-launch-success/template/payload',
-				manifestPath: '/tmp/knowledge-coop-launch-success/template/manifest.json',
+				outputRoot: '/tmp/hub-provider-launch-success/template',
+				payloadRoot: '/tmp/hub-provider-launch-success/template/payload',
+				manifestPath: '/tmp/hub-provider-launch-success/template/manifest.json',
 				files: ['package.json'],
 				manifest: {
 					schemaVersion: 1,
@@ -2075,7 +2101,7 @@ runtimeDescribe('market api', () => {
 					version: '0.1.0',
 					generatedAt: '2026-04-16T00:00:05.000Z',
 					projectSlug: 'launch-project',
-					sourceProjectRoot: '/tmp/knowledge-coop-launch-success',
+					sourceProjectRoot: '/tmp/hub-provider-launch-success',
 					payloadRoot: 'payload',
 					files: ['package.json'],
 					compatibility: { minCliVersion: '0.1.0', minCoreVersion: '0.1.0', minSdkVersion: '0.1.0' },
@@ -2084,9 +2110,9 @@ runtimeDescribe('market api', () => {
 				},
 			},
 			knowledgePackPackage: {
-				outputRoot: '/tmp/knowledge-coop-launch-success/knowledge-pack',
-				payloadRoot: '/tmp/knowledge-coop-launch-success/knowledge-pack/payload',
-				manifestPath: '/tmp/knowledge-coop-launch-success/knowledge-pack/manifest.json',
+				outputRoot: '/tmp/hub-provider-launch-success/knowledge-pack',
+				payloadRoot: '/tmp/hub-provider-launch-success/knowledge-pack/payload',
+				manifestPath: '/tmp/hub-provider-launch-success/knowledge-pack/manifest.json',
 				files: ['src/content/objectives/launch.mdx'],
 				manifest: {
 					schemaVersion: 1,
@@ -2097,7 +2123,7 @@ runtimeDescribe('market api', () => {
 					version: '0.1.0',
 					generatedAt: '2026-04-16T00:00:05.000Z',
 					projectSlug: 'launch-project',
-					sourceProjectRoot: '/tmp/knowledge-coop-launch-success',
+					sourceProjectRoot: '/tmp/hub-provider-launch-success',
 					payloadRoot: 'payload',
 					files: ['src/content/objectives/launch.mdx'],
 					compatibility: { minCliVersion: '0.1.0', minCoreVersion: '0.1.0', minSdkVersion: '0.1.0' },
@@ -2105,7 +2131,7 @@ runtimeDescribe('market api', () => {
 					market: { publisherId: 'team-one', publisherName: 'Team One', publishMetadata: {} },
 				},
 			},
-		} as unknown as Awaited<ReturnType<typeof treeseedCore.executeKnowledgeCoopManagedLaunch>>);
+		} as unknown as Awaited<ReturnType<typeof treeseedCore.executeKnowledgeHubProviderLaunch>>);
 
 		const app = createTestApp();
 		const token = await authorizeApp(app);
@@ -2126,22 +2152,25 @@ runtimeDescribe('market api', () => {
 			}),
 		});
 
-		expect(launched.status).toBe(200);
+		expect(launched.status).toBe(202);
 		const payload = await json(launched);
 		expect(payload.ok).toBe(true);
 		expect(payload.payload.project.project.slug).toBe('launch-project');
-		expect(payload.payload.project.connection.projectApiBaseUrl).toBe('https://launch-project-api.up.railway.app');
-		expect(payload.payload.launchJob.status).toBe('completed');
-		expect(launchSpy).toHaveBeenCalledTimes(1);
+		expect(payload.payload.project.latestLaunch.state).toBe('queued');
+		expect(payload.payload.launchJob.status).toBe('pending');
+		expect(launchSpy).not.toHaveBeenCalled();
 
 		const details = await json(await app.request(`/v1/projects/${payload.payload.project.project.id}`, {
 			headers: {
 				authorization: `Bearer ${token}`,
 			},
 		}));
-		expect(details.payload.hosting.sourceRepoUrl).toBe('https://github.com/treeseed-ai/launch-project');
-		expect(details.payload.environments.find((entry: { environment: string }) => entry.environment === 'prod')?.baseUrl).toBe('https://launch-project.pages.dev');
-		expect(details.payload.resources.some((entry: { provider: string; resourceKind: string }) => entry.provider === 'cloudflare' && entry.resourceKind === 'pages')).toBe(true);
+		expect(details.payload.repositories).toEqual(expect.arrayContaining([
+			expect.objectContaining({ role: 'software', name: 'launch-project-site', status: 'queued' }),
+			expect.objectContaining({ role: 'content', name: 'launch-project-content', status: 'queued' }),
+		]));
+		expect(details.payload.contentSource.productionSource).toBe('r2_published_artifacts');
+		expect(details.payload.latestLaunch.state).toBe('queued');
 
 		const inbox = await json(await app.request(`/v1/teams/${team.id}/inbox`, {
 			headers: {
@@ -2151,14 +2180,14 @@ runtimeDescribe('market api', () => {
 		expect(inbox.payload.some((entry: { kind: string }) => entry.kind === 'launch_failure')).toBe(false);
 	}, 15000);
 
-	it('records launch failures as recoverable inbox items', async () => {
+	it('queues launch failures for worker recovery instead of failing the request', async () => {
 		const error = Object.assign(new Error('GitHub denied repository creation.'), {
 			phase: 'repo_provision_failed',
 			phases: [
 				{ phase: 'repo_provision', status: 'failed', detail: 'GitHub denied repository creation.', timestamp: '2026-04-16T00:00:00.000Z' },
 			],
 		});
-		vi.spyOn(treeseedCore, 'executeKnowledgeCoopManagedLaunch').mockRejectedValue(error);
+		vi.spyOn(treeseedCore, 'executeKnowledgeHubProviderLaunch').mockRejectedValue(error);
 
 		const app = createTestApp();
 		const token = await authorizeApp(app);
@@ -2178,18 +2207,18 @@ runtimeDescribe('market api', () => {
 			}),
 		});
 
-		expect(launched.status).toBe(502);
+		expect(launched.status).toBe(202);
 		const payload = await json(launched);
-		expect(payload.ok).toBe(false);
-		expect(payload.payload.launchJob.status).toBe('failed');
-		expect(payload.payload.project.project.metadata.launchPhase).toBe('failed');
+		expect(payload.ok).toBe(true);
+		expect(payload.payload.launchJob.status).toBe('pending');
+		expect(payload.payload.project.project.metadata.launchPhase).toBe('queued');
 
 		const inbox = await json(await app.request(`/v1/teams/${team.id}/inbox`, {
 			headers: {
 				authorization: `Bearer ${token}`,
 			},
 		}));
-		expect(inbox.payload.some((entry: { kind: string; title: string }) => entry.kind === 'launch_failure' && entry.title.includes('Failed Launch'))).toBe(true);
+		expect(inbox.payload.some((entry: { kind: string; title: string }) => entry.kind === 'launch_failure' && entry.title.includes('Failed Launch'))).toBe(false);
 	});
 
 	it('manages capacity providers, lanes, grants, and project plans', async () => {

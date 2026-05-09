@@ -22,18 +22,19 @@ if (!context.team || !context.store) {
 	Astro.response.status = 404;
 }
 
-const [teamHome, inbox, members, products, webHosts, teamProjects, capacityProviders, capacityGrants] = context.team && context.store
+const [teamHome, inbox, members, products, webHosts, repositoryHosts, teamProjects, capacityProviders, capacityGrants] = context.team && context.store
 	? await Promise.all([
 		context.store.getTeamHomeSummary(context.team.id, context.principal as any),
 		context.store.listTeamInboxItems(context.team.id, context.principal as any),
 		context.store.listTeamMembers(context.team.id),
 		context.store.listTeamProducts(context.team.id, context.principal as any),
 		context.store.listTeamWebHosts(context.team.id),
+		context.store.listRepositoryHosts(context.team.id),
 		context.store.listTeamProjects(context.team.id),
 		context.store.listTeamCapacityProviders(context.team.id),
 		context.store.listCapacityGrants(context.team.id),
 	])
-	: [null, [], [], [], [], [], [], []];
+	: [null, [], [], [], [], [], [], [], []];
 
 const webHostUsageById = new Map<string, any[]>();
 for (const project of teamProjects) {
@@ -71,6 +72,7 @@ const treeseedManagedHosts = context.team
 const webHostsJson = JSON.stringify({
 	teamId: context.team?.id ?? null,
 	hosts: webHosts,
+	repositoryHosts,
 }).replace(/</gu, '\\u003c');
 const capacityDetails = await Promise.all((capacityProviders as any[]).map(async (provider: any) => ({
 	...provider,
@@ -323,6 +325,40 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 						);
 					}) : <div class="kc-empty">No team-owned hosts have been saved yet.</div>}
 				</div>
+				<div class="kc-panel__header" style="margin-top:1.25rem;">
+					<div>
+						<p class="kc-section__eyebrow">Repository Hosts</p>
+						<h2>GitHub repository ownership</h2>
+						<p>Repository Hosts create or connect the split software and content repositories for launched hubs.</p>
+					</div>
+				</div>
+				<div class="kc-card-list" id="repository-host-list">
+					{repositoryHosts.length > 0 ? repositoryHosts.map((host: any) => (
+						<article class="kc-card" data-repository-host-card={host.id}>
+							<div class="kc-panel__header">
+								<div>
+									<h2 style="font-size:1.05rem; margin:0;">{host.name}</h2>
+									<p>{host.accountLabel ?? host.organizationOrOwner}</p>
+								</div>
+								<span class="kc-status-pill" data-tone={host.status === 'active' ? 'success' : 'warning'}>{host.status}</span>
+							</div>
+							<div class="kc-card__meta">
+								<span>{host.ownership}</span>
+								<span>{host.provider}</span>
+								<span>{host.organizationOrOwner}</span>
+								<span>{host.defaultVisibility}</span>
+								<span>{host.metadata?.credentialStatus ?? (host.ownership === 'team_owned' ? 'encrypted credentials' : 'managed credentials')}</span>
+							</div>
+							{host.ownership === 'team_owned' ? (
+								<div class="kc-host-actions">
+									<input class="kc-control" data-repository-host-passphrase={host.id} type="password" placeholder="Passphrase" autocomplete="off" aria-label={`Passphrase for ${host.name}`} />
+									<button class="kc-button-secondary" type="button" data-repository-host-validate={host.id}>Validate</button>
+									<button class="kc-button-secondary" data-tone="danger" type="button" data-repository-host-delete={host.id}>Delete</button>
+								</div>
+							) : null}
+						</article>
+					)) : <div class="kc-empty">No Repository Hosts have been saved yet. TreeSeed managed repository hosting is available when configured.</div>}
+				</div>
 			</div>
 
 			<form class="kc-panel" id="web-host-create-form">
@@ -455,6 +491,58 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 					<span class="kc-subtle" id="web-host-status" role="status"></span>
 				</div>
 			</form>
+			<form class="kc-panel" id="repository-host-create-form">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">New Repository Host</p>
+						<h2>Create GitHub Host</h2>
+						<p>GitHub credentials are encrypted with a team passphrase and unlocked only into short-lived launch sessions.</p>
+					</div>
+				</div>
+				<div class="kc-list kc-form-grid">
+					<label class="kc-list-item kc-field">
+						<span class="kc-field__label">Display name</span>
+						<input class="kc-control" name="name" required value={`${context.team?.displayName ?? context.team?.name ?? 'Team'} GitHub`} />
+					</label>
+					<label class="kc-list-item kc-field">
+						<span class="kc-field__label">Account label</span>
+						<input class="kc-control" name="accountLabel" />
+					</label>
+					<label class="kc-list-item kc-field">
+						<span class="kc-field__label">Owner or organization</span>
+						<input class="kc-control" name="organizationOrOwner" required />
+					</label>
+					<label class="kc-list-item kc-field">
+						<span class="kc-field__label">Default visibility</span>
+						<select class="kc-control" name="defaultVisibility" required>
+							<option value="private">Private</option>
+							<option value="internal">Internal</option>
+							<option value="public">Public</option>
+						</select>
+					</label>
+					<label class="kc-list-item kc-field kc-field--full">
+						<span class="kc-field__label">GitHub token</span>
+						<span class="kc-field__help">Use a token scoped to create and configure repositories in the owner or organization above.</span>
+						<input class="kc-control" name="GITHUB_TOKEN" required type="password" autocomplete="off" />
+					</label>
+					<label class="kc-list-item kc-field">
+						<span class="kc-field__label">Software repo template</span>
+						<input class="kc-control" name="softwareRepositoryNameTemplate" value="{hub}-site" />
+					</label>
+					<label class="kc-list-item kc-field">
+						<span class="kc-field__label">Content repo template</span>
+						<input class="kc-control" name="contentRepositoryNameTemplate" value="{hub}-content" />
+					</label>
+					<label class="kc-list-item kc-field">
+						<span class="kc-field__label">Host passphrase</span>
+						<input class="kc-control" name="passphrase" required type="password" autocomplete="new-password" />
+					</label>
+				</div>
+				<div class="kc-inline-actions" style="margin-top: 1rem;">
+					<button class="kc-button" type="submit">Save Repository Host</button>
+					<span class="kc-subtle" id="repository-host-status" role="status"></span>
+				</div>
+			</form>
 			<script is:inline type="application/json" id="web-hosts-data" set:html={webHostsJson}></script>
 		</section>
 	) : null}
@@ -554,7 +642,9 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 
 	const dataElement = document.getElementById('web-hosts-data');
 	const createForm = document.getElementById('web-host-create-form') as HTMLFormElement | null;
+	const repositoryHostForm = document.getElementById('repository-host-create-form') as HTMLFormElement | null;
 	const statusElement = document.getElementById('web-host-status');
+	const repositoryHostStatusElement = document.getElementById('repository-host-status');
 	const hostTypeSelect = createForm?.elements.namedItem('hostType') as HTMLSelectElement | null;
 	const providerSelect = createForm?.elements.namedItem('provider') as HTMLSelectElement | null;
 	const data = dataElement?.textContent ? JSON.parse(dataElement.textContent) : null;
@@ -636,6 +726,10 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 		if (statusElement) statusElement.textContent = message;
 	}
 
+	function setRepositoryHostStatus(message: string) {
+		if (repositoryHostStatusElement) repositoryHostStatusElement.textContent = message;
+	}
+
 	async function requestJson(url: string, init: RequestInit) {
 		const response = await fetch(url, init);
 		const payload = await response.json().catch(() => null);
@@ -680,6 +774,46 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 		}
 	});
 
+	repositoryHostForm?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		if (!teamId) return;
+		const form = new FormData(repositoryHostForm);
+		const passphrase = formString(form, 'passphrase');
+		const organizationOrOwner = formString(form, 'organizationOrOwner');
+		const token = formString(form, 'GITHUB_TOKEN');
+		if (!passphrase || !organizationOrOwner || !token) {
+			setRepositoryHostStatus('Owner, token, and passphrase are required.');
+			return;
+		}
+		setRepositoryHostStatus('Encrypting Repository Host...');
+		try {
+			const encryptedPayload = await encryptHostConfig({
+				GITHUB_TOKEN: token,
+				GH_TOKEN: token,
+				organizationOrOwner,
+			}, passphrase);
+			await requestJson(`/v1/teams/${encodeURIComponent(teamId)}/repository-hosts`, {
+				method: 'POST',
+				headers: apiHeaders,
+				body: JSON.stringify({
+					name: formString(form, 'name'),
+					accountLabel: formString(form, 'accountLabel') || organizationOrOwner,
+					ownership: 'team_owned',
+					organizationOrOwner,
+					defaultVisibility: formString(form, 'defaultVisibility') || 'private',
+					softwareRepositoryNameTemplate: formString(form, 'softwareRepositoryNameTemplate') || '{hub}-site',
+					contentRepositoryNameTemplate: formString(form, 'contentRepositoryNameTemplate') || '{hub}-content',
+					encryptedPayload,
+					metadata: { credentialStatus: 'encrypted credentials', configuredKeys: ['GH_TOKEN', 'GITHUB_TOKEN', 'organizationOrOwner'] },
+				}),
+			});
+			setRepositoryHostStatus('Repository Host saved. Reloading...');
+			window.location.reload();
+		} catch (error) {
+			setRepositoryHostStatus(error instanceof Error ? error.message : String(error));
+		}
+	});
+
 	for (const button of document.querySelectorAll('[data-host-validate]')) {
 		button.addEventListener('click', async () => {
 			const hostId = (button as HTMLElement).dataset.hostValidate ?? '';
@@ -713,6 +847,46 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 				window.location.reload();
 			} catch (error) {
 				setStatus(error instanceof Error ? error.message : String(error));
+			}
+		});
+	}
+
+	for (const button of document.querySelectorAll('[data-repository-host-validate]')) {
+		button.addEventListener('click', async () => {
+			const hostId = (button as HTMLElement).dataset.repositoryHostValidate ?? '';
+			const passphrase = (document.querySelector(`[data-repository-host-passphrase="${CSS.escape(hostId)}"]`) as HTMLInputElement | null)?.value ?? '';
+			setRepositoryHostStatus('Unlocking Repository Host...');
+			try {
+				await requestJson(`/v1/teams/${encodeURIComponent(teamId)}/provider-credential-sessions`, {
+					method: 'POST',
+					headers: apiHeaders,
+					body: JSON.stringify({
+						hostKind: 'repository_host',
+						hostId,
+						passphrase,
+						purpose: 'repository_host_validation',
+						expiresInSeconds: 300,
+					}),
+				});
+				setRepositoryHostStatus('Repository Host unlocked into a short-lived server session.');
+			} catch (error) {
+				setRepositoryHostStatus(error instanceof Error ? error.message : String(error));
+			}
+		});
+	}
+
+	for (const button of document.querySelectorAll('[data-repository-host-delete]')) {
+		button.addEventListener('click', async () => {
+			const hostId = (button as HTMLElement).dataset.repositoryHostDelete ?? '';
+			if (!hostId || !window.confirm('Delete this Repository Host?')) return;
+			setRepositoryHostStatus('Deleting Repository Host...');
+			try {
+				await requestJson(`/v1/teams/${encodeURIComponent(teamId)}/repository-hosts/${encodeURIComponent(hostId)}`, {
+					method: 'DELETE',
+				});
+				window.location.reload();
+			} catch (error) {
+				setRepositoryHostStatus(error instanceof Error ? error.message : String(error));
 			}
 		});
 	}

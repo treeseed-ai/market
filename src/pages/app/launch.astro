@@ -18,9 +18,16 @@ const hostsByTeamEntries = store
 		],
 	]))
 	: [];
+const repositoryHostsByTeamEntries = store
+	? await Promise.all(teams.map(async (team: any) => [
+			team.id,
+			await store.listRepositoryHosts(team.id),
+	]))
+	: [];
 const launchJson = JSON.stringify({
 	teams,
 	hostsByTeam: Object.fromEntries(hostsByTeamEntries),
+	repositoryHostsByTeam: Object.fromEntries(repositoryHostsByTeamEntries),
 }).replace(/</gu, '\\u003c');
 ---
 
@@ -86,6 +93,17 @@ const launchJson = JSON.stringify({
 					</select>
 				</label>
 				<label class="kc-list-item kc-field">
+					<span class="kc-field__label">Repository Host</span>
+					<select class="kc-control" name="repositoryHostId"></select>
+				</label>
+				<label class="kc-list-item kc-field" id="repository-passphrase-field">
+					<span class="kc-field__label">Repository Host passphrase</span>
+					<input class="kc-control" name="repositoryHostPassphrase" type="password" autocomplete="off" placeholder="Required for team-owned repository hosts" />
+				</label>
+				<div class="kc-list-item">
+					<strong>Repository topology</strong><br />TreeSeed will create a software repository and a content repository.
+				</div>
+				<label class="kc-list-item kc-field">
 					<span class="kc-field__label">Web Host</span>
 					<select class="kc-control" name="cloudflareHostChoice" required></select>
 				</label>
@@ -127,16 +145,16 @@ const launchJson = JSON.stringify({
 </KnowledgeCoopAppLayout>
 
 <script>
-	import { decryptHostConfig } from '../../lib/cloudflare-host-crypto.js';
-
 	const dataElement = document.getElementById('launch-data');
 	const data = dataElement?.textContent ? JSON.parse(dataElement.textContent) : { teams: [], hostsByTeam: {} };
 	const launchForm = document.getElementById('project-launch-form') as HTMLFormElement | null;
 	const hostSelect = launchForm?.elements.namedItem('cloudflareHostChoice') as HTMLSelectElement | null;
 	const processingHostSelect = launchForm?.elements.namedItem('processingHostChoice') as HTMLSelectElement | null;
+	const repositoryHostSelect = launchForm?.elements.namedItem('repositoryHostId') as HTMLSelectElement | null;
 	const teamSelect = launchForm?.elements.namedItem('teamId') as HTMLSelectElement | null;
 	const passphraseField = document.getElementById('cloudflare-passphrase-field');
 	const processingPassphraseField = document.getElementById('processing-passphrase-field');
+	const repositoryPassphraseField = document.getElementById('repository-passphrase-field');
 	const statusElement = document.getElementById('project-launch-status');
 
 	function setStatus(message: string) {
@@ -146,6 +164,10 @@ const launchJson = JSON.stringify({
 	function hostsForSelectedTeam(hostType = 'web', provider = 'cloudflare') {
 		return (data.hostsByTeam?.[teamSelect?.value ?? ''] ?? [])
 			.filter((host: any) => host.provider === provider && ((host.metadata?.hostType === 'agent' ? 'processing' : host.metadata?.hostType) ?? 'web') === hostType);
+	}
+
+	function repositoryHostsForSelectedTeam() {
+		return data.repositoryHostsByTeam?.[teamSelect?.value ?? ''] ?? [];
 	}
 
 	function refreshOneHostSelect(select: HTMLSelectElement | null, hostType: string, provider: string) {
@@ -163,7 +185,22 @@ const launchJson = JSON.stringify({
 	function refreshHostChoices() {
 		refreshOneHostSelect(hostSelect, 'web', 'cloudflare');
 		refreshOneHostSelect(processingHostSelect, 'processing', 'railway');
+		refreshRepositoryHostChoices();
 		refreshPassphraseVisibility();
+	}
+
+	function refreshRepositoryHostChoices() {
+		if (!repositoryHostSelect) return;
+		const previous = repositoryHostSelect.value;
+		repositoryHostSelect.replaceChildren();
+		for (const host of repositoryHostsForSelectedTeam()) {
+			const labelSuffix = host.ownership === 'treeseed_managed' ? 'managed GitHub' : (host.accountLabel ?? host.organizationOrOwner);
+			repositoryHostSelect.append(new Option(`${host.name} (${labelSuffix})`, host.id));
+		}
+		if (repositoryHostSelect.options.length === 0) {
+			repositoryHostSelect.append(new Option('TreeSeed Hosted Hubs (managed GitHub)', 'platform:github:hosted-hubs'));
+		}
+		if ([...repositoryHostSelect.options].some((option) => option.value === previous)) repositoryHostSelect.value = previous;
 	}
 
 	function selectedHost(select: HTMLSelectElement | null, hostType = 'web', provider = 'cloudflare') {
@@ -178,12 +215,42 @@ const launchJson = JSON.stringify({
 	function refreshPassphraseVisibility() {
 		if (passphraseField) passphraseField.style.display = selectedHostMode(hostSelect) === 'team_owned' ? '' : 'none';
 		if (processingPassphraseField) processingPassphraseField.style.display = selectedHostMode(processingHostSelect) === 'team_owned' ? '' : 'none';
+		const repositoryHost = selectedRepositoryHost();
+		if (repositoryPassphraseField) repositoryPassphraseField.style.display = repositoryHost?.ownership === 'team_owned' ? '' : 'none';
 	}
 
 	teamSelect?.addEventListener('change', refreshHostChoices);
 	hostSelect?.addEventListener('change', refreshPassphraseVisibility);
 	processingHostSelect?.addEventListener('change', refreshPassphraseVisibility);
+	repositoryHostSelect?.addEventListener('change', refreshPassphraseVisibility);
 	refreshHostChoices();
+
+	function selectedRepositoryHost() {
+		const hostId = String(repositoryHostSelect?.value ?? '');
+		return repositoryHostsForSelectedTeam().find((host: any) => host.id === hostId) ?? null;
+	}
+
+	async function createCredentialSession(teamId: string, request: {
+		hostKind: string;
+		hostId: string;
+		passphrase: string;
+		purpose?: string;
+	}) {
+		const response = await fetch(`/v1/teams/${encodeURIComponent(teamId)}/provider-credential-sessions`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				...request,
+				purpose: request.purpose ?? 'launch_project',
+				expiresInSeconds: 900,
+			}),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			throw new Error(payload?.error ?? payload?.message ?? `Unable to unlock ${request.hostKind}.`);
+		}
+		return payload.payload?.id;
+	}
 
 	launchForm?.addEventListener('submit', async (event) => {
 		event.preventDefault();
@@ -192,28 +259,72 @@ const launchJson = JSON.stringify({
 		const slug = String(form.get('slug') ?? '').trim();
 		const mode = selectedHostMode(hostSelect);
 		const processingMode = selectedHostMode(processingHostSelect);
-		let cloudflareHostConfig = null;
 		let cloudflareHostId = null;
-		let processingHostConfig = null;
 		let processingHostId = null;
+		const credentialSessions: Record<string, string> = {};
 		setStatus('Preparing launch...');
 		try {
 			const selectedWebHost: any = selectedHost(hostSelect, 'web', 'cloudflare');
 			cloudflareHostId = selectedWebHost?.id ?? null;
 			const selectedProcessingHost: any = selectedHost(processingHostSelect, 'processing', 'railway');
 			processingHostId = selectedProcessingHost?.id ?? null;
+			const selectedRepoHost: any = selectedRepositoryHost();
+			if (selectedRepoHost?.ownership === 'team_owned') {
+				const passphrase = String(form.get('repositoryHostPassphrase') ?? '');
+				credentialSessions.repositoryHost = await createCredentialSession(teamId, {
+					hostKind: 'repository_host',
+					hostId: selectedRepoHost.id,
+					passphrase,
+				});
+			}
 			if (mode === 'team_owned') {
 				const passphrase = String(form.get('cloudflareHostPassphrase') ?? '');
-				cloudflareHostConfig = await decryptHostConfig(selectedWebHost?.encryptedPayload, passphrase);
+				credentialSessions.webHost = await createCredentialSession(teamId, {
+					hostKind: 'web_host',
+					hostId: selectedWebHost?.id ?? '',
+					passphrase,
+				});
 			}
 			if (processingMode === 'team_owned') {
 				const passphrase = String(form.get('processingHostPassphrase') ?? '');
-				processingHostConfig = await decryptHostConfig(selectedProcessingHost?.encryptedPayload, passphrase);
+				credentialSessions.processingHost = await createCredentialSession(teamId, {
+					hostKind: 'processing_host',
+					hostId: selectedProcessingHost?.id ?? '',
+					passphrase,
+				});
 			}
 			const response = await fetch(`/v1/teams/${encodeURIComponent(teamId)}/projects/launch`, {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({
+					intent: {
+						team: { id: teamId },
+						hub: {
+							slug,
+							name: String(form.get('name') ?? '').trim(),
+							purpose: String(form.get('summary') ?? '').trim(),
+							visibility: 'public',
+						},
+						source: {
+							kind: String(form.get('sourceKind') ?? 'blank') === 'blank' ? 'blank_hub' : String(form.get('sourceKind') ?? 'blank'),
+						},
+						repository: {
+							hostId: String(form.get('repositoryHostId') ?? 'platform:github:hosted-hubs'),
+							provider: 'github',
+							topology: 'split_software_content',
+							visibility: 'private',
+						},
+						hosting: {
+							mode: 'treeseed_managed',
+						},
+						contentResolution: {
+							productionSource: 'r2_published_artifacts',
+							overlaySource: 'src_content_when_present',
+						},
+						direction: {
+							decisionPolicyPreset: 'lead_approval',
+						},
+					},
 					slug,
 					name: String(form.get('name') ?? '').trim(),
 					summary: String(form.get('summary') ?? '').trim(),
@@ -221,12 +332,12 @@ const launchJson = JSON.stringify({
 					hostingMode: 'managed',
 					repoProvider: 'github',
 					repoVisibility: 'private',
+					repositoryHostId: String(form.get('repositoryHostId') ?? 'platform:github:hosted-hubs'),
 					cloudflareHostMode: mode,
 					cloudflareHostId,
-					cloudflareHostConfig,
 					processingHostMode: processingMode,
 					processingHostId,
-					processingHostConfig,
+					credentialSessions,
 					targetEnvironments: ['staging', 'prod'],
 					publicSite: true,
 					enableDefaultAgents: true,
@@ -237,6 +348,7 @@ const launchJson = JSON.stringify({
 				throw new Error(payload?.error ?? `Launch failed with ${response.status}`);
 			}
 			const team = data.teams.find((entry: any) => entry.id === teamId);
+			setStatus('Launch queued. Opening the project overview...');
 			window.location.href = `/app/teams/${team?.name ?? team?.slug}/projects/${slug}/overview`;
 		} catch (error) {
 			setStatus(error instanceof Error ? error.message : String(error));
