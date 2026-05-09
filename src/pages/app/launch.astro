@@ -56,7 +56,7 @@ const launchJson = JSON.stringify({
 				<div>
 					<p class="kc-section__eyebrow">Launch</p>
 					<h2>Create a knowledge hub</h2>
-					<p>Provision the control-plane record now. Runtime provisioning and GitHub bootstrap will follow through the launch job.</p>
+						<p>Provision the control-plane record now. Runtime provisioning and repository bootstrap will follow through the launch job.</p>
 				</div>
 			</div>
 			<div class="kc-list">
@@ -96,10 +96,6 @@ const launchJson = JSON.stringify({
 					<span class="kc-field__label">Repository Host</span>
 					<select class="kc-control" name="repositoryHostId"></select>
 				</label>
-				<label class="kc-list-item kc-field" id="repository-passphrase-field">
-					<span class="kc-field__label">Repository Host passphrase</span>
-					<input class="kc-control" name="repositoryHostPassphrase" type="password" autocomplete="off" placeholder="Required for team-owned repository hosts" />
-				</label>
 				<div class="kc-list-item">
 					<strong>Repository topology</strong><br />TreeSeed will create a software repository and a content repository.
 				</div>
@@ -107,18 +103,18 @@ const launchJson = JSON.stringify({
 					<span class="kc-field__label">Web Host</span>
 					<select class="kc-control" name="cloudflareHostChoice" required></select>
 				</label>
-				<label class="kc-list-item kc-field" id="cloudflare-passphrase-field">
-					<span class="kc-field__label">Host passphrase</span>
-					<input class="kc-control" name="cloudflareHostPassphrase" type="password" autocomplete="off" placeholder="Required for team-owned hosts" />
-				</label>
 				<label class="kc-list-item kc-field">
 					<span class="kc-field__label">Processing Host</span>
 					<select class="kc-control" name="processingHostChoice" required></select>
 				</label>
-				<label class="kc-list-item kc-field" id="processing-passphrase-field">
-					<span class="kc-field__label">Processing passphrase</span>
-					<input class="kc-control" name="processingHostPassphrase" type="password" autocomplete="off" placeholder="Required for team-owned hosts" />
+				<label class="kc-list-item kc-field">
+					<span class="kc-field__label">Email Host</span>
+					<select class="kc-control" name="emailHostChoice" required></select>
 				</label>
+				<div class="kc-list-item" id="launch-sensitive-notice" hidden>
+					<strong>Team-owned hosts require sensitive data unlock.</strong><br />
+					<span>Unlock sensitive data from the header before launch so TreeSeed can create short-lived credential sessions for the selected hosts.</span>
+				</div>
 			</div>
 			<div class="kc-inline-actions" style="margin-top: 1rem;">
 				<button class="kc-button" type="submit">Launch project</button>
@@ -135,7 +131,7 @@ const launchJson = JSON.stringify({
 			</div>
 			<div class="kc-list">
 				<div class="kc-list-item"><strong>Visibility</strong><br />Hub surfaces are public-ready by default. Market listing remains draft until you publish from Share.</div>
-				<div class="kc-list-item"><strong>Repo provider</strong><br />GitHub is the first-class provider for launch, release, and checks.</div>
+					<div class="kc-list-item"><strong>Repository provider</strong><br />The selected Repository Host creates software and content repositories for launch, release, and checks.</div>
 				<div class="kc-list-item"><strong>Release policy</strong><br />Agents can save and verify autonomously, but humans approve staging, release, and publish.</div>
 			</div>
 			</section>
@@ -150,11 +146,10 @@ const launchJson = JSON.stringify({
 	const launchForm = document.getElementById('project-launch-form') as HTMLFormElement | null;
 	const hostSelect = launchForm?.elements.namedItem('cloudflareHostChoice') as HTMLSelectElement | null;
 	const processingHostSelect = launchForm?.elements.namedItem('processingHostChoice') as HTMLSelectElement | null;
+	const emailHostSelect = launchForm?.elements.namedItem('emailHostChoice') as HTMLSelectElement | null;
 	const repositoryHostSelect = launchForm?.elements.namedItem('repositoryHostId') as HTMLSelectElement | null;
 	const teamSelect = launchForm?.elements.namedItem('teamId') as HTMLSelectElement | null;
-	const passphraseField = document.getElementById('cloudflare-passphrase-field');
-	const processingPassphraseField = document.getElementById('processing-passphrase-field');
-	const repositoryPassphraseField = document.getElementById('repository-passphrase-field');
+	const sensitiveNotice = document.getElementById('launch-sensitive-notice');
 	const statusElement = document.getElementById('project-launch-status');
 
 	function setStatus(message: string) {
@@ -185,8 +180,9 @@ const launchJson = JSON.stringify({
 	function refreshHostChoices() {
 		refreshOneHostSelect(hostSelect, 'web', 'cloudflare');
 		refreshOneHostSelect(processingHostSelect, 'processing', 'railway');
+		refreshOneHostSelect(emailHostSelect, 'email', 'smtp');
 		refreshRepositoryHostChoices();
-		refreshPassphraseVisibility();
+		refreshSensitiveRequirement();
 	}
 
 	function refreshRepositoryHostChoices() {
@@ -194,11 +190,11 @@ const launchJson = JSON.stringify({
 		const previous = repositoryHostSelect.value;
 		repositoryHostSelect.replaceChildren();
 		for (const host of repositoryHostsForSelectedTeam()) {
-			const labelSuffix = host.ownership === 'treeseed_managed' ? 'managed GitHub' : (host.accountLabel ?? host.organizationOrOwner);
+			const labelSuffix = host.ownership === 'treeseed_managed' ? 'managed repository host' : (host.accountLabel ?? host.organizationOrOwner);
 			repositoryHostSelect.append(new Option(`${host.name} (${labelSuffix})`, host.id));
 		}
 		if (repositoryHostSelect.options.length === 0) {
-			repositoryHostSelect.append(new Option('TreeSeed Hosted Hubs (managed GitHub)', 'platform:github:hosted-hubs'));
+			repositoryHostSelect.append(new Option('TreeSeed Hosted Repositories (managed)', 'platform:github:hosted-hubs'));
 		}
 		if ([...repositoryHostSelect.options].some((option) => option.value === previous)) repositoryHostSelect.value = previous;
 	}
@@ -212,17 +208,25 @@ const launchJson = JSON.stringify({
 		return String(select?.value ?? '').startsWith('team_owned:') ? 'team_owned' : 'treeseed_managed';
 	}
 
-	function refreshPassphraseVisibility() {
-		if (passphraseField) passphraseField.style.display = selectedHostMode(hostSelect) === 'team_owned' ? '' : 'none';
-		if (processingPassphraseField) processingPassphraseField.style.display = selectedHostMode(processingHostSelect) === 'team_owned' ? '' : 'none';
+	function requiresSensitiveUnlock() {
 		const repositoryHost = selectedRepositoryHost();
-		if (repositoryPassphraseField) repositoryPassphraseField.style.display = repositoryHost?.ownership === 'team_owned' ? '' : 'none';
+		return selectedHostMode(hostSelect) === 'team_owned'
+			|| selectedHostMode(processingHostSelect) === 'team_owned'
+			|| selectedHostMode(emailHostSelect) === 'team_owned'
+			|| repositoryHost?.ownership === 'team_owned';
+	}
+
+	function refreshSensitiveRequirement() {
+		if (!sensitiveNotice) return;
+		sensitiveNotice.hidden = !requiresSensitiveUnlock();
 	}
 
 	teamSelect?.addEventListener('change', refreshHostChoices);
-	hostSelect?.addEventListener('change', refreshPassphraseVisibility);
-	processingHostSelect?.addEventListener('change', refreshPassphraseVisibility);
-	repositoryHostSelect?.addEventListener('change', refreshPassphraseVisibility);
+	hostSelect?.addEventListener('change', refreshSensitiveRequirement);
+	processingHostSelect?.addEventListener('change', refreshSensitiveRequirement);
+	emailHostSelect?.addEventListener('change', refreshSensitiveRequirement);
+	repositoryHostSelect?.addEventListener('change', refreshSensitiveRequirement);
+	window.addEventListener('treeseed:sensitive-unlock-change', refreshSensitiveRequirement);
 	refreshHostChoices();
 
 	function selectedRepositoryHost() {
@@ -252,6 +256,16 @@ const launchJson = JSON.stringify({
 		return payload.payload?.id;
 	}
 
+	function launchPassphraseIfNeeded() {
+		if (!requiresSensitiveUnlock()) return null;
+		const passphrase = (window as any).treeseedSensitiveUnlock?.requirePassphrase?.();
+		if (!passphrase) {
+			setStatus('Unlock sensitive data from the header before launching with team-owned hosts.');
+			throw new Error('Sensitive data is locked.');
+		}
+		return String(passphrase);
+	}
+
 	launchForm?.addEventListener('submit', async (event) => {
 		event.preventDefault();
 		const form = new FormData(launchForm);
@@ -259,8 +273,10 @@ const launchJson = JSON.stringify({
 		const slug = String(form.get('slug') ?? '').trim();
 		const mode = selectedHostMode(hostSelect);
 		const processingMode = selectedHostMode(processingHostSelect);
+		const emailMode = selectedHostMode(emailHostSelect);
 		let cloudflareHostId = null;
 		let processingHostId = null;
+		let emailHostId = null;
 		const credentialSessions: Record<string, string> = {};
 		setStatus('Preparing launch...');
 		try {
@@ -268,29 +284,36 @@ const launchJson = JSON.stringify({
 			cloudflareHostId = selectedWebHost?.id ?? null;
 			const selectedProcessingHost: any = selectedHost(processingHostSelect, 'processing', 'railway');
 			processingHostId = selectedProcessingHost?.id ?? null;
+			const selectedEmailHost: any = selectedHost(emailHostSelect, 'email', 'smtp');
+			emailHostId = selectedEmailHost?.id ?? null;
 			const selectedRepoHost: any = selectedRepositoryHost();
+			const passphrase = launchPassphraseIfNeeded();
 			if (selectedRepoHost?.ownership === 'team_owned') {
-				const passphrase = String(form.get('repositoryHostPassphrase') ?? '');
 				credentialSessions.repositoryHost = await createCredentialSession(teamId, {
 					hostKind: 'repository_host',
 					hostId: selectedRepoHost.id,
-					passphrase,
+					passphrase: passphrase ?? '',
 				});
 			}
 			if (mode === 'team_owned') {
-				const passphrase = String(form.get('cloudflareHostPassphrase') ?? '');
 				credentialSessions.webHost = await createCredentialSession(teamId, {
 					hostKind: 'web_host',
 					hostId: selectedWebHost?.id ?? '',
-					passphrase,
+					passphrase: passphrase ?? '',
 				});
 			}
 			if (processingMode === 'team_owned') {
-				const passphrase = String(form.get('processingHostPassphrase') ?? '');
 				credentialSessions.processingHost = await createCredentialSession(teamId, {
 					hostKind: 'processing_host',
 					hostId: selectedProcessingHost?.id ?? '',
-					passphrase,
+					passphrase: passphrase ?? '',
+				});
+			}
+			if (emailMode === 'team_owned') {
+				credentialSessions.emailHost = await createCredentialSession(teamId, {
+					hostKind: 'email_host',
+					hostId: selectedEmailHost?.id ?? '',
+					passphrase: passphrase ?? '',
 				});
 			}
 			const response = await fetch(`/v1/teams/${encodeURIComponent(teamId)}/projects/launch`, {
@@ -337,6 +360,8 @@ const launchJson = JSON.stringify({
 					cloudflareHostId,
 					processingHostMode: processingMode,
 					processingHostId,
+					emailHostMode: emailMode,
+					emailHostId,
 					credentialSessions,
 					targetEnvironments: ['staging', 'prod'],
 					publicSite: true,
@@ -351,6 +376,7 @@ const launchJson = JSON.stringify({
 			setStatus('Launch queued. Opening the project overview...');
 			window.location.href = `/app/teams/${team?.name ?? team?.slug}/projects/${slug}/overview`;
 		} catch (error) {
+			if ((error as Error)?.message === 'Sensitive data is locked.') return;
 			setStatus(error instanceof Error ? error.message : String(error));
 		}
 	});

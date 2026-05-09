@@ -588,10 +588,10 @@ export const ALL: APIRoute = async (context) => {
 			let host: any = null;
 			if (hostKind === 'repository_host') {
 				host = await store.getRepositoryHost(id, hostId);
-			} else if (hostKind === 'web_host' || hostKind === 'processing_host') {
+			} else if (hostKind === 'web_host' || hostKind === 'processing_host' || hostKind === 'email_host') {
 				host = await store.getTeamWebHost(id, hostId);
 			} else {
-				return error(400, 'hostKind must be repository_host, web_host, or processing_host.');
+				return error(400, 'hostKind must be repository_host, web_host, processing_host, or email_host.');
 			}
 			if (!host || host.teamId !== id || host.ownership !== 'team_owned') {
 				return error(404, 'Selected team-owned provider host is not available for this team.');
@@ -632,6 +632,8 @@ export const ALL: APIRoute = async (context) => {
 			const cloudflareHostId = typeof body.cloudflareHostId === 'string' && body.cloudflareHostId.trim() ? body.cloudflareHostId.trim() : null;
 			const processingHostMode = body.processingHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.processingHostMode === 'team_owned' ? 'team_owned' : null;
 			const processingHostId = typeof body.processingHostId === 'string' && body.processingHostId.trim() ? body.processingHostId.trim() : null;
+			const emailHostMode = body.emailHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.emailHostMode === 'team_owned' ? 'team_owned' : null;
+			const emailHostId = typeof body.emailHostId === 'string' && body.emailHostId.trim() ? body.emailHostId.trim() : null;
 			let cloudflareHost = null;
 			if (cloudflareHostMode === 'team_owned') {
 				if (!cloudflareHostId) return error(400, 'cloudflareHostId is required when cloudflareHostMode is team_owned.');
@@ -659,6 +661,21 @@ export const ALL: APIRoute = async (context) => {
 				}
 				if (typeof credentialSessions.processingHost !== 'string' || !credentialSessions.processingHost.trim()) {
 					return error(400, 'credentialSessions.processingHost is required after unlocking a team-owned Processing host.');
+				}
+			}
+			let emailHost = null;
+			if (emailHostMode === 'team_owned') {
+				if (!emailHostId) return error(400, 'emailHostId is required when emailHostMode is team_owned.');
+				emailHost = await store.getTeamWebHost(id, emailHostId);
+				const hostType = emailHost?.metadata?.hostType;
+				if (!emailHost || emailHost.provider !== 'smtp' || emailHost.ownership !== 'team_owned' || hostType !== 'email') {
+					return error(400, 'Selected team-owned Email host is not available for this team.');
+				}
+				if (body.emailHostConfig && typeof body.emailHostConfig === 'object') {
+					return error(400, 'Plaintext Email provider configs are not accepted. Create a provider credential session and pass credentialSessions.emailHost.');
+				}
+				if (typeof credentialSessions.emailHost !== 'string' || !credentialSessions.emailHost.trim()) {
+					return error(400, 'credentialSessions.emailHost is required after unlocking a team-owned Email host.');
 				}
 			}
 			const cloudflareLaunchConfig = cloudflareHostMode === 'treeseed_managed'
@@ -705,9 +722,23 @@ export const ALL: APIRoute = async (context) => {
 						: null,
 				}
 				: null;
+			const emailHostMetadata = emailHostMode
+				? {
+					mode: emailHostMode,
+					hostId: emailHostId,
+					hostName: emailHost?.name ?? (emailHostMode === 'treeseed_managed' ? 'TreeSeed Email Host' : null),
+					ownership: emailHost?.ownership ?? emailHostMode,
+					provider: emailHost?.provider ?? 'smtp',
+					targetEnvironments,
+					billing: emailHostMode === 'treeseed_managed'
+						? { fee: 'treeseed_email_hosting', unit: 'email_sent', price: '$0.01/email sent', status: 'pending_activation' }
+						: null,
+				}
+				: null;
 			const hostMetadata = {
 				...(cloudflareHostMetadata ? { cloudflareHost: cloudflareHostMetadata } : {}),
 				...(processingHostMetadata ? { processingHost: processingHostMetadata } : {}),
+				...(emailHostMetadata ? { emailHost: emailHostMetadata } : {}),
 			};
 			const details = await store.createProject(id, {
 				id: typeof body.id === 'string' ? body.id : undefined,
@@ -725,7 +756,7 @@ export const ALL: APIRoute = async (context) => {
 				},
 				entitlementTier: typeof body.entitlementTier === 'string'
 					? body.entitlementTier
-					: cloudflareHostMode === 'treeseed_managed' || processingHostMode === 'treeseed_managed'
+					: cloudflareHostMode === 'treeseed_managed' || processingHostMode === 'treeseed_managed' || emailHostMode === 'treeseed_managed'
 						? 'paid_hosting'
 						: 'free',
 			});
@@ -763,6 +794,8 @@ export const ALL: APIRoute = async (context) => {
 				cloudflareHostId,
 				processingHostMode,
 				processingHostId,
+				emailHostMode,
+				emailHostId,
 				credentialSessions,
 			});
 			for (const [key, sessionId] of Object.entries(credentialSessions)) {

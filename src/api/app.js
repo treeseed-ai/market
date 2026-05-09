@@ -1417,10 +1417,10 @@ export function createMarketApiApp(options = {}) {
 				let host = null;
 				if (hostKind === 'repository_host') {
 					host = await store.getRepositoryHost(teamId, hostId);
-				} else if (hostKind === 'web_host' || hostKind === 'processing_host') {
+				} else if (hostKind === 'web_host' || hostKind === 'processing_host' || hostKind === 'email_host') {
 					host = await store.getTeamWebHost(teamId, hostId);
 				} else {
-					return jsonError(c, 400, 'hostKind must be repository_host, web_host, or processing_host.');
+					return jsonError(c, 400, 'hostKind must be repository_host, web_host, processing_host, or email_host.');
 				}
 				if (!host || host.teamId !== teamId || host.ownership !== 'team_owned') {
 					return jsonError(c, 404, 'Selected team-owned provider host is not available for this team.');
@@ -1850,6 +1850,8 @@ export function createMarketApiApp(options = {}) {
 				const cloudflareHostId = typeof body.cloudflareHostId === 'string' && body.cloudflareHostId.trim() ? body.cloudflareHostId.trim() : null;
 				const processingHostMode = body.processingHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.processingHostMode === 'team_owned' ? 'team_owned' : null;
 				const processingHostId = typeof body.processingHostId === 'string' && body.processingHostId.trim() ? body.processingHostId.trim() : null;
+				const emailHostMode = body.emailHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.emailHostMode === 'team_owned' ? 'team_owned' : null;
+				const emailHostId = typeof body.emailHostId === 'string' && body.emailHostId.trim() ? body.emailHostId.trim() : null;
 				let cloudflareHost = null;
 				if (cloudflareHostMode === 'team_owned') {
 					if (!cloudflareHostId) {
@@ -1881,6 +1883,23 @@ export function createMarketApiApp(options = {}) {
 					}
 					if (typeof credentialSessions.processingHost !== 'string' || !credentialSessions.processingHost.trim()) {
 						return jsonError(c, 400, 'credentialSessions.processingHost is required after unlocking a team-owned Processing host.');
+					}
+				}
+				let emailHost = null;
+				if (emailHostMode === 'team_owned') {
+					if (!emailHostId) {
+						return jsonError(c, 400, 'emailHostId is required when emailHostMode is team_owned.');
+					}
+					emailHost = await store.getTeamWebHost(teamId, emailHostId);
+					const hostType = emailHost?.metadata?.hostType;
+					if (!emailHost || emailHost.provider !== 'smtp' || emailHost.ownership !== 'team_owned' || hostType !== 'email') {
+						return jsonError(c, 400, 'Selected team-owned Email host is not available for this team.');
+					}
+					if (body.emailHostConfig && typeof body.emailHostConfig === 'object') {
+						return jsonError(c, 400, 'Plaintext Email provider configs are not accepted. Create a provider credential session and pass credentialSessions.emailHost.');
+					}
+					if (typeof credentialSessions.emailHost !== 'string' || !credentialSessions.emailHost.trim()) {
+						return jsonError(c, 400, 'credentialSessions.emailHost is required after unlocking a team-owned Email host.');
 					}
 				}
 				const cloudflareLaunchConfig = cloudflareHostMode === 'treeseed_managed'
@@ -1937,9 +1956,23 @@ export function createMarketApiApp(options = {}) {
 							: null,
 					}
 					: null;
+				const emailHostMetadata = emailHostMode
+					? {
+						mode: emailHostMode,
+						hostId: emailHostId,
+						hostName: emailHost?.name ?? (emailHostMode === 'treeseed_managed' ? 'TreeSeed Email Host' : null),
+						ownership: emailHost?.ownership ?? emailHostMode,
+						provider: emailHost?.provider ?? 'smtp',
+						targetEnvironments,
+						billing: emailHostMode === 'treeseed_managed'
+							? { fee: 'treeseed_email_hosting', unit: 'email_sent', price: '$0.01/email sent', status: 'pending_activation' }
+							: null,
+					}
+					: null;
 				const hostMetadata = {
 					...(cloudflareHostMetadata ? { cloudflareHost: cloudflareHostMetadata } : {}),
 					...(processingHostMetadata ? { processingHost: processingHostMetadata } : {}),
+					...(emailHostMetadata ? { emailHost: emailHostMetadata } : {}),
 				};
 				const details = await store.createProject(c.req.param('teamId'), {
 					id: typeof body.id === 'string' ? body.id : undefined,
@@ -1958,7 +1991,7 @@ export function createMarketApiApp(options = {}) {
 					},
 					entitlementTier: typeof body.entitlementTier === 'string'
 						? body.entitlementTier
-						: cloudflareHostMode === 'treeseed_managed' || processingHostMode === 'treeseed_managed'
+						: cloudflareHostMode === 'treeseed_managed' || processingHostMode === 'treeseed_managed' || emailHostMode === 'treeseed_managed'
 							? 'paid_hosting'
 							: 'free',
 				});
@@ -2072,6 +2105,9 @@ export function createMarketApiApp(options = {}) {
 					if (processingHostMode === 'team_owned') {
 						await addCredentialSessionBinding('processingHost', 'processing_host', processingHostId);
 					}
+					if (emailHostMode === 'team_owned') {
+						await addCredentialSessionBinding('emailHost', 'email_host', emailHostId);
+					}
 				} catch (error) {
 					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
 				}
@@ -2105,6 +2141,7 @@ export function createMarketApiApp(options = {}) {
 						mode: 'treeseed_managed',
 						webHost: cloudflareHostMetadata,
 						processingHost: processingHostMetadata,
+						emailHost: emailHostMetadata,
 					},
 					contentResolution: {
 						productionSource: 'r2_published_artifacts',
@@ -2149,6 +2186,13 @@ export function createMarketApiApp(options = {}) {
 								? {
 									mode: processingHostMode,
 									hostId: processingHostId,
+									targetEnvironments,
+								}
+								: null,
+							emailHost: emailHostMode
+								? {
+									mode: emailHostMode,
+									hostId: emailHostId,
 									targetEnvironments,
 								}
 								: null,
