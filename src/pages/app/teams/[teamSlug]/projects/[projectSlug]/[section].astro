@@ -55,6 +55,28 @@ const currentSectionTitle = (sectionTitles as Record<string, string>)[section] ?
 >
 	{section === 'overview' ? (
 		<>
+			{summary?.latestLaunch && summary.latestLaunch.state !== 'completed' ? (
+				<section class="kc-panel">
+					<div class="kc-panel__header">
+						<div>
+							<p class="kc-section__eyebrow">Launch</p>
+							<h2>{summary.latestLaunch.state === 'failed' ? 'Launch needs attention' : 'Knowledge Hub is launching'}</h2>
+							<p>{summary.latestLaunch.state === 'failed' ? summary.latestLaunch.error?.message : 'TreeSeed is creating repositories, configuring runtime services, and verifying the hub.'}</p>
+						</div>
+						<span class="kc-status-pill" data-tone={summary.latestLaunch.state === 'failed' ? 'danger' : 'info'}>{summary.latestLaunch.currentPhase ?? summary.latestLaunch.state}</span>
+					</div>
+					<div class="kc-list">
+						<div class="kc-list-item"><strong>Current step</strong><br />{summary.latestLaunch.currentPhase ?? 'launch_queued'}</div>
+						<div class="kc-list-item"><strong>What happens next</strong><br />{summary.latestLaunch.state === 'failed' ? 'Update the affected host settings, then retry the launch job.' : 'Backend processing will report progress as each durable phase completes.'}</div>
+						{summary.latestLaunchEvents?.slice(-4).map((event: any) => (
+							<div class="kc-list-item">
+								<strong>{event.title ?? event.phase}</strong><br />
+								<span class="kc-subtle">{event.status}{event.summary ? ` · ${event.summary}` : ''}</span>
+							</div>
+						))}
+					</div>
+				</section>
+			) : null}
 			<section class="kc-metric-strip">
 				<div class="kc-panel kc-metric">
 					<span class="kc-metric__label">Objectives</span>
@@ -114,6 +136,55 @@ const currentSectionTitle = (sectionTitles as Record<string, string>)[section] ?
 							</div>
 						)) : <div class="kc-empty">No activity has been recorded yet.</div>}
 					</div>
+				</div>
+			</section>
+			<section class="kc-grid-2" style="margin-top: 1rem;">
+				<div class="kc-panel">
+					<div class="kc-panel__header">
+						<div>
+							<p class="kc-section__eyebrow">Repositories</p>
+							<h2>Software and content</h2>
+						</div>
+					</div>
+					<div class="kc-list">
+						{summary?.repositories?.length ? summary.repositories.map((repository: any) => (
+							<div class="kc-list-item">
+								<strong>{repository.role}</strong><br />
+								<span class="kc-subtle">{repository.owner}/{repository.name} · {repository.status}</span>
+							</div>
+						)) : <div class="kc-empty">Repository topology has not been recorded yet.</div>}
+					</div>
+				</div>
+				<div class="kc-panel">
+					<div class="kc-panel__header">
+						<div>
+							<p class="kc-section__eyebrow">Content source</p>
+							<h2>Published content</h2>
+						</div>
+					</div>
+					<div class="kc-list">
+						<div class="kc-list-item"><strong>Production</strong><br />{summary?.contentSource?.productionSource ?? 'R2 published artifacts'}</div>
+						<div class="kc-list-item"><strong>Overlay</strong><br />{summary?.contentSource?.overlayPolicy ?? 'src/content when present'}</div>
+					</div>
+				</div>
+			</section>
+			<section class="kc-panel" style="margin-top: 1rem;">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Approvals</p>
+						<h2>Action policy</h2>
+					</div>
+				</div>
+				<div class="kc-list">
+					{summary?.capabilityGrants?.filter((grant: any) => grant.approvalPolicy?.requiresApproval).length ? summary.capabilityGrants
+						.filter((grant: any) => grant.approvalPolicy?.requiresApproval)
+						.slice(0, 6)
+						.map((grant: any) => (
+							<div class="kc-list-item">
+								<strong>{grant.label ?? `${grant.namespace}.${grant.operation}`}</strong><br />
+								<span class="kc-subtle">{grant.approvalPolicy?.reason ?? 'Human approval required.'}</span>
+							</div>
+						)) : <div class="kc-empty">No approval-gated project actions are configured yet.</div>}
 				</div>
 			</section>
 		</>

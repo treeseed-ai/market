@@ -18,6 +18,7 @@ const migrationPaths = [
 	'../../migrations/0013_better_auth_browser_accounts.sql',
 	'../../migrations/0014_team_web_hosts.sql',
 	'../../migrations/0018_capacity_providers.sql',
+	'../../migrations/0020_hub_launch_spine.sql',
 ];
 
 let cachedMigrationSql = null;
@@ -644,6 +645,179 @@ function serializeConnection(row) {
 	};
 }
 
+function serializeRepositoryHost(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		provider: row.provider,
+		ownership: row.ownership,
+		name: row.name,
+		accountLabel: row.account_label,
+		organizationOrOwner: row.organization_or_owner,
+		defaultVisibility: row.default_visibility,
+		softwareRepositoryNameTemplate: row.software_repository_name_template,
+		contentRepositoryNameTemplate: row.content_repository_name_template,
+		branchPolicy: parseJson(row.branch_policy_json, {}),
+		workflowPolicy: parseJson(row.workflow_policy_json, {}),
+		encryptedPayload: parseJson(row.encrypted_payload_json, null),
+		allowedProjectKinds: parseJson(row.allowed_project_kinds_json, []),
+		status: row.status,
+		createdById: row.created_by_id,
+		updatedById: row.updated_by_id,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeHubRepository(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		hubId: row.hub_id,
+		teamId: row.team_id,
+		role: row.role,
+		repositoryHostId: row.repository_host_id,
+		provider: row.provider,
+		owner: row.owner,
+		name: row.name,
+		url: row.url,
+		defaultBranch: row.default_branch,
+		currentBranch: row.current_branch,
+		status: row.status,
+		accessPolicy: parseJson(row.access_policy_json, {}),
+		releasePolicy: parseJson(row.release_policy_json, {}),
+		publishPolicy: parseJson(row.publish_policy_json, {}),
+		submodulePath: row.submodule_path,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeHubContentSource(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		hubId: row.hub_id,
+		teamId: row.team_id,
+		contentRepositoryId: row.content_repository_id,
+		productionSource: row.production_source,
+		overlayPolicy: row.overlay_policy,
+		r2BucketName: row.r2_bucket_name,
+		r2ManifestKey: row.r2_manifest_key,
+		r2PublicBaseUrl: row.r2_public_base_url,
+		latestPublishId: row.latest_publish_id,
+		latestContentVersion: row.latest_content_version,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeHubLaunch(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		hubId: row.hub_id,
+		teamId: row.team_id,
+		jobId: row.job_id,
+		intent: parseJson(row.intent_json, {}),
+		plan: parseJson(row.plan_json, {}),
+		state: row.state,
+		currentPhase: row.current_phase,
+		lastSuccessfulPhase: row.last_successful_phase,
+		result: parseJson(row.result_json, null),
+		error: parseJson(row.error_json, null),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+		completedAt: row.completed_at,
+	};
+}
+
+function serializeHubLaunchEvent(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		launchId: row.launch_id,
+		seq: Number(row.seq ?? 0),
+		phase: row.phase,
+		status: row.status,
+		title: row.title,
+		summary: row.summary,
+		startedAt: row.started_at,
+		finishedAt: row.finished_at,
+		error: parseJson(row.error_json, null),
+		data: parseJson(row.data_json, {}),
+		createdAt: row.created_at,
+	};
+}
+
+function serializeHubWorkspaceLink(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		hubId: row.hub_id,
+		teamId: row.team_id,
+		parentRepositoryHostId: row.parent_repository_host_id,
+		parentOwner: row.parent_owner,
+		parentName: row.parent_name,
+		parentUrl: row.parent_url,
+		parentBranch: row.parent_branch,
+		hubMountPath: row.hub_mount_path,
+		softwareSubmodulePath: row.software_submodule_path,
+		contentSubmodulePath: row.content_submodule_path,
+		updateSubmodulePointersEnabled: Boolean(row.update_submodule_pointers_enabled),
+		accessPolicy: parseJson(row.access_policy_json, {}),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeProjectUpdatePlan(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		hubId: row.hub_id,
+		teamId: row.team_id,
+		sourceKind: row.source_kind,
+		sourceRef: row.source_ref,
+		sourceVersion: row.source_version,
+		plan: parseJson(row.plan_json, {}),
+		state: row.state,
+		requiresDecision: Boolean(row.requires_decision),
+		decisionId: row.decision_id,
+		createdBy: row.created_by,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeProviderCredentialSession(row, { includeEncryptedPayload = false } = {}) {
+	if (!row) return null;
+	const payload = {
+		id: row.id,
+		teamId: row.team_id,
+		projectId: row.project_id,
+		jobId: row.job_id,
+		hostKind: row.host_kind,
+		hostId: row.host_id,
+		purpose: row.purpose,
+		status: row.status,
+		expiresAt: row.expires_at,
+		consumedAt: row.consumed_at,
+		createdById: row.created_by_id,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+		metadata: parseJson(row.metadata_json, {}),
+	};
+	if (includeEncryptedPayload) {
+		payload.encryptedPayload = parseJson(row.encrypted_payload_json, null);
+	}
+	return payload;
+}
+
 function serializeCapability(row) {
 	if (!row) return null;
 	return {
@@ -651,10 +825,14 @@ function serializeCapability(row) {
 		projectId: row.project_id,
 		namespace: row.namespace,
 		operation: row.operation,
+		label: row.label ?? null,
 		executionClass: row.execution_class,
 		allowedTargets: parseJson(row.allowed_targets_json, []),
 		defaultDispatchMode: row.default_dispatch_mode,
 		enabled: Boolean(row.enabled),
+		approvalPolicy: parseJson(row.approval_policy_json, {}),
+		resourceScope: parseJson(row.resource_scope_json, {}),
+		metadata: parseJson(row.metadata_json, {}),
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -1138,6 +1316,8 @@ export class MarketControlPlaneStore {
 				.then(() => this.ensureWebSessionSchema())
 				.then(() => this.ensureTeamManagementSchema())
 				.then(() => this.ensureWorkdayManagerSchema())
+				.then(() => this.ensureProjectCapabilityGrantSchema())
+				.then(() => this.ensureHubLaunchEventSchema())
 				.then(() => this.seedKnowledgeCoopRoles());
 		}
 		return this.initializationPromise;
@@ -1241,6 +1421,33 @@ export class MarketControlPlaneStore {
 			created_at TEXT NOT NULL
 		)`);
 		await this.run(`CREATE INDEX IF NOT EXISTS idx_runner_scale_decisions_project_workday ON runner_scale_decisions(project_id, environment, work_day_id, created_at DESC)`);
+	}
+
+	async ensureProjectCapabilityGrantSchema() {
+		const columns = await this.tableColumns('project_capability_grants');
+		const addColumn = async (name, definition) => {
+			if (!columns.has(name)) {
+				await this.run(`ALTER TABLE project_capability_grants ADD COLUMN ${name} ${definition}`);
+				columns.add(name);
+			}
+		};
+		await addColumn('label', 'TEXT');
+		await addColumn('approval_policy_json', "TEXT NOT NULL DEFAULT '{}'");
+		await addColumn('resource_scope_json', "TEXT NOT NULL DEFAULT '{}'");
+		await addColumn('metadata_json', "TEXT NOT NULL DEFAULT '{}'");
+	}
+
+	async ensureHubLaunchEventSchema() {
+		const columns = await this.tableColumns('hub_launch_events');
+		const addColumn = async (name, definition) => {
+			if (!columns.has(name)) {
+				await this.run(`ALTER TABLE hub_launch_events ADD COLUMN ${name} ${definition}`);
+				columns.add(name);
+			}
+		};
+		await addColumn('started_at', 'TEXT');
+		await addColumn('finished_at', 'TEXT');
+		await addColumn('error_json', 'TEXT');
 	}
 
 	async ensureWebSessionSchema() {
@@ -1832,6 +2039,273 @@ export class MarketControlPlaneStore {
 			],
 		);
 		return this.getTeamWebHost(teamId, hostId);
+	}
+
+	async listRepositoryHosts(teamId, { includePlatform = true } = {}) {
+		await this.ensureInitialized();
+		const rows = includePlatform
+			? await this.all(
+				`SELECT * FROM repository_hosts WHERE (team_id = ? OR team_id IS NULL) ORDER BY team_id IS NULL DESC, created_at ASC`,
+				[teamId],
+			)
+			: await this.all(
+				`SELECT * FROM repository_hosts WHERE team_id = ? ORDER BY created_at ASC`,
+				[teamId],
+			);
+		return rows.map(serializeRepositoryHost);
+	}
+
+	async getRepositoryHost(teamId, hostId) {
+		await this.ensureInitialized();
+		const row = await this.first(
+			`SELECT * FROM repository_hosts WHERE id = ? AND (team_id = ? OR team_id IS NULL) LIMIT 1`,
+			[hostId, teamId],
+		);
+		return serializeRepositoryHost(row);
+	}
+
+	async upsertRepositoryHost(teamId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		const provider = String(input.provider ?? 'github');
+		if (provider !== 'github') {
+			throw new Error(`Unsupported repository host provider "${provider}".`);
+		}
+		const ownership = String(input.ownership ?? 'team_owned');
+		if (!['team_owned', 'treeseed_managed'].includes(ownership)) {
+			throw new Error(`Unsupported repository host ownership "${ownership}".`);
+		}
+		const name = String(input.name ?? '').trim();
+		const organizationOrOwner = String(input.organizationOrOwner ?? input.organization_or_owner ?? '').trim();
+		if (!name) throw new Error('name is required.');
+		if (!organizationOrOwner) throw new Error('organizationOrOwner is required.');
+		const hostTeamId = input.platformOwner === true || input.teamId === null ? null : teamId;
+		const existing = await this.first(`SELECT * FROM repository_hosts WHERE id = ? LIMIT 1`, [id]);
+		const encryptedPayload = input.encryptedPayload && typeof input.encryptedPayload === 'object'
+			? input.encryptedPayload
+			: existing?.encrypted_payload_json
+				? parseJson(existing.encrypted_payload_json, null)
+				: null;
+		if (ownership === 'team_owned' && !encryptedPayload) {
+			throw new Error('encryptedPayload is required for team-owned repository hosts.');
+		}
+		const values = [
+			hostTeamId,
+			provider,
+			ownership,
+			name,
+			typeof input.accountLabel === 'string' && input.accountLabel.trim() ? input.accountLabel.trim() : null,
+			organizationOrOwner,
+			typeof input.defaultVisibility === 'string' ? input.defaultVisibility : 'private',
+			typeof input.softwareRepositoryNameTemplate === 'string' && input.softwareRepositoryNameTemplate.trim() ? input.softwareRepositoryNameTemplate.trim() : '{hub}-site',
+			typeof input.contentRepositoryNameTemplate === 'string' && input.contentRepositoryNameTemplate.trim() ? input.contentRepositoryNameTemplate.trim() : '{hub}-content',
+			JSON.stringify(input.branchPolicy && typeof input.branchPolicy === 'object' ? input.branchPolicy : {}),
+			JSON.stringify(input.workflowPolicy && typeof input.workflowPolicy === 'object' ? input.workflowPolicy : {}),
+			encryptedPayload ? JSON.stringify(encryptedPayload) : null,
+			JSON.stringify(Array.isArray(input.allowedProjectKinds) ? input.allowedProjectKinds.map(String) : ['knowledge_hub']),
+			typeof input.status === 'string' ? input.status : 'active',
+			typeof input.createdById === 'string' ? input.createdById : null,
+			typeof input.updatedById === 'string' ? input.updatedById : typeof input.createdById === 'string' ? input.createdById : null,
+		];
+		if (existing) {
+			await this.run(
+				`UPDATE repository_hosts
+				 SET team_id = ?, provider = ?, ownership = ?, name = ?, account_label = ?, organization_or_owner = ?,
+				     default_visibility = ?, software_repository_name_template = ?, content_repository_name_template = ?,
+				     branch_policy_json = ?, workflow_policy_json = ?, encrypted_payload_json = ?, allowed_project_kinds_json = ?,
+				     status = ?, created_by_id = COALESCE(created_by_id, ?), updated_by_id = ?, updated_at = ?
+				 WHERE id = ?`,
+				[...values, timestamp, id],
+			);
+		} else {
+			await this.run(
+				`INSERT INTO repository_hosts (
+					id, team_id, provider, ownership, name, account_label, organization_or_owner, default_visibility,
+					software_repository_name_template, content_repository_name_template, branch_policy_json, workflow_policy_json,
+					encrypted_payload_json, allowed_project_kinds_json, status, created_by_id, updated_by_id, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[id, ...values, timestamp, timestamp],
+			);
+		}
+		return serializeRepositoryHost(await this.first(`SELECT * FROM repository_hosts WHERE id = ?`, [id]));
+	}
+
+	async listProjectsUsingRepositoryHost(teamId, hostId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT DISTINCT p.*
+			 FROM projects p
+			 JOIN hub_repositories r ON r.hub_id = p.id
+			 WHERE p.team_id = ? AND r.repository_host_id = ?
+			 ORDER BY p.created_at DESC`,
+			[teamId, hostId],
+		);
+		return rows.map(serializeProject);
+	}
+
+	async deleteRepositoryHost(teamId, hostId) {
+		await this.ensureInitialized();
+		const existing = await this.getRepositoryHost(teamId, hostId);
+		if (!existing || existing.teamId === null) return { ok: false, error: 'not_found' };
+		const projects = await this.listProjectsUsingRepositoryHost(teamId, hostId);
+		if (projects.length > 0) {
+			return {
+				ok: false,
+				error: 'in_use',
+				projects: projects.map((project) => ({
+					id: project.id,
+					slug: project.slug,
+					name: project.name,
+				})),
+			};
+		}
+		await this.run(`DELETE FROM repository_hosts WHERE team_id = ? AND id = ?`, [teamId, hostId]);
+		return { ok: true, payload: existing };
+	}
+
+	async createProviderCredentialSession(teamId, input) {
+		await this.ensureInitialized();
+		await this.markExpiredProviderCredentialSessions();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		const hostKind = String(input.hostKind ?? '');
+		const hostId = String(input.hostId ?? '');
+		const purpose = String(input.purpose ?? 'launch_project');
+		if (!['repository_host', 'web_host', 'processing_host'].includes(hostKind)) {
+			throw new Error(`Unsupported credential session hostKind "${hostKind}".`);
+		}
+		if (!hostId) {
+			throw new Error('hostId is required.');
+		}
+		if (!input.encryptedPayload || typeof input.encryptedPayload !== 'object') {
+			throw new Error('encryptedPayload is required.');
+		}
+		if (!input.expiresAt) {
+			throw new Error('expiresAt is required.');
+		}
+		await this.run(
+			`INSERT INTO provider_credential_sessions (
+				id, team_id, project_id, job_id, host_kind, host_id, purpose, encrypted_payload_json, status,
+				expires_at, consumed_at, created_by_id, created_at, updated_at, metadata_json
+			) VALUES (?, ?, NULL, NULL, ?, ?, ?, ?, 'active', ?, NULL, ?, ?, ?, ?)`,
+			[
+				id,
+				teamId,
+				hostKind,
+				hostId,
+				purpose,
+				JSON.stringify(input.encryptedPayload),
+				input.expiresAt,
+				typeof input.createdById === 'string' ? input.createdById : null,
+				timestamp,
+				timestamp,
+				JSON.stringify(input.metadata && typeof input.metadata === 'object' ? input.metadata : {}),
+			],
+		);
+		return this.getProviderCredentialSession(teamId, id);
+	}
+
+	async getProviderCredentialSession(teamId, sessionId, options = {}) {
+		await this.ensureInitialized();
+		await this.markExpiredProviderCredentialSessions();
+		const row = await this.first(
+			`SELECT * FROM provider_credential_sessions WHERE id = ? AND team_id = ? LIMIT 1`,
+			[sessionId, teamId],
+		);
+		return serializeProviderCredentialSession(row, options);
+	}
+
+	async findProviderCredentialSession(sessionId, options = {}) {
+		await this.ensureInitialized();
+		await this.markExpiredProviderCredentialSessions();
+		return serializeProviderCredentialSession(
+			await this.first(`SELECT * FROM provider_credential_sessions WHERE id = ? LIMIT 1`, [sessionId]),
+			options,
+		);
+	}
+
+	async bindProviderCredentialSession(teamId, sessionId, input) {
+		await this.ensureInitialized();
+		await this.markExpiredProviderCredentialSessions();
+		const existing = await this.getProviderCredentialSession(teamId, sessionId);
+		if (!existing) return null;
+		if (existing.status !== 'active') return null;
+		if (new Date(existing.expiresAt).getTime() <= Date.now()) return null;
+		const timestamp = isoNow();
+		await this.run(
+			`UPDATE provider_credential_sessions
+			 SET project_id = ?, job_id = ?, updated_at = ?, metadata_json = ?
+			 WHERE id = ? AND team_id = ?`,
+			[
+				input.projectId ?? existing.projectId ?? null,
+				input.jobId ?? existing.jobId ?? null,
+				timestamp,
+				JSON.stringify({
+					...existing.metadata,
+					...(input.metadata && typeof input.metadata === 'object' ? input.metadata : {}),
+				}),
+				sessionId,
+				teamId,
+			],
+		);
+		return this.getProviderCredentialSession(teamId, sessionId);
+	}
+
+	async consumeProviderCredentialSession(jobId, sessionId) {
+		await this.ensureInitialized();
+		await this.markExpiredProviderCredentialSessions();
+		const existing = await this.findProviderCredentialSession(sessionId, { includeEncryptedPayload: true });
+		if (!existing || existing.jobId !== jobId) {
+			return { ok: false, error: 'not_found' };
+		}
+		if (existing.status !== 'active') {
+			return { ok: false, error: 'already_consumed' };
+		}
+		if (new Date(existing.expiresAt).getTime() <= Date.now()) {
+			await this.run(
+				`UPDATE provider_credential_sessions SET status = 'expired', updated_at = ? WHERE id = ?`,
+				[isoNow(), sessionId],
+			);
+			return { ok: false, error: 'expired' };
+		}
+		const timestamp = isoNow();
+		await this.run(
+			`UPDATE provider_credential_sessions
+			 SET status = 'consumed', consumed_at = ?, updated_at = ?
+			 WHERE id = ? AND job_id = ? AND status = 'active'`,
+			[timestamp, timestamp, sessionId, jobId],
+		);
+		return {
+			ok: true,
+			payload: await this.findProviderCredentialSession(sessionId, { includeEncryptedPayload: true }),
+		};
+	}
+
+	async markExpiredProviderCredentialSessions(now = isoNow()) {
+		await this.run(
+			`UPDATE provider_credential_sessions
+			 SET status = 'expired', updated_at = ?
+			 WHERE status = 'active' AND expires_at <= ?`,
+			[now, now],
+		);
+	}
+
+	async cleanupProviderCredentialSessions(input = {}) {
+		await this.ensureInitialized();
+		const now = input.now ?? isoNow();
+		await this.markExpiredProviderCredentialSessions(now);
+		if (input.deleteBefore) {
+			await this.run(
+				`DELETE FROM provider_credential_sessions
+				 WHERE status IN ('expired', 'consumed') AND updated_at < ?`,
+				[input.deleteBefore],
+			);
+		}
+		return {
+			ok: true,
+			checkedAt: now,
+		};
 	}
 
 	async listProjectsUsingTeamWebHost(teamId, hostId) {
@@ -3046,6 +3520,309 @@ export class MarketControlPlaneStore {
 		));
 	}
 
+	async upsertHubRepository(hubId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const project = await this.getProject(hubId);
+		const teamId = input.teamId ?? project?.teamId;
+		if (!teamId) throw new Error('teamId is required for hub repository records.');
+		const role = String(input.role);
+		const existing = await this.first(
+			`SELECT * FROM hub_repositories WHERE hub_id = ? AND role = ? LIMIT 1`,
+			[hubId, role],
+		);
+		const payload = [
+			teamId,
+			role,
+			input.repositoryHostId ?? null,
+			input.provider ?? 'github',
+			input.owner,
+			input.name,
+			input.url ?? null,
+			input.defaultBranch ?? null,
+			input.currentBranch ?? input.defaultBranch ?? null,
+			input.status ?? 'queued',
+			JSON.stringify(input.accessPolicy ?? {}),
+			JSON.stringify(input.releasePolicy ?? {}),
+			JSON.stringify(input.publishPolicy ?? {}),
+			input.submodulePath ?? null,
+			JSON.stringify(input.metadata ?? {}),
+		];
+		if (existing) {
+			await this.run(
+				`UPDATE hub_repositories
+				 SET team_id = ?, role = ?, repository_host_id = ?, provider = ?, owner = ?, name = ?, url = ?,
+				     default_branch = ?, current_branch = ?, status = ?, access_policy_json = ?, release_policy_json = ?,
+				     publish_policy_json = ?, submodule_path = ?, metadata_json = ?, updated_at = ?
+				 WHERE hub_id = ? AND role = ?`,
+				[...payload, timestamp, hubId, role],
+			);
+			return serializeHubRepository(await this.first(`SELECT * FROM hub_repositories WHERE hub_id = ? AND role = ?`, [hubId, role]));
+		}
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO hub_repositories (
+				id, hub_id, team_id, role, repository_host_id, provider, owner, name, url, default_branch, current_branch, status,
+				access_policy_json, release_policy_json, publish_policy_json, submodule_path, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[id, hubId, ...payload, timestamp, timestamp],
+		);
+		return serializeHubRepository(await this.first(`SELECT * FROM hub_repositories WHERE id = ?`, [id]));
+	}
+
+	async listHubRepositories(hubId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM hub_repositories WHERE hub_id = ? ORDER BY role ASC`,
+			[hubId],
+		);
+		return rows.map(serializeHubRepository);
+	}
+
+	async upsertHubContentSource(hubId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const project = await this.getProject(hubId);
+		const teamId = input.teamId ?? project?.teamId;
+		if (!teamId) throw new Error('teamId is required for hub content source records.');
+		const existing = await this.first(`SELECT * FROM hub_content_sources WHERE hub_id = ? LIMIT 1`, [hubId]);
+		const payload = [
+			teamId,
+			input.contentRepositoryId ?? null,
+			input.productionSource ?? 'r2_published_artifacts',
+			input.overlayPolicy ?? 'src_content_when_present',
+			input.r2BucketName ?? null,
+			input.r2ManifestKey ?? null,
+			input.r2PublicBaseUrl ?? null,
+			input.latestPublishId ?? null,
+			input.latestContentVersion ?? null,
+			JSON.stringify(input.metadata ?? {}),
+		];
+		if (existing) {
+			await this.run(
+				`UPDATE hub_content_sources
+				 SET team_id = ?, content_repository_id = ?, production_source = ?, overlay_policy = ?, r2_bucket_name = ?,
+				     r2_manifest_key = ?, r2_public_base_url = ?, latest_publish_id = ?, latest_content_version = ?,
+				     metadata_json = ?, updated_at = ?
+				 WHERE hub_id = ?`,
+				[...payload, timestamp, hubId],
+			);
+			return serializeHubContentSource(await this.first(`SELECT * FROM hub_content_sources WHERE hub_id = ?`, [hubId]));
+		}
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO hub_content_sources (
+				id, hub_id, team_id, content_repository_id, production_source, overlay_policy, r2_bucket_name, r2_manifest_key,
+				r2_public_base_url, latest_publish_id, latest_content_version, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[id, hubId, ...payload, timestamp, timestamp],
+		);
+		return serializeHubContentSource(await this.first(`SELECT * FROM hub_content_sources WHERE id = ?`, [id]));
+	}
+
+	async getHubContentSource(hubId) {
+		await this.ensureInitialized();
+		return serializeHubContentSource(await this.first(`SELECT * FROM hub_content_sources WHERE hub_id = ?`, [hubId]));
+	}
+
+	async createHubLaunch(input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO hub_launches (
+				id, hub_id, team_id, job_id, intent_json, plan_json, state, current_phase, last_successful_phase,
+				result_json, error_json, created_at, updated_at, completed_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL)`,
+			[
+				id,
+				input.hubId,
+				input.teamId,
+				input.jobId ?? null,
+				JSON.stringify(input.intent ?? {}),
+				JSON.stringify(input.plan ?? {}),
+				input.state ?? 'queued',
+				input.currentPhase ?? 'launch_queued',
+				input.lastSuccessfulPhase ?? null,
+				timestamp,
+				timestamp,
+			],
+		);
+		return this.getHubLaunch(id);
+	}
+
+	async getHubLaunch(launchId) {
+		await this.ensureInitialized();
+		return serializeHubLaunch(await this.first(`SELECT * FROM hub_launches WHERE id = ?`, [launchId]));
+	}
+
+	async getLatestHubLaunchForHub(hubId) {
+		await this.ensureInitialized();
+		return serializeHubLaunch(await this.first(
+			`SELECT * FROM hub_launches WHERE hub_id = ? ORDER BY created_at DESC LIMIT 1`,
+			[hubId],
+		));
+	}
+
+	async getHubLaunchByJobId(jobId) {
+		await this.ensureInitialized();
+		return serializeHubLaunch(await this.first(`SELECT * FROM hub_launches WHERE job_id = ? ORDER BY created_at DESC LIMIT 1`, [jobId]));
+	}
+
+	async updateHubLaunch(launchId, input) {
+		await this.ensureInitialized();
+		const existing = await this.getHubLaunch(launchId);
+		if (!existing) return null;
+		const timestamp = isoNow();
+		const completedAt = input.completedAt === undefined ? existing.completedAt : input.completedAt;
+		await this.run(
+			`UPDATE hub_launches
+			 SET state = ?, current_phase = ?, last_successful_phase = ?, result_json = ?, error_json = ?, updated_at = ?, completed_at = ?
+			 WHERE id = ?`,
+			[
+				input.state ?? existing.state,
+				input.currentPhase ?? existing.currentPhase,
+				input.lastSuccessfulPhase ?? existing.lastSuccessfulPhase,
+				JSON.stringify(input.result === undefined ? existing.result : input.result),
+				JSON.stringify(input.error === undefined ? existing.error : input.error),
+				timestamp,
+				completedAt ?? null,
+				launchId,
+			],
+		);
+		return this.getHubLaunch(launchId);
+	}
+
+	async appendHubLaunchEvent(launchId, input) {
+		await this.ensureInitialized();
+		const row = await this.first(
+			`SELECT COALESCE(MAX(seq), 0) + 1 AS next_seq FROM hub_launch_events WHERE launch_id = ?`,
+			[launchId],
+		);
+		const seq = Number(row?.next_seq ?? 1);
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO hub_launch_events (
+				id, launch_id, seq, phase, status, title, summary, started_at, finished_at, error_json, data_json, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				launchId,
+				seq,
+				input.phase,
+				input.status,
+				input.title ?? null,
+				input.summary ?? null,
+				input.startedAt ?? null,
+				input.finishedAt ?? null,
+				input.error ? JSON.stringify(input.error) : null,
+				JSON.stringify(input.data ?? {}),
+				timestamp,
+			],
+		);
+		return serializeHubLaunchEvent(await this.first(`SELECT * FROM hub_launch_events WHERE id = ?`, [id]));
+	}
+
+	async listHubLaunchEvents(launchId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM hub_launch_events WHERE launch_id = ? ORDER BY seq ASC`,
+			[launchId],
+		);
+		return rows.map(serializeHubLaunchEvent);
+	}
+
+	async upsertHubWorkspaceLink(hubId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const project = await this.getProject(hubId);
+		const teamId = input.teamId ?? project?.teamId;
+		if (!teamId) throw new Error('teamId is required for hub workspace links.');
+		const id = input.id ?? randomUUID();
+		const existing = input.id
+			? await this.first(`SELECT * FROM hub_workspace_links WHERE id = ? AND hub_id = ? LIMIT 1`, [input.id, hubId])
+			: null;
+		const payload = [
+			hubId,
+			teamId,
+			input.parentRepositoryHostId ?? null,
+			input.parentOwner ?? null,
+			input.parentName ?? null,
+			input.parentUrl ?? null,
+			input.parentBranch ?? null,
+			input.hubMountPath ?? null,
+			input.softwareSubmodulePath ?? null,
+			input.contentSubmodulePath ?? null,
+			input.updateSubmodulePointersEnabled === true ? 1 : 0,
+			JSON.stringify(input.accessPolicy ?? {}),
+			JSON.stringify(input.metadata ?? {}),
+		];
+		if (existing) {
+			await this.run(
+				`UPDATE hub_workspace_links
+				 SET hub_id = ?, team_id = ?, parent_repository_host_id = ?, parent_owner = ?, parent_name = ?, parent_url = ?,
+				     parent_branch = ?, hub_mount_path = ?, software_submodule_path = ?, content_submodule_path = ?,
+				     update_submodule_pointers_enabled = ?, access_policy_json = ?, metadata_json = ?, updated_at = ?
+				 WHERE id = ?`,
+				[...payload, timestamp, id],
+			);
+		} else {
+			await this.run(
+				`INSERT INTO hub_workspace_links (
+					id, hub_id, team_id, parent_repository_host_id, parent_owner, parent_name, parent_url, parent_branch,
+					hub_mount_path, software_submodule_path, content_submodule_path, update_submodule_pointers_enabled,
+					access_policy_json, metadata_json, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[id, ...payload, timestamp, timestamp],
+			);
+		}
+		return serializeHubWorkspaceLink(await this.first(`SELECT * FROM hub_workspace_links WHERE id = ?`, [id]));
+	}
+
+	async listHubWorkspaceLinks(hubId) {
+		await this.ensureInitialized();
+		const rows = await this.all(`SELECT * FROM hub_workspace_links WHERE hub_id = ? ORDER BY created_at DESC`, [hubId]);
+		return rows.map(serializeHubWorkspaceLink);
+	}
+
+	async createProjectUpdatePlan(hubId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const project = await this.getProject(hubId);
+		const teamId = input.teamId ?? project?.teamId;
+		if (!teamId) throw new Error('teamId is required for project update plans.');
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO project_update_plans (
+				id, hub_id, team_id, source_kind, source_ref, source_version, plan_json, state,
+				requires_decision, decision_id, created_by, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				hubId,
+				teamId,
+				input.sourceKind,
+				input.sourceRef ?? null,
+				input.sourceVersion ?? null,
+				JSON.stringify(input.plan ?? {}),
+				input.state ?? 'planned',
+				input.requiresDecision === true ? 1 : 0,
+				input.decisionId ?? null,
+				input.createdBy ?? null,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeProjectUpdatePlan(await this.first(`SELECT * FROM project_update_plans WHERE id = ?`, [id]));
+	}
+
+	async listProjectUpdatePlans(hubId) {
+		await this.ensureInitialized();
+		const rows = await this.all(`SELECT * FROM project_update_plans WHERE hub_id = ? ORDER BY created_at DESC`, [hubId]);
+		return rows.map(serializeProjectUpdatePlan);
+	}
+
 	async getProjectConnection(projectId) {
 		await this.ensureInitialized();
 		return serializeConnection(await this.first(`SELECT * FROM project_connections WHERE project_id = ?`, [projectId]));
@@ -3899,17 +4676,22 @@ export class MarketControlPlaneStore {
 		for (const grant of grants) {
 			await this.run(
 				`INSERT INTO project_capability_grants (
-					id, project_id, namespace, operation, execution_class, allowed_targets_json, default_dispatch_mode, enabled, created_at, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					id, project_id, namespace, operation, label, execution_class, allowed_targets_json,
+					default_dispatch_mode, enabled, approval_policy_json, resource_scope_json, metadata_json, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				[
 					randomUUID(),
 					projectId,
 					grant.namespace,
 					grant.operation,
+					typeof grant.label === 'string' ? grant.label : null,
 					grant.executionClass,
 					JSON.stringify(grant.allowedTargets ?? []),
 					grant.defaultDispatchMode ?? 'auto',
 					grant.enabled === false ? 0 : 1,
+					JSON.stringify(grant.approvalPolicy && typeof grant.approvalPolicy === 'object' ? grant.approvalPolicy : {}),
+					JSON.stringify(grant.resourceScope && typeof grant.resourceScope === 'object' ? grant.resourceScope : {}),
+					JSON.stringify(grant.metadata && typeof grant.metadata === 'object' ? grant.metadata : {}),
 					timestamp,
 					timestamp,
 				],
@@ -3942,7 +4724,7 @@ export class MarketControlPlaneStore {
 		if (!project) {
 			return null;
 		}
-		const [connection, capabilityGrants, entitlement, hosting, environments, resources, deployments, agentPools] = await Promise.all([
+		const [connection, capabilityGrants, entitlement, hosting, environments, resources, deployments, agentPools, repositories, contentSource, latestLaunch] = await Promise.all([
 			this.getProjectConnection(projectId),
 			this.listProjectCapabilities(projectId),
 			(async () => serializeEntitlement(await this.first(`SELECT * FROM entitlements WHERE project_id = ? LIMIT 1`, [projectId])))(),
@@ -3951,7 +4733,11 @@ export class MarketControlPlaneStore {
 			this.listProjectInfrastructureResources(projectId),
 			this.listProjectDeployments(projectId),
 			this.listAgentPools(projectId),
+			this.listHubRepositories(projectId),
+			this.getHubContentSource(projectId),
+			this.getLatestHubLaunchForHub(projectId),
 		]);
+		const latestLaunchEvents = latestLaunch ? await this.listHubLaunchEvents(latestLaunch.id) : [];
 		return {
 			project,
 			connection,
@@ -3962,6 +4748,10 @@ export class MarketControlPlaneStore {
 			resources,
 			deployments,
 			agentPools,
+			repositories,
+			contentSource,
+			latestLaunch,
+			latestLaunchEvents,
 		};
 	}
 
@@ -4061,6 +4851,11 @@ export class MarketControlPlaneStore {
 				}
 				: details.connection,
 			hosting: details.hosting,
+			repositories: details.repositories,
+			contentSource: details.contentSource,
+			capabilityGrants: details.capabilityGrants,
+			latestLaunch: details.latestLaunch,
+			latestLaunchEvents: details.latestLaunchEvents,
 			agentPools: details.agentPools,
 			latestProdDeployment: summarizeDeploymentStatus(latestProdDeployment),
 			latestStagingDeployment: summarizeDeploymentStatus(latestStagingDeployment),
@@ -4555,6 +5350,41 @@ export class MarketControlPlaneStore {
 			[timestamp, timestamp, jobId],
 		);
 		await this.appendJobEvent(jobId, 'cancelled', {});
+		return this.findJobById(jobId);
+	}
+
+	async retryJob(jobId, input = {}) {
+		await this.ensureInitialized();
+		const existing = await this.findJobById(jobId);
+		if (!existing) return null;
+		const timestamp = isoNow();
+		const nextInput = {
+			...(existing.input ?? {}),
+			...(input.inputPatch && typeof input.inputPatch === 'object' ? input.inputPatch : {}),
+		};
+		await this.run(
+			`UPDATE remote_jobs
+			 SET status = ?,
+			     input_json = ?,
+			     output_json = NULL,
+			     error_json = NULL,
+			     assigned_runner_id = NULL,
+			     updated_at = ?,
+			     started_at = NULL,
+			     finished_at = NULL,
+			     cancelled_at = NULL
+			 WHERE id = ?`,
+			[
+				input.status ?? 'pending',
+				JSON.stringify(nextInput),
+				timestamp,
+				jobId,
+			],
+		);
+		await this.appendJobEvent(jobId, input.eventType ?? 'retry_queued', {
+			status: input.status ?? 'pending',
+			resume: nextInput.resume === true,
+		});
 		return this.findJobById(jobId);
 	}
 

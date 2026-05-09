@@ -1,5 +1,7 @@
 import type { APIContext, APIRoute } from 'astro';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { loadSiteWebSession } from '../../lib/auth/session-store';
+import { decryptHostConfig } from '../../lib/cloudflare-host-crypto';
 import {
 	listTreeseedManagedHostsFromConfig,
 	managedProcessingConfigMissing,
@@ -56,6 +58,51 @@ function encryptedHostPayloadLooksValid(value: any) {
 function decryptedCloudflareConfigSummary(value: any) {
 	if (!value || typeof value !== 'object') return { provided: false, keys: [] };
 	return { provided: true, keys: Object.keys(value).filter(Boolean).sort() };
+}
+
+function credentialSessionKey(context: APIContext) {
+	const secret = process.env.TREESEED_MARKET_CREDENTIAL_SESSION_SECRET
+		?? (context.locals as any).runtime?.resolved?.config?.credentialSessionSecret
+		?? (process.env.NODE_ENV === 'test' || process.env.TREESEED_LOCAL_DEV_MODE ? 'treeseed-local-test-credential-session-secret' : '');
+	if (!secret) throw new Error('TREESEED_MARKET_CREDENTIAL_SESSION_SECRET is required for provider credential sessions.');
+	return createHash('sha256').update(secret).digest();
+}
+
+function encryptCredentialSessionPayload(context: APIContext, payload: unknown) {
+	const iv = randomBytes(12);
+	const cipher = createCipheriv('aes-256-gcm', credentialSessionKey(context), iv);
+	const ciphertext = Buffer.concat([cipher.update(Buffer.from(JSON.stringify(payload ?? {}), 'utf8')), cipher.final()]);
+	return {
+		version: 1,
+		algorithm: 'aes-256-gcm',
+		iv: iv.toString('base64url'),
+		tag: cipher.getAuthTag().toString('base64url'),
+		ciphertext: ciphertext.toString('base64url'),
+	};
+}
+
+function decryptCredentialSessionPayload(context: APIContext, envelope: any) {
+	const decipher = createDecipheriv('aes-256-gcm', credentialSessionKey(context), Buffer.from(String(envelope?.iv ?? ''), 'base64url'));
+	decipher.setAuthTag(Buffer.from(String(envelope?.tag ?? ''), 'base64url'));
+	return JSON.parse(Buffer.concat([
+		decipher.update(Buffer.from(String(envelope?.ciphertext ?? ''), 'base64url')),
+		decipher.final(),
+	]).toString('utf8'));
+}
+
+function normalizeProviderCredentialConfig(hostKind: string, config: any) {
+	const source = config && typeof config === 'object' ? config : {};
+	if (hostKind === 'repository_host') {
+		const token = source.GH_TOKEN ?? source.GITHUB_TOKEN ?? source.githubToken ?? source.token;
+		if (!token || typeof token !== 'string') throw new Error('Repository Host credentials must include GH_TOKEN or GITHUB_TOKEN.');
+		return {
+			GH_TOKEN: token,
+			GITHUB_TOKEN: typeof source.GITHUB_TOKEN === 'string' ? source.GITHUB_TOKEN : token,
+			...(typeof source.owner === 'string' ? { owner: source.owner } : {}),
+			...(typeof source.organizationOrOwner === 'string' ? { organizationOrOwner: source.organizationOrOwner } : {}),
+		};
+	}
+	return source;
 }
 
 function managedCloudflareConfigMissing(config: Record<string, unknown> | null) {
@@ -327,6 +374,31 @@ export const ALL: APIRoute = async (context) => {
 		return error(404, 'Unknown project runner route.', { path: `/${parts.join('/')}` });
 	}
 
+	if (root === 'jobs' && id && third === 'provider-credential-sessions' && fourth && fifth === 'consume' && method === 'POST') {
+		const job = await store.findJobById(id);
+		if (!job) return error(404, `Unknown job "${id}".`);
+		const runnerAccess = await requireRunner(store, context.request, job.projectId);
+		if (runnerAccess.response) return runnerAccess.response;
+		const consumed = await store.consumeProviderCredentialSession(id, fourth);
+		if (!consumed.ok) return error(consumed.error === 'expired' ? 410 : 404, consumed.error);
+		try {
+			const sessionPayload = decryptCredentialSessionPayload(context, consumed.payload.encryptedPayload);
+			return json({
+				ok: true,
+				payload: {
+					id: consumed.payload.id,
+					hostKind: consumed.payload.hostKind,
+					hostId: consumed.payload.hostId,
+					purpose: consumed.payload.purpose,
+					provider: sessionPayload.provider ?? null,
+					config: sessionPayload.config && typeof sessionPayload.config === 'object' ? sessionPayload.config : {},
+				},
+			});
+		} catch (err) {
+			return error(500, 'Unable to decrypt credential session payload.', { message: err instanceof Error ? err.message : String(err) });
+		}
+	}
+
 	if (root === 'jobs' && id && ['progress', 'complete', 'fail'].includes(third ?? '') && method === 'POST') {
 		const job = await store.findJobById(id);
 		if (!job) return error(404, `Unknown job "${id}".`);
@@ -507,9 +579,54 @@ export const ALL: APIRoute = async (context) => {
 			});
 			return json({ ok: true, payload: { host: validated, validation: validated?.metadata?.lastValidation ?? null } });
 		}
+		if (method === 'POST' && third === 'provider-credential-sessions') {
+			const body = await readJson(context);
+			const hostKind = String(body.hostKind ?? '');
+			const hostId = typeof body.hostId === 'string' && body.hostId.trim() ? body.hostId.trim() : null;
+			const passphrase = typeof body.passphrase === 'string' ? body.passphrase : '';
+			if (!hostId || !passphrase) return error(400, 'hostId and passphrase are required.');
+			let host: any = null;
+			if (hostKind === 'repository_host') {
+				host = await store.getRepositoryHost(id, hostId);
+			} else if (hostKind === 'web_host' || hostKind === 'processing_host') {
+				host = await store.getTeamWebHost(id, hostId);
+			} else {
+				return error(400, 'hostKind must be repository_host, web_host, or processing_host.');
+			}
+			if (!host || host.teamId !== id || host.ownership !== 'team_owned') {
+				return error(404, 'Selected team-owned provider host is not available for this team.');
+			}
+			try {
+				const decryptedConfig = await decryptHostConfig(host.encryptedPayload, passphrase);
+				const normalizedConfig = normalizeProviderCredentialConfig(hostKind, decryptedConfig);
+				const requestedSeconds = Number(body.expiresInSeconds ?? 900);
+				const expiresInSeconds = Math.max(60, Math.min(Number.isFinite(requestedSeconds) ? requestedSeconds : 900, 3600));
+				const session = await store.createProviderCredentialSession(id, {
+					hostKind,
+					hostId,
+					purpose: typeof body.purpose === 'string' ? body.purpose : 'launch_project',
+					expiresAt: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
+					createdById: auth.principal.id,
+					encryptedPayload: encryptCredentialSessionPayload(context, {
+						provider: host.provider ?? (hostKind === 'repository_host' ? 'github' : null),
+						ownership: host.ownership,
+						config: normalizedConfig,
+					}),
+					metadata: {
+						hostName: host.name ?? null,
+						provider: host.provider ?? null,
+						configSummary: decryptedCloudflareConfigSummary(normalizedConfig),
+					},
+				});
+				return json({ ok: true, payload: { id: session.id, hostKind: session.hostKind, hostId: session.hostId, purpose: session.purpose, expiresAt: session.expiresAt } }, 201);
+			} catch (err) {
+				return error(400, 'Unable to unlock provider credentials for this host.', { message: err instanceof Error ? err.message : String(err) });
+			}
+		}
 		if (method === 'POST' && third === 'projects' && fourth === 'launch') {
 			const body = await readJson(context);
 			if (!body.slug || !body.name) return error(400, 'slug and name are required.');
+			const credentialSessions = body.credentialSessions && typeof body.credentialSessions === 'object' ? body.credentialSessions : {};
 			const hostingMode = typeof body.hostingMode === 'string' ? body.hostingMode : 'managed';
 			const cloudflareHostMode = body.cloudflareHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.cloudflareHostMode === 'team_owned' ? 'team_owned' : null;
 			const cloudflareHostId = typeof body.cloudflareHostId === 'string' && body.cloudflareHostId.trim() ? body.cloudflareHostId.trim() : null;
@@ -522,8 +639,11 @@ export const ALL: APIRoute = async (context) => {
 				if (!cloudflareHost || cloudflareHost.provider !== 'cloudflare' || cloudflareHost.ownership !== 'team_owned') {
 					return error(400, 'Selected team-owned Cloudflare host is not available for this team.');
 				}
-				if (!body.cloudflareHostConfig || typeof body.cloudflareHostConfig !== 'object') {
-					return error(400, 'cloudflareHostConfig is required after unlocking a team-owned Cloudflare host.');
+				if (body.cloudflareHostConfig && typeof body.cloudflareHostConfig === 'object') {
+					return error(400, 'Plaintext Cloudflare provider configs are not accepted. Create a provider credential session and pass credentialSessions.webHost.');
+				}
+				if (typeof credentialSessions.webHost !== 'string' || !credentialSessions.webHost.trim()) {
+					return error(400, 'credentialSessions.webHost is required after unlocking a team-owned Cloudflare host.');
 				}
 			}
 			let processingHost = null;
@@ -534,18 +654,17 @@ export const ALL: APIRoute = async (context) => {
 				if (!processingHost || processingHost.provider !== 'railway' || processingHost.ownership !== 'team_owned' || hostType !== 'processing') {
 					return error(400, 'Selected team-owned Processing host is not available for this team.');
 				}
-				if (!body.processingHostConfig || typeof body.processingHostConfig !== 'object') {
-					return error(400, 'processingHostConfig is required after unlocking a team-owned Processing host.');
+				if (body.processingHostConfig && typeof body.processingHostConfig === 'object') {
+					return error(400, 'Plaintext Processing provider configs are not accepted. Create a provider credential session and pass credentialSessions.processingHost.');
+				}
+				if (typeof credentialSessions.processingHost !== 'string' || !credentialSessions.processingHost.trim()) {
+					return error(400, 'credentialSessions.processingHost is required after unlocking a team-owned Processing host.');
 				}
 			}
-			const cloudflareLaunchConfig = cloudflareHostMode === 'team_owned'
-				? body.cloudflareHostConfig
-				: cloudflareHostMode === 'treeseed_managed'
+			const cloudflareLaunchConfig = cloudflareHostMode === 'treeseed_managed'
 					? await resolveTreeseedManagedCloudflareHostConfigFromConfig((context.locals as any).runtime ?? context.locals)
 					: null;
-			const processingLaunchConfig = processingHostMode === 'team_owned'
-				? body.processingHostConfig
-				: processingHostMode === 'treeseed_managed'
+			const processingLaunchConfig = processingHostMode === 'treeseed_managed'
 					? await resolveTreeseedManagedProcessingHostConfigFromConfig((context.locals as any).runtime ?? context.locals)
 					: null;
 			if (cloudflareHostMode === 'treeseed_managed') {
@@ -644,7 +763,16 @@ export const ALL: APIRoute = async (context) => {
 				cloudflareHostId,
 				processingHostMode,
 				processingHostId,
+				credentialSessions,
 			});
+			for (const [key, sessionId] of Object.entries(credentialSessions)) {
+				if (typeof sessionId !== 'string' || !sessionId.trim()) continue;
+				await store.bindProviderCredentialSession(id, sessionId, {
+					projectId: details.project.id,
+					jobId: job.id,
+					metadata: { boundFor: 'workflow.launch_project', sessionKey: key },
+				});
+			}
 			return json({ ok: true, payload: { ...details, launchJob: job } }, 202);
 		}
 		if (method === 'POST' && third === 'projects') {
@@ -687,6 +815,19 @@ export const ALL: APIRoute = async (context) => {
 		if (method === 'GET' && third === 'resources') return json({ ok: true, payload: await store.listProjectInfrastructureResources(id) });
 		if (method === 'GET' && third === 'deployments') return json({ ok: true, payload: await store.listProjectDeployments(id) });
 		if (method === 'GET' && third === 'agent-pools') return json({ ok: true, payload: await store.listAgentPools(id) });
+		if (method === 'GET' && third === 'workspace-links') return json({ ok: true, payload: await store.listHubWorkspaceLinks(id) });
+		if (method === 'POST' && third === 'workspace-links') {
+			const link = await store.upsertHubWorkspaceLink(id, { ...(await readJson(context)), teamId: access.details.project.teamId });
+			const job = await createQueuedProjectJob(context, store, auth, id, 'workspace', 'attach_parent', { workspaceLinkId: link.id, workspace: link });
+			return json({ ok: true, payload: { link, job } }, 202);
+		}
+		if (method === 'GET' && third === 'update-plans') return json({ ok: true, payload: await store.listProjectUpdatePlans(id) });
+		if (method === 'POST' && third === 'update-plans') {
+			const body = await readJson(context);
+			const plan = await store.createProjectUpdatePlan(id, { ...body, teamId: access.details.project.teamId, createdBy: auth.principal.id });
+			const job = await createQueuedProjectJob(context, store, auth, id, 'hub', 'execute_update', { updatePlanId: plan.id, plan: plan.plan, decisionId: plan.decisionId });
+			return json({ ok: true, payload: { plan, job } }, 202);
+		}
 		if (method === 'GET' && third === 'work-policy') {
 			const environment = context.url.searchParams.get('environment') ?? 'prod';
 			return json({ ok: true, payload: await store.getProjectWorkPolicy(id, environment) });
