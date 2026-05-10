@@ -105,6 +105,9 @@ jobs:
             if test -f "${dir}/package.json"; then npm --prefix "${dir}" run build:dist; fi
           done
 
+      - name: Install managed provider tools
+        run: npx trsd install --json
+
       - name: Run processing workflow action
         shell: bash
         run: |
