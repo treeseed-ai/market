@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.3] - 2026-05-10
+
+### Dependencies
+
+- build(deps): sync integrated package updates (7a9c12b10603)
+- build(deps): sync integrated package updates (9ce7fe447fd0)
+- Release @treeseed/market 0.5.3.
+- Release package @treeseed/cli: 0.8.3.
+- Release package @treeseed/core: 0.8.3.
+- Release package @treeseed/sdk: 0.8.3.
+
 ## [0.5.2] - 2026-05-10
 
 ### Infrastructure
