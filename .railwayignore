@@ -16,6 +16,17 @@ coverage/
 tmp/
 **/tmp/
 
+packages/*/.config/
+packages/*/.fixtures/
+packages/*/.github/
+packages/*/.local/
+packages/*/.treeseed/
+packages/*/coverage/
+packages/*/dist/
+packages/*/test/
+packages/*/tmp/
+
 *.log
 *.tgz
+packages/*/*.tgz
 **/.ts-run-*.mjs

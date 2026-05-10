@@ -13,6 +13,10 @@ const installedAgentApi = resolve(root, 'node_modules/@treeseed/agent/dist/api/i
 const lockDir = resolve(root, 'node_modules/.cache/treeseed-build-agent-api.lock');
 const staleLockMs = 10 * 60 * 1000;
 const waitTimeoutMs = 15 * 60 * 1000;
+const lockBuild = process.env.CI !== 'true'
+	&& !process.env.RAILWAY_PROJECT_ID
+	&& !process.env.RAILWAY_ENVIRONMENT_ID
+	&& !process.env.RAILWAY_SERVICE_ID;
 
 const requiredSdkOutputs = [
 	'dist/index.js',
@@ -178,6 +182,14 @@ async function main() {
 
 	if (workspaceOutputsReady()) {
 		console.log('Using existing workspace @treeseed/agent API build.');
+		return;
+	}
+
+	if (!lockBuild) {
+		runPackageBuild(agentRoot, '@treeseed/agent API');
+		if (!workspaceOutputsReady()) {
+			throw new Error('@treeseed/agent API build finished without required dist outputs.');
+		}
 		return;
 	}
 
