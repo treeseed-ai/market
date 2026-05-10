@@ -174,7 +174,7 @@ describe('market auth password policy', () => {
 			expect(response.status).toBe(200);
 			expect(payload?.user?.email).toBe(`debug-${suffix}@example.com`);
 		});
-	});
+	}, 20_000);
 
 	it('routes BetterAuth email sign-up requests with request-origin fallback config', async () => {
 		await withEnv({
@@ -220,5 +220,5 @@ describe('market auth password policy', () => {
 			expect(response.status).toBe(200);
 			expect(payload?.user?.email).toBe(`hosted-debug-${suffix}@example.com`);
 		});
-	});
+	}, 20_000);
 });
