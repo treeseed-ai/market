@@ -106,7 +106,7 @@ jobs:
           done
 
       - name: Install managed provider tools
-        run: npx trsd install --json
+        run: node ./packages/sdk/scripts/run-ts.mjs ./packages/sdk/scripts/install-managed-dependencies.ts
 
       - name: Run processing workflow action
         shell: bash
