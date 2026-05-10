@@ -29,9 +29,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          node -e "const fs = require('fs'); for (const file of ['packages/sdk/package.json', 'packages/core/package.json', 'packages/cli/package.json']) { if (!fs.existsSync(file)) continue; const p = JSON.parse(fs.readFileSync(file, 'utf8')); if (p.scripts) delete p.scripts.prepare; fs.writeFileSync(file, JSON.stringify(p, null, '\t') + '\n'); }"
+          node -e "const fs = require('fs'); for (const file of ['packages/sdk/package.json', 'packages/agent/package.json', 'packages/core/package.json', 'packages/cli/package.json']) { if (!fs.existsSync(file)) continue; const p = JSON.parse(fs.readFileSync(file, 'utf8')); if (p.scripts) delete p.scripts.prepare; fs.writeFileSync(file, JSON.stringify(p, null, '\t') + '\n'); }"
           npm ci
-          for dir in packages/sdk packages/core packages/cli; do
+          for dir in packages/sdk packages/agent packages/core packages/cli; do
             if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
               git -C "${dir}" checkout -- package.json
             fi

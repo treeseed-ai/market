@@ -24,35 +24,33 @@ function runBuildApi(scriptPath: string, cwd: string, pathPrefix: string) {
 }
 
 describe('build:api wrapper', () => {
-	it('serializes concurrent workspace core dist builds', async () => {
+	it('serializes concurrent workspace agent API dist builds', async () => {
 		const root = mkdtempSync(join(tmpdir(), 'treeseed-build-api-'));
 		const scriptPath = resolve('scripts/build-api.mjs');
 		const binDir = join(root, 'bin');
 		const fakeNpm = join(binDir, 'npm');
 
 		writeFile(join(root, 'package.json'), '{"type":"module"}\n');
-		writeFile(join(root, 'packages/core/package.json'), '{"name":"@treeseed/core"}\n');
-		writeFile(join(root, 'packages/core/scripts/build-dist.ts'), 'export {};\n');
-		writeFile(join(root, 'packages/core/src/index.ts'), 'export {};\n');
+		writeFile(join(root, 'packages/agent/package.json'), '{"name":"@treeseed/agent"}\n');
+		writeFile(join(root, 'packages/agent/scripts/build-dist.ts'), 'export {};\n');
+		writeFile(join(root, 'packages/agent/src/index.ts'), 'export {};\n');
 		writeFile(fakeNpm, `#!/usr/bin/env node
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-const root = process.cwd();
+const root = process.cwd().replace(/\\/packages\\/agent$/u, '');
 const countPath = join(root, 'build-count.txt');
 const current = existsSync(countPath) ? Number(readFileSync(countPath, 'utf8')) : 0;
 writeFileSync(countPath, String(current + 1));
 setTimeout(() => {
-	const coreRoot = join(root, 'packages/core');
+	const agentRoot = join(root, 'packages/agent');
 	for (const relativePath of [
-		'dist/api.js',
-		'dist/config.js',
-		'dist/config.d.ts',
+		'dist/api/index.js',
+		'dist/api/index.d.ts',
 		'dist/services/agents.js',
-		'dist/services/manager.js',
 		'dist/services/worker.js',
 		'dist/services/workday-manager.js',
 	]) {
-		const output = join(coreRoot, relativePath);
+		const output = join(agentRoot, relativePath);
 		mkdirSync(dirname(output), { recursive: true });
 		writeFileSync(output, 'export {};\\n');
 	}

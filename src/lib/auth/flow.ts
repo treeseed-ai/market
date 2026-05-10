@@ -1,5 +1,5 @@
 import type { APIContext } from 'astro';
-import { D1AuthProvider } from '@treeseed/core/api/auth/d1-provider';
+import { D1AuthProvider } from '@treeseed/agent/api/auth/d1-provider';
 import {
 	betterAuthCookieFromSetCookie,
 	createSiteBetterAuth,

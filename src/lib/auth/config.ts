@@ -136,20 +136,20 @@ export function getSiteAuthConfig(context?: Pick<APIContext, 'locals'> & Partial
 		},
 		providers: {
 			github: {
-				clientId: firstEnvValue(env, 'TREESEED_AUTH_GITHUB_CLIENT_ID', 'TREESEED_GITHUB_CLIENT_ID'),
-				clientSecret: firstEnvValue(env, 'TREESEED_AUTH_GITHUB_CLIENT_SECRET', 'TREESEED_GITHUB_CLIENT_SECRET'),
+				clientId: envValue('TREESEED_AUTH_GITHUB_CLIENT_ID', env),
+				clientSecret: envValue('TREESEED_AUTH_GITHUB_CLIENT_SECRET', env),
 			},
 			google: {
-				clientId: firstEnvValue(env, 'TREESEED_AUTH_GOOGLE_CLIENT_ID', 'TREESEED_GOOGLE_CLIENT_ID'),
-				clientSecret: firstEnvValue(env, 'TREESEED_AUTH_GOOGLE_CLIENT_SECRET', 'TREESEED_GOOGLE_CLIENT_SECRET'),
+				clientId: envValue('TREESEED_AUTH_GOOGLE_CLIENT_ID', env),
+				clientSecret: envValue('TREESEED_AUTH_GOOGLE_CLIENT_SECRET', env),
 			},
 			microsoft: {
-				clientId: firstEnvValue(env, 'TREESEED_AUTH_MICROSOFT_CLIENT_ID', 'TREESEED_MICROSOFT_CLIENT_ID'),
-				clientSecret: firstEnvValue(env, 'TREESEED_AUTH_MICROSOFT_CLIENT_SECRET', 'TREESEED_MICROSOFT_CLIENT_SECRET'),
+				clientId: envValue('TREESEED_AUTH_MICROSOFT_CLIENT_ID', env),
+				clientSecret: envValue('TREESEED_AUTH_MICROSOFT_CLIENT_SECRET', env),
 			},
 			apple: {
-				clientId: firstEnvValue(env, 'TREESEED_AUTH_APPLE_CLIENT_ID', 'TREESEED_APPLE_CLIENT_ID'),
-				clientSecret: firstEnvValue(env, 'TREESEED_AUTH_APPLE_CLIENT_SECRET', 'TREESEED_APPLE_CLIENT_SECRET'),
+				clientId: envValue('TREESEED_AUTH_APPLE_CLIENT_ID', env),
+				clientSecret: envValue('TREESEED_AUTH_APPLE_CLIENT_SECRET', env),
 			},
 		},
 	};

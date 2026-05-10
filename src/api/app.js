@@ -16,7 +16,7 @@ import {
 	loadTemplateCatalog,
 	resolveApiConfig,
 	resolveApiD1Database,
-} from '@treeseed/core/api';
+} from '@treeseed/agent/api';
 import { MarketControlPlaneStore } from './store.js';
 import {
 	listTreeseedManagedHostsFromConfig,
@@ -360,14 +360,14 @@ function normalizeCiEnvironment(value) {
 }
 
 function ciOperationForAction(actionKind) {
-	switch (String(actionKind ?? 'deploy_code')) {
-		case 'provision':
+	switch (String(actionKind ?? 'deploy_web')) {
+		case 'deploy_processing':
 			return { namespace: 'workflow', operation: 'reconcile_runtime' };
 		case 'publish_content':
 			return { namespace: 'content', operation: 'publish' };
 		case 'monitor':
 			return { namespace: 'workflow', operation: 'verify_runtime' };
-		case 'deploy_code':
+		case 'deploy_web':
 		default:
 			return { namespace: 'workflow', operation: 'deploy_runtime' };
 	}
@@ -960,7 +960,7 @@ async function applyHubLaunchResult(store, runtime, job, output, principal = nul
 			sourceRepoOwner: launchResult.repository.owner,
 			sourceRepoName: launchResult.repository.name,
 			sourceRepoUrl: launchResult.repository.url,
-			sourceRepoWorkflowPath: '.github/workflows/verify.yml',
+			sourceRepoWorkflowPath: '.github/workflows/deploy-web.yml',
 			projectApiBaseUrl: launchResult.projectApiBaseUrl,
 			executionOwner: 'project_runner',
 			metadata: {
@@ -1272,6 +1272,13 @@ function defaultConfig(overrides = {}) {
 	};
 }
 
+export function createMarketApiExtension(options = {}) {
+	return {
+		name: options.name ?? 'treeseed-market',
+		mount: options.mount ?? ((app, runtime) => options.extendApp?.(app, runtime)),
+	};
+}
+
 export function createMarketApiApp(options = {}) {
 	const config = defaultConfig(options.config ?? {});
 	const db = options.db ?? resolveApiD1Database(config);
@@ -1318,7 +1325,9 @@ export function createMarketApiApp(options = {}) {
 			templates: false,
 			...(options.surfaces ?? {}),
 		},
-		extendApp(app, runtime) {
+		extensions: [
+			createMarketApiExtension({
+				mount(app, runtime) {
 			app.get('/healthz/deep', async (c) => {
 				try {
 					await store.ensureInitialized();
@@ -3447,10 +3456,13 @@ export function createMarketApiApp(options = {}) {
 					});
 				}
 				const workflowRef = String(claims.workflow_ref ?? '');
-				if (!workflowRef.includes(`${repository}/.github/workflows/deploy.yml@`)) {
+				if (
+					!workflowRef.includes(`${repository}/.github/workflows/deploy-web.yml@`)
+					&& !workflowRef.includes(`${repository}/.github/workflows/deploy-processing.yml@`)
+				) {
 					return jsonError(c, 403, 'GitHub OIDC workflow_ref must come from the managed deploy workflow.');
 				}
-				const actionKind = typeof body.actionKind === 'string' ? body.actionKind : 'deploy_code';
+				const actionKind = typeof body.actionKind === 'string' ? body.actionKind : 'deploy_web';
 				const operation = ciOperationForAction(actionKind);
 				const baseCapability = findDispatchCapability(operation.namespace, operation.operation)
 					?? fallbackRemoteCapability(operation.namespace, operation.operation);
@@ -4883,6 +4895,9 @@ export function createMarketApiApp(options = {}) {
 			});
 
 			options.extendApp?.(app, runtime);
-		},
+				},
+			}),
+			...(options.extensions ?? []),
+		],
 	});
 }

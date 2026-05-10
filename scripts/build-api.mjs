@@ -5,28 +5,27 @@ import { dirname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const root = process.cwd();
-const coreRoot = resolve(root, 'packages/core');
-const coreBuildScript = resolve(coreRoot, 'scripts/build-dist.ts');
-const installedCoreApi = resolve(root, 'node_modules/@treeseed/core/dist/api.js');
-const lockDir = resolve(root, 'node_modules/.cache/treeseed-build-api.lock');
+const agentRoot = resolve(root, 'packages/agent');
+const agentBuildScript = resolve(agentRoot, 'scripts/build-dist.ts');
+const installedAgentApi = resolve(root, 'node_modules/@treeseed/agent/dist/api/index.js');
+const lockDir = resolve(root, 'node_modules/.cache/treeseed-build-agent-api.lock');
 const staleLockMs = 10 * 60 * 1000;
 const waitTimeoutMs = 15 * 60 * 1000;
 
 const requiredWorkspaceOutputs = [
-	'dist/api.js',
-	'dist/config.js',
-	'dist/config.d.ts',
+	'dist/api/index.js',
+	'dist/api/index.d.ts',
 	'dist/services/agents.js',
 	'dist/services/workday-manager.js',
 	'dist/services/worker.js',
-].map((relativePath) => resolve(coreRoot, relativePath));
+].map((relativePath) => resolve(agentRoot, relativePath));
 
 const buildInputs = [
 	resolve(root, 'package.json'),
 	resolve(root, 'scripts/build-api.mjs'),
-	resolve(coreRoot, 'package.json'),
-	resolve(coreRoot, 'scripts/build-dist.ts'),
-	resolve(coreRoot, 'src'),
+	resolve(agentRoot, 'package.json'),
+	resolve(agentRoot, 'scripts/build-dist.ts'),
+	resolve(agentRoot, 'src'),
 ];
 
 function walkFiles(path) {
@@ -94,12 +93,12 @@ async function waitForWorkspaceBuild() {
 
 	while (Date.now() - startedAt < waitTimeoutMs) {
 		if (workspaceOutputsReady()) {
-			console.log('Using workspace @treeseed/core API build from another build:api process.');
+			console.log('Using workspace @treeseed/agent API build from another build:api process.');
 			return;
 		}
 
 		if (lockIsStale()) {
-			console.warn('Removing stale @treeseed/core build lock.');
+			console.warn('Removing stale @treeseed/agent build lock.');
 			releaseLock();
 			return;
 		}
@@ -107,20 +106,20 @@ async function waitForWorkspaceBuild() {
 		await delay(1000);
 	}
 
-	throw new Error('Timed out waiting for @treeseed/core API build lock.');
+	throw new Error('Timed out waiting for @treeseed/agent API build lock.');
 }
 
 async function main() {
-	if (!existsSync(coreBuildScript)) {
-		if (existsSync(installedCoreApi)) {
-			console.log('Using installed @treeseed/core API build.');
+	if (!existsSync(agentBuildScript)) {
+		if (existsSync(installedAgentApi)) {
+			console.log('Using installed @treeseed/agent API build.');
 			return;
 		}
-		throw new Error('Unable to resolve @treeseed/core API build output.');
+		throw new Error('Unable to resolve @treeseed/agent API build output.');
 	}
 
 	if (workspaceOutputsReady()) {
-		console.log('Using existing workspace @treeseed/core API build.');
+		console.log('Using existing workspace @treeseed/agent API build.');
 		return;
 	}
 
@@ -132,16 +131,16 @@ async function main() {
 	}
 
 	try {
-		const result = spawnSync('npm', ['--prefix', './packages/core', 'run', 'build:dist'], {
-			cwd: root,
+		const result = spawnSync('npm', ['run', 'build:dist'], {
+			cwd: agentRoot,
 			env: process.env,
 			stdio: 'inherit',
 		});
 		if (result.status !== 0) {
-			throw new Error(`@treeseed/core API build command failed with exit code ${result.status ?? 1}.`);
+			throw new Error(`@treeseed/agent API build command failed with exit code ${result.status ?? 1}.`);
 		}
 		if (!workspaceOutputsReady()) {
-			throw new Error('@treeseed/core API build finished without required dist outputs.');
+			throw new Error('@treeseed/agent API build finished without required dist outputs.');
 		}
 	} finally {
 		releaseLock();

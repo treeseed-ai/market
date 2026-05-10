@@ -1263,7 +1263,7 @@ runtimeDescribe('market api', () => {
 				sourceRepoOwner: 'treeseed-ai',
 				sourceRepoName: 'topology-project',
 				sourceRepoUrl: 'https://github.com/treeseed-ai/topology-project',
-				sourceRepoWorkflowPath: '.github/workflows/deploy.yml',
+				sourceRepoWorkflowPath: '.github/workflows/deploy-web.yml',
 			}),
 		}));
 		expect(hosting.payload).toMatchObject({
@@ -2265,8 +2265,8 @@ runtimeDescribe('market api', () => {
 			ref: 'refs/heads/staging',
 			ref_name: 'staging',
 			sha: '1234567890abcdef1234567890abcdef12345678',
-			workflow: 'Treeseed Managed Hosted Project',
-			workflow_ref: `${repository}/.github/workflows/deploy.yml@refs/heads/staging`,
+			workflow: 'Treeseed Web Deploy',
+			workflow_ref: `${repository}/.github/workflows/deploy-web.yml@refs/heads/staging`,
 			run_id: '1001',
 			run_attempt: '1',
 			actor: 'octocat',
@@ -2278,7 +2278,7 @@ runtimeDescribe('market api', () => {
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({
 				oidcToken,
-				actionKind: 'deploy_code',
+				actionKind: 'deploy_web',
 				environment: 'staging',
 				sha: '1234567890abcdef1234567890abcdef12345678',
 			}),
@@ -2316,14 +2316,14 @@ runtimeDescribe('market api', () => {
 			exp: now + 300,
 			repository: 'other-owner/other-repo',
 			ref: 'refs/heads/staging',
-			workflow_ref: 'other-owner/other-repo/.github/workflows/deploy.yml@refs/heads/staging',
+			workflow_ref: 'other-owner/other-repo/.github/workflows/deploy-web.yml@refs/heads/staging',
 		});
 		const rejected = await app.request(`/v1/projects/${projectId}/ci/oidc/exchange`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({
 				oidcToken: mismatchedToken,
-				actionKind: 'deploy_code',
+				actionKind: 'deploy_web',
 				environment: 'staging',
 			}),
 		});
