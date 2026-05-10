@@ -87,7 +87,7 @@ jobs:
                     content_changed="true"
                     web_changed="true"
                     ;;
-                  packages/agent/*|src/api/*|migrations/*)
+                  packages/agent/*|src/api/*|scripts/build-api.mjs|migrations/*)
                     processing_changed="true"
                     ;;
                   packages/sdk/*|package.json|package-lock.json|.github/workflows/*)
