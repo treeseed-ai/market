@@ -9,6 +9,7 @@ import {
 	findDispatchCapability,
 	planKnowledgeHubLaunch,
 } from '@treeseed/sdk';
+import { runTreeseedHostingAudit } from '@treeseed/sdk/workflow-support';
 import {
 	createTreeseedApiApp,
 	D1AuthProvider,
@@ -25,7 +26,7 @@ import {
 	resolveTreeseedManagedProcessingHostConfigFromConfig,
 } from '../lib/market/managed-hosts.js';
 import { decryptHostConfig } from '../lib/cloudflare-host-crypto.js';
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicKey, createVerify, randomBytes, timingSafeEqual } from 'node:crypto';
 
 function jsonError(c, status, error, details = {}) {
 	return c.json({
@@ -161,6 +162,258 @@ function normalizeProviderCredentialConfig(hostKind, config) {
 		};
 	}
 	return source;
+}
+
+const HOST_KIND_SESSION_KEYS = {
+	repository: { sessionKey: 'repositoryHost', hostKind: 'repository_host' },
+	web: { sessionKey: 'webHost', hostKind: 'web_host' },
+	processing: { sessionKey: 'processingHost', hostKind: 'processing_host' },
+	email: { sessionKey: 'emailHost', hostKind: 'email_host' },
+};
+
+function normalizeAuditHostKinds(value) {
+	const allowed = new Set(['repository', 'web', 'processing', 'email']);
+	const raw = Array.isArray(value) && value.length > 0
+		? value
+		: ['repository', 'web', 'processing', 'email'];
+	return [...new Set(raw
+		.map((entry) => String(entry ?? '').trim())
+		.filter((entry) => allowed.has(entry)))];
+}
+
+function providerCredentialValuesForAudit(hostKind, payload) {
+	const config = payload?.config && typeof payload.config === 'object' ? payload.config : {};
+	if (hostKind === 'repository_host') {
+		const token = config.GH_TOKEN ?? config.GITHUB_TOKEN ?? config.token ?? null;
+		const owner = config.organizationOrOwner ?? config.owner ?? null;
+		return {
+			...(typeof token === 'string' ? { GH_TOKEN: token, GITHUB_TOKEN: token } : {}),
+			...(typeof owner === 'string' ? {
+				TREESEED_HOSTED_HUBS_GITHUB_OWNER: owner,
+			} : {}),
+		};
+	}
+	if (hostKind === 'web_host') {
+		return {
+			...(typeof config.CLOUDFLARE_API_TOKEN === 'string' ? { CLOUDFLARE_API_TOKEN: config.CLOUDFLARE_API_TOKEN } : {}),
+			...(typeof config.CLOUDFLARE_ACCOUNT_ID === 'string' ? { CLOUDFLARE_ACCOUNT_ID: config.CLOUDFLARE_ACCOUNT_ID } : {}),
+		};
+	}
+	if (hostKind === 'processing_host') {
+		return {
+			...(typeof config.RAILWAY_API_TOKEN === 'string' ? { RAILWAY_API_TOKEN: config.RAILWAY_API_TOKEN } : {}),
+			...(typeof config.TREESEED_RAILWAY_WORKSPACE === 'string' ? { TREESEED_RAILWAY_WORKSPACE: config.TREESEED_RAILWAY_WORKSPACE } : {}),
+		};
+	}
+	if (hostKind === 'email_host') {
+		return {
+			...(typeof config.SMTP_HOST === 'string' ? { TREESEED_SMTP_HOST: config.SMTP_HOST } : {}),
+			...(typeof config.SMTP_PORT === 'string' ? { TREESEED_SMTP_PORT: config.SMTP_PORT } : {}),
+			...(typeof config.SMTP_USERNAME === 'string' ? { TREESEED_SMTP_USERNAME: config.SMTP_USERNAME } : {}),
+			...(typeof config.SMTP_PASSWORD === 'string' ? { TREESEED_SMTP_PASSWORD: config.SMTP_PASSWORD } : {}),
+			...(typeof config.SMTP_FROM_EMAIL === 'string' ? { TREESEED_SMTP_FROM: config.SMTP_FROM_EMAIL } : {}),
+			...(typeof config.SMTP_REPLY_TO === 'string' ? { TREESEED_SMTP_REPLY_TO: config.SMTP_REPLY_TO } : {}),
+			...(typeof config.SMTP_SECURE === 'string' ? { TREESEED_SMTP_SECURE: config.SMTP_SECURE } : {}),
+		};
+	}
+	return {};
+}
+
+async function collectHostingAuditCredentialOverlay({ store, runtime, teamId, hostKinds, credentialSessions = {}, requiredPurpose = null }) {
+	const overlay = {};
+	const sessions = {};
+	for (const hostKind of hostKinds) {
+		const definition = HOST_KIND_SESSION_KEYS[hostKind];
+		const sessionId = typeof credentialSessions?.[definition.sessionKey] === 'string'
+			? credentialSessions[definition.sessionKey].trim()
+			: '';
+		if (!sessionId) continue;
+		const session = await store.getProviderCredentialSession(teamId, sessionId, { includeEncryptedPayload: true });
+		if (!session) {
+			throw new Error(`Credential session "${definition.sessionKey}" is not available for this team.`);
+		}
+		if (session.hostKind !== definition.hostKind) {
+			throw new Error(`Credential session "${definition.sessionKey}" is not scoped to ${hostKind} hosting.`);
+		}
+		if (session.status !== 'active' || new Date(session.expiresAt).getTime() <= Date.now()) {
+			throw new Error(`Credential session "${definition.sessionKey}" has expired. Unlock the host again.`);
+		}
+		if (requiredPurpose && session.purpose !== requiredPurpose) {
+			throw new Error(`Credential session "${definition.sessionKey}" is not valid for ${requiredPurpose}.`);
+		}
+		const decrypted = decryptCredentialSessionPayload(runtime, session.encryptedPayload);
+		Object.assign(overlay, providerCredentialValuesForAudit(session.hostKind, decrypted));
+		sessions[definition.sessionKey] = {
+			id: session.id,
+			hostKind: session.hostKind,
+			hostId: session.hostId,
+			purpose: session.purpose,
+			expiresAt: session.expiresAt,
+		};
+	}
+	return { overlay, sessions };
+}
+
+const GITHUB_ACTIONS_OIDC_ISSUER = 'https://token.actions.githubusercontent.com';
+let githubOidcJwksCache = { fetchedAt: 0, keys: [] };
+
+function base64urlJson(value) {
+	return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+}
+
+function parseBase64urlJson(value) {
+	return JSON.parse(Buffer.from(String(value ?? ''), 'base64url').toString('utf8'));
+}
+
+function operationTokenSecret(runtime) {
+	return runtime?.resolved?.config?.assertionSecret
+		?? runtime?.resolved?.config?.authSecret
+		?? process.env.TREESEED_MARKET_OPERATION_TOKEN_SECRET
+		?? process.env.TREESEED_AUTH_SECRET
+		?? 'treeseed-local-operation-token-secret';
+}
+
+function signOperationToken(runtime, payload) {
+	const body = base64urlJson(payload);
+	const signature = createHmac('sha256', operationTokenSecret(runtime)).update(body).digest('base64url');
+	return `${body}.${signature}`;
+}
+
+function verifyOperationToken(runtime, token) {
+	const [body, signature] = String(token ?? '').split('.');
+	if (!body || !signature) {
+		throw new Error('Invalid operation token.');
+	}
+	const expected = createHmac('sha256', operationTokenSecret(runtime)).update(body).digest('base64url');
+	const providedBuffer = Buffer.from(signature);
+	const expectedBuffer = Buffer.from(expected);
+	if (providedBuffer.length !== expectedBuffer.length || !timingSafeEqual(providedBuffer, expectedBuffer)) {
+		throw new Error('Invalid operation token signature.');
+	}
+	const payload = parseBase64urlJson(body);
+	if (!payload.exp || Number(payload.exp) <= Math.floor(Date.now() / 1000)) {
+		throw new Error('Operation token expired.');
+	}
+	return payload;
+}
+
+async function loadGitHubOidcJwks(fetchImpl = fetch) {
+	if (githubOidcJwksCache.keys.length > 0 && Date.now() - githubOidcJwksCache.fetchedAt < 10 * 60 * 1000) {
+		return githubOidcJwksCache.keys;
+	}
+	const response = await fetchImpl('https://token.actions.githubusercontent.com/.well-known/jwks');
+	if (!response.ok) {
+		throw new Error(`Unable to load GitHub OIDC signing keys (${response.status}).`);
+	}
+	const payload = await response.json();
+	githubOidcJwksCache = {
+		fetchedAt: Date.now(),
+		keys: Array.isArray(payload.keys) ? payload.keys : [],
+	};
+	return githubOidcJwksCache.keys;
+}
+
+async function verifyGitHubOidcToken(token, expectedAudience, fetchImpl = fetch) {
+	const parts = String(token ?? '').split('.');
+	if (parts.length !== 3) {
+		throw new Error('GitHub OIDC token must be a JWT.');
+	}
+	const [encodedHeader, encodedPayload, encodedSignature] = parts;
+	const header = parseBase64urlJson(encodedHeader);
+	const claims = parseBase64urlJson(encodedPayload);
+	const skipSignatureForTest = process.env.NODE_ENV === 'test' && header.alg === 'none';
+	if (!skipSignatureForTest) {
+		if (header.alg !== 'RS256' || !header.kid) {
+			throw new Error('Unsupported GitHub OIDC token algorithm.');
+		}
+		const key = (await loadGitHubOidcJwks(fetchImpl)).find((entry) => entry.kid === header.kid);
+		if (!key) {
+			throw new Error('GitHub OIDC signing key not found.');
+		}
+		const verifier = createVerify('RSA-SHA256');
+		verifier.update(`${encodedHeader}.${encodedPayload}`);
+		verifier.end();
+		if (!verifier.verify(createPublicKey({ key, format: 'jwk' }), Buffer.from(encodedSignature, 'base64url'))) {
+			throw new Error('GitHub OIDC token signature is invalid.');
+		}
+	}
+	const now = Math.floor(Date.now() / 1000);
+	if (claims.iss !== GITHUB_ACTIONS_OIDC_ISSUER) {
+		throw new Error('GitHub OIDC issuer is invalid.');
+	}
+	const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+	if (!audiences.includes(expectedAudience)) {
+		throw new Error('GitHub OIDC audience is invalid.');
+	}
+	if (claims.exp && Number(claims.exp) <= now) {
+		throw new Error('GitHub OIDC token has expired.');
+	}
+	if (claims.nbf && Number(claims.nbf) > now) {
+		throw new Error('GitHub OIDC token is not valid yet.');
+	}
+	return claims;
+}
+
+function normalizeCiEnvironment(value) {
+	const normalized = String(value ?? '').trim().toLowerCase();
+	return normalized === 'prod' || normalized === 'production' ? 'prod' : 'staging';
+}
+
+function ciOperationForAction(actionKind) {
+	switch (String(actionKind ?? 'deploy_code')) {
+		case 'provision':
+			return { namespace: 'workflow', operation: 'reconcile_runtime' };
+		case 'publish_content':
+			return { namespace: 'content', operation: 'publish' };
+		case 'monitor':
+			return { namespace: 'workflow', operation: 'verify_runtime' };
+		case 'deploy_code':
+		default:
+			return { namespace: 'workflow', operation: 'deploy_runtime' };
+	}
+}
+
+function fallbackRemoteCapability(namespace, operation) {
+	return {
+		namespace,
+		operation,
+		label: `${namespace}.${operation}`,
+		executionClass: 'remote_job',
+		allowedTargets: ['project_runner'],
+		defaultTarget: 'project_runner',
+		defaultDispatchMode: 'auto',
+		approvalPolicy: {},
+		resourceScope: {},
+		metadata: {},
+	};
+}
+
+function normalizeRepositorySlug(value) {
+	const text = String(value ?? '').trim().toLowerCase();
+	return text.includes('/') ? text : null;
+}
+
+function projectAllowedCiRepositories(projectDetails) {
+	const slugs = new Set();
+	for (const repository of projectDetails.repositories ?? []) {
+		if (repository.role !== 'software') continue;
+		const slug = normalizeRepositorySlug(`${repository.owner}/${repository.name}`);
+		if (slug) slugs.add(slug);
+	}
+	const hosting = projectDetails.hosting;
+	if (hosting?.sourceRepoOwner && hosting?.sourceRepoName) {
+		const slug = normalizeRepositorySlug(`${hosting.sourceRepoOwner}/${hosting.sourceRepoName}`);
+		if (slug) slugs.add(slug);
+	}
+	return slugs;
+}
+
+function validateCiRefForEnvironment(environment, claims) {
+	const ref = String(claims.ref ?? '');
+	if (environment === 'prod') {
+		return ref === 'refs/heads/main' || ref.startsWith('refs/tags/');
+	}
+	return ref === 'refs/heads/staging';
 }
 
 function marketProfilesForTeams(teams = [], baseUrl) {
@@ -1467,6 +1720,41 @@ export function createMarketApiApp(options = {}) {
 				}
 			});
 
+			app.post('/v1/teams/:teamId/hosting-audit', async (c) => {
+				const body = await c.req.json().catch(() => ({}));
+				const repair = body.repair === true;
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), repair ? 'teams:manage:team' : 'projects:read:team');
+				if (access.response) return access.response;
+				const teamId = c.req.param('teamId');
+				const hostKinds = normalizeAuditHostKinds(body.hostKinds);
+				try {
+					const credentialOverlay = await collectHostingAuditCredentialOverlay({
+						store,
+						runtime,
+						teamId,
+						hostKinds,
+						credentialSessions: body.credentialSessions && typeof body.credentialSessions === 'object' ? body.credentialSessions : {},
+					});
+					const report = await runTreeseedHostingAudit({
+						tenantRoot: runtime?.resolved?.config?.repoRoot ?? process.cwd(),
+						environment: ['current', 'local', 'staging', 'prod'].includes(body.environment) ? body.environment : 'current',
+						repair,
+						hostKinds,
+						env: process.env,
+						valuesOverlay: credentialOverlay.overlay,
+					});
+					return c.json({
+						ok: true,
+						payload: {
+							...report,
+							credentialSessions: credentialOverlay.sessions,
+						},
+					});
+				} catch (error) {
+					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
+				}
+			});
+
 			app.get('/v1/teams/:teamId/hosts', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
 				if (access.response) return access.response;
@@ -2054,9 +2342,8 @@ export function createMarketApiApp(options = {}) {
 						provider: 'github',
 						ownership: 'treeseed_managed',
 						name: 'TreeSeed Hosted Hubs',
-						accountLabel: process.env.TREESEED_HOSTED_HUBS_GITHUB_OWNER ?? process.env.TREESEED_REPOSITORY_HOST_GITHUB_OWNER ?? null,
+						accountLabel: process.env.TREESEED_HOSTED_HUBS_GITHUB_OWNER ?? null,
 						organizationOrOwner: process.env.TREESEED_HOSTED_HUBS_GITHUB_OWNER
-							?? process.env.TREESEED_REPOSITORY_HOST_GITHUB_OWNER
 							?? (typeof requestedRepository?.owner === 'string' ? requestedRepository.owner : null)
 							?? (typeof body.repoOwner === 'string' ? body.repoOwner : null)
 							?? 'treeseed-sites',
@@ -2107,6 +2394,32 @@ export function createMarketApiApp(options = {}) {
 					}
 					if (emailHostMode === 'team_owned') {
 						await addCredentialSessionBinding('emailHost', 'email_host', emailHostId);
+					}
+				} catch (error) {
+					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
+				}
+				const auditHostKinds = ['repository', 'web', 'processing', 'email'];
+				try {
+					const credentialOverlay = await collectHostingAuditCredentialOverlay({
+						store,
+						runtime,
+						teamId,
+						hostKinds: auditHostKinds,
+						credentialSessions,
+						requiredPurpose: 'launch_project',
+					});
+					const hostingAudit = await runTreeseedHostingAudit({
+						tenantRoot: runtime?.resolved?.config?.repoRoot ?? process.cwd(),
+						environment: 'current',
+						repair: false,
+						hostKinds: auditHostKinds,
+						env: process.env,
+						valuesOverlay: credentialOverlay.overlay,
+					});
+					if (!hostingAudit.ok) {
+						return jsonError(c, 424, 'Hosting readiness audit failed. Fix the listed blockers or run hosting repair before launching.', {
+							audit: hostingAudit,
+						});
 					}
 				} catch (error) {
 					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
@@ -3098,6 +3411,165 @@ export function createMarketApiApp(options = {}) {
 					},
 				});
 				return c.json({ ok: true, payload: { plan, job: decorateJob(runtime.resolved.config.baseUrl, job) } }, { status: 202 });
+			});
+
+			app.post('/v1/projects/:projectId/ci/oidc/exchange', async (c) => {
+				const projectId = c.req.param('projectId');
+				const details = await store.getProjectDetails(projectId);
+				if (!details) {
+					return jsonError(c, 404, `Unknown project "${projectId}".`);
+				}
+				const body = await c.req.json().catch(() => ({}));
+				const oidcToken = typeof body.oidcToken === 'string' ? body.oidcToken.trim() : '';
+				if (!oidcToken) {
+					return jsonError(c, 400, 'oidcToken is required.');
+				}
+				let claims;
+				try {
+					claims = await verifyGitHubOidcToken(oidcToken, `treeseed:${projectId}`, c.env?.fetch ?? fetch);
+				} catch (error) {
+					return jsonError(c, 401, 'GitHub OIDC token could not be verified.', {
+						message: error instanceof Error ? error.message : String(error),
+					});
+				}
+				const repository = normalizeRepositorySlug(claims.repository);
+				const allowedRepositories = projectAllowedCiRepositories(details);
+				if (!repository || !allowedRepositories.has(repository)) {
+					return jsonError(c, 403, 'GitHub OIDC repository is not allowed to request operations for this project.', {
+						repository,
+					});
+				}
+				const environment = normalizeCiEnvironment(body.environment);
+				if (!validateCiRefForEnvironment(environment, claims)) {
+					return jsonError(c, 403, 'GitHub OIDC ref is not allowed for the requested environment.', {
+						environment,
+						ref: claims.ref ?? null,
+					});
+				}
+				const workflowRef = String(claims.workflow_ref ?? '');
+				if (!workflowRef.includes(`${repository}/.github/workflows/deploy.yml@`)) {
+					return jsonError(c, 403, 'GitHub OIDC workflow_ref must come from the managed deploy workflow.');
+				}
+				const actionKind = typeof body.actionKind === 'string' ? body.actionKind : 'deploy_code';
+				const operation = ciOperationForAction(actionKind);
+				const baseCapability = findDispatchCapability(operation.namespace, operation.operation)
+					?? fallbackRemoteCapability(operation.namespace, operation.operation);
+				const override = await store.getEffectiveCapability(projectId, operation.namespace, operation.operation);
+				if (override && override.enabled === false) {
+					return jsonError(c, 403, 'Managed operation capability is disabled for this project.', operation);
+				}
+				const capability = mergeCapability(baseCapability, override);
+				const approvalPolicy = capability.approvalPolicy && typeof capability.approvalPolicy === 'object'
+					? capability.approvalPolicy
+					: {};
+				const requiresApproval = approvalPolicy.requiresApproval === true;
+				const sha = typeof claims.sha === 'string' && claims.sha.trim()
+					? claims.sha.trim()
+					: typeof body.sha === 'string' ? body.sha.trim() : null;
+				const input = {
+					...(typeof body.input === 'object' && body.input ? body.input : {}),
+					environment,
+					ci: {
+						provider: 'github_actions',
+						repository,
+						ref: claims.ref ?? null,
+						refName: claims.ref_name ?? body.refName ?? null,
+						sha,
+						workflow: claims.workflow ?? body.workflow ?? null,
+						workflowRef: claims.workflow_ref ?? body.workflowRef ?? null,
+						runId: claims.run_id ?? body.runId ?? null,
+						runAttempt: claims.run_attempt ?? body.runAttempt ?? null,
+						actor: claims.actor ?? null,
+						trigger: claims.event_name ?? null,
+					},
+					managedHostExecution: {
+						mode: 'treeseed_managed',
+						credentialExposure: 'none',
+					},
+					...(requiresApproval ? { approvalPolicy } : {}),
+				};
+				const job = await store.createJob({
+					projectId,
+					namespace: operation.namespace,
+					operation: operation.operation,
+					status: requiresApproval ? 'waiting_for_approval' : 'pending',
+					input,
+					preferredMode: 'auto',
+					selectedTarget: 'project_runner',
+					idempotencyKey: `ci:${projectId}:${actionKind}:${environment}:${sha ?? claims.run_id ?? randomBytes(6).toString('hex')}`,
+					requestedByType: 'ci_oidc',
+					requestedById: repository,
+					capability,
+				});
+				await store.appendJobEvent(job.id, requiresApproval ? 'approval_required' : 'ci_operation_requested', {
+					actionKind,
+					environment,
+					repository,
+					ref: claims.ref ?? null,
+					sha,
+					approvalPolicy: requiresApproval ? approvalPolicy : null,
+				});
+				if (requiresApproval) {
+					await store.upsertTeamInboxItem(details.project.teamId, {
+						id: `job-approval:${job.id}`,
+						projectId: details.project.id,
+						kind: 'approval_required',
+						state: 'open',
+						title: `${capability.label ?? `${operation.namespace}.${operation.operation}`} needs approval`,
+						summary: approvalPolicy.reason ?? 'This managed operation requires human approval before TreeSeed can run it.',
+						href: await projectAppHref(store, details.project.teamId, details.project.slug, 'overview'),
+						itemKey: job.id,
+						metadata: {
+							jobId: job.id,
+							approvalPolicy,
+							resourceScope: capability.resourceScope ?? {},
+						},
+					});
+				}
+				const operationToken = signOperationToken(runtime, {
+					projectId,
+					jobId: job.id,
+					repository,
+					operation: `${operation.namespace}.${operation.operation}`,
+					exp: Math.floor(Date.now() / 1000) + 30 * 60,
+				});
+				return c.json({
+					ok: true,
+					payload: {
+						job: decorateJob(runtime.resolved.config.baseUrl, job),
+						operationToken,
+					},
+				}, { status: 202 });
+			});
+
+			app.get('/v1/projects/:projectId/ci/jobs/:jobId', async (c) => {
+				const token = bearerTokenFromRequest(c.req.raw);
+				if (!token) {
+					return jsonError(c, 401, 'Authentication required.');
+				}
+				let payload;
+				try {
+					payload = verifyOperationToken(runtime, token);
+				} catch (error) {
+					return jsonError(c, 401, 'Invalid operation token.', {
+						message: error instanceof Error ? error.message : String(error),
+					});
+				}
+				const projectId = c.req.param('projectId');
+				const jobId = c.req.param('jobId');
+				if (payload.projectId !== projectId || payload.jobId !== jobId) {
+					return jsonError(c, 403, 'Operation token is not scoped to this job.');
+				}
+				const job = await store.findJobById(jobId);
+				if (!job || job.projectId !== projectId) {
+					return jsonError(c, 404, `Unknown job "${jobId}".`);
+				}
+				return c.json({
+					ok: true,
+					payload: {
+						job: decorateJob(runtime.resolved.config.baseUrl, job),
+					},
+				});
 			});
 
 			app.post('/v1/projects/:projectId/dispatch', async (c) => {

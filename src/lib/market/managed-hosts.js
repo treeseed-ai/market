@@ -48,12 +48,12 @@ async function collectLocalTreeseedConfigValues(runtime, scope = 'prod') {
 
 export function resolveTreeseedManagedCloudflareHostConfig(runtime, values = {}) {
 	const config = {
-		CLOUDFLARE_API_TOKEN: firstRuntimeEnvValue(runtime, ['TREESEED_MANAGED_CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_API_TOKEN'], values),
-		CLOUDFLARE_ACCOUNT_ID: firstRuntimeEnvValue(runtime, ['TREESEED_MANAGED_CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_ACCOUNT_ID', 'TREESEED_CLOUDFLARE_ACCOUNT_ID'], values),
-		TREESEED_CLOUDFLARE_PAGES_PROJECT_NAME: firstRuntimeEnvValue(runtime, ['TREESEED_MANAGED_CLOUDFLARE_PAGES_PROJECT_NAME', 'TREESEED_CLOUDFLARE_PAGES_PROJECT_NAME'], values),
-		TREESEED_CLOUDFLARE_PAGES_PREVIEW_PROJECT_NAME: firstRuntimeEnvValue(runtime, ['TREESEED_MANAGED_CLOUDFLARE_PAGES_PREVIEW_PROJECT_NAME', 'TREESEED_CLOUDFLARE_PAGES_PREVIEW_PROJECT_NAME'], values),
-		TREESEED_CONTENT_BUCKET_NAME: firstRuntimeEnvValue(runtime, ['TREESEED_MANAGED_CLOUDFLARE_CONTENT_BUCKET_NAME', 'TREESEED_CONTENT_BUCKET_NAME'], values),
-		TREESEED_CONTENT_BUCKET_BINDING: firstRuntimeEnvValue(runtime, ['TREESEED_MANAGED_CLOUDFLARE_CONTENT_BUCKET_BINDING', 'TREESEED_CONTENT_BUCKET_BINDING'], values),
+		CLOUDFLARE_API_TOKEN: firstRuntimeEnvValue(runtime, ['CLOUDFLARE_API_TOKEN'], values),
+		CLOUDFLARE_ACCOUNT_ID: firstRuntimeEnvValue(runtime, ['CLOUDFLARE_ACCOUNT_ID'], values),
+		TREESEED_CLOUDFLARE_PAGES_PROJECT_NAME: firstRuntimeEnvValue(runtime, ['TREESEED_CLOUDFLARE_PAGES_PROJECT_NAME'], values),
+		TREESEED_CLOUDFLARE_PAGES_PREVIEW_PROJECT_NAME: firstRuntimeEnvValue(runtime, ['TREESEED_CLOUDFLARE_PAGES_PREVIEW_PROJECT_NAME'], values),
+		TREESEED_CONTENT_BUCKET_NAME: firstRuntimeEnvValue(runtime, ['TREESEED_CONTENT_BUCKET_NAME'], values),
+		TREESEED_CONTENT_BUCKET_BINDING: firstRuntimeEnvValue(runtime, ['TREESEED_CONTENT_BUCKET_BINDING'], values),
 	};
 	return Object.fromEntries(Object.entries(config).filter(([, value]) => value));
 }
@@ -68,9 +68,9 @@ export function managedCloudflareConfigMissing(config) {
 
 export function resolveTreeseedManagedProcessingHostConfig(runtime, values = {}) {
 	const config = {
-		RAILWAY_API_TOKEN: firstRuntimeEnvValue(runtime, ['TREESEED_MANAGED_RAILWAY_API_TOKEN', 'RAILWAY_API_TOKEN'], values),
-		TREESEED_RAILWAY_WORKSPACE: firstRuntimeEnvValue(runtime, ['TREESEED_MANAGED_RAILWAY_WORKSPACE', 'TREESEED_RAILWAY_WORKSPACE'], values),
-		TREESEED_RAILWAY_API_URL: firstRuntimeEnvValue(runtime, ['TREESEED_MANAGED_RAILWAY_API_URL', 'TREESEED_RAILWAY_API_URL'], values),
+		RAILWAY_API_TOKEN: firstRuntimeEnvValue(runtime, ['RAILWAY_API_TOKEN'], values),
+		TREESEED_RAILWAY_WORKSPACE: firstRuntimeEnvValue(runtime, ['TREESEED_RAILWAY_WORKSPACE'], values),
+		TREESEED_RAILWAY_API_URL: firstRuntimeEnvValue(runtime, ['TREESEED_RAILWAY_API_URL'], values),
 		TREESEED_WORKER_POOL_SCALER: 'railway',
 	};
 	return Object.fromEntries(Object.entries(config).filter(([, value]) => value));
@@ -111,8 +111,8 @@ export function listTreeseedManagedHosts(teamId, runtime, values = {}) {
 				configured: cloudflareMissing.length === 0,
 				missingConfigKeys: cloudflareMissing,
 				requiredOperationalKeys: [
-					'TREESEED_MANAGED_CLOUDFLARE_API_TOKEN',
-					'TREESEED_MANAGED_CLOUDFLARE_ACCOUNT_ID',
+					'CLOUDFLARE_API_TOKEN',
+					'CLOUDFLARE_ACCOUNT_ID',
 				],
 			},
 			createdAt: now,
@@ -134,8 +134,8 @@ export function listTreeseedManagedHosts(teamId, runtime, values = {}) {
 				configured: railwayMissing.length === 0,
 				missingConfigKeys: railwayMissing,
 				requiredOperationalKeys: [
-					'TREESEED_MANAGED_RAILWAY_API_TOKEN',
-					'TREESEED_MANAGED_RAILWAY_WORKSPACE',
+					'RAILWAY_API_TOKEN',
+					'TREESEED_RAILWAY_WORKSPACE',
 				],
 			},
 			createdAt: now,
