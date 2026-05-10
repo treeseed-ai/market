@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.2] - 2026-05-10
+
+### Infrastructure
+
+- release: sync package staging heads (d46476676247)
+
+### Dependencies
+
+- build(market): update dependencies and implement hosting audit workflow (19203f811ef8)
+- Release @treeseed/market 0.5.2.
+- Release package @treeseed/cli: 0.8.2.
+- Release package @treeseed/core: 0.8.2.
+- Release package @treeseed/sdk: 0.8.2.
+
 ## [0.5.1] - 2026-05-09
 
 ### Infrastructure

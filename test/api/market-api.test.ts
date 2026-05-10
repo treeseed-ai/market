@@ -7,6 +7,28 @@ import type { D1DatabaseLike, D1PreparedStatementLike } from '@treeseed/core/typ
 import { createMarketApiApp } from '../../src/api/app.js';
 import { listTreeseedManagedHostsFromConfig } from '../../src/lib/market/managed-hosts.js';
 
+const runTreeseedHostingAuditMock = vi.hoisted(() => vi.fn(async (input: Record<string, unknown> = {}) => ({
+	ok: true,
+	environment: input.environment === 'prod' ? 'prod' : input.environment === 'local' ? 'local' : 'staging',
+	requestedEnvironment: input.environment ?? 'current',
+	repairMode: input.repair === true,
+	repaired: false,
+	target: { kind: 'persistent', scope: input.environment === 'prod' ? 'prod' : 'staging', label: input.environment === 'prod' ? 'prod' : 'staging' },
+	hostKinds: input.hostKinds ?? ['repository', 'web', 'processing', 'email'],
+	checkedAt: '2026-01-01T00:00:00.000Z',
+	checks: [],
+	missingConfig: [],
+	resources: {},
+	warnings: [],
+	blockers: [],
+	nextActions: ['Hosting setup is ready for host saving and project launch.'],
+})));
+
+vi.mock('@treeseed/sdk/workflow-support', async (importOriginal) => ({
+	...(await importOriginal<typeof import('@treeseed/sdk/workflow-support')>()),
+	runTreeseedHostingAudit: runTreeseedHostingAuditMock,
+}));
+
 const packageRoot = process.cwd();
 const authMigrationPathCandidates = [
 	resolve(packageRoot, 'migrations/0007_site_web_sessions.sql'),
@@ -48,6 +70,11 @@ const workdayManagerMigrationPathCandidates = [
 	resolve(packageRoot, '../migrations/0019_workday_manager_runners.sql'),
 ];
 const workdayManagerMigrationPath = workdayManagerMigrationPathCandidates.find((candidate) => existsSync(candidate));
+const hubLaunchSpineMigrationPathCandidates = [
+	resolve(packageRoot, 'migrations/0020_hub_launch_spine.sql'),
+	resolve(packageRoot, '../migrations/0020_hub_launch_spine.sql'),
+];
+const hubLaunchSpineMigrationPath = hubLaunchSpineMigrationPathCandidates.find((candidate) => existsSync(candidate));
 const sqliteModule = await import('node:sqlite').catch(() => null);
 const DatabaseSyncCtor = sqliteModule?.DatabaseSync ?? null;
 const DatabaseSync = DatabaseSyncCtor as NonNullable<typeof DatabaseSyncCtor>;
@@ -60,8 +87,9 @@ const resolvedReportingMigrationPath = reportingMigrationPath as string;
 const resolvedWebHostsMigrationPath = webHostsMigrationPath as string;
 const resolvedCapacityMigrationPath = capacityMigrationPath as string;
 const resolvedWorkdayManagerMigrationPath = workdayManagerMigrationPath as string;
+const resolvedHubLaunchSpineMigrationPath = hubLaunchSpineMigrationPath as string;
 
-if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !reportingMigrationPath || !webHostsMigrationPath || !capacityMigrationPath || !workdayManagerMigrationPath) {
+if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !reportingMigrationPath || !webHostsMigrationPath || !capacityMigrationPath || !workdayManagerMigrationPath || !hubLaunchSpineMigrationPath) {
 	throw new Error('Unable to resolve required market migration fixtures.');
 }
 
@@ -133,6 +161,7 @@ class TestD1Database implements D1DatabaseLike {
 		this.db.exec(readFileSync(resolvedWebHostsMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedCapacityMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedWorkdayManagerMigrationPath, 'utf8'));
+		this.db.exec(readFileSync(resolvedHubLaunchSpineMigrationPath, 'utf8'));
 	}
 
 	prepare(query: string) {
@@ -177,6 +206,11 @@ function createTestApp(options: MarketApiTestOptions = {}) {
 
 async function json(response: Response) {
 	return response.json() as Promise<any>;
+}
+
+function unsignedTestJwt(payload: Record<string, unknown>) {
+	const encode = (value: unknown) => Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+	return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.`;
 }
 
 async function createLegacyWebSessionsDb() {
@@ -346,6 +380,31 @@ runtimeDescribe('market api', () => {
 		expect(deleted.ok).toBe(true);
 	});
 
+	it('audits team hosting readiness without exposing secrets', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+		const audited = await json(await app.request(`/v1/teams/${team.id}/hosting-audit`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				environment: 'local',
+				hostKinds: ['repository'],
+			}),
+		}));
+		expect(audited.ok).toBe(true);
+		expect(audited.payload.ok).toBe(true);
+		expect(runTreeseedHostingAuditMock).toHaveBeenCalledWith(expect.objectContaining({
+			environment: 'local',
+			hostKinds: ['repository'],
+			repair: false,
+		}));
+		expect(JSON.stringify(audited)).not.toContain('secret-token');
+	});
+
 	it('stores team Railway agent hosts as opaque encrypted payloads', async () => {
 		const app = createTestApp();
 		const token = await authorizeApp(app);
@@ -445,10 +504,6 @@ runtimeDescribe('market api', () => {
 
 	it('marks TreeSeed managed hosts active from existing platform provider env vars', async () => {
 		await withEnv({
-			TREESEED_MANAGED_CLOUDFLARE_API_TOKEN: undefined,
-			TREESEED_MANAGED_CLOUDFLARE_ACCOUNT_ID: undefined,
-			TREESEED_MANAGED_RAILWAY_API_TOKEN: undefined,
-			TREESEED_MANAGED_RAILWAY_WORKSPACE: undefined,
 			CLOUDFLARE_API_TOKEN: 'platform-cloudflare-token',
 			CLOUDFLARE_ACCOUNT_ID: 'platform-cloudflare-account',
 			RAILWAY_API_TOKEN: 'platform-railway-token',
@@ -476,10 +531,6 @@ runtimeDescribe('market api', () => {
 		await withEnv({
 			TREESEED_LOCAL_DEV_MODE: undefined,
 			TREESEED_ENVIRONMENT: 'staging',
-			TREESEED_MANAGED_CLOUDFLARE_API_TOKEN: undefined,
-			TREESEED_MANAGED_CLOUDFLARE_ACCOUNT_ID: undefined,
-			TREESEED_MANAGED_RAILWAY_API_TOKEN: undefined,
-			TREESEED_MANAGED_RAILWAY_WORKSPACE: undefined,
 			CLOUDFLARE_API_TOKEN: undefined,
 			CLOUDFLARE_ACCOUNT_ID: undefined,
 			RAILWAY_API_TOKEN: undefined,
@@ -680,8 +731,8 @@ runtimeDescribe('market api', () => {
 
 	it('launch with TreeSeed managed Cloudflare host records paid hosting metadata', async () => {
 		await withEnv({
-			TREESEED_MANAGED_CLOUDFLARE_API_TOKEN: 'managed-token',
-			TREESEED_MANAGED_CLOUDFLARE_ACCOUNT_ID: 'managed-account',
+			CLOUDFLARE_API_TOKEN: 'managed-token',
+			CLOUDFLARE_ACCOUNT_ID: 'managed-account',
 		}, async () => {
 			const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeHubProviderLaunch').mockRejectedValue(new Error('launch intentionally stopped'));
 			const app = createTestApp();
@@ -722,10 +773,10 @@ runtimeDescribe('market api', () => {
 
 	it('launch with TreeSeed managed processing host passes Railway config and records paid hosting metadata', async () => {
 		await withEnv({
-			TREESEED_MANAGED_CLOUDFLARE_API_TOKEN: 'managed-token',
-			TREESEED_MANAGED_CLOUDFLARE_ACCOUNT_ID: 'managed-account',
-			TREESEED_MANAGED_RAILWAY_API_TOKEN: 'managed-railway-token',
-			TREESEED_MANAGED_RAILWAY_WORKSPACE: 'treeseed-processing',
+			CLOUDFLARE_API_TOKEN: 'managed-token',
+			CLOUDFLARE_ACCOUNT_ID: 'managed-account',
+			RAILWAY_API_TOKEN: 'managed-railway-token',
+			TREESEED_RAILWAY_WORKSPACE: 'treeseed-processing',
 		}, async () => {
 			const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeHubProviderLaunch').mockRejectedValue(new Error('launch intentionally stopped'));
 			const app = createTestApp();
@@ -767,8 +818,6 @@ runtimeDescribe('market api', () => {
 
 	it('launch with TreeSeed managed Cloudflare host fails when operational credentials are missing', async () => {
 		await withEnv({
-			TREESEED_MANAGED_CLOUDFLARE_API_TOKEN: undefined,
-			TREESEED_MANAGED_CLOUDFLARE_ACCOUNT_ID: undefined,
 			CLOUDFLARE_API_TOKEN: undefined,
 			CLOUDFLARE_ACCOUNT_ID: undefined,
 		}, async () => {
@@ -2179,6 +2228,107 @@ runtimeDescribe('market api', () => {
 		}));
 		expect(inbox.payload.some((entry: { kind: string }) => entry.kind === 'launch_failure')).toBe(false);
 	}, 15000);
+
+	it('exchanges GitHub OIDC for managed operation jobs without exposing provider secrets', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+
+		const launched = await json(await app.request(`/v1/teams/${team.id}/projects/launch`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				slug: 'ci-managed-project',
+				name: 'CI Managed Project',
+				sourceKind: 'blank',
+				hostingMode: 'managed',
+			}),
+		}));
+		const projectId = launched.payload.project.project.id as string;
+		const details = await json(await app.request(`/v1/projects/${projectId}`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		const softwareRepository = details.payload.repositories.find((repository: { role: string }) => repository.role === 'software');
+		const repository = `${softwareRepository.owner}/${softwareRepository.name}`.toLowerCase();
+		const now = Math.floor(Date.now() / 1000);
+		const oidcToken = unsignedTestJwt({
+			iss: 'https://token.actions.githubusercontent.com',
+			aud: `treeseed:${projectId}`,
+			exp: now + 300,
+			nbf: now - 10,
+			repository,
+			ref: 'refs/heads/staging',
+			ref_name: 'staging',
+			sha: '1234567890abcdef1234567890abcdef12345678',
+			workflow: 'Treeseed Managed Hosted Project',
+			workflow_ref: `${repository}/.github/workflows/deploy.yml@refs/heads/staging`,
+			run_id: '1001',
+			run_attempt: '1',
+			actor: 'octocat',
+			event_name: 'push',
+		});
+
+		const exchanged = await app.request(`/v1/projects/${projectId}/ci/oidc/exchange`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				oidcToken,
+				actionKind: 'deploy_code',
+				environment: 'staging',
+				sha: '1234567890abcdef1234567890abcdef12345678',
+			}),
+		});
+		expect(exchanged.status).toBe(202);
+		const payload = await json(exchanged);
+		expect(payload.payload.job).toMatchObject({
+			projectId,
+			namespace: 'workflow',
+			operation: 'deploy_runtime',
+			requestedByType: 'ci_oidc',
+			requestedById: repository,
+		});
+		expect(payload.payload.operationToken).toContain('.');
+		expect(JSON.stringify(payload)).not.toContain('CLOUDFLARE_API_TOKEN');
+		expect(JSON.stringify(payload)).not.toContain('RAILWAY_API_TOKEN');
+		expect(JSON.stringify(payload)).not.toContain('TREESEED_SMTP_PASSWORD');
+
+		const status = await app.request(`/v1/projects/${projectId}/ci/jobs/${payload.payload.job.id}`, {
+			headers: {
+				authorization: `Bearer ${payload.payload.operationToken}`,
+			},
+		});
+		expect(status.status).toBe(200);
+		const statusPayload = await json(status);
+		expect(statusPayload.payload.job.id).toBe(payload.payload.job.id);
+		expect(statusPayload.payload.job.input.managedHostExecution).toMatchObject({
+			mode: 'treeseed_managed',
+			credentialExposure: 'none',
+		});
+
+		const mismatchedToken = unsignedTestJwt({
+			iss: 'https://token.actions.githubusercontent.com',
+			aud: `treeseed:${projectId}`,
+			exp: now + 300,
+			repository: 'other-owner/other-repo',
+			ref: 'refs/heads/staging',
+			workflow_ref: 'other-owner/other-repo/.github/workflows/deploy.yml@refs/heads/staging',
+		});
+		const rejected = await app.request(`/v1/projects/${projectId}/ci/oidc/exchange`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				oidcToken: mismatchedToken,
+				actionKind: 'deploy_code',
+				environment: 'staging',
+			}),
+		});
+		expect(rejected.status).toBe(403);
+	});
 
 	it('queues launch failures for worker recovery instead of failing the request', async () => {
 		const error = Object.assign(new Error('GitHub denied repository creation.'), {

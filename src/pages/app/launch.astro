@@ -256,6 +256,29 @@ const launchJson = JSON.stringify({
 		return payload.payload?.id;
 	}
 
+	async function auditSelectedHosting(teamId: string, credentialSessions: Record<string, string>) {
+		setStatus('Checking hosting readiness...');
+		const response = await fetch(`/v1/teams/${encodeURIComponent(teamId)}/hosting-audit`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				environment: 'current',
+				repair: false,
+				hostKinds: ['repository', 'web', 'processing', 'email'],
+				credentialSessions,
+			}),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			throw new Error(payload?.error ?? `Hosting audit failed with ${response.status}`);
+		}
+		if (payload?.payload?.ok === false) {
+			const firstBlocker = payload.payload.blockers?.[0] ?? 'Hosting readiness checks found blockers.';
+			throw new Error(firstBlocker);
+		}
+		return payload?.payload;
+	}
+
 	function launchPassphraseIfNeeded() {
 		if (!requiresSensitiveUnlock()) return null;
 		const passphrase = (window as any).treeseedSensitiveUnlock?.requirePassphrase?.();
@@ -316,6 +339,7 @@ const launchJson = JSON.stringify({
 					passphrase: passphrase ?? '',
 				});
 			}
+			await auditSelectedHosting(teamId, credentialSessions);
 			const response = await fetch(`/v1/teams/${encodeURIComponent(teamId)}/projects/launch`, {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },

@@ -285,7 +285,12 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 					<h2>Team hosts</h2>
 					<p>Saved hosts keep provider deployment values encrypted by the team sensitive-data passphrase. Use the header unlock control to edit or validate team-owned hosts.</p>
 				</div>
+				<div class="kc-button-row">
+					<button class="kc-button-secondary" type="button" data-host-audit>Audit hosting</button>
+					<button class="kc-button-secondary" type="button" data-host-audit-repair>Repair setup</button>
+				</div>
 			</div>
+			<p class="kc-subtle" role="status" data-host-audit-status></p>
 
 			<div class="kc-tabs" role="tablist" aria-label="Host types" data-host-tabs>
 				<button class="kc-tab" id="repository-host-tab" type="button" role="tab" aria-controls="repository-host-panel" aria-selected="true" data-host-tab="repository">Repository</button>
@@ -980,6 +985,9 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 	]);
 	const hostTabs = [...document.querySelectorAll('[data-host-tab]')] as HTMLButtonElement[];
 	const hostTabPanels = [...document.querySelectorAll('[data-host-tab-panel]')] as HTMLElement[];
+	const hostAuditButton = document.querySelector('[data-host-audit]') as HTMLButtonElement | null;
+	const hostAuditRepairButton = document.querySelector('[data-host-audit-repair]') as HTMLButtonElement | null;
+	const hostAuditStatusElement = document.querySelector('[data-host-audit-status]');
 	const supportedTabs = new Set(['repository', 'web', 'processing', 'email']);
 
 	function formString(form: FormData, key: string) {
@@ -1080,6 +1088,53 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 		if (statusElement) statusElement.textContent = message;
 	}
 
+	function setAuditStatus(message: string) {
+		if (hostAuditStatusElement) hostAuditStatusElement.textContent = message;
+	}
+
+	function activeHostKind() {
+		return hostTabs.find((tab) => tab.getAttribute('aria-selected') === 'true')?.dataset.hostTab ?? 'repository';
+	}
+
+	function auditSummary(report: any) {
+		const failed = (report?.checks ?? []).filter((check: any) => check.status === 'failed').length;
+		const warnings = (report?.checks ?? []).filter((check: any) => check.status === 'warning').length + (report?.warnings?.length ?? 0);
+		if (report?.ok) return `Hosting audit passed for ${report.environment}.`;
+		return `Hosting audit found ${failed} failed check${failed === 1 ? '' : 's'} and ${warnings} warning${warnings === 1 ? '' : 's'}.`;
+	}
+
+	async function runHostingAudit(repair = false) {
+		if (!teamId) return;
+		const hostKinds = [activeHostKind()];
+		setAuditStatus(repair ? 'Repairing selected hosting setup...' : 'Auditing selected hosting setup...');
+		try {
+			const payload = await requestJson(`/v1/teams/${encodeURIComponent(teamId)}/hosting-audit`, {
+				method: 'POST',
+				headers: apiHeaders,
+				body: JSON.stringify({
+					environment: 'current',
+					repair,
+					hostKinds,
+				}),
+			});
+			const report = payload?.payload;
+			setAuditStatus(auditSummary(report));
+			for (const hostType of ['repository', 'web', 'processing', 'email']) {
+				const checks = (report?.checks ?? []).filter((check: any) => check.hostType === hostType);
+				if (checks.length === 0) continue;
+				const failed = checks.filter((check: any) => check.status === 'failed').length;
+				const repaired = checks.filter((check: any) => check.status === 'repaired').length;
+				setHostStatus(hostType, failed > 0
+					? `${failed} readiness check${failed === 1 ? '' : 's'} need attention.`
+					: repaired > 0
+						? `${repaired} readiness check${repaired === 1 ? '' : 's'} repaired.`
+						: 'Readiness checks passed.');
+			}
+		} catch (error) {
+			setAuditStatus(error instanceof Error ? error.message : String(error));
+		}
+	}
+
 		function setRepositoryHostStatus(message: string) {
 			const repositoryHostStatusElement = hostStatusElement('repository');
 			if (repositoryHostStatusElement) repositoryHostStatusElement.textContent = message;
@@ -1167,6 +1222,12 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 		}
 
 		sensitiveUnlock()?.registerResetHandler?.(resetTeamSensitiveData);
+
+	hostAuditButton?.addEventListener('click', () => runHostingAudit(false));
+	hostAuditRepairButton?.addEventListener('click', () => {
+		if (!window.confirm('Repair missing provider resources for the selected host type?')) return;
+		runHostingAudit(true);
+	});
 
 	for (const createForm of createForms) {
 			createForm.addEventListener('submit', async (event) => {
