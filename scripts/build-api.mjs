@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const root = process.cwd();
@@ -100,12 +100,14 @@ function runPackageBuild(packageRoot, label) {
 	}
 }
 
-function ensureAgentSdkWorkspaceLink() {
+function ensureAgentSdkWorkspacePackage() {
 	const packageScopeDir = resolve(agentRoot, 'node_modules/@treeseed');
 	const packageSdkPath = resolve(packageScopeDir, 'sdk');
 	mkdirSync(packageScopeDir, { recursive: true });
 	rmSync(packageSdkPath, { recursive: true, force: true });
-	symlinkSync(relative(packageScopeDir, sdkRoot), packageSdkPath, 'dir');
+	mkdirSync(packageSdkPath, { recursive: true });
+	copyFileSync(resolve(sdkRoot, 'package.json'), resolve(packageSdkPath, 'package.json'));
+	cpSync(resolve(sdkRoot, 'dist'), resolve(packageSdkPath, 'dist'), { recursive: true, force: true });
 }
 
 function lockIsStale() {
@@ -163,7 +165,7 @@ async function main() {
 				throw new Error('@treeseed/sdk build finished without required dist outputs.');
 			}
 		}
-		ensureAgentSdkWorkspaceLink();
+		ensureAgentSdkWorkspacePackage();
 	}
 
 	if (!existsSync(agentBuildScript)) {
