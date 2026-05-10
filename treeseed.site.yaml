@@ -80,9 +80,9 @@ services:
       serviceName: treeseed-market-api
       rootDir: .
       buildCommand: npm run build:api
-      startCommand: node ./src/api/server.js
+      startCommand: npm run build:api && node ./src/api/server.js
       healthcheckPath: /healthz
-      healthcheckTimeoutSeconds: 10
+      healthcheckTimeoutSeconds: 120
       runtimeMode: serverless
     environments:
       local:
@@ -100,7 +100,7 @@ services:
       serviceName: treeseed-market-workday-manager
       rootDir: .
       buildCommand: npm run build:api
-      startCommand: node ./node_modules/@treeseed/agent/dist/services/workday-manager.js
+      startCommand: npm run build:api && node ./packages/agent/dist/services/workday-manager.js
       schedule: 0 9 * * 1-5
     environments:
       local:
@@ -116,7 +116,7 @@ services:
       projectName: treeseed-market
       rootDir: .
       buildCommand: npm run build:api
-      startCommand: node ./node_modules/@treeseed/agent/dist/services/worker.js
+      startCommand: npm run build:api && node ./packages/agent/dist/services/worker.js
     environments:
       local:
         railwayEnvironment: local
