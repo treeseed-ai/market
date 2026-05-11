@@ -2221,11 +2221,23 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
 				if (access.response) return access.response;
 				const teamId = c.req.param('teamId');
-				const [summary, providers, grants] = await Promise.all([
+				const [summary, providers, grants, teamHosts, managedHosts, projects] = await Promise.all([
 					store.getTeamCapacitySummary(teamId),
 					store.listTeamCapacityProviders(teamId),
 					store.listCapacityGrants(teamId),
+					store.listTeamWebHosts(teamId),
+					listTreeseedManagedHostsFromConfig(teamId, runtime),
+					store.listTeamProjects(teamId),
 				]);
+				const processingHosts = [
+					...managedHosts,
+					...teamHosts,
+				].filter((host) =>
+					host?.metadata?.hostType === 'processing'
+					|| host?.metadata?.hostType === 'agent'
+					|| host?.provider === 'railway'
+				);
+				const activeProcessingHosts = processingHosts.filter((host) => host.status === 'active');
 				const providerDetails = await Promise.all(providers.map(async (provider) => ({
 					...provider,
 					hosts: await store.listCapacityProviderHosts(teamId, provider.id),
@@ -2238,6 +2250,9 @@ export function createMarketApiApp(options = {}) {
 						summary,
 						providers: providerDetails,
 						grants,
+						projects,
+						processingHosts,
+						activeProcessingHosts,
 					},
 				});
 			});
@@ -2251,6 +2266,25 @@ export function createMarketApiApp(options = {}) {
 					createdById: typeof access.principal.id === 'string' ? access.principal.id : null,
 				});
 				return c.json({ ok: true, payload }, { status: 201 });
+			});
+
+			app.post('/v1/teams/:teamId/capacity/providers/host-backed', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (!body.name || !body.processingHostId) {
+					return jsonError(c, 400, 'name and processingHostId are required.');
+				}
+				try {
+					const payload = await store.launchHostBackedCapacityProvider(c.req.param('teamId'), {
+						...body,
+						createdById: typeof access.principal.id === 'string' ? access.principal.id : null,
+					});
+					return c.json({ ok: true, payload }, { status: 201 });
+				} catch (error) {
+					const code = error?.code;
+					return jsonError(c, code === 'processing_host_unavailable' ? 404 : 400, error instanceof Error ? error.message : String(error));
+				}
 			});
 
 			app.get('/v1/capacity/providers/:providerId', async (c) => {

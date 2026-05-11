@@ -2449,6 +2449,137 @@ runtimeDescribe('market api', () => {
 		expect(plan.payload.remaining.dailyCredits).toBe(120);
 	});
 
+	it('creates host-backed capacity providers from active processing hosts and allows shared host usage', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { team, project } = await createTeamAndProject(app, token, {
+			slug: 'host-backed-capacity-project',
+			name: 'Host-backed Capacity Project',
+		});
+
+		const inactiveHostResponse = await app.request(`/v1/teams/${team.id}/hosts`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Inactive Processing',
+				provider: 'railway',
+				ownership: 'team_owned',
+				status: 'disabled',
+				encryptedPayload: encryptedHostEnvelope(),
+				metadata: { hostType: 'processing' },
+			}),
+		});
+		const inactiveHost = (await json(inactiveHostResponse)).payload;
+		const rejected = await app.request(`/v1/teams/${team.id}/capacity/providers/host-backed`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Rejected Capacity',
+				processingHostId: inactiveHost.id,
+			}),
+		});
+		expect(rejected.status).toBe(400);
+
+		const activeHostResponse = await app.request(`/v1/teams/${team.id}/hosts`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Shared Processing',
+				provider: 'railway',
+				ownership: 'team_owned',
+				status: 'active',
+				accountLabel: 'Knowledge Coop Railway',
+				encryptedPayload: encryptedHostEnvelope(),
+				metadata: { hostType: 'processing' },
+			}),
+		});
+		const activeHost = (await json(activeHostResponse)).payload;
+
+		async function createHostBackedProvider(name: string) {
+			const response = await app.request(`/v1/teams/${team.id}/capacity/providers/host-backed`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					name,
+					processingHostId: activeHost.id,
+					dailyCreditBudget: 40,
+					monthlyCreditBudget: 800,
+					maxConcurrentWorkers: 3,
+				}),
+			});
+			expect(response.status).toBe(201);
+			return (await json(response)).payload;
+		}
+
+		const first = await createHostBackedProvider('Drafting Capacity');
+		const second = await createHostBackedProvider('Review Capacity');
+		expect(first.provider).toMatchObject({
+			name: 'Drafting Capacity',
+			status: 'credential_required',
+			dailyCreditBudget: 40,
+			monthlyCreditBudget: 800,
+			maxConcurrentWorkers: 3,
+		});
+		expect(first.plaintextKey).toMatch(/^tsp_/);
+		expect(first.apiKey).not.toHaveProperty('keyHash');
+		expect(first.hosts[0]).toMatchObject({
+			hostId: activeHost.id,
+			role: 'processing',
+		});
+		expect(first.lanes.map((lane: { id: string }) => lane.id).join(' ')).toContain('proposal-drafting');
+		expect(second.hosts[0]).toMatchObject({
+			hostId: activeHost.id,
+			role: 'processing',
+		});
+
+		const capacity = await json(await app.request(`/v1/teams/${team.id}/capacity`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(capacity.payload.activeProcessingHosts.map((host: { id: string }) => host.id)).toContain(activeHost.id);
+		expect(capacity.payload.projects.map((entry: { id: string }) => entry.id)).toContain(project.id);
+		const providerBindings = capacity.payload.providers.flatMap((provider: { hosts: Array<{ hostId: string }> }) => provider.hosts);
+		expect(providerBindings.filter((host: { hostId: string }) => host.hostId === activeHost.id)).toHaveLength(2);
+		expect(JSON.stringify(capacity.payload)).not.toContain(first.plaintextKey);
+
+		const grant = capacity.payload.grants.find((entry: { capacityProviderId: string; projectId: string | null }) =>
+			entry.capacityProviderId === first.provider.id && entry.projectId === null
+		);
+		const updatedGrantResponse = await app.request(`/v1/teams/${team.id}/capacity-grants/${grant.id}`, {
+			method: 'PATCH',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				...grant,
+				dailyCreditLimit: 25,
+				monthlyCreditLimit: 500,
+				overflowPolicy: 'deny',
+			}),
+		});
+		expect(updatedGrantResponse.status).toBe(200);
+		const updatedCapacity = await json(await app.request(`/v1/teams/${team.id}/capacity`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(updatedCapacity.payload.grants.find((entry: { id: string }) => entry.id === grant.id)).toMatchObject({
+			dailyCreditLimit: 25,
+			monthlyCreditLimit: 500,
+			overflowPolicy: 'deny',
+		});
+	});
+
 	it('creates, resets, lists, and revokes provider security access codes without exposing hashes', async () => {
 		const app = createTestApp();
 		const token = await authorizeApp(app);

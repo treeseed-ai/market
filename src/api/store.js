@@ -257,6 +257,90 @@ function serializeTeamWebHost(row) {
 
 const SUPPORTED_TEAM_HOST_PROVIDERS = new Set(['cloudflare', 'railway', 'openai', 'github_copilot', 'openrouter', 'custom']);
 
+function isProcessingTeamHost(host) {
+	if (!host) return false;
+	return host.metadata?.hostType === 'processing'
+		|| host.metadata?.hostType === 'agent'
+		|| host.provider === 'railway';
+}
+
+function defaultCapacityLaneDefinitions(providerId) {
+	return [
+		{
+			id: `${providerId}:background-summary`,
+			name: 'Background summaries',
+			businessModel: 'subscription_quota',
+			modelClass: 'small',
+			scarcityLevel: 'low',
+			routingPolicy: {
+				taskKinds: ['question.summarize', 'release.summary', 'workday.report'],
+				requiredCapabilities: ['agent_execution'],
+				allowedEnvironments: ['local', 'staging', 'prod'],
+				defaultPriorityClass: 'background',
+				maxCreditsPerTask: 50,
+				reserveAt: 'p90',
+				requiresApprovalAboveCredits: 50,
+				repositoryMutationAllowed: false,
+				productionAllowed: true,
+			},
+		},
+		{
+			id: `${providerId}:proposal-drafting`,
+			name: 'Proposal drafting',
+			businessModel: 'subscription_quota',
+			modelClass: 'medium',
+			scarcityLevel: 'medium',
+			routingPolicy: {
+				taskKinds: ['proposal.draft', 'proposal.compare', 'market.description.draft'],
+				requiredCapabilities: ['agent_execution'],
+				allowedEnvironments: ['local', 'staging', 'prod'],
+				defaultPriorityClass: 'interactive',
+				maxCreditsPerTask: 30,
+				reserveAt: 'p90',
+				requiresApprovalAboveCredits: 50,
+				repositoryMutationAllowed: false,
+				productionAllowed: true,
+			},
+		},
+		{
+			id: `${providerId}:review-and-release-summary`,
+			name: 'Review and release summaries',
+			businessModel: 'subscription_quota',
+			modelClass: 'medium',
+			scarcityLevel: 'medium',
+			routingPolicy: {
+				taskKinds: ['decision.summary', 'release.summary', 'verification.run'],
+				requiredCapabilities: ['agent_execution', 'reporting'],
+				allowedEnvironments: ['local', 'staging', 'prod'],
+				defaultPriorityClass: 'background',
+				maxCreditsPerTask: 30,
+				reserveAt: 'p90',
+				requiresApprovalAboveCredits: 50,
+				repositoryMutationAllowed: false,
+				productionAllowed: true,
+			},
+		},
+		{
+			id: `${providerId}:repository-work`,
+			name: 'Repository work',
+			businessModel: 'infrastructure_runtime',
+			modelClass: 'coding',
+			scarcityLevel: 'high',
+			routingPolicy: {
+				taskKinds: ['repository.change.apply', 'verification.run'],
+				requiredCapabilities: ['agent_execution', 'repository_work'],
+				allowedEnvironments: ['local', 'staging'],
+				defaultPriorityClass: 'interactive',
+				maxCreditsPerTask: 25,
+				reserveAt: 'p90',
+				requiresApprovalAboveCredits: 10,
+				repositoryMutationAllowed: true,
+				productionAllowed: false,
+			},
+		},
+	];
+}
+
 function serializeCapacityProvider(row) {
 	if (!row) return null;
 	return {
@@ -2903,82 +2987,8 @@ export class MarketControlPlaneStore {
 				},
 			},
 		});
-		const laneDefinitions = [
-			{
-				id: `${provider.id}:background-summary`,
-				name: 'Background summaries',
-				businessModel: 'subscription_quota',
-				modelClass: 'small',
-				scarcityLevel: 'low',
-				routingPolicy: {
-					taskKinds: ['question.summarize', 'release.summary', 'workday.report'],
-					requiredCapabilities: ['agent_execution'],
-					allowedEnvironments: ['local', 'staging', 'prod'],
-					defaultPriorityClass: 'background',
-					maxCreditsPerTask: 50,
-					reserveAt: 'p90',
-					requiresApprovalAboveCredits: 50,
-					repositoryMutationAllowed: false,
-					productionAllowed: true,
-				},
-			},
-			{
-				id: `${provider.id}:proposal-drafting`,
-				name: 'Proposal drafting',
-				businessModel: 'subscription_quota',
-				modelClass: 'medium',
-				scarcityLevel: 'medium',
-				routingPolicy: {
-					taskKinds: ['proposal.draft', 'proposal.compare', 'market.description.draft'],
-					requiredCapabilities: ['agent_execution'],
-					allowedEnvironments: ['local', 'staging', 'prod'],
-					defaultPriorityClass: 'interactive',
-					maxCreditsPerTask: 30,
-					reserveAt: 'p90',
-					requiresApprovalAboveCredits: 50,
-					repositoryMutationAllowed: false,
-					productionAllowed: true,
-				},
-			},
-			{
-				id: `${provider.id}:review-and-release-summary`,
-				name: 'Review and release summaries',
-				businessModel: 'subscription_quota',
-				modelClass: 'medium',
-				scarcityLevel: 'medium',
-				routingPolicy: {
-					taskKinds: ['decision.summary', 'release.summary', 'verification.run'],
-					requiredCapabilities: ['agent_execution', 'reporting'],
-					allowedEnvironments: ['local', 'staging', 'prod'],
-					defaultPriorityClass: 'background',
-					maxCreditsPerTask: 30,
-					reserveAt: 'p90',
-					requiresApprovalAboveCredits: 50,
-					repositoryMutationAllowed: false,
-					productionAllowed: true,
-				},
-			},
-			{
-				id: `${provider.id}:repository-work`,
-				name: 'Repository work',
-				businessModel: 'infrastructure_runtime',
-				modelClass: 'coding',
-				scarcityLevel: 'high',
-				routingPolicy: {
-					taskKinds: ['repository.change.apply', 'verification.run'],
-					requiredCapabilities: ['agent_execution', 'repository_work'],
-					allowedEnvironments: ['local', 'staging'],
-					defaultPriorityClass: 'interactive',
-					maxCreditsPerTask: 25,
-					reserveAt: 'p90',
-					requiresApprovalAboveCredits: 10,
-					repositoryMutationAllowed: true,
-					productionAllowed: false,
-				},
-			},
-		];
 		const lanes = [];
-		for (const lane of laneDefinitions) {
+		for (const lane of defaultCapacityLaneDefinitions(provider.id)) {
 			lanes.push(await this.upsertCapacityProviderLane(teamId, provider.id, lane));
 		}
 		const teamGrant = await this.upsertCapacityGrant(teamId, {
@@ -3068,6 +3078,128 @@ export class MarketControlPlaneStore {
 			provider: await this.getCapacityProvider(teamId, provider.id),
 			lanes,
 			grants: [teamGrant, ...projectGrants],
+			apiKey: keyResult?.key ?? null,
+			plaintextKey: keyResult?.plaintextKey ?? null,
+		};
+	}
+
+	async launchHostBackedCapacityProvider(teamId, input = {}) {
+		await this.ensureInitialized();
+		const processingHostId = typeof input.processingHostId === 'string' && input.processingHostId.trim()
+			? input.processingHostId.trim()
+			: '';
+		const processingHost = await this.getTeamWebHost(teamId, processingHostId);
+		if (!processingHost || !isProcessingTeamHost(processingHost)) {
+			const error = new Error('Selected processing host is not available for this team.');
+			error.code = 'processing_host_unavailable';
+			throw error;
+		}
+		if (processingHost.status !== 'active') {
+			const error = new Error('Selected processing host must be active before capacity can use it.');
+			error.code = 'processing_host_inactive';
+			throw error;
+		}
+		const provider = await this.upsertCapacityProvider(teamId, {
+			id: input.providerId,
+			teamId,
+			ownerTeamId: teamId,
+			name: input.name,
+			kind: input.kind ?? 'team_owned',
+			status: input.status ?? 'credential_required',
+			provider: input.provider ?? processingHost.provider ?? 'custom',
+			billingScope: input.billingScope ?? 'team',
+			monthlyCreditBudget: Number(input.monthlyCreditBudget ?? 1000),
+			dailyCreditBudget: Number(input.dailyCreditBudget ?? 50),
+			maxConcurrentWorkdays: Number(input.maxConcurrentWorkdays ?? 1),
+			maxConcurrentWorkers: Number(input.maxConcurrentWorkers ?? 2),
+			capacityModel: input.capacityModel ?? {},
+			metadata: {
+				launchSource: input.launchSource ?? 'team_capacity_page',
+				connectionMode: 'team_owned',
+				providerHostIds: [processingHost.id],
+				processingHostId: processingHost.id,
+				processingHostName: processingHost.name,
+				operationalWarnings: [],
+				...(input.metadata && typeof input.metadata === 'object' ? input.metadata : {}),
+			},
+		});
+		const hostBinding = await this.upsertCapacityProviderHost(teamId, provider.id, {
+			id: `${provider.id}:processing:${processingHost.id}`,
+			hostId: processingHost.id,
+			role: 'processing',
+			required: true,
+			metadata: {
+				hostName: processingHost.name,
+				provider: processingHost.provider,
+				ownership: processingHost.ownership,
+			},
+		});
+		const lanes = [];
+		if (input.createDefaultLanes !== false) {
+			for (const lane of defaultCapacityLaneDefinitions(provider.id)) {
+				lanes.push(await this.upsertCapacityProviderLane(teamId, provider.id, lane));
+			}
+		}
+		const grants = [];
+		const initialGrant = input.initialGrant && typeof input.initialGrant === 'object'
+			? input.initialGrant
+			: {
+				grantScope: 'team',
+				dailyCreditLimit: Number(input.dailyCreditBudget ?? 50),
+				monthlyCreditLimit: Number(input.monthlyCreditBudget ?? 1000),
+				overflowPolicy: 'approval_required',
+			};
+		if (initialGrant !== false) {
+			grants.push(await this.upsertCapacityGrant(teamId, {
+				id: initialGrant.id ?? `${provider.id}:team-grant`,
+				capacityProviderId: provider.id,
+				laneId: initialGrant.laneId ?? null,
+				grantScope: initialGrant.grantScope ?? 'team',
+				teamId,
+				projectId: initialGrant.projectId ?? null,
+				environment: initialGrant.environment ?? null,
+				state: initialGrant.state ?? 'active',
+				dailyCreditLimit: initialGrant.dailyCreditLimit ?? Number(input.dailyCreditBudget ?? 50),
+				monthlyCreditLimit: initialGrant.monthlyCreditLimit ?? Number(input.monthlyCreditBudget ?? 1000),
+				priorityWeight: initialGrant.priorityWeight ?? 1,
+				overflowPolicy: initialGrant.overflowPolicy ?? 'approval_required',
+				metadata: {
+					source: 'host_backed_capacity_launch',
+					processingHostId: processingHost.id,
+					...(initialGrant.metadata && typeof initialGrant.metadata === 'object' ? initialGrant.metadata : {}),
+				},
+			}));
+		}
+		const keyResult = await this.createCapacityProviderApiKey(teamId, provider.id, {
+			name: 'Provider security code',
+			scopes: [
+				'provider:heartbeat',
+				'provider:tasks:claim',
+				'provider:tasks:update',
+				'provider:usage:report',
+				'provider:lanes:read',
+				'provider:registration:complete',
+			],
+			createdById: input.createdById ?? null,
+		});
+		await this.upsertTeamInboxItem(teamId, {
+			kind: 'capacity_connected',
+			state: 'open',
+			title: 'Helper capacity connected',
+			summary: `${provider.name} is connected to ${processingHost.name} and ready for provider registration.`,
+			href: `/app/teams/${teamId}/capacity`,
+			itemKey: `capacity-connected:${provider.id}`,
+			metadata: {
+				providerId: provider.id,
+				processingHostId: processingHost.id,
+			},
+		});
+		return {
+			provider: await this.getCapacityProvider(teamId, provider.id),
+			hosts: [hostBinding],
+			processingHost,
+			lanes,
+			grants,
 			apiKey: keyResult?.key ?? null,
 			plaintextKey: keyResult?.plaintextKey ?? null,
 		};

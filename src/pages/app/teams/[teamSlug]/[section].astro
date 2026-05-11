@@ -102,6 +102,7 @@ const capacityPageJson = JSON.stringify({
 }).replace(/</gu, '\\u003c');
 const capacityDetails = await Promise.all((capacityProviders as any[]).map(async (provider: any) => ({
 	...provider,
+	hosts: context.store ? await context.store.listCapacityProviderHosts(context.team?.id ?? '', provider.id) : [],
 	lanes: context.store ? await context.store.listCapacityProviderLanes(context.team?.id ?? '', provider.id) : [],
 	grants: (capacityGrants as any[]).filter((grant) => grant.capacityProviderId === provider.id),
 	apiKeys: context.store ? await context.store.listCapacityProviderApiKeys(context.team?.id ?? '', provider.id) : [],
@@ -109,6 +110,17 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 const capacitySummary = context.team && context.store
 	? await context.store.getTeamCapacitySummary(context.team.id)
 	: null;
+const activeTeamProcessingHosts = teamProcessingHosts.filter((host: any) => host.status === 'active');
+const processingHostsById = new Map([...managedProcessingHosts, ...teamProcessingHosts].map((host: any) => [host.id, host]));
+const capacityProvidersByProcessingHostId = new Map<string, any[]>();
+for (const provider of capacityDetails as any[]) {
+	for (const hostBinding of provider.hosts ?? []) {
+		if (hostBinding.role !== 'processing') continue;
+		const entries = capacityProvidersByProcessingHostId.get(hostBinding.hostId) ?? [];
+		entries.push(provider);
+		capacityProvidersByProcessingHostId.set(hostBinding.hostId, entries);
+	}
+}
 ---
 
 <KnowledgeCoopAppLayout
@@ -293,12 +305,7 @@ const capacitySummary = context.team && context.store
 					<h2>Team hosts</h2>
 					<p>Saved hosts keep provider deployment values encrypted by the team sensitive-data passphrase. Use the header unlock control to edit or validate team-owned hosts.</p>
 				</div>
-				<div class="kc-button-row">
-					<button class="kc-button-secondary" type="button" data-host-audit>Audit hosting</button>
-					<button class="kc-button-secondary" type="button" data-host-audit-repair>Repair setup</button>
-				</div>
 			</div>
-			<p class="kc-subtle" role="status" data-host-audit-status></p>
 
 			<div class="kc-tabs" role="tablist" aria-label="Host types" data-host-tabs>
 				<button class="kc-tab" id="repository-host-tab" type="button" role="tab" aria-controls="repository-host-panel" aria-selected="true" data-host-tab="repository">Repository</button>
@@ -597,10 +604,21 @@ const capacitySummary = context.team && context.store
 										<span>$0.005/minute</span>
 										<span>no unlock needed</span>
 									</div>
+									{(capacityProvidersByProcessingHostId.get(host.id) ?? []).length > 0 ? (
+										<div class="kc-host-usage">
+											<span class="kc-field__label">Used by {(capacityProvidersByProcessingHostId.get(host.id) ?? []).length} capacity provider{(capacityProvidersByProcessingHostId.get(host.id) ?? []).length === 1 ? '' : 's'}</span>
+											<div class="kc-badges" style="margin-top:0.45rem;">
+												{(capacityProvidersByProcessingHostId.get(host.id) ?? []).map((provider: any) => (
+													<a class="kc-badge" href={`/app/teams/${teamHandle}/capacity`}>{provider.name}</a>
+												))}
+											</div>
+										</div>
+									) : null}
 								</article>
 							))}
 							{teamProcessingHosts.map((host: any) => {
 								const usedByProjects = projectsUsingWebHost(host.id);
+								const usedByCapacityProviders = capacityProvidersByProcessingHostId.get(host.id) ?? [];
 								return (
 									<article class="kc-card" data-host-card={host.id}>
 										<div class="kc-panel__header">
@@ -617,7 +635,18 @@ const capacitySummary = context.team && context.store
 											<span>staging + prod</span>
 											<span>{host.metadata?.lastValidation?.status ?? 'not validated'}</span>
 											<span>{usedByProjects.length === 1 ? '1 project' : `${usedByProjects.length} projects`}</span>
+											<span>{usedByCapacityProviders.length === 1 ? '1 capacity provider' : `${usedByCapacityProviders.length} capacity providers`}</span>
 										</div>
+										{usedByCapacityProviders.length > 0 ? (
+											<div class="kc-host-usage">
+												<span class="kc-field__label">Capacity providers using this host</span>
+												<div class="kc-badges" style="margin-top:0.45rem;">
+													{usedByCapacityProviders.map((provider: any) => (
+														<a class="kc-badge" href={`/app/teams/${teamHandle}/capacity`}>{provider.name}</a>
+													))}
+												</div>
+											</div>
+										) : null}
 										{usedByProjects.length > 0 ? (
 											<div class="kc-host-usage">
 												<span class="kc-field__label">Projects using this host</span>
@@ -887,7 +916,7 @@ const capacitySummary = context.team && context.store
 
 	{section === 'capacity' ? (
 		<>
-			<section class="kc-metric-strip">
+			<section class="kc-metric-strip" style="grid-template-columns: repeat(5, minmax(0, 1fr));">
 				<div class="kc-panel kc-metric">
 					<span class="kc-metric__label">Monthly helper credits</span>
 					<span class="kc-metric__value">{capacitySummary?.monthlyRemainingCredits ?? capacitySummary?.monthlyCredits ?? 0}</span>
@@ -904,6 +933,10 @@ const capacitySummary = context.team && context.store
 					<span class="kc-metric__label">Helpers ready</span>
 					<span class="kc-metric__value">{capacitySummary?.activeProviderCount ?? 0}</span>
 				</div>
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Blocked work</span>
+					<span class="kc-metric__value">{capacitySummary?.blockedTaskCount ?? 0}</span>
+				</div>
 			</section>
 			<section class="kc-grid-2" style="margin-top: 1rem;">
 				<div class="kc-panel">
@@ -911,27 +944,79 @@ const capacitySummary = context.team && context.store
 						<div>
 							<p class="kc-section__eyebrow">Processing Capacity</p>
 							<h2>{(capacitySummary?.activeProviderCount ?? 0) > 0 ? 'Helpers are ready to process work' : 'No helper capacity is connected yet'}</h2>
+							<p>Capacity providers spend helper credits through active processing hosts. Multiple providers can share the same host.</p>
 						</div>
 						<span class="kc-status-pill" data-tone={(capacitySummary?.activeProviderCount ?? 0) > 0 ? 'success' : 'warning'}>{(capacitySummary?.activeProviderCount ?? 0) > 0 ? 'connected and healthy' : 'waiting for provider'}</span>
 					</div>
-					<div class="kc-inline-actions">
-						<button class="kc-button" type="button" data-capacity-managed-launch>Use TreeSeed-managed capacity</button>
-						<a class="kc-button-secondary" href={`/app/teams/${teamHandle}/hosts`}>Manage hosts</a>
-						<span class="kc-subtle" data-capacity-action-status role="status"></span>
+					<div class="kc-list" style="margin-top:1rem;">
+						<div class="kc-list-item">
+							<strong>{activeTeamProcessingHosts.length} active team processing host{activeTeamProcessingHosts.length === 1 ? '' : 's'}</strong><br />
+							<span class="kc-subtle">Host-backed capacity requires an active processing host. TreeSeed-managed capacity does not require team host credentials.</span>
+						</div>
+						<div class="kc-list-item">
+							<strong>{capacityGrants.length} allocation{capacityGrants.length === 1 ? '' : 's'}</strong><br />
+							<span class="kc-subtle">Project allocations decide where helper credits can be spent.</span>
+						</div>
 					</div>
 				</div>
 				<div class="kc-panel">
 					<div class="kc-panel__header">
 						<div>
-							<p class="kc-section__eyebrow">Budget allocations</p>
-							<h2>{capacityGrants.length} active grant{capacityGrants.length === 1 ? '' : 's'}</h2>
+							<p class="kc-section__eyebrow">Add provider</p>
+							<h2>Connect helper capacity</h2>
+							<p>Create managed capacity or attach a provider to an active processing host.</p>
 						</div>
 					</div>
 					<div class="kc-list">
-						{capacityGrants.length ? capacityGrants.map((grant: any) => {
-							const project = teamProjects.find((entry: any) => entry.id === grant.projectId);
-							return <div class="kc-list-item"><strong>{project?.name ?? 'Team pooled allocation'}</strong><br /><span class="kc-subtle">{grant.dailyCreditLimit ?? 'policy'} credits/day · {grant.monthlyCreditLimit ?? 'policy'} credits/month · {grant.overflowPolicy?.replaceAll('_', ' ')}</span></div>;
-						}) : <div class="kc-empty">Launch or connect helper capacity to create the first team allocation.</div>}
+						<div class="kc-list-item">
+							<div class="kc-panel__header">
+								<div>
+									<strong>TreeSeed-managed helper capacity</strong><br />
+									<span class="kc-subtle">Creates default lanes, a team allocation, project allocations, and a provider security code.</span>
+								</div>
+								<button class="kc-button" type="button" data-capacity-managed-launch>Use managed capacity</button>
+							</div>
+						</div>
+						<form class="kc-list-item kc-field" data-capacity-host-backed-form>
+							<strong>Host-backed helper capacity</strong>
+							<span class="kc-field__help">Select an active processing host. You can create several capacity providers on the same host.</span>
+							<div class="kc-form-grid" style="margin-top:0.75rem;">
+								<label class="kc-field">
+									<span class="kc-field__label">Provider name</span>
+									<input class="kc-control" name="name" value={`${context.team?.displayName ?? context.team?.name ?? 'Team'} helper capacity`} required />
+								</label>
+								<label class="kc-field">
+									<span class="kc-field__label">Processing host</span>
+									<select class="kc-control" name="processingHostId" required disabled={activeTeamProcessingHosts.length === 0}>
+										{activeTeamProcessingHosts.map((host: any) => (
+											<option value={host.id}>{host.name} · {host.provider}</option>
+										))}
+									</select>
+								</label>
+								<label class="kc-field">
+									<span class="kc-field__label">Daily credits</span>
+									<input class="kc-control" name="dailyCreditBudget" type="number" min="0" step="1" value="50" required />
+								</label>
+								<label class="kc-field">
+									<span class="kc-field__label">Monthly credits</span>
+									<input class="kc-control" name="monthlyCreditBudget" type="number" min="0" step="1" value="1000" required />
+								</label>
+								<label class="kc-field">
+									<span class="kc-field__label">Max workers</span>
+									<input class="kc-control" name="maxConcurrentWorkers" type="number" min="1" step="1" value="2" required />
+								</label>
+							</div>
+							<div class="kc-inline-actions" style="margin-top:0.85rem;">
+								<button class="kc-button" type="submit" disabled={activeTeamProcessingHosts.length === 0}>Create host-backed provider</button>
+								{activeTeamProcessingHosts.length === 0 ? <a class="kc-button-secondary" href={`/app/teams/${teamHandle}/hosts`}>Create processing host</a> : null}
+							</div>
+						</form>
+					</div>
+					<span class="kc-subtle" data-capacity-action-status role="status"></span>
+					<div class="kc-list-item" data-capacity-secret-panel hidden style="margin-top:1rem;">
+						<strong>Provider security code</strong>
+						<span class="kc-field__help">Copy this now. TreeSeed will not show the plaintext code again.</span>
+						<textarea class="kc-control" data-capacity-secret-output rows="2" readonly></textarea>
 					</div>
 				</div>
 			</section>
@@ -939,36 +1024,130 @@ const capacitySummary = context.team && context.store
 				<div class="kc-panel__header">
 					<div>
 						<p class="kc-section__eyebrow">Connected providers</p>
-						<h2>Provider health and security codes</h2>
+						<h2>Provider health, security codes, and allocations</h2>
 					</div>
 				</div>
 				<div class="kc-card-list">
 					{capacityDetails.length > 0 ? capacityDetails.map((provider: any) => {
 						const lastHealth = provider.metadata?.lastHealth ?? {};
 						const activeKey = provider.apiKeys?.find((key: any) => key.status === 'active');
+						const processingBinding = provider.hosts?.find((host: any) => host.role === 'processing');
+						const processingHost = processingBinding ? processingHostsById.get(processingBinding.hostId) : null;
+						const teamGrant = provider.grants?.find((grant: any) => !grant.projectId && grant.grantScope === 'team');
+						const allocatedDailyCredits = provider.grants?.filter((grant: any) => grant.state === 'active').reduce((total: number, grant: any) => total + Number(grant.dailyCreditLimit ?? 0), 0) ?? 0;
 						return (
 							<article class="kc-card">
 								<div class="kc-panel__header">
 									<div>
 										<h2 style="font-size:1.05rem; margin:0;">{provider.name}</h2>
-										<p>{provider.provider} · {provider.kind.replaceAll('_', ' ')} · security code {activeKey?.keyPrefix ?? provider.metadata?.apiKey?.activeKeyPrefix ?? 'not created'}</p>
+										<p>{provider.provider} · {provider.kind.replaceAll('_', ' ')} · {processingHost ? `host ${processingHost.name}` : 'managed processing'} · security code {activeKey?.keyPrefix ?? provider.metadata?.apiKey?.activeKeyPrefix ?? 'not created'}</p>
 									</div>
 									<span class="kc-status-pill" data-tone={provider.status === 'active' ? 'success' : provider.status === 'degraded' || provider.status === 'credential_required' ? 'warning' : 'info'}>{provider.status.replaceAll('_', ' ')}</span>
 								</div>
-								<div class="kc-metric-strip" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+								<div class="kc-metric-strip" style="grid-template-columns: repeat(5, minmax(0, 1fr));">
 									<div class="kc-metric"><span class="kc-metric__label">Queue</span><span class="kc-metric__value">{lastHealth.queueDepth ?? 0}</span></div>
 									<div class="kc-metric"><span class="kc-metric__label">Active workers</span><span class="kc-metric__value">{lastHealth.activeWorkers ?? 0}</span></div>
 									<div class="kc-metric"><span class="kc-metric__label">Max workers</span><span class="kc-metric__value">{provider.maxConcurrentWorkers}</span></div>
 									<div class="kc-metric"><span class="kc-metric__label">Daily limit</span><span class="kc-metric__value">{provider.dailyCreditBudget ?? 'N/A'}</span></div>
+									<div class="kc-metric"><span class="kc-metric__label">Allocated daily</span><span class="kc-metric__value">{allocatedDailyCredits}</span></div>
 								</div>
 								<div class="kc-card__meta">
 									{provider.lanes.length > 0 ? provider.lanes.map((lane: any) => (
-										<span>{lane.name}: {lane.scarcityLevel}</span>
+										<span>{lane.name}: {lane.scarcityLevel} · {lane.routingPolicy?.repositoryMutationAllowed ? 'repository work' : 'drafting/review'}</span>
 									)) : <span>No lanes configured</span>}
 								</div>
 								<div class="kc-inline-actions">
 									<button class="kc-button-secondary" type="button" data-capacity-key-reset={provider.id}>Reset security code</button>
-									<span class="kc-subtle">Last health check {lastHealth.checkedAt ?? 'not reported yet'}</span>
+									<span class="kc-subtle">Last health check {lastHealth.checkedAt ?? 'not reported yet'} · last used {activeKey?.lastUsedAt ?? provider.metadata?.apiKey?.lastUsedAt ?? 'never'}</span>
+								</div>
+								<div class="kc-list" style="margin-top:1rem;">
+									<form class="kc-list-item kc-form-grid" data-capacity-grant-form>
+										<input type="hidden" name="grantId" value={teamGrant?.id ?? ''} />
+										<input type="hidden" name="capacityProviderId" value={provider.id} />
+										<input type="hidden" name="grantScope" value="team" />
+										<div class="kc-field kc-field--full">
+											<strong>Team pooled allocation</strong>
+											<span class="kc-field__help">Used after project-specific allocations for this provider.</span>
+										</div>
+										<label class="kc-field">
+											<span class="kc-field__label">Daily credits</span>
+											<input class="kc-control" name="dailyCreditLimit" type="number" min="0" step="1" value={teamGrant?.dailyCreditLimit ?? provider.dailyCreditBudget ?? 0} />
+										</label>
+										<label class="kc-field">
+											<span class="kc-field__label">Monthly credits</span>
+											<input class="kc-control" name="monthlyCreditLimit" type="number" min="0" step="1" value={teamGrant?.monthlyCreditLimit ?? provider.monthlyCreditBudget ?? 0} />
+										</label>
+										<label class="kc-field">
+											<span class="kc-field__label">Overflow</span>
+											<select class="kc-control" name="overflowPolicy">
+												{['approval_required', 'deny', 'fallback_lane', 'soft_grant'].map((policy) => (
+													<option value={policy} selected={(teamGrant?.overflowPolicy ?? 'approval_required') === policy}>{policy.replaceAll('_', ' ')}</option>
+												))}
+											</select>
+										</label>
+										<label class="kc-field">
+											<span class="kc-field__label">State</span>
+											<select class="kc-control" name="state">
+												{['active', 'paused', 'disabled'].map((state) => (
+													<option value={state} selected={(teamGrant?.state ?? 'active') === state}>{state}</option>
+												))}
+											</select>
+										</label>
+										<div class="kc-inline-actions">
+											<button class="kc-button-secondary" type="submit">Save pooled allocation</button>
+										</div>
+									</form>
+									{teamProjects.map((project: any) => {
+										const projectGrant = provider.grants?.find((grant: any) => grant.projectId === project.id);
+										return (
+											<form class="kc-list-item kc-form-grid" data-capacity-grant-form>
+												<input type="hidden" name="grantId" value={projectGrant?.id ?? ''} />
+												<input type="hidden" name="capacityProviderId" value={provider.id} />
+												<input type="hidden" name="projectId" value={project.id} />
+												<input type="hidden" name="grantScope" value="project" />
+												<div class="kc-field kc-field--full">
+													<strong>{project.name}</strong>
+													<span class="kc-field__help">Project helper capacity from this provider.</span>
+												</div>
+												<label class="kc-field">
+													<span class="kc-field__label">Lane</span>
+													<select class="kc-control" name="laneId">
+														<option value="">Any lane</option>
+														{provider.lanes.map((lane: any) => (
+															<option value={lane.id} selected={projectGrant?.laneId === lane.id}>{lane.name}</option>
+														))}
+													</select>
+												</label>
+												<label class="kc-field">
+													<span class="kc-field__label">Daily credits</span>
+													<input class="kc-control" name="dailyCreditLimit" type="number" min="0" step="1" value={projectGrant?.dailyCreditLimit ?? ''} placeholder="0" />
+												</label>
+												<label class="kc-field">
+													<span class="kc-field__label">Monthly credits</span>
+													<input class="kc-control" name="monthlyCreditLimit" type="number" min="0" step="1" value={projectGrant?.monthlyCreditLimit ?? ''} placeholder="0" />
+												</label>
+												<label class="kc-field">
+													<span class="kc-field__label">Overflow</span>
+													<select class="kc-control" name="overflowPolicy">
+														{['approval_required', 'deny', 'fallback_lane', 'soft_grant'].map((policy) => (
+															<option value={policy} selected={(projectGrant?.overflowPolicy ?? 'approval_required') === policy}>{policy.replaceAll('_', ' ')}</option>
+														))}
+													</select>
+												</label>
+												<label class="kc-field">
+													<span class="kc-field__label">State</span>
+													<select class="kc-control" name="state">
+														{['active', 'paused', 'disabled'].map((state) => (
+															<option value={state} selected={(projectGrant?.state ?? (projectGrant ? 'active' : 'disabled')) === state}>{state}</option>
+														))}
+													</select>
+												</label>
+												<div class="kc-inline-actions">
+													<button class="kc-button-secondary" type="submit">{projectGrant ? 'Save allocation' : 'Create allocation'}</button>
+												</div>
+											</form>
+										);
+									})}
 								</div>
 							</article>
 						);
@@ -1028,9 +1207,6 @@ const capacitySummary = context.team && context.store
 	]);
 	const hostTabs = [...document.querySelectorAll('[data-host-tab]')] as HTMLButtonElement[];
 	const hostTabPanels = [...document.querySelectorAll('[data-host-tab-panel]')] as HTMLElement[];
-	const hostAuditButton = document.querySelector('[data-host-audit]') as HTMLButtonElement | null;
-	const hostAuditRepairButton = document.querySelector('[data-host-audit-repair]') as HTMLButtonElement | null;
-	const hostAuditStatusElement = document.querySelector('[data-host-audit-status]');
 	const supportedTabs = new Set(['repository', 'web', 'processing', 'email']);
 
 	function formString(form: FormData, key: string) {
@@ -1131,53 +1307,6 @@ const capacitySummary = context.team && context.store
 		if (statusElement) statusElement.textContent = message;
 	}
 
-	function setAuditStatus(message: string) {
-		if (hostAuditStatusElement) hostAuditStatusElement.textContent = message;
-	}
-
-	function activeHostKind() {
-		return hostTabs.find((tab) => tab.getAttribute('aria-selected') === 'true')?.dataset.hostTab ?? 'repository';
-	}
-
-	function auditSummary(report: any) {
-		const failed = (report?.checks ?? []).filter((check: any) => check.status === 'failed').length;
-		const warnings = (report?.checks ?? []).filter((check: any) => check.status === 'warning').length + (report?.warnings?.length ?? 0);
-		if (report?.ok) return `Hosting audit passed for ${report.environment}.`;
-		return `Hosting audit found ${failed} failed check${failed === 1 ? '' : 's'} and ${warnings} warning${warnings === 1 ? '' : 's'}.`;
-	}
-
-	async function runHostingAudit(repair = false) {
-		if (!teamId) return;
-		const hostKinds = [activeHostKind()];
-		setAuditStatus(repair ? 'Repairing selected hosting setup...' : 'Auditing selected hosting setup...');
-		try {
-			const payload = await requestJson(`/v1/teams/${encodeURIComponent(teamId)}/hosting-audit`, {
-				method: 'POST',
-				headers: apiHeaders,
-				body: JSON.stringify({
-					environment: 'current',
-					repair,
-					hostKinds,
-				}),
-			});
-			const report = payload?.payload;
-			setAuditStatus(auditSummary(report));
-			for (const hostType of ['repository', 'web', 'processing', 'email']) {
-				const checks = (report?.checks ?? []).filter((check: any) => check.hostType === hostType);
-				if (checks.length === 0) continue;
-				const failed = checks.filter((check: any) => check.status === 'failed').length;
-				const repaired = checks.filter((check: any) => check.status === 'repaired').length;
-				setHostStatus(hostType, failed > 0
-					? `${failed} readiness check${failed === 1 ? '' : 's'} need attention.`
-					: repaired > 0
-						? `${repaired} readiness check${repaired === 1 ? '' : 's'} repaired.`
-						: 'Readiness checks passed.');
-			}
-		} catch (error) {
-			setAuditStatus(error instanceof Error ? error.message : String(error));
-		}
-	}
-
 		function setRepositoryHostStatus(message: string) {
 			const repositoryHostStatusElement = hostStatusElement('repository');
 			if (repositoryHostStatusElement) repositoryHostStatusElement.textContent = message;
@@ -1206,25 +1335,105 @@ const capacitySummary = context.team && context.store
 		}
 
 		const capacityStatusElement = document.querySelector('[data-capacity-action-status]');
+		const capacitySecretPanel = document.querySelector('[data-capacity-secret-panel]') as HTMLElement | null;
+		const capacitySecretOutput = document.querySelector('[data-capacity-secret-output]') as HTMLTextAreaElement | null;
 		function setCapacityStatus(message: string) {
 			if (capacityStatusElement) capacityStatusElement.textContent = message;
+		}
+		function showCapacitySecret(value: string | null | undefined) {
+			if (!capacitySecretPanel || !capacitySecretOutput || !value) return;
+			capacitySecretOutput.value = value;
+			capacitySecretPanel.hidden = false;
+		}
+		function optionalNumber(value: FormDataEntryValue | null) {
+			const raw = String(value ?? '').trim();
+			if (!raw) return null;
+			const number = Number(raw);
+			return Number.isFinite(number) ? number : null;
 		}
 
 		document.querySelector('[data-capacity-managed-launch]')?.addEventListener('click', async () => {
 			if (!teamId) return;
 			setCapacityStatus('Connecting TreeSeed-managed helper capacity...');
 			try {
-				await requestJson(`/v1/teams/${encodeURIComponent(teamId)}/capacity/providers/managed`, {
+				const payload = await requestJson(`/v1/teams/${encodeURIComponent(teamId)}/capacity/providers/managed`, {
 					method: 'POST',
 					headers: apiHeaders,
 					body: JSON.stringify({ launchSource: 'team_capacity_page' }),
 				});
-				setCapacityStatus('TreeSeed-managed helper capacity is connected.');
-				window.location.reload();
+				showCapacitySecret(payload?.payload?.plaintextKey);
+				setCapacityStatus(payload?.payload?.plaintextKey
+					? 'TreeSeed-managed helper capacity is connected. Copy the provider security code, then refresh to see the new provider card.'
+					: 'TreeSeed-managed helper capacity is connected. Refresh to see the latest provider card.');
 			} catch (error) {
 				setCapacityStatus(error instanceof Error ? error.message : String(error));
 			}
 		});
+
+		document.querySelector('[data-capacity-host-backed-form]')?.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			if (!teamId) return;
+			const form = event.currentTarget as HTMLFormElement;
+			const formData = new FormData(form);
+			setCapacityStatus('Creating host-backed helper capacity...');
+			try {
+				const payload = await requestJson(`/v1/teams/${encodeURIComponent(teamId)}/capacity/providers/host-backed`, {
+					method: 'POST',
+					headers: apiHeaders,
+					body: JSON.stringify({
+						name: String(formData.get('name') ?? '').trim(),
+						processingHostId: String(formData.get('processingHostId') ?? '').trim(),
+						dailyCreditBudget: optionalNumber(formData.get('dailyCreditBudget')) ?? 50,
+						monthlyCreditBudget: optionalNumber(formData.get('monthlyCreditBudget')) ?? 1000,
+						maxConcurrentWorkers: optionalNumber(formData.get('maxConcurrentWorkers')) ?? 2,
+						launchSource: 'team_capacity_page',
+					}),
+				});
+				showCapacitySecret(payload?.payload?.plaintextKey);
+				setCapacityStatus('Host-backed helper capacity is connected. Copy the provider security code, then refresh to see the new provider card.');
+			} catch (error) {
+				setCapacityStatus(error instanceof Error ? error.message : String(error));
+			}
+		});
+
+		for (const form of document.querySelectorAll('[data-capacity-grant-form]')) {
+			form.addEventListener('submit', async (event) => {
+				event.preventDefault();
+				if (!teamId) return;
+				const grantForm = event.currentTarget as HTMLFormElement;
+				const formData = new FormData(grantForm);
+				const grantId = String(formData.get('grantId') ?? '').trim();
+				const capacityProviderId = String(formData.get('capacityProviderId') ?? '').trim();
+				const projectId = String(formData.get('projectId') ?? '').trim();
+				const laneId = String(formData.get('laneId') ?? '').trim();
+				const body = {
+					capacityProviderId,
+					grantScope: String(formData.get('grantScope') ?? (projectId ? 'project' : 'team')),
+					teamId,
+					projectId: projectId || null,
+					laneId: laneId || null,
+					state: String(formData.get('state') ?? 'active'),
+					dailyCreditLimit: optionalNumber(formData.get('dailyCreditLimit')),
+					monthlyCreditLimit: optionalNumber(formData.get('monthlyCreditLimit')),
+					overflowPolicy: String(formData.get('overflowPolicy') ?? 'approval_required'),
+				};
+				setCapacityStatus('Saving helper capacity allocation...');
+				try {
+					const url = grantId
+						? `/v1/teams/${encodeURIComponent(teamId)}/capacity-grants/${encodeURIComponent(grantId)}`
+						: `/v1/teams/${encodeURIComponent(teamId)}/capacity-grants`;
+					await requestJson(url, {
+						method: grantId ? 'PATCH' : 'POST',
+						headers: apiHeaders,
+						body: JSON.stringify(body),
+					});
+					setCapacityStatus('Helper capacity allocation saved.');
+					window.location.reload();
+				} catch (error) {
+					setCapacityStatus(error instanceof Error ? error.message : String(error));
+				}
+			});
+		}
 
 		for (const button of document.querySelectorAll('[data-capacity-key-reset]')) {
 			button.addEventListener('click', async () => {
@@ -1239,7 +1448,8 @@ const capacitySummary = context.team && context.store
 						body: JSON.stringify({ name: 'Provider security code' }),
 					});
 					const prefix = payload?.payload?.key?.keyPrefix ?? 'new code';
-					setCapacityStatus(`Provider security code was reset. Prefix: ${prefix}. Update the runner before it can process more work.`);
+					showCapacitySecret(payload?.payload?.plaintextKey);
+					setCapacityStatus(`Provider security code was reset. Prefix: ${prefix}. Copy the new code and update the runner before it can process more work.`);
 				} catch (error) {
 					setCapacityStatus(error instanceof Error ? error.message : String(error));
 				}
@@ -1306,12 +1516,6 @@ const capacitySummary = context.team && context.store
 		}
 
 		sensitiveUnlock()?.registerResetHandler?.(resetTeamSensitiveData);
-
-	hostAuditButton?.addEventListener('click', () => runHostingAudit(false));
-	hostAuditRepairButton?.addEventListener('click', () => {
-		if (!window.confirm('Repair missing provider resources for the selected host type?')) return;
-		runHostingAudit(true);
-	});
 
 	for (const createForm of createForms) {
 			createForm.addEventListener('submit', async (event) => {
