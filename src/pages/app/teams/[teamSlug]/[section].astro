@@ -97,11 +97,18 @@ const webHostsJson = JSON.stringify({
 	hosts: webHosts,
 	repositoryHosts,
 }).replace(/</gu, '\\u003c');
+const capacityPageJson = JSON.stringify({
+	teamId: context.team?.id ?? null,
+}).replace(/</gu, '\\u003c');
 const capacityDetails = await Promise.all((capacityProviders as any[]).map(async (provider: any) => ({
 	...provider,
 	lanes: context.store ? await context.store.listCapacityProviderLanes(context.team?.id ?? '', provider.id) : [],
 	grants: (capacityGrants as any[]).filter((grant) => grant.capacityProviderId === provider.id),
+	apiKeys: context.store ? await context.store.listCapacityProviderApiKeys(context.team?.id ?? '', provider.id) : [],
 })));
+const capacitySummary = context.team && context.store
+	? await context.store.getTeamCapacitySummary(context.team.id)
+	: null;
 ---
 
 <KnowledgeCoopAppLayout
@@ -185,6 +192,7 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 					</div>
 				</div>
 			</section>
+			<script is:inline type="application/json" id="capacity-page-data" set:html={capacityPageJson}></script>
 		</>
 	) : null}
 
@@ -878,61 +886,96 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 	) : null}
 
 	{section === 'capacity' ? (
-		<section class="kc-panel">
-			<div class="kc-panel__header">
-				<div>
-					<p class="kc-section__eyebrow">Processing Capacity</p>
-					<h2>Provider lanes and project budgets</h2>
+		<>
+			<section class="kc-metric-strip">
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Monthly helper credits</span>
+					<span class="kc-metric__value">{capacitySummary?.monthlyRemainingCredits ?? capacitySummary?.monthlyCredits ?? 0}</span>
 				</div>
-				<a class="kc-button-secondary" href={`/app/teams/${teamHandle}/hosts`}>Manage hosts</a>
-			</div>
-			<div class="kc-card-list">
-				{capacityDetails.length > 0 ? capacityDetails.map((provider: any) => {
-					const dailyBudget = Number(provider.dailyCreditBudget ?? 0);
-					const grantedDaily = provider.grants.reduce((total: number, grant: any) => total + Number(grant.dailyCreditLimit ?? 0), 0);
-					return (
-						<article class="kc-card">
-							<div class="kc-panel__header">
-								<div>
-									<h2 style="font-size:1.05rem; margin:0;">{provider.name}</h2>
-									<p>{provider.provider} · {provider.kind.replaceAll('_', ' ')} · {provider.billingScope.replaceAll('_', ' ')}</p>
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Spent today</span>
+					<span class="kc-metric__value">{capacitySummary?.dailyUsedCredits ?? 0}</span>
+				</div>
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Remaining today</span>
+					<span class="kc-metric__value">{capacitySummary?.dailyRemainingCredits ?? 0}</span>
+				</div>
+				<div class="kc-panel kc-metric">
+					<span class="kc-metric__label">Helpers ready</span>
+					<span class="kc-metric__value">{capacitySummary?.activeProviderCount ?? 0}</span>
+				</div>
+			</section>
+			<section class="kc-grid-2" style="margin-top: 1rem;">
+				<div class="kc-panel">
+					<div class="kc-panel__header">
+						<div>
+							<p class="kc-section__eyebrow">Processing Capacity</p>
+							<h2>{(capacitySummary?.activeProviderCount ?? 0) > 0 ? 'Helpers are ready to process work' : 'No helper capacity is connected yet'}</h2>
+						</div>
+						<span class="kc-status-pill" data-tone={(capacitySummary?.activeProviderCount ?? 0) > 0 ? 'success' : 'warning'}>{(capacitySummary?.activeProviderCount ?? 0) > 0 ? 'connected and healthy' : 'waiting for provider'}</span>
+					</div>
+					<div class="kc-inline-actions">
+						<button class="kc-button" type="button" data-capacity-managed-launch>Use TreeSeed-managed capacity</button>
+						<a class="kc-button-secondary" href={`/app/teams/${teamHandle}/hosts`}>Manage hosts</a>
+						<span class="kc-subtle" data-capacity-action-status role="status"></span>
+					</div>
+				</div>
+				<div class="kc-panel">
+					<div class="kc-panel__header">
+						<div>
+							<p class="kc-section__eyebrow">Budget allocations</p>
+							<h2>{capacityGrants.length} active grant{capacityGrants.length === 1 ? '' : 's'}</h2>
+						</div>
+					</div>
+					<div class="kc-list">
+						{capacityGrants.length ? capacityGrants.map((grant: any) => {
+							const project = teamProjects.find((entry: any) => entry.id === grant.projectId);
+							return <div class="kc-list-item"><strong>{project?.name ?? 'Team pooled allocation'}</strong><br /><span class="kc-subtle">{grant.dailyCreditLimit ?? 'policy'} credits/day · {grant.monthlyCreditLimit ?? 'policy'} credits/month · {grant.overflowPolicy?.replaceAll('_', ' ')}</span></div>;
+						}) : <div class="kc-empty">Launch or connect helper capacity to create the first team allocation.</div>}
+					</div>
+				</div>
+			</section>
+			<section class="kc-panel" style="margin-top: 1rem;">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Connected providers</p>
+						<h2>Provider health and security codes</h2>
+					</div>
+				</div>
+				<div class="kc-card-list">
+					{capacityDetails.length > 0 ? capacityDetails.map((provider: any) => {
+						const lastHealth = provider.metadata?.lastHealth ?? {};
+						const activeKey = provider.apiKeys?.find((key: any) => key.status === 'active');
+						return (
+							<article class="kc-card">
+								<div class="kc-panel__header">
+									<div>
+										<h2 style="font-size:1.05rem; margin:0;">{provider.name}</h2>
+										<p>{provider.provider} · {provider.kind.replaceAll('_', ' ')} · security code {activeKey?.keyPrefix ?? provider.metadata?.apiKey?.activeKeyPrefix ?? 'not created'}</p>
+									</div>
+									<span class="kc-status-pill" data-tone={provider.status === 'active' ? 'success' : provider.status === 'degraded' || provider.status === 'credential_required' ? 'warning' : 'info'}>{provider.status.replaceAll('_', ' ')}</span>
 								</div>
-								<span class="kc-status-pill" data-tone={provider.status === 'active' ? 'success' : provider.status === 'configuration_required' ? 'warning' : 'info'}>{provider.status.replaceAll('_', ' ')}</span>
-							</div>
-							<div class="kc-metric-strip" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
-								<div class="kc-metric">
-									<span class="kc-metric__label">Daily credits</span>
-									<span class="kc-metric__value">{dailyBudget || 'N/A'}</span>
+								<div class="kc-metric-strip" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+									<div class="kc-metric"><span class="kc-metric__label">Queue</span><span class="kc-metric__value">{lastHealth.queueDepth ?? 0}</span></div>
+									<div class="kc-metric"><span class="kc-metric__label">Active workers</span><span class="kc-metric__value">{lastHealth.activeWorkers ?? 0}</span></div>
+									<div class="kc-metric"><span class="kc-metric__label">Max workers</span><span class="kc-metric__value">{provider.maxConcurrentWorkers}</span></div>
+									<div class="kc-metric"><span class="kc-metric__label">Daily limit</span><span class="kc-metric__value">{provider.dailyCreditBudget ?? 'N/A'}</span></div>
 								</div>
-								<div class="kc-metric">
-									<span class="kc-metric__label">Granted</span>
-									<span class="kc-metric__value">{grantedDaily || 'N/A'}</span>
+								<div class="kc-card__meta">
+									{provider.lanes.length > 0 ? provider.lanes.map((lane: any) => (
+										<span>{lane.name}: {lane.scarcityLevel}</span>
+									)) : <span>No lanes configured</span>}
 								</div>
-								<div class="kc-metric">
-									<span class="kc-metric__label">Workdays</span>
-									<span class="kc-metric__value">{provider.maxConcurrentWorkdays}</span>
+								<div class="kc-inline-actions">
+									<button class="kc-button-secondary" type="button" data-capacity-key-reset={provider.id}>Reset security code</button>
+									<span class="kc-subtle">Last health check {lastHealth.checkedAt ?? 'not reported yet'}</span>
 								</div>
-								<div class="kc-metric">
-									<span class="kc-metric__label">Workers</span>
-									<span class="kc-metric__value">{provider.maxConcurrentWorkers}</span>
-								</div>
-							</div>
-							<div class="kc-card__meta">
-								{provider.lanes.length > 0 ? provider.lanes.map((lane: any) => (
-									<span>{lane.name}: {lane.businessModel.replaceAll('_', ' ')} · {lane.scarcityLevel}</span>
-								)) : <span>No lanes configured</span>}
-							</div>
-							<div class="kc-card__meta">
-								{provider.grants.length > 0 ? provider.grants.map((grant: any) => {
-									const project = teamProjects.find((entry: any) => entry.id === grant.projectId);
-									return <span>{project?.name ?? grant.grantScope}: {grant.dailyCreditLimit ?? grant.weeklyQuotaMinutes ?? grant.dailyUsdLimit ?? 'policy'} {grant.dailyCreditLimit ? 'credits/day' : grant.weeklyQuotaMinutes ? 'min/week' : grant.dailyUsdLimit ? 'USD/day' : ''}</span>;
-								}) : <span>No project grants yet</span>}
-							</div>
-						</article>
-					);
-				}) : <div class="kc-empty">No processing capacity providers have been configured yet.</div>}
-			</div>
-		</section>
+							</article>
+						);
+					}) : <div class="kc-empty">No processing capacity providers have been configured yet.</div>}
+				</div>
+			</section>
+		</>
 	) : null}
 
 	{section === 'settings' ? (
@@ -970,7 +1013,7 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 <script>
 	import { decryptHostConfig, encryptHostConfig } from '../../../../lib/cloudflare-host-crypto.js';
 
-	const dataElement = document.getElementById('hosts-page-data');
+	const dataElement = document.getElementById('hosts-page-data') ?? document.getElementById('capacity-page-data');
 	const createForms = document.querySelectorAll('[data-host-create-form]') as NodeListOf<HTMLFormElement>;
 	const repositoryHostForm = document.getElementById('repository-host-create-form') as HTMLFormElement | null;
 		const data = dataElement?.textContent ? JSON.parse(dataElement.textContent) : null;
@@ -1160,6 +1203,47 @@ const capacityDetails = await Promise.all((capacityProviders as any[]).map(async
 				throw new Error(payload?.error ?? `Request failed with ${response.status}`);
 			}
 			return payload;
+		}
+
+		const capacityStatusElement = document.querySelector('[data-capacity-action-status]');
+		function setCapacityStatus(message: string) {
+			if (capacityStatusElement) capacityStatusElement.textContent = message;
+		}
+
+		document.querySelector('[data-capacity-managed-launch]')?.addEventListener('click', async () => {
+			if (!teamId) return;
+			setCapacityStatus('Connecting TreeSeed-managed helper capacity...');
+			try {
+				await requestJson(`/v1/teams/${encodeURIComponent(teamId)}/capacity/providers/managed`, {
+					method: 'POST',
+					headers: apiHeaders,
+					body: JSON.stringify({ launchSource: 'team_capacity_page' }),
+				});
+				setCapacityStatus('TreeSeed-managed helper capacity is connected.');
+				window.location.reload();
+			} catch (error) {
+				setCapacityStatus(error instanceof Error ? error.message : String(error));
+			}
+		});
+
+		for (const button of document.querySelectorAll('[data-capacity-key-reset]')) {
+			button.addEventListener('click', async () => {
+				if (!teamId) return;
+				const providerId = (button as HTMLElement).dataset.capacityKeyReset;
+				if (!providerId) return;
+				setCapacityStatus('Resetting provider security code...');
+				try {
+					const payload = await requestJson(`/v1/capacity/providers/${encodeURIComponent(providerId)}/api-keys/reset`, {
+						method: 'POST',
+						headers: apiHeaders,
+						body: JSON.stringify({ name: 'Provider security code' }),
+					});
+					const prefix = payload?.payload?.key?.keyPrefix ?? 'new code';
+					setCapacityStatus(`Provider security code was reset. Prefix: ${prefix}. Update the runner before it can process more work.`);
+				} catch (error) {
+					setCapacityStatus(error instanceof Error ? error.message : String(error));
+				}
+			});
 		}
 
 		async function resetTeamSensitiveData({ currentPassphrase, newPassphrase }: { currentPassphrase: string; newPassphrase: string }) {
