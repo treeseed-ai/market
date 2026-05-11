@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/market",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "TreeSeed marketplace site built on top of @treeseed/core.",
   "license": "COMMERCIAL",
   "repository": {
@@ -64,10 +64,10 @@
   },
   "dependencies": {
     "@react-email/render": "^2.0.8",
-    "@treeseed/agent": "^0.8.6-dev.staging.20260511T040734Z",
-    "@treeseed/cli": "^0.8.6-dev.staging.20260511T040734Z",
-    "@treeseed/core": "^0.8.6-dev.staging.20260511T040734Z",
-    "@treeseed/sdk": "^0.8.6-dev.staging.20260511T040434Z",
+    "@treeseed/agent": "0.8.6",
+    "@treeseed/cli": "0.8.6",
+    "@treeseed/core": "0.8.6",
+    "@treeseed/sdk": "0.8.6",
     "better-auth": "^1.6.2",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.8.2",
