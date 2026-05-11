@@ -27,6 +27,28 @@ const [summary, direct, workstreams, agents, releases, share] = context.project 
 		context.store.getProjectShareSummary(context.project.id, context.principal as any),
 	])
 	: [null, null, null, null, null, null];
+const capacitySummary = context.project && context.store
+	? await context.store.getProjectCapacitySummary(context.project.id, 'staging')
+	: null;
+
+const agentReadinessCopy = {
+	ready: 'Ready',
+	waiting_for_budget: 'Waiting for budget',
+	waiting_for_provider: 'Waiting for provider',
+	paused_by_policy: 'Paused by policy',
+	needs_approval: 'Needs approval',
+};
+const agentReadinessTone = {
+	ready: 'success',
+	waiting_for_budget: 'warning',
+	waiting_for_provider: 'warning',
+	paused_by_policy: 'info',
+	needs_approval: 'danger',
+};
+const agentReadiness = capacitySummary?.readiness ?? 'waiting_for_provider';
+const agentReadinessLabel = (agentReadinessCopy as any)[agentReadiness] ?? 'Waiting for provider';
+const agentReadinessToneValue = (agentReadinessTone as any)[agentReadiness] ?? 'warning';
+const agentReadinessReasons = (capacitySummary?.reasons ?? []).map((reason: string) => reason.replaceAll('_', ' ')).join(' · ');
 
 const sectionTitles = {
 	overview: 'Overview',
@@ -272,6 +294,21 @@ const currentSectionTitle = (sectionTitles as Record<string, string>)[section] ?
 
 	{section === 'agents' ? (
 		<section class="kc-grid-2">
+			<div class="kc-panel">
+				<div class="kc-panel__header">
+					<div>
+						<p class="kc-section__eyebrow">Helper capacity</p>
+						<h2>{agentReadinessLabel}</h2>
+					</div>
+					<span class="kc-status-pill" data-tone={agentReadinessToneValue}>{agentReadinessLabel}</span>
+				</div>
+				<div class="kc-metric-strip" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+					<div class="kc-metric"><span class="kc-metric__label">Remaining today</span><span class="kc-metric__value">{capacitySummary?.dailyRemainingCredits ?? 0}</span></div>
+					<div class="kc-metric"><span class="kc-metric__label">Reserved</span><span class="kc-metric__value">{capacitySummary?.dailyReservedCredits ?? 0}</span></div>
+					<div class="kc-metric"><span class="kc-metric__label">Providers</span><span class="kc-metric__value">{capacitySummary?.activeProviderCount ?? 0}</span></div>
+				</div>
+				{agentReadinessReasons ? <p class="kc-subtle">{agentReadinessReasons}</p> : null}
+			</div>
 			<div class="kc-table-shell">
 				<table class="kc-table">
 					<thead>

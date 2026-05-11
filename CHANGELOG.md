@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.7] - 2026-05-11
+
+### Added
+
+- feat(agent): implement provider registration and update capacity routing (f7698daaa9cc)
+
+### Infrastructure
+
+- release: sync package staging heads (36ed5da3ab8d)
+
+### Dependencies
+
+- build(deps): sync integrated package updates (c628316a325b)
+- Release @treeseed/market 0.5.7.
+- Release package @treeseed/agent: 0.8.8.
+- Release package @treeseed/cli: 0.8.8.
+- Release package @treeseed/core: 0.8.8.
+- Release package @treeseed/sdk: 0.8.8.
+
 ## [0.5.6] - 2026-05-11
 
 ### Fixed

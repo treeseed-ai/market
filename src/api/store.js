@@ -19,6 +19,7 @@ const migrationPaths = [
 	'../../migrations/0014_team_web_hosts.sql',
 	'../../migrations/0018_capacity_providers.sql',
 	'../../migrations/0020_hub_launch_spine.sql',
+	'../../migrations/0021_capacity_provider_api_keys.sql',
 ];
 
 let cachedMigrationSql = null;
@@ -68,6 +69,10 @@ function equalHash(left, right) {
 
 function tokenPrefix(token) {
 	return token.slice(0, 16);
+}
+
+function sumNumbers(values) {
+	return values.reduce((total, value) => total + (Number.isFinite(Number(value)) ? Number(value) : 0), 0);
 }
 
 function principalIsAdmin(principal) {
@@ -269,6 +274,26 @@ function serializeCapacityProvider(row) {
 		maxConcurrentWorkers: Number(row.max_concurrent_workers ?? 1),
 		capacityModel: parseJson(row.capacity_model_json, {}),
 		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeCapacityProviderApiKey(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		capacityProviderId: row.capacity_provider_id,
+		teamId: row.team_id,
+		name: row.name,
+		keyPrefix: row.key_prefix,
+		scopes: parseJson(row.scopes_json, []),
+		status: row.status,
+		lastUsedAt: row.last_used_at,
+		rotatedFromKeyId: row.rotated_from_key_id,
+		expiresAt: row.expires_at,
+		revokedAt: row.revoked_at,
+		createdById: row.created_by_id,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -2357,6 +2382,14 @@ export class MarketControlPlaneStore {
 		));
 	}
 
+	async getCapacityProviderById(providerId) {
+		await this.ensureInitialized();
+		return serializeCapacityProvider(await this.first(
+			`SELECT * FROM capacity_providers WHERE id = ? LIMIT 1`,
+			[providerId],
+		));
+	}
+
 	async upsertCapacityProvider(teamId, input) {
 		await this.ensureInitialized();
 		const timestamp = isoNow();
@@ -2419,6 +2452,278 @@ export class MarketControlPlaneStore {
 			);
 		}
 		return this.getCapacityProvider(teamId, id);
+	}
+
+	async updateCapacityProviderStatus(teamId, providerId, input = {}) {
+		await this.ensureInitialized();
+		const provider = await this.getCapacityProvider(teamId, providerId);
+		if (!provider) return null;
+		const timestamp = isoNow();
+		const metadata = {
+			...(provider.metadata ?? {}),
+			...(input.metadata ?? {}),
+		};
+		await this.run(
+			`UPDATE capacity_providers
+			 SET status = ?, metadata_json = ?, updated_at = ?
+			 WHERE id = ?`,
+			[
+				input.status ?? provider.status,
+				JSON.stringify(metadata),
+				timestamp,
+				providerId,
+			],
+		);
+		return this.getCapacityProvider(teamId, providerId);
+	}
+
+	async recordProviderHeartbeat(input) {
+		await this.ensureInitialized();
+		const provider = serializeCapacityProvider(await this.first(
+			`SELECT * FROM capacity_providers WHERE id = ? LIMIT 1`,
+			[input.providerId],
+		));
+		if (!provider) return null;
+		const timestamp = isoNow();
+		const draining = input.draining === true;
+		const ok = input.ok !== false && !draining && String(input.status ?? 'active') !== 'failed';
+		const status = draining
+			? 'draining'
+			: ok
+				? 'active'
+				: String(input.status ?? 'degraded');
+		const metadata = {
+			...(provider.metadata ?? {}),
+			lastHealth: {
+				ok,
+				checkedAt: input.heartbeatAt ?? timestamp,
+				queueDepth: Number(input.queueDepth ?? 0),
+				activeWorkers: Number(input.activeWorkers ?? 0),
+				maxWorkers: input.maxWorkers == null ? null : Number(input.maxWorkers),
+				draining,
+				capabilities: Array.isArray(input.capabilities) ? input.capabilities.map(String) : [],
+				environments: Array.isArray(input.environments) ? input.environments.map(String) : [],
+			},
+		};
+		await this.run(
+			`UPDATE capacity_providers
+			 SET status = ?, metadata_json = ?, updated_at = ?
+			 WHERE id = ?`,
+			[status, JSON.stringify(metadata), timestamp, provider.id],
+		);
+		await this.updateCapacityProviderApiKeyMetadata(provider.teamId ?? provider.ownerTeamId, provider.id, {
+			lastUsedAt: timestamp,
+			rotationRequired: false,
+		}).catch(() => null);
+		return this.getCapacityProvider(provider.teamId ?? provider.ownerTeamId, provider.id);
+	}
+
+	async getCapacityReservation(reservationId) {
+		await this.ensureInitialized();
+		return serializeCapacityReservation(await this.first(`SELECT * FROM capacity_reservations WHERE id = ? LIMIT 1`, [reservationId]));
+	}
+
+	async updateCapacityReservation(reservationId, patch = {}) {
+		await this.ensureInitialized();
+		const existing = await this.getCapacityReservation(reservationId);
+		if (!existing) return null;
+		const timestamp = isoNow();
+		await this.run(
+			`UPDATE capacity_reservations
+			 SET state = COALESCE(?, state),
+			     task_id = COALESCE(?, task_id),
+			     consumed_credits = COALESCE(?, consumed_credits),
+			     consumed_provider_units = COALESCE(?, consumed_provider_units),
+			     consumed_usd = COALESCE(?, consumed_usd),
+			     metadata_json = ?,
+			     updated_at = ?
+			 WHERE id = ?`,
+			[
+				patch.state ?? null,
+				patch.taskId ?? null,
+				patch.consumedCredits == null ? null : Number(patch.consumedCredits),
+				patch.consumedProviderUnits == null ? null : Number(patch.consumedProviderUnits),
+				patch.consumedUsd == null ? null : Number(patch.consumedUsd),
+				JSON.stringify({
+					...(existing.metadata ?? {}),
+					...(patch.metadata ?? {}),
+				}),
+				timestamp,
+				reservationId,
+			],
+		);
+		return this.getCapacityReservation(reservationId);
+	}
+
+	async attachCapacityReservationTask(reservationId, taskId) {
+		return this.updateCapacityReservation(reservationId, { taskId });
+	}
+
+	async listCapacityProviderApiKeys(teamId, providerId) {
+		await this.ensureInitialized();
+		if (!(await this.getCapacityProvider(teamId, providerId))) return [];
+		const rows = await this.all(
+			`SELECT * FROM capacity_provider_api_keys
+			 WHERE capacity_provider_id = ? AND team_id = ?
+			 ORDER BY created_at DESC`,
+			[providerId, teamId],
+		);
+		return rows.map(serializeCapacityProviderApiKey);
+	}
+
+	async updateCapacityProviderApiKeyMetadata(teamId, providerId, patch) {
+		const provider = await this.getCapacityProvider(teamId, providerId);
+		if (!provider) return null;
+		const timestamp = isoNow();
+		const metadata = {
+			...(provider.metadata ?? {}),
+			apiKey: {
+				...(provider.metadata?.apiKey ?? {}),
+				...patch,
+			},
+		};
+		await this.run(
+			`UPDATE capacity_providers SET metadata_json = ?, updated_at = ? WHERE id = ?`,
+			[JSON.stringify(metadata), timestamp, providerId],
+		);
+		return this.getCapacityProvider(teamId, providerId);
+	}
+
+	async createCapacityProviderApiKey(teamId, providerId, input = {}) {
+		await this.ensureInitialized();
+		const provider = await this.getCapacityProvider(teamId, providerId);
+		if (!provider) return null;
+		const token = `tsp_${randomUUID().replaceAll('-', '')}`;
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		const scopes = input.scopes ?? [
+			'provider:heartbeat',
+			'provider:tasks:claim',
+			'provider:tasks:update',
+			'provider:usage:report',
+			'provider:lanes:read',
+		];
+		await this.run(
+			`INSERT INTO capacity_provider_api_keys (
+				id, capacity_provider_id, team_id, name, key_prefix, key_hash, scopes_json, status,
+				last_used_at, rotated_from_key_id, expires_at, revoked_at, created_by_id, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', NULL, ?, ?, NULL, ?, ?, ?)`,
+			[
+				id,
+				providerId,
+				teamId,
+				String(input.name ?? 'Default provider security code'),
+				tokenPrefix(token),
+				stableHash(token, this.config.authSecret),
+				JSON.stringify(scopes),
+				input.rotatedFromKeyId ?? null,
+				input.expiresAt ?? null,
+				input.createdById ?? null,
+				timestamp,
+				timestamp,
+			],
+		);
+		await this.updateCapacityProviderApiKeyMetadata(teamId, providerId, {
+			activeKeyPrefix: tokenPrefix(token),
+			lastRotatedAt: timestamp,
+			rotationRequired: false,
+		});
+		return {
+			key: serializeCapacityProviderApiKey(await this.first(`SELECT * FROM capacity_provider_api_keys WHERE id = ? LIMIT 1`, [id])),
+			plaintextKey: token,
+		};
+	}
+
+	async resetCapacityProviderApiKey(teamId, providerId, input = {}) {
+		await this.ensureInitialized();
+		if (!(await this.getCapacityProvider(teamId, providerId))) return null;
+		const timestamp = isoNow();
+		const previous = await this.first(
+			`SELECT * FROM capacity_provider_api_keys
+			 WHERE capacity_provider_id = ? AND team_id = ? AND status = 'active' AND revoked_at IS NULL
+			 ORDER BY created_at DESC LIMIT 1`,
+			[providerId, teamId],
+		);
+		if (previous) {
+			await this.run(
+				`UPDATE capacity_provider_api_keys
+				 SET status = 'revoked', revoked_at = ?, updated_at = ?
+				 WHERE id = ?`,
+				[timestamp, timestamp, previous.id],
+			);
+		}
+		const result = await this.createCapacityProviderApiKey(teamId, providerId, {
+			...input,
+			name: input.name ?? previous?.name ?? 'Default provider security code',
+			scopes: input.scopes ?? parseJson(previous?.scopes_json, null) ?? undefined,
+			rotatedFromKeyId: previous?.id ?? null,
+		});
+		await this.updateCapacityProviderApiKeyMetadata(teamId, providerId, {
+			activeKeyPrefix: result?.key?.keyPrefix ?? null,
+			lastRotatedAt: timestamp,
+			lastUsedAt: null,
+			rotationRequired: true,
+		});
+		return result;
+	}
+
+	async revokeCapacityProviderApiKey(teamId, keyId, providerId = null) {
+		await this.ensureInitialized();
+		const row = await this.first(
+			`SELECT * FROM capacity_provider_api_keys
+			 WHERE id = ? AND team_id = ? AND (? IS NULL OR capacity_provider_id = ?)
+			 LIMIT 1`,
+			[keyId, teamId, providerId, providerId],
+		);
+		if (!row) return null;
+		const timestamp = isoNow();
+		await this.run(
+			`UPDATE capacity_provider_api_keys
+			 SET status = 'revoked', revoked_at = COALESCE(revoked_at, ?), updated_at = ?
+			 WHERE id = ?`,
+			[timestamp, timestamp, keyId],
+		);
+		await this.updateCapacityProviderApiKeyMetadata(teamId, row.capacity_provider_id, {
+			rotationRequired: true,
+		});
+		return serializeCapacityProviderApiKey(await this.first(`SELECT * FROM capacity_provider_api_keys WHERE id = ? LIMIT 1`, [keyId]));
+	}
+
+	async verifyCapacityProviderApiKey(presentedKey, requiredScopes = []) {
+		await this.ensureInitialized();
+		const token = String(presentedKey ?? '');
+		const prefix = tokenPrefix(token);
+		const rows = await this.all(
+			`SELECT * FROM capacity_provider_api_keys
+			 WHERE key_prefix = ? AND status = 'active' AND revoked_at IS NULL`,
+			[prefix],
+		);
+		for (const row of rows) {
+			if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) continue;
+			if (!equalHash(stableHash(token, this.config.authSecret), row.key_hash)) continue;
+			const scopes = parseJson(row.scopes_json, []);
+			const hasScopes = requiredScopes.every((scope) => scopes.includes(scope));
+			if (!hasScopes) return null;
+			const timestamp = isoNow();
+			await this.run(
+				`UPDATE capacity_provider_api_keys
+				 SET last_used_at = ?, updated_at = ?
+				 WHERE id = ?`,
+				[timestamp, timestamp, row.id],
+			);
+			await this.updateCapacityProviderApiKeyMetadata(row.team_id, row.capacity_provider_id, {
+				activeKeyPrefix: row.key_prefix,
+				lastUsedAt: timestamp,
+				rotationRequired: false,
+			});
+			return {
+				keyId: row.id,
+				capacityProviderId: row.capacity_provider_id,
+				teamId: row.team_id,
+				scopes,
+			};
+		}
+		return null;
 	}
 
 	async upsertCapacityProviderHost(teamId, providerId, input) {
@@ -2565,6 +2870,209 @@ export class MarketControlPlaneStore {
 		return serializeCapacityGrant(await this.first(`SELECT * FROM capacity_grants WHERE id = ? LIMIT 1`, [id]));
 	}
 
+	async launchManagedCapacityProvider(teamId, input = {}) {
+		await this.ensureInitialized();
+		const projects = await this.listTeamProjects(teamId);
+		const providerId = input.providerId ?? `managed-capacity-${teamId}`;
+		const existing = await this.getCapacityProvider(teamId, providerId);
+		const provider = await this.upsertCapacityProvider(teamId, {
+			id: providerId,
+			teamId,
+			ownerTeamId: teamId,
+			name: input.name ?? existing?.name ?? 'TreeSeed-managed helper capacity',
+			kind: 'treeseed_managed',
+			status: input.status ?? 'active',
+			provider: input.provider ?? 'treeseed-managed',
+			billingScope: 'team',
+			monthlyCreditBudget: Number(input.monthlyCreditBudget ?? 1000),
+			dailyCreditBudget: Number(input.dailyCreditBudget ?? 50),
+			maxConcurrentWorkdays: Number(input.maxConcurrentWorkdays ?? 1),
+			maxConcurrentWorkers: Number(input.maxConcurrentWorkers ?? 2),
+			metadata: {
+				...(existing?.metadata ?? {}),
+				launchSource: input.launchSource ?? 'team_capacity_page',
+				connectionMode: 'treeseed_managed',
+				providerHostIds: Array.isArray(input.providerHostIds) ? input.providerHostIds : [],
+				operationalWarnings: [],
+				lastHealth: {
+					ok: true,
+					checkedAt: isoNow(),
+					queueDepth: 0,
+					activeWorkers: 0,
+					draining: false,
+				},
+			},
+		});
+		const laneDefinitions = [
+			{
+				id: `${provider.id}:background-summary`,
+				name: 'Background summaries',
+				businessModel: 'subscription_quota',
+				modelClass: 'small',
+				scarcityLevel: 'low',
+				routingPolicy: {
+					taskKinds: ['question.summarize', 'release.summary', 'workday.report'],
+					requiredCapabilities: ['agent_execution'],
+					allowedEnvironments: ['local', 'staging', 'prod'],
+					defaultPriorityClass: 'background',
+					maxCreditsPerTask: 50,
+					reserveAt: 'p90',
+					requiresApprovalAboveCredits: 50,
+					repositoryMutationAllowed: false,
+					productionAllowed: true,
+				},
+			},
+			{
+				id: `${provider.id}:proposal-drafting`,
+				name: 'Proposal drafting',
+				businessModel: 'subscription_quota',
+				modelClass: 'medium',
+				scarcityLevel: 'medium',
+				routingPolicy: {
+					taskKinds: ['proposal.draft', 'proposal.compare', 'market.description.draft'],
+					requiredCapabilities: ['agent_execution'],
+					allowedEnvironments: ['local', 'staging', 'prod'],
+					defaultPriorityClass: 'interactive',
+					maxCreditsPerTask: 30,
+					reserveAt: 'p90',
+					requiresApprovalAboveCredits: 50,
+					repositoryMutationAllowed: false,
+					productionAllowed: true,
+				},
+			},
+			{
+				id: `${provider.id}:review-and-release-summary`,
+				name: 'Review and release summaries',
+				businessModel: 'subscription_quota',
+				modelClass: 'medium',
+				scarcityLevel: 'medium',
+				routingPolicy: {
+					taskKinds: ['decision.summary', 'release.summary', 'verification.run'],
+					requiredCapabilities: ['agent_execution', 'reporting'],
+					allowedEnvironments: ['local', 'staging', 'prod'],
+					defaultPriorityClass: 'background',
+					maxCreditsPerTask: 30,
+					reserveAt: 'p90',
+					requiresApprovalAboveCredits: 50,
+					repositoryMutationAllowed: false,
+					productionAllowed: true,
+				},
+			},
+			{
+				id: `${provider.id}:repository-work`,
+				name: 'Repository work',
+				businessModel: 'infrastructure_runtime',
+				modelClass: 'coding',
+				scarcityLevel: 'high',
+				routingPolicy: {
+					taskKinds: ['repository.change.apply', 'verification.run'],
+					requiredCapabilities: ['agent_execution', 'repository_work'],
+					allowedEnvironments: ['local', 'staging'],
+					defaultPriorityClass: 'interactive',
+					maxCreditsPerTask: 25,
+					reserveAt: 'p90',
+					requiresApprovalAboveCredits: 10,
+					repositoryMutationAllowed: true,
+					productionAllowed: false,
+				},
+			},
+		];
+		const lanes = [];
+		for (const lane of laneDefinitions) {
+			lanes.push(await this.upsertCapacityProviderLane(teamId, provider.id, lane));
+		}
+		const teamGrant = await this.upsertCapacityGrant(teamId, {
+			id: `${provider.id}:team-grant`,
+			capacityProviderId: provider.id,
+			grantScope: 'team',
+			teamId,
+			state: 'active',
+			dailyCreditLimit: Number(input.dailyCreditLimit ?? 50),
+			monthlyCreditLimit: Number(input.monthlyCreditLimit ?? 1000),
+			priorityWeight: 1,
+			overflowPolicy: 'approval_required',
+			metadata: {
+				activeWorkdayDaysPerMonth: 20,
+				source: 'managed_capacity_launch',
+			},
+		});
+		const projectGrants = [];
+		for (const project of projects) {
+			projectGrants.push(await this.upsertCapacityGrant(teamId, {
+				id: `${provider.id}:${project.id}:staging-grant`,
+				capacityProviderId: provider.id,
+				grantScope: 'project',
+				teamId,
+				projectId: project.id,
+				environment: 'staging',
+				state: 'active',
+				dailyCreditLimit: 25,
+				monthlyCreditLimit: 500,
+				priorityWeight: 2,
+				overflowPolicy: 'approval_required',
+				metadata: {
+					source: 'managed_capacity_launch',
+				},
+			}));
+			await this.upsertProjectWorkPolicy(project.id, {
+				environment: 'staging',
+				enabled: true,
+				startCron: '0 9 * * 1-5',
+				durationMinutes: 480,
+				maxRunners: 1,
+				maxWorkersPerRunner: 2,
+				dailyCreditBudget: 25,
+				closeoutGraceMinutes: 15,
+				maxQueuedTasks: 10,
+				maxQueuedCredits: 25,
+				autoscale: { minWorkers: 0, maxWorkers: 1, targetQueueDepth: 1, cooldownSeconds: 60 },
+				creditWeights: [],
+				metadata: {
+					budgetSource: 'team_grant',
+					defaultCapacityGrantIds: [`${provider.id}:${project.id}:staging-grant`, `${provider.id}:team-grant`],
+					allowedTaskKinds: [],
+					requiresDecisionForBindingWork: true,
+					requiresApprovalForProduction: true,
+					inboxOnBudgetBlocked: true,
+				},
+			});
+		}
+		const activeKeys = await this.listCapacityProviderApiKeys(teamId, provider.id);
+		const existingActiveKey = activeKeys.find((key) => key.status === 'active' && !key.revokedAt) ?? null;
+		const keyResult = existingActiveKey
+			? { key: existingActiveKey, plaintextKey: null }
+			: await this.createCapacityProviderApiKey(teamId, provider.id, {
+				name: 'Managed provider security code',
+				scopes: [
+					'provider:heartbeat',
+					'provider:tasks:claim',
+					'provider:tasks:update',
+					'provider:usage:report',
+					'provider:lanes:read',
+					'provider:registration:complete',
+				],
+				createdById: input.createdById ?? null,
+			});
+		await this.upsertTeamInboxItem(teamId, {
+			kind: 'capacity_connected',
+			state: 'open',
+			title: 'Helper capacity connected',
+			summary: 'TreeSeed-managed helper capacity is connected and ready for approved project work.',
+			href: `/app/teams/${teamId}/capacity`,
+			itemKey: `capacity-connected:${provider.id}`,
+			metadata: {
+				providerId: provider.id,
+			},
+		});
+		return {
+			provider: await this.getCapacityProvider(teamId, provider.id),
+			lanes,
+			grants: [teamGrant, ...projectGrants],
+			apiKey: keyResult?.key ?? null,
+			plaintextKey: keyResult?.plaintextKey ?? null,
+		};
+	}
+
 	async createCapacityReservation(input) {
 		await this.ensureInitialized();
 		const timestamp = isoNow();
@@ -2638,23 +3146,60 @@ export class MarketControlPlaneStore {
 				timestamp,
 			],
 		);
-		if (input.reservationId && phase === 'consume') {
+		if (input.reservationId && phase === 'task_started') {
 			await this.run(
 				`UPDATE capacity_reservations
-				 SET consumed_credits = consumed_credits + ?,
-				     consumed_provider_units = COALESCE(consumed_provider_units, 0) + COALESCE(?, 0),
-				     consumed_usd = COALESCE(consumed_usd, 0) + COALESCE(?, 0),
-				     state = CASE WHEN consumed_credits + ? >= reserved_credits THEN 'consumed' ELSE state END,
+				 SET state = 'consuming', updated_at = ?
+				 WHERE id = ? AND state = 'reserved'`,
+				[timestamp, input.reservationId],
+			);
+		}
+		if (input.reservationId && ['consume', 'task_completed_actual_settlement'].includes(phase)) {
+			await this.run(
+				`UPDATE capacity_reservations
+				 SET consumed_credits = MAX(consumed_credits, ?),
+				     consumed_provider_units = CASE WHEN ? IS NULL THEN consumed_provider_units ELSE ? END,
+				     consumed_usd = CASE WHEN ? IS NULL THEN consumed_usd ELSE ? END,
+				     state = CASE WHEN ? >= reserved_credits THEN 'consumed' ELSE state END,
 				     updated_at = ?
 				 WHERE id = ?`,
 				[
 					Number(input.credits ?? 0),
 					input.providerUnits ?? null,
+					input.providerUnits ?? null,
+					input.usd ?? null,
 					input.usd ?? null,
 					Number(input.credits ?? 0),
 					timestamp,
 					input.reservationId,
 				],
+			);
+		}
+		if (input.reservationId && phase === 'reservation_released') {
+			await this.run(
+				`UPDATE capacity_reservations
+				 SET state = CASE WHEN consumed_credits > 0 THEN 'consumed' ELSE 'released' END,
+				     updated_at = ?
+				 WHERE id = ?`,
+				[timestamp, input.reservationId],
+			);
+		}
+		if (input.reservationId && phase === 'task_failed_refund') {
+			await this.run(
+				`UPDATE capacity_reservations
+				 SET state = 'failed',
+				     updated_at = ?
+				 WHERE id = ?`,
+				[timestamp, input.reservationId],
+			);
+		}
+		if (input.reservationId && phase === 'overrun_hold') {
+			await this.run(
+				`UPDATE capacity_reservations
+				 SET state = 'overran_pending_approval',
+				     updated_at = ?
+				 WHERE id = ?`,
+				[timestamp, input.reservationId],
 			);
 		}
 		return serializeCapacityLedgerEntry(await this.first(`SELECT * FROM capacity_ledger_entries WHERE id = ? LIMIT 1`, [id]));
@@ -2757,7 +3302,7 @@ export class MarketControlPlaneStore {
 				input.taskSignature,
 				input.capacityProviderId ?? null,
 				input.laneId ?? null,
-				input.businessModel,
+				input.businessModel ?? 'credit',
 				input.modelName ?? null,
 				input.inputTokens ?? null,
 				input.outputTokens ?? null,
@@ -2940,6 +3485,101 @@ export class MarketControlPlaneStore {
 				weeklyQuotaMinutes: weeklyQuotaMinutes || null,
 				dailyUsd: dailyUsd || null,
 			},
+		};
+	}
+
+	async getTeamCapacitySummary(teamId) {
+		await this.ensureInitialized();
+		const [providers, grants, projects] = await Promise.all([
+			this.listTeamCapacityProviders(teamId),
+			this.listCapacityGrants(teamId),
+			this.listTeamProjects(teamId),
+		]);
+		const reservations = projects.length
+			? (await this.all(
+				`SELECT * FROM capacity_reservations
+				 WHERE team_id = ? AND project_id IN (${projects.map(() => '?').join(',')})
+				 ORDER BY created_at DESC`,
+				[teamId, ...projects.map((project) => project.id)],
+			)).map(serializeCapacityReservation)
+			: [];
+		const activeReservations = reservations.filter((reservation) =>
+			['reserved', 'consuming', 'consumed', 'failed', 'overran_pending_approval'].includes(reservation.state)
+		);
+		const dailyCredits = sumNumbers(grants.filter((grant) => grant.state === 'active').map((grant) => grant.dailyCreditLimit));
+		const monthlyCredits = sumNumbers(grants.filter((grant) => grant.state === 'active').map((grant) => grant.monthlyCreditLimit));
+		const dailyReservedCredits = sumNumbers(activeReservations.map((reservation) =>
+			['reserved', 'consuming'].includes(reservation.state)
+				? Math.max(reservation.reservedCredits, reservation.consumedCredits)
+				: reservation.consumedCredits
+		));
+		const dailyUsedCredits = sumNumbers(activeReservations.map((reservation) => reservation.consumedCredits));
+		const blocked = await this.all(
+			`SELECT * FROM capacity_routing_decisions
+			 WHERE project_id IN (${projects.length ? projects.map(() => '?').join(',') : '?'})
+			   AND decision IN ('blocked', 'approval_required')
+			 ORDER BY created_at DESC LIMIT 200`,
+			projects.length ? projects.map((project) => project.id) : ['__none__'],
+		);
+		return {
+			teamId,
+			monthlyCredits: monthlyCredits || null,
+			monthlyUsedCredits: dailyUsedCredits,
+			monthlyRemainingCredits: monthlyCredits ? Math.max(0, monthlyCredits - dailyUsedCredits) : null,
+			dailyCredits: dailyCredits || null,
+			dailyUsedCredits,
+			dailyReservedCredits,
+			dailyRemainingCredits: dailyCredits ? Math.max(0, dailyCredits - dailyReservedCredits) : null,
+			providerCount: providers.length,
+			activeProviderCount: providers.filter((provider) => provider.status === 'active').length,
+			degradedProviderCount: providers.filter((provider) => provider.status === 'degraded' || provider.status === 'failed').length,
+			grantCount: grants.length,
+			blockedTaskCount: blocked.filter((entry) => entry.decision === 'blocked').length,
+			approvalRequiredCount: blocked.filter((entry) => entry.decision === 'approval_required').length,
+		};
+	}
+
+	async getProjectCapacitySummary(projectId, environment = 'staging') {
+		await this.ensureInitialized();
+		const [plan, policy] = await Promise.all([
+			this.getProjectCapacityPlan(projectId, environment),
+			this.getProjectWorkPolicy(projectId, environment),
+		]);
+		if (!plan) return null;
+		const teamSummary = await this.getTeamCapacitySummary(plan.teamId);
+		const projectReservations = plan.activeReservations.filter((reservation) =>
+			['reserved', 'consuming', 'consumed', 'failed', 'overran_pending_approval'].includes(reservation.state)
+		);
+		const dailyReservedCredits = sumNumbers(projectReservations.map((reservation) =>
+			['reserved', 'consuming'].includes(reservation.state)
+				? Math.max(reservation.reservedCredits, reservation.consumedCredits)
+				: reservation.consumedCredits
+		));
+		const dailyUsedCredits = sumNumbers(projectReservations.map((reservation) => reservation.consumedCredits));
+		const dailyCredits = sumNumbers(plan.grants.filter((grant) => grant.state === 'active').map((grant) => grant.dailyCreditLimit));
+		let readiness = 'ready';
+		const reasons = [];
+		if (policy?.enabled === false) {
+			readiness = 'paused_by_policy';
+			reasons.push('work_policy_disabled');
+		} else if (plan.providers.filter((provider) => provider.status === 'active').length === 0) {
+			readiness = 'waiting_for_provider';
+			reasons.push('no_active_provider');
+		} else if (dailyCredits > 0 && Math.max(0, dailyCredits - dailyReservedCredits) <= 0) {
+			readiness = 'waiting_for_budget';
+			reasons.push('daily_budget_exhausted');
+		}
+		return {
+			...teamSummary,
+			projectId,
+			environment,
+			dailyCredits: dailyCredits || teamSummary.dailyCredits,
+			dailyUsedCredits,
+			dailyReservedCredits,
+			dailyRemainingCredits: dailyCredits ? Math.max(0, dailyCredits - dailyReservedCredits) : teamSummary.dailyRemainingCredits,
+			readiness,
+			reasons,
+			workPolicy: policy,
 		};
 	}
 
@@ -5412,6 +6052,39 @@ export class MarketControlPlaneStore {
 			);
 			await this.appendJobEvent(row.id, 'claimed', {
 				runnerId: input.runnerId ?? `runner-${projectId}`,
+			});
+			claimed.push(await this.findJobById(row.id));
+		}
+		return claimed;
+	}
+
+	async pullCapacityProviderJobs(capacityProviderId, projectId, input = {}) {
+		await this.ensureInitialized();
+		const limit = Math.max(1, Math.min(Number(input.limit ?? 1), 20));
+		const rows = await this.all(
+			`SELECT * FROM remote_jobs
+			 WHERE project_id = ?
+			   AND status = 'pending'
+			   AND json_extract(input_json, '$.capacity.providerId') = ?
+			 ORDER BY created_at ASC
+			 LIMIT ?`,
+			[projectId, capacityProviderId, limit],
+		);
+		const claimed = [];
+		for (const row of rows) {
+			const timestamp = isoNow();
+			await this.run(
+				`UPDATE remote_jobs
+				 SET status = 'claimed',
+				     assigned_runner_id = ?,
+				     started_at = COALESCE(started_at, ?),
+				     updated_at = ?
+				 WHERE id = ? AND status = 'pending'`,
+				[input.runnerId ?? `provider-${capacityProviderId}`, timestamp, timestamp, row.id],
+			);
+			await this.appendJobEvent(row.id, 'claimed', {
+				runnerId: input.runnerId ?? `provider-${capacityProviderId}`,
+				capacityProviderId,
 			});
 			claimed.push(await this.findJobById(row.id));
 		}

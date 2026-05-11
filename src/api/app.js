@@ -8,6 +8,9 @@ import {
 	executeSdkOperation,
 	findDispatchCapability,
 	planKnowledgeHubLaunch,
+	reserveCreditsForEstimate,
+	routeAndReserveCapacity,
+	settleCapacityActuals,
 } from '@treeseed/sdk';
 import { runTreeseedHostingAudit } from '@treeseed/sdk/workflow-support';
 import {
@@ -26,7 +29,7 @@ import {
 	resolveTreeseedManagedProcessingHostConfigFromConfig,
 } from '../lib/market/managed-hosts.js';
 import { decryptHostConfig } from '../lib/cloudflare-host-crypto.js';
-import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicKey, createVerify, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicKey, createVerify, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 
 function jsonError(c, status, error, details = {}) {
 	return c.json({
@@ -767,6 +770,111 @@ async function requireProjectRunner(c, store, projectId) {
 		};
 	}
 	return { runner };
+}
+
+async function requireCapacityProviderKey(c, store, requiredScopes = []) {
+	const token = bearerTokenFromRequest(c.req.raw);
+	if (!token) {
+		return {
+			response: jsonError(c, 401, 'Provider security code required.'),
+		};
+	}
+	const principal = await store.verifyCapacityProviderApiKey(token, requiredScopes);
+	if (!principal) {
+		return {
+			response: jsonError(c, 401, 'Invalid or revoked provider security code.'),
+		};
+	}
+	const provider = await store.getCapacityProvider(principal.teamId, principal.capacityProviderId);
+	if (!provider) {
+		return {
+			response: jsonError(c, 401, 'Unknown capacity provider.'),
+		};
+	}
+	return { principal, provider };
+}
+
+const AGENT_TASK_SIGNATURES = {
+	'question.summarize': {
+		defaultCredits: 3,
+		requiredCapabilities: ['agent_execution'],
+		repositoryMutation: false,
+		bindingWork: false,
+		productionAllowed: true,
+		priorityClass: 'background',
+	},
+	'proposal.draft': {
+		defaultCredits: 5,
+		requiredCapabilities: ['agent_execution'],
+		repositoryMutation: false,
+		bindingWork: false,
+		productionAllowed: true,
+		priorityClass: 'interactive',
+	},
+	'proposal.compare': {
+		defaultCredits: 5,
+		requiredCapabilities: ['agent_execution'],
+		repositoryMutation: false,
+		bindingWork: false,
+		productionAllowed: true,
+		priorityClass: 'background',
+	},
+	'decision.summary': {
+		defaultCredits: 4,
+		requiredCapabilities: ['agent_execution', 'reporting'],
+		repositoryMutation: false,
+		bindingWork: false,
+		productionAllowed: true,
+		priorityClass: 'background',
+	},
+	'release.summary': {
+		defaultCredits: 4,
+		requiredCapabilities: ['agent_execution', 'reporting'],
+		repositoryMutation: false,
+		bindingWork: false,
+		productionAllowed: true,
+		priorityClass: 'background',
+	},
+	'market.description.draft': {
+		defaultCredits: 4,
+		requiredCapabilities: ['agent_execution'],
+		repositoryMutation: false,
+		bindingWork: false,
+		productionAllowed: true,
+		priorityClass: 'interactive',
+	},
+	'repository.change.apply': {
+		defaultCredits: 10,
+		requiredCapabilities: ['agent_execution', 'repository_work'],
+		repositoryMutation: true,
+		bindingWork: true,
+		productionAllowed: false,
+		priorityClass: 'interactive',
+	},
+	'verification.run': {
+		defaultCredits: 6,
+		requiredCapabilities: ['agent_execution', 'repository_work', 'reporting'],
+		repositoryMutation: false,
+		bindingWork: false,
+		productionAllowed: false,
+		priorityClass: 'background',
+	},
+	'workday.report': {
+		defaultCredits: 2,
+		requiredCapabilities: ['agent_execution', 'reporting'],
+		repositoryMutation: false,
+		bindingWork: false,
+		productionAllowed: true,
+		priorityClass: 'background',
+	},
+};
+
+function resolveAgentTaskSignature(value) {
+	const signature = typeof value === 'string' && value.trim() ? value.trim() : 'proposal.draft';
+	return {
+		signature,
+		definition: AGENT_TASK_SIGNATURES[signature] ?? AGENT_TASK_SIGNATURES['proposal.draft'],
+	};
 }
 
 async function requireCatalogItemAccess(c, store, itemId, permission = null) {
@@ -1992,6 +2100,55 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
+			app.get('/v1/teams/:teamId/capacity-providers/:providerId/api-keys', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const provider = await store.getCapacityProvider(c.req.param('teamId'), c.req.param('providerId'));
+				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
+				return c.json({
+					ok: true,
+					payload: await store.listCapacityProviderApiKeys(c.req.param('teamId'), c.req.param('providerId')),
+				});
+			});
+
+			app.post('/v1/teams/:teamId/capacity-providers/:providerId/api-keys', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const result = await store.createCapacityProviderApiKey(c.req.param('teamId'), c.req.param('providerId'), {
+					name: typeof body.name === 'string' && body.name.trim() ? body.name.trim() : undefined,
+					scopes: Array.isArray(body.scopes) ? body.scopes.map(String) : undefined,
+					expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,
+					createdById: access.principal.id,
+				});
+				if (!result) return jsonError(c, 404, 'Unknown capacity provider.');
+				return c.json({ ok: true, payload: result }, { status: 201 });
+			});
+
+			app.post('/v1/teams/:teamId/capacity-providers/:providerId/api-keys/reset', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const result = await store.resetCapacityProviderApiKey(c.req.param('teamId'), c.req.param('providerId'), {
+					name: typeof body.name === 'string' && body.name.trim() ? body.name.trim() : undefined,
+					scopes: Array.isArray(body.scopes) ? body.scopes.map(String) : undefined,
+					expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,
+					createdById: access.principal.id,
+				});
+				if (!result) return jsonError(c, 404, 'Unknown capacity provider.');
+				return c.json({ ok: true, payload: result });
+			});
+
+			app.post('/v1/teams/:teamId/capacity-providers/:providerId/api-keys/:keyId/revoke', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const provider = await store.getCapacityProvider(c.req.param('teamId'), c.req.param('providerId'));
+				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
+				const key = await store.revokeCapacityProviderApiKey(c.req.param('teamId'), c.req.param('keyId'), c.req.param('providerId'));
+				if (!key) return jsonError(c, 404, 'Unknown provider API key.');
+				return c.json({ ok: true, payload: key });
+			});
+
 			app.get('/v1/teams/:teamId/capacity-providers/:providerId/lanes', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
 				if (access.response) return access.response;
@@ -2058,6 +2215,311 @@ export function createMarketApiApp(options = {}) {
 						teamId: typeof body.teamId === 'string' ? body.teamId : c.req.param('teamId'),
 					}),
 				});
+			});
+
+			app.get('/v1/teams/:teamId/capacity', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const teamId = c.req.param('teamId');
+				const [summary, providers, grants] = await Promise.all([
+					store.getTeamCapacitySummary(teamId),
+					store.listTeamCapacityProviders(teamId),
+					store.listCapacityGrants(teamId),
+				]);
+				const providerDetails = await Promise.all(providers.map(async (provider) => ({
+					...provider,
+					hosts: await store.listCapacityProviderHosts(teamId, provider.id),
+					lanes: await store.listCapacityProviderLanes(teamId, provider.id),
+					apiKeys: await store.listCapacityProviderApiKeys(teamId, provider.id),
+				})));
+				return c.json({
+					ok: true,
+					payload: {
+						summary,
+						providers: providerDetails,
+						grants,
+					},
+				});
+			});
+
+			app.post('/v1/teams/:teamId/capacity/providers/managed', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const payload = await store.launchManagedCapacityProvider(c.req.param('teamId'), {
+					...body,
+					createdById: typeof access.principal.id === 'string' ? access.principal.id : null,
+				});
+				return c.json({ ok: true, payload }, { status: 201 });
+			});
+
+			app.get('/v1/capacity/providers/:providerId', async (c) => {
+				const provider = await store.getCapacityProviderById(c.req.param('providerId'));
+				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
+				const access = await requireTeamAccess(c, store, provider.teamId ?? provider.ownerTeamId, 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: {
+						...provider,
+						hosts: await store.listCapacityProviderHosts(provider.teamId ?? provider.ownerTeamId, provider.id),
+						lanes: await store.listCapacityProviderLanes(provider.teamId ?? provider.ownerTeamId, provider.id),
+						apiKeys: await store.listCapacityProviderApiKeys(provider.teamId ?? provider.ownerTeamId, provider.id),
+					},
+				});
+			});
+
+			app.patch('/v1/capacity/providers/:providerId', async (c) => {
+				const provider = await store.getCapacityProviderById(c.req.param('providerId'));
+				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
+				const teamId = provider.teamId ?? provider.ownerTeamId;
+				const access = await requireTeamAccess(c, store, teamId, 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				return c.json({
+					ok: true,
+					payload: await store.upsertCapacityProvider(teamId, {
+						...provider,
+						...body,
+						id: provider.id,
+					}),
+				});
+			});
+
+			app.post('/v1/capacity/providers/:providerId/heartbeat', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:heartbeat']);
+				if (auth.response) return auth.response;
+				if (auth.provider.id !== c.req.param('providerId')) {
+					return jsonError(c, 403, 'Provider security code does not match this provider.');
+				}
+				const body = await c.req.json().catch(() => ({}));
+				const provider = await store.recordProviderHeartbeat({
+					...body,
+					providerId: auth.provider.id,
+					status: typeof body.status === 'string' ? body.status : 'active',
+				});
+				return c.json({ ok: true, payload: provider });
+			});
+
+			app.post('/v1/capacity/providers/:providerId/api-keys', async (c) => {
+				const provider = await store.getCapacityProviderById(c.req.param('providerId'));
+				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
+				const teamId = provider.teamId ?? provider.ownerTeamId;
+				const access = await requireTeamAccess(c, store, teamId, 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const result = await store.createCapacityProviderApiKey(teamId, provider.id, {
+					name: typeof body.name === 'string' && body.name.trim() ? body.name.trim() : undefined,
+					scopes: Array.isArray(body.scopes) ? body.scopes.map(String) : undefined,
+					expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,
+					createdById: access.principal.id,
+				});
+				return c.json({ ok: true, payload: result }, { status: 201 });
+			});
+
+			app.post('/v1/capacity/providers/:providerId/api-keys/reset', async (c) => {
+				const provider = await store.getCapacityProviderById(c.req.param('providerId'));
+				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
+				const teamId = provider.teamId ?? provider.ownerTeamId;
+				const access = await requireTeamAccess(c, store, teamId, 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const result = await store.resetCapacityProviderApiKey(teamId, provider.id, {
+					name: typeof body.name === 'string' && body.name.trim() ? body.name.trim() : undefined,
+					scopes: Array.isArray(body.scopes) ? body.scopes.map(String) : undefined,
+					expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,
+					createdById: access.principal.id,
+				});
+				return c.json({ ok: true, payload: result });
+			});
+
+			app.post('/v1/capacity/providers/:providerId/api-keys/:keyId/revoke', async (c) => {
+				const provider = await store.getCapacityProviderById(c.req.param('providerId'));
+				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
+				const teamId = provider.teamId ?? provider.ownerTeamId;
+				const access = await requireTeamAccess(c, store, teamId, 'teams:manage:team');
+				if (access.response) return access.response;
+				const key = await store.revokeCapacityProviderApiKey(teamId, c.req.param('keyId'), provider.id);
+				if (!key) return jsonError(c, 404, 'Unknown provider API key.');
+				return c.json({ ok: true, payload: key });
+			});
+
+			app.patch('/v1/capacity/grants/:grantId', async (c) => {
+				const body = await c.req.json().catch(() => ({}));
+				const teamId = typeof body.teamId === 'string' ? body.teamId : null;
+				if (!teamId || !body.capacityProviderId) {
+					return jsonError(c, 400, 'teamId and capacityProviderId are required.');
+				}
+				const access = await requireTeamAccess(c, store, teamId, 'teams:manage:team');
+				if (access.response) return access.response;
+				return c.json({
+					ok: true,
+					payload: await store.upsertCapacityGrant(teamId, {
+						...body,
+						id: c.req.param('grantId'),
+					}),
+				});
+			});
+
+			app.get('/v1/projects/:projectId/capacity', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const environment = typeof c.req.query('environment') === 'string' ? c.req.query('environment') : 'staging';
+				return c.json({
+					ok: true,
+					payload: await store.getProjectCapacitySummary(c.req.param('projectId'), environment),
+				});
+			});
+
+			app.post('/v1/projects/:projectId/agent-tasks', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const environment = typeof body.environment === 'string' ? body.environment : 'staging';
+				const { signature, definition } = resolveAgentTaskSignature(body.taskSignature ?? body.taskKind);
+				if (definition.bindingWork && typeof body.decisionId !== 'string') {
+					return jsonError(c, 403, 'Binding agent work requires an approved decision.');
+				}
+				if (environment === 'prod' && !definition.productionAllowed) {
+					return jsonError(c, 403, 'This agent task is not approved for production execution.');
+				}
+				const estimate = reserveCreditsForEstimate({
+					taskSignature: signature,
+					taskKind: signature,
+					confidence: typeof body.confidence === 'string' ? body.confidence : 'medium',
+					estimatedCreditsP50: Number.isFinite(Number(body.estimatedCreditsP50)) ? Number(body.estimatedCreditsP50) : null,
+					estimatedCreditsP90: Number.isFinite(Number(body.estimatedCreditsP90)) ? Number(body.estimatedCreditsP90) : null,
+					defaultCredits: definition.defaultCredits,
+				});
+				const plan = await store.getProjectCapacityPlan(c.req.param('projectId'), environment);
+				if (!plan) return jsonError(c, 404, 'Unknown project.');
+				const route = routeAndReserveCapacity({
+					plan,
+					estimate,
+					taskKind: signature,
+					requiredCapabilities: definition.requiredCapabilities,
+					repositoryMutation: definition.repositoryMutation === true,
+					production: environment === 'prod',
+					priorityClass: typeof body.priorityClass === 'string' ? body.priorityClass : definition.priorityClass,
+					source: 'market_agent_task',
+					metadata: {
+						requestedByType: c.get('actorType') === 'service' ? 'service' : 'user',
+						requestedById: typeof access.principal.id === 'string' ? access.principal.id : null,
+					},
+				});
+				if (!route.ok) {
+					await store.upsertTeamInboxItem(access.details.project.teamId, {
+						id: `capacity-blocked:${access.details.project.id}:${Date.now()}`,
+						projectId: access.details.project.id,
+						kind: route.code === 'approval_required' ? 'approval_required' : 'budget_blocked',
+						state: route.code === 'approval_required' ? 'waiting_for_approval' : 'open',
+						title: route.code === 'approval_required' ? 'Helper task needs approval' : 'Helper task is waiting for budget',
+						summary: route.reason,
+						href: await projectAppHref(store, access.details.project.teamId, access.details.project.slug, 'agents'),
+						itemKey: `capacity-blocked:${signature}:${Date.now()}`,
+						metadata: {
+							code: route.code,
+							taskSignature: signature,
+							candidates: route.candidates,
+						},
+					});
+					return c.json({ ok: false, error: route.reason, code: route.code, payload: route }, { status: 409 });
+				}
+				const reservationId = randomUUID();
+				const routingDecisionId = randomUUID();
+				const taskEstimate = await store.createTaskEstimate({
+					projectId: access.details.project.id,
+					estimatePhase: 'pre_enqueue',
+					taskSignature: signature,
+					confidence: estimate.confidence,
+					estimatedCreditsP50: estimate.estimatedCreditsP50,
+					estimatedCreditsP90: estimate.estimatedCreditsP90,
+					reservedCredits: estimate.reservedCredits,
+					features: body.features && typeof body.features === 'object' ? body.features : {},
+				});
+				const reservation = await store.createCapacityReservation({
+					...route.reservation,
+					id: reservationId,
+					metadata: {
+						...(route.reservation.metadata ?? {}),
+						estimateId: taskEstimate.id,
+						grantId: route.grant.id,
+						routingDecisionId,
+					},
+				});
+				await store.createCapacityRoutingDecision({
+					...route.routingDecision,
+					id: routingDecisionId,
+					metadata: {
+						...(route.routingDecision.metadata ?? {}),
+						estimateId: taskEstimate.id,
+						reservationId: reservation.id,
+					},
+				});
+				await store.recordCapacityUsage({
+					...route.ledgerEntry,
+					reservationId: reservation.id,
+					metadata: {
+						...(route.ledgerEntry.metadata ?? {}),
+						estimateId: taskEstimate.id,
+						routingDecisionId,
+					},
+				});
+				const capacityMetadata = {
+					...route.capacityMetadata,
+					reservationId: reservation.id,
+					routingDecisionId,
+				};
+				const job = await store.createJob({
+					projectId: access.details.project.id,
+					namespace: 'agent',
+					operation: signature,
+					status: 'pending',
+					preferredMode: 'auto',
+					selectedTarget: 'project_runner',
+					requestedByType: c.get('actorType') === 'service' ? 'service' : 'user',
+					requestedById: typeof access.principal.id === 'string' ? access.principal.id : null,
+					idempotencyKey: typeof body.idempotencyKey === 'string' ? body.idempotencyKey : null,
+					input: {
+						...(body.input && typeof body.input === 'object' ? body.input : {}),
+						taskSignature: signature,
+						environment,
+						capacity: capacityMetadata,
+						governance: {
+							teamId: access.details.project.teamId,
+							projectId: access.details.project.id,
+							decisionId: typeof body.decisionId === 'string' ? body.decisionId : null,
+							requestedByType: c.get('actorType') === 'service' ? 'service' : 'user',
+							requestedById: typeof access.principal.id === 'string' ? access.principal.id : null,
+						},
+					},
+				});
+				await store.attachCapacityReservationTask(reservation.id, job.id);
+				await store.recordRunnerScaleDecision(access.details.project.id, {
+					environment,
+					workDayId: null,
+					action: 'wake',
+					reason: 'budgeted_agent_task_enqueued',
+					metadata: {
+						taskId: job.id,
+						reservationId: reservation.id,
+						priorityClass: typeof body.priorityClass === 'string' ? body.priorityClass : definition.priorityClass,
+					},
+				});
+				return c.json({
+					ok: true,
+					payload: {
+						task: job,
+						estimate: taskEstimate,
+						reservation: await store.getCapacityReservation(reservation.id),
+						route: {
+							provider: route.provider,
+							lane: route.lane,
+							grant: route.grant,
+							candidates: route.candidates,
+						},
+					},
+				}, { status: 201 });
 			});
 
 			app.get('/v1/projects', async (c) => {
@@ -4353,6 +4815,225 @@ export function createMarketApiApp(options = {}) {
 				return payload ? c.json({ ok: true, payload }) : jsonError(c, 404, 'Unknown project.');
 			});
 
+			app.post('/v1/processing/register', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:registration:complete']);
+				if (auth.response) return auth.response;
+				const body = await c.req.json().catch(() => ({}));
+				const provider = await store.recordProviderHeartbeat({
+					...body,
+					providerId: auth.provider.id,
+					status: 'active',
+					draining: false,
+				});
+				return c.json({
+					ok: true,
+					payload: {
+						provider,
+						lanes: await store.listCapacityProviderLanes(auth.principal.teamId, auth.provider.id),
+					},
+				});
+			});
+
+			app.post('/v1/processing/heartbeat', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:heartbeat']);
+				if (auth.response) return auth.response;
+				const body = await c.req.json().catch(() => ({}));
+				if (typeof body.providerId === 'string' && body.providerId !== auth.provider.id) {
+					return jsonError(c, 403, 'Provider security code does not match this provider.');
+				}
+				const provider = await store.recordProviderHeartbeat({
+					...body,
+					providerId: auth.provider.id,
+					status: typeof body.status === 'string' ? body.status : 'active',
+				});
+				return c.json({ ok: true, payload: provider });
+			});
+
+			app.post('/v1/processing/tasks/claim', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:tasks:claim']);
+				if (auth.response) return auth.response;
+				const body = await c.req.json().catch(() => ({}));
+				const projectId = typeof body.projectId === 'string' ? body.projectId : null;
+				if (!projectId) return jsonError(c, 400, 'projectId is required.');
+				const project = await store.getProject(projectId);
+				if (!project) return jsonError(c, 404, 'Unknown project.');
+				if (project.teamId !== auth.principal.teamId) {
+					return jsonError(c, 403, 'Provider cannot claim tasks for this project.');
+				}
+				const jobs = await store.pullCapacityProviderJobs(auth.provider.id, projectId, {
+					limit: Number.isFinite(Number(body.limit)) ? Number(body.limit) : 1,
+					runnerId: typeof body.runnerId === 'string' ? body.runnerId : null,
+				});
+				for (const job of jobs) {
+					const capacity = job.input?.capacity && typeof job.input.capacity === 'object' ? job.input.capacity : null;
+					if (capacity?.reservationId) {
+						await store.recordCapacityUsage({
+							capacityProviderId: auth.provider.id,
+							laneId: typeof capacity.laneId === 'string' ? capacity.laneId : null,
+							reservationId: capacity.reservationId,
+							teamId: auth.principal.teamId,
+							projectId,
+							taskId: job.id,
+							phase: 'task_started',
+							credits: 0,
+							source: 'provider_runtime',
+							metadata: {
+								runnerId: typeof body.runnerId === 'string' ? body.runnerId : null,
+							},
+						});
+					}
+				}
+				return c.json({ ok: true, payload: jobs });
+			});
+
+			app.post('/v1/processing/tasks/:taskId/events', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:tasks:update']);
+				if (auth.response) return auth.response;
+				const job = await store.findJobById(c.req.param('taskId'));
+				if (!job) return jsonError(c, 404, 'Unknown task.');
+				const capacity = job.input?.capacity && typeof job.input.capacity === 'object' ? job.input.capacity : null;
+				if (capacity?.providerId !== auth.provider.id) {
+					return jsonError(c, 403, 'Provider cannot update this task.');
+				}
+				const body = await c.req.json().catch(() => ({}));
+				const updated = await store.recordJobProgress(job.id, {
+					summary: typeof body.summary === 'string' ? body.summary : null,
+					data: body.data && typeof body.data === 'object' ? body.data : {},
+				});
+				return c.json({ ok: true, payload: updated });
+			});
+
+			app.post('/v1/processing/tasks/:taskId/complete', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:tasks:update', 'provider:usage:report']);
+				if (auth.response) return auth.response;
+				const job = await store.findJobById(c.req.param('taskId'));
+				if (!job) return jsonError(c, 404, 'Unknown task.');
+				const capacity = job.input?.capacity && typeof job.input.capacity === 'object' ? job.input.capacity : null;
+				if (capacity?.providerId !== auth.provider.id) {
+					return jsonError(c, 403, 'Provider cannot complete this task.');
+				}
+				const body = await c.req.json().catch(() => ({}));
+				let settlement = null;
+				let usageActual = null;
+				if (typeof capacity?.reservationId === 'string') {
+					const reservation = await store.getCapacityReservation(capacity.reservationId);
+					if (!reservation) return jsonError(c, 404, 'Unknown capacity reservation.');
+					const actualCredits = Number.isFinite(Number(body.actualCredits))
+						? Number(body.actualCredits)
+						: Number.isFinite(Number(body.usageActual?.actualCredits))
+							? Number(body.usageActual.actualCredits)
+							: Number(capacity.reservedCredits ?? reservation.reservedCredits);
+					settlement = settleCapacityActuals({
+						reservation,
+						actualCredits,
+						actualProviderUnits: Number.isFinite(Number(body.actualProviderUnits)) ? Number(body.actualProviderUnits) : null,
+						actualUsd: Number.isFinite(Number(body.actualUsd)) ? Number(body.actualUsd) : null,
+						taskId: job.id,
+						source: 'provider_runtime',
+						metadata: {
+							providerKeyId: auth.principal.keyId,
+						},
+					});
+					usageActual = await store.createTaskUsageActual({
+						...(body.usageActual && typeof body.usageActual === 'object' ? body.usageActual : {}),
+						projectId: job.projectId,
+						taskId: job.id,
+						workDayId: reservation.workDayId,
+						taskSignature: job.operation,
+						capacityProviderId: auth.provider.id,
+						laneId: capacity.laneId ?? reservation.laneId,
+						actualCredits,
+						retryCount: Number.isFinite(Number(body.usageActual?.retryCount)) ? Number(body.usageActual.retryCount) : 0,
+						metadata: {
+							...(body.usageActual?.metadata && typeof body.usageActual.metadata === 'object' ? body.usageActual.metadata : {}),
+							reservationId: reservation.id,
+						},
+					});
+					await store.recordCapacityUsage(settlement.consumeEntry);
+					if (settlement.releaseEntry) await store.recordCapacityUsage(settlement.releaseEntry);
+					if (settlement.overrunEntry) {
+						await store.recordCapacityUsage(settlement.overrunEntry);
+						const project = await store.getProject(job.projectId);
+						if (project) {
+							const request = await store.createApprovalRequest({
+								teamId: auth.principal.teamId,
+								projectId: job.projectId,
+								workDayId: reservation.workDayId,
+								taskId: job.id,
+								kind: 'budget_overrun',
+								state: 'pending',
+								title: 'Helper task exceeded reserved budget',
+								summary: `Task ${job.operation} used ${settlement.overrunCredits} credits above its reservation.`,
+								requestedByType: 'provider',
+								requestedById: auth.provider.id,
+								metadata: {
+									reservationId: reservation.id,
+									overrunCredits: settlement.overrunCredits,
+								},
+							});
+							await store.upsertTeamInboxItem(auth.principal.teamId, {
+								id: `capacity-overrun:${request.id}`,
+								projectId: job.projectId,
+								kind: 'approval_required',
+								state: 'waiting_for_approval',
+								title: 'Helper task exceeded budget',
+								summary: request.summary,
+								href: await projectAppHref(store, auth.principal.teamId, project.slug, 'agents'),
+								itemKey: request.id,
+								metadata: {
+									approvalRequestId: request.id,
+									reservationId: reservation.id,
+								},
+							});
+						}
+					}
+				}
+				const completed = await store.completeJob(job.id, {
+					output: body.output ?? null,
+				});
+				return c.json({
+					ok: true,
+					payload: {
+						task: completed,
+						settlement,
+						usageActual,
+					},
+				});
+			});
+
+			app.post('/v1/processing/tasks/:taskId/fail', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:tasks:update', 'provider:usage:report']);
+				if (auth.response) return auth.response;
+				const job = await store.findJobById(c.req.param('taskId'));
+				if (!job) return jsonError(c, 404, 'Unknown task.');
+				const capacity = job.input?.capacity && typeof job.input.capacity === 'object' ? job.input.capacity : null;
+				if (capacity?.providerId !== auth.provider.id) {
+					return jsonError(c, 403, 'Provider cannot fail this task.');
+				}
+				const body = await c.req.json().catch(() => ({}));
+				if (typeof capacity?.reservationId === 'string') {
+					await store.recordCapacityUsage({
+						capacityProviderId: auth.provider.id,
+						laneId: typeof capacity.laneId === 'string' ? capacity.laneId : null,
+						reservationId: capacity.reservationId,
+						teamId: auth.principal.teamId,
+						projectId: job.projectId,
+						taskId: job.id,
+						phase: 'task_failed_refund',
+						credits: -Number(capacity.reservedCredits ?? 0),
+						source: 'provider_runtime',
+						metadata: {
+							message: typeof body.message === 'string' ? body.message : null,
+						},
+					});
+				}
+				const failed = await store.failJob(job.id, {
+					code: typeof body.code === 'string' ? body.code : 'provider_task_failed',
+					message: typeof body.message === 'string' ? body.message : 'Provider task failed.',
+				});
+				return c.json({ ok: true, payload: failed });
+			});
+
 			app.post('/v1/projects/:projectId/runner/capacity/estimates', async (c) => {
 				const runnerAccess = await requireProjectRunner(c, store, c.req.param('projectId'));
 				if (runnerAccess.response) return runnerAccess.response;
@@ -4399,12 +5080,32 @@ export function createMarketApiApp(options = {}) {
 				if (!body.capacityProviderId || !Number.isFinite(Number(body.credits))) {
 					return jsonError(c, 400, 'capacityProviderId and credits are required.');
 				}
-				const entry = await store.recordCapacityUsage({
-					...body,
-					teamId: typeof body.teamId === 'string' ? body.teamId : project.teamId,
-					projectId: c.req.param('projectId'),
-				});
-				if (body.workDayId && (body.phase ?? 'consume') === 'consume') {
+				const phase = body.phase ?? 'consume';
+				let entry = null;
+				let settlement = null;
+				if (body.reservationId && phase === 'task_completed_actual_settlement') {
+					const reservation = await store.getCapacityReservation(String(body.reservationId));
+					if (!reservation) return jsonError(c, 404, 'Unknown capacity reservation.');
+					settlement = settleCapacityActuals({
+						reservation,
+						actualCredits: Number(body.credits ?? 0),
+						actualProviderUnits: Number.isFinite(Number(body.providerUnits)) ? Number(body.providerUnits) : null,
+						actualUsd: Number.isFinite(Number(body.usd)) ? Number(body.usd) : null,
+						taskId: typeof body.taskId === 'string' ? body.taskId : null,
+						source: typeof body.source === 'string' ? body.source : 'runner',
+						metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : {},
+					});
+					entry = await store.recordCapacityUsage(settlement.consumeEntry);
+					if (settlement.releaseEntry) await store.recordCapacityUsage(settlement.releaseEntry);
+					if (settlement.overrunEntry) await store.recordCapacityUsage(settlement.overrunEntry);
+				} else {
+					entry = await store.recordCapacityUsage({
+						...body,
+						teamId: typeof body.teamId === 'string' ? body.teamId : project.teamId,
+						projectId: c.req.param('projectId'),
+					});
+				}
+				if (body.workDayId && phase === 'consume') {
 					await store.recordProjectTaskCredits(c.req.param('projectId'), {
 						workDayId: String(body.workDayId),
 						taskId: typeof body.taskId === 'string' ? body.taskId : null,
@@ -4430,7 +5131,7 @@ export function createMarketApiApp(options = {}) {
 						laneId: body.usageActual.laneId ?? body.laneId ?? null,
 					});
 				}
-				return c.json({ ok: true, payload: { entry, usageActual } }, { status: 201 });
+				return c.json({ ok: true, payload: { entry, settlement, usageActual } }, { status: 201 });
 			});
 
 			app.post('/v1/projects/:projectId/runner/capacity/routing-decisions', async (c) => {

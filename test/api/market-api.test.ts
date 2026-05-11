@@ -75,6 +75,11 @@ const hubLaunchSpineMigrationPathCandidates = [
 	resolve(packageRoot, '../migrations/0020_hub_launch_spine.sql'),
 ];
 const hubLaunchSpineMigrationPath = hubLaunchSpineMigrationPathCandidates.find((candidate) => existsSync(candidate));
+const capacityProviderApiKeysMigrationPathCandidates = [
+	resolve(packageRoot, 'migrations/0021_capacity_provider_api_keys.sql'),
+	resolve(packageRoot, '../migrations/0021_capacity_provider_api_keys.sql'),
+];
+const capacityProviderApiKeysMigrationPath = capacityProviderApiKeysMigrationPathCandidates.find((candidate) => existsSync(candidate));
 const sqliteModule = await import('node:sqlite').catch(() => null);
 const DatabaseSyncCtor = sqliteModule?.DatabaseSync ?? null;
 const DatabaseSync = DatabaseSyncCtor as NonNullable<typeof DatabaseSyncCtor>;
@@ -88,8 +93,9 @@ const resolvedWebHostsMigrationPath = webHostsMigrationPath as string;
 const resolvedCapacityMigrationPath = capacityMigrationPath as string;
 const resolvedWorkdayManagerMigrationPath = workdayManagerMigrationPath as string;
 const resolvedHubLaunchSpineMigrationPath = hubLaunchSpineMigrationPath as string;
+const resolvedCapacityProviderApiKeysMigrationPath = capacityProviderApiKeysMigrationPath as string;
 
-if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !reportingMigrationPath || !webHostsMigrationPath || !capacityMigrationPath || !workdayManagerMigrationPath || !hubLaunchSpineMigrationPath) {
+if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !reportingMigrationPath || !webHostsMigrationPath || !capacityMigrationPath || !workdayManagerMigrationPath || !hubLaunchSpineMigrationPath || !capacityProviderApiKeysMigrationPath) {
 	throw new Error('Unable to resolve required market migration fixtures.');
 }
 
@@ -162,6 +168,7 @@ class TestD1Database implements D1DatabaseLike {
 		this.db.exec(readFileSync(resolvedCapacityMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedWorkdayManagerMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedHubLaunchSpineMigrationPath, 'utf8'));
+		this.db.exec(readFileSync(resolvedCapacityProviderApiKeysMigrationPath, 'utf8'));
 	}
 
 	prepare(query: string) {
@@ -2440,5 +2447,209 @@ runtimeDescribe('market api', () => {
 		expect(plan.payload.providers[0]).toMatchObject({ id: provider.id, provider: 'openrouter' });
 		expect(plan.payload.lanes[0]).toMatchObject({ id: lane.id, businessModel: 'token_metered' });
 		expect(plan.payload.remaining.dailyCredits).toBe(120);
+	});
+
+	it('creates, resets, lists, and revokes provider security access codes without exposing hashes', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { team } = await createTeamAndProject(app, token, {
+			slug: 'capacity-keys-project',
+			name: 'Capacity Keys Project',
+		});
+
+		const providerResponse = await app.request(`/v1/teams/${team.id}/capacity-providers`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Local Runner',
+				provider: 'local',
+				kind: 'team_owned',
+				billingScope: 'team',
+			}),
+		});
+		const provider = (await json(providerResponse)).payload;
+
+		const createdResponse = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/api-keys`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Runner security code',
+				scopes: ['provider:heartbeat', 'provider:tasks:claim'],
+			}),
+		});
+		expect(createdResponse.status).toBe(201);
+		const created = (await json(createdResponse)).payload;
+		expect(created.plaintextKey).toMatch(/^tsp_/);
+		expect(created.key.keyPrefix).toBe(created.plaintextKey.slice(0, 16));
+		expect(created.key).not.toHaveProperty('keyHash');
+
+		const listed = await json(await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/api-keys`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(listed.payload).toHaveLength(1);
+		expect(listed.payload[0]).toMatchObject({
+			id: created.key.id,
+			status: 'active',
+			keyPrefix: created.key.keyPrefix,
+		});
+		expect(listed.payload[0]).not.toHaveProperty('plaintextKey');
+		expect(listed.payload[0]).not.toHaveProperty('keyHash');
+
+		const resetResponse = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/api-keys/reset`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({}),
+		});
+		expect(resetResponse.status).toBe(200);
+		const reset = (await json(resetResponse)).payload;
+		expect(reset.plaintextKey).toMatch(/^tsp_/);
+		expect(reset.key.id).not.toBe(created.key.id);
+		expect(reset.key.rotatedFromKeyId).toBe(created.key.id);
+
+		const afterReset = await json(await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/api-keys`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(afterReset.payload.find((entry: { id: string }) => entry.id === created.key.id)).toMatchObject({
+			status: 'revoked',
+		});
+		expect(afterReset.payload.find((entry: { id: string }) => entry.id === reset.key.id)).toMatchObject({
+			status: 'active',
+		});
+
+		const revokedResponse = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/api-keys/${reset.key.id}/revoke`, {
+			method: 'POST',
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		});
+		expect(revokedResponse.status).toBe(200);
+		const revoked = (await json(revokedResponse)).payload;
+		expect(revoked).toMatchObject({
+			id: reset.key.id,
+			status: 'revoked',
+		});
+	});
+
+	it('launches managed capacity, reserves budgeted agent work, settles actuals, and rejects revoked provider keys', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { team, project } = await createTeamAndProject(app, token, {
+			slug: 'capacity-spine-project',
+			name: 'Capacity Spine Project',
+		});
+
+		const launchResponse = await app.request(`/v1/teams/${team.id}/capacity/providers/managed`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({}),
+		});
+		expect(launchResponse.status).toBe(201);
+		const launch = (await json(launchResponse)).payload;
+		expect(launch.provider.status).toBe('active');
+		expect(launch.plaintextKey).toMatch(/^tsp_/);
+		expect(launch.lanes.map((lane: { id: string }) => lane.id).join(' ')).toContain('proposal-drafting');
+
+		const beforeSummary = await json(await app.request(`/v1/projects/${project.id}/capacity`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		const beforeRemaining = beforeSummary.payload.dailyRemainingCredits;
+
+		const taskResponse = await app.request(`/v1/projects/${project.id}/agent-tasks`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				taskKind: 'proposal.draft',
+				estimatedCreditsP50: 5,
+				estimatedCreditsP90: 8,
+			}),
+		});
+		expect(taskResponse.status).toBe(201);
+		const taskPayload = (await json(taskResponse)).payload;
+		expect(taskPayload.reservation).toMatchObject({
+			state: 'reserved',
+			reservedCredits: 8,
+		});
+		expect(taskPayload.task.input.capacity).toMatchObject({
+			providerId: launch.provider.id,
+			reservationId: taskPayload.reservation.id,
+			reservedCredits: 8,
+		});
+
+		const heartbeat = await app.request('/v1/processing/heartbeat', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${launch.plaintextKey}`,
+			},
+			body: JSON.stringify({
+				queueDepth: 1,
+				activeWorkers: 1,
+				maxWorkers: 2,
+				capabilities: ['agent_execution'],
+				environments: ['staging'],
+			}),
+		});
+		expect(heartbeat.status).toBe(200);
+
+		const completeResponse = await app.request(`/v1/processing/tasks/${taskPayload.task.id}/complete`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${launch.plaintextKey}`,
+			},
+			body: JSON.stringify({
+				actualCredits: 3,
+				output: { summary: 'Drafted proposal.' },
+			}),
+		});
+		expect(completeResponse.status).toBe(200);
+		const completed = (await json(completeResponse)).payload;
+		expect(completed.settlement).toMatchObject({
+			consumedCredits: 3,
+			releasedCredits: 5,
+		});
+
+		const afterSummary = await json(await app.request(`/v1/projects/${project.id}/capacity`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(afterSummary.payload.dailyRemainingCredits).toBe(beforeRemaining - 3);
+
+		const resetResponse = await app.request(`/v1/capacity/providers/${launch.provider.id}/api-keys/reset`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({}),
+		});
+		expect(resetResponse.status).toBe(200);
+		const oldHeartbeat = await app.request('/v1/processing/heartbeat', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${launch.plaintextKey}`,
+			},
+			body: JSON.stringify({ queueDepth: 0 }),
+		});
+		expect(oldHeartbeat.status).toBe(401);
 	});
 });
