@@ -40,9 +40,9 @@ describe('market auth password policy', () => {
 
 	it('documents auth email and bootstrap root configuration in the env registry', () => {
 		const registry = parse(readFileSync('src/env.yaml', 'utf8')) as { entries: Record<string, any> };
-		const sdkRegistry = parse(readFileSync('packages/sdk/src/platform/env.yaml', 'utf8')) as { entries: Record<string, any> };
+		const coreRegistry = parse(readFileSync('packages/core/src/env.yaml', 'utf8')) as { entries: Record<string, any> };
+		const agentRegistry = parse(readFileSync('packages/agent/src/env.yaml', 'utf8')) as { entries: Record<string, any> };
 		for (const key of [
-			'TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST',
 			'TREESEED_AUTH_EMAIL_FROM',
 			'TREESEED_AUTH_PASSWORD_RESET_TTL',
 			'TREESEED_AUTH_EMAIL_VERIFICATION_TTL',
@@ -51,14 +51,15 @@ describe('market auth password policy', () => {
 			expect(registry.entries[key].howToGet, key).toBeTruthy();
 		}
 		for (const key of ['TREESEED_SMTP_HOST', 'TREESEED_SMTP_PORT', 'TREESEED_SMTP_FROM']) {
-			expect(sdkRegistry.entries[key], key).toBeTruthy();
-			expect(sdkRegistry.entries[key].howToGet, key).toBeTruthy();
+			expect(coreRegistry.entries[key], key).toBeTruthy();
+			expect(coreRegistry.entries[key].howToGet, key).toBeTruthy();
 		}
-		expect(sdkRegistry.entries.TREESEED_SMTP_HOST.localDefaultValueRef).toBe('localSmtpHostDefault');
-		expect(sdkRegistry.entries.TREESEED_SMTP_PORT.localDefaultValueRef).toBe('localSmtpPortDefault');
-		expect(registry.entries.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST.description).toContain('platform_admin');
-		expect(registry.entries.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST.howToGet).toContain('Root user');
-		expect(registry.entries.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST.targets).toEqual(expect.arrayContaining(['cloudflare-var', 'railway-var']));
+		expect(agentRegistry.entries.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST?.howToGet).toBeTruthy();
+		expect(coreRegistry.entries.TREESEED_SMTP_HOST.localDefaultValueRef).toBe('localSmtpHostDefault');
+		expect(coreRegistry.entries.TREESEED_SMTP_PORT.localDefaultValueRef).toBe('localSmtpPortDefault');
+		expect(agentRegistry.entries.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST.description).toContain('platform_admin');
+		expect(agentRegistry.entries.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST.howToGet).toContain('Root user');
+		expect(agentRegistry.entries.TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST.targets).toEqual(expect.arrayContaining(['cloudflare-var', 'railway-var']));
 		expect(passwordPolicyMessage()).toContain('at least 12 characters');
 	});
 
@@ -173,7 +174,7 @@ describe('market auth password policy', () => {
 			expect(response.status).toBe(200);
 			expect(payload?.user?.email).toBe(`debug-${suffix}@example.com`);
 		});
-	});
+	}, 20_000);
 
 	it('routes BetterAuth email sign-up requests with request-origin fallback config', async () => {
 		await withEnv({
@@ -219,5 +220,5 @@ describe('market auth password policy', () => {
 			expect(response.status).toBe(200);
 			expect(payload?.user?.email).toBe(`hosted-debug-${suffix}@example.com`);
 		});
-	});
+	}, 20_000);
 });

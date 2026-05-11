@@ -16,3 +16,5 @@ public/books/*.json
 public/__treeseed/*.json
 .codex
 tmp/
+**/.ts-run-*.mjs
+.tmp-*/

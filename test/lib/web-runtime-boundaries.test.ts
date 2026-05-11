@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
 function files(root: string): string[] {
@@ -29,5 +30,45 @@ describe('web runtime boundaries', () => {
 			return /wrangler-d1|WranglerD1Database|LocalWranglerD1Database|wrangler d1 execute/u.test(source);
 		});
 		expect(offenders).toEqual([]);
+	});
+
+	it('keeps backend runtime implementation out of core source', () => {
+		const sourceFiles = files('packages/core/src')
+			.filter((path) => /\.(astro|ts|js)$/u.test(path));
+		const offenders = sourceFiles.filter((path) => {
+			const source = readFileSync(path, 'utf8');
+			return /@treeseed\/agent|from ['"].*\/api\/|from ['"].*\/agents\/|from ['"].*\/services\/|Hono|worker runner|workday manager/u.test(source);
+		});
+		expect(offenders).toEqual([]);
+	});
+
+	it('prevents agent from depending on core web runtime', () => {
+		const sourceFiles = files('packages/agent/src')
+			.filter((path) => /\.(ts|js)$/u.test(path));
+		const offenders = sourceFiles.filter((path) => {
+			const source = readFileSync(path, 'utf8');
+			return /@treeseed\/core|\\.astro|Starlight/u.test(source);
+		});
+		expect(offenders).toEqual([]);
+	});
+
+	it('keeps package and market environment registries uniquely owned', () => {
+		const registryFiles = [
+			'packages/sdk/src/platform/env.yaml',
+			'packages/core/src/env.yaml',
+			'packages/agent/src/env.yaml',
+			'src/env.yaml',
+		];
+		const owners = new Map<string, string[]>();
+		for (const path of registryFiles) {
+			const registry = parse(readFileSync(path, 'utf8')) as { entries?: Record<string, unknown> };
+			for (const id of Object.keys(registry.entries ?? {})) {
+				owners.set(id, [...(owners.get(id) ?? []), path]);
+			}
+		}
+		const duplicateOwners = [...owners.entries()]
+			.filter(([, paths]) => paths.length > 1)
+			.map(([id, paths]) => ({ id, paths }));
+		expect(duplicateOwners).toEqual([]);
 	});
 });

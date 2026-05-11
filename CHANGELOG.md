@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.5.4] - 2026-05-11
+
+### Changed
+
+- Updating the agent package version (to start fresh development integration). (f377eb6fe47d)
+- Readding the agent package. (46b370622275)
+
+### Fixed
+
+- fix(deps): sync integrated package updates (881de43ade79)
+- build(deps): sync integrated package updates (0cd392217ff7)
+
+### Infrastructure
+
+- release: sync package staging heads (535400b23af9)
+
+### Tests
+
+- ci(deps): sync integrated package updates (4aa649231687)
+- build(deps): sync integrated package updates (a77d7113e5c3)
+- build(root): update package versions and site configuration (6b630bdb6869)
+- build(deps): sync integrated package updates (833e5968cb7e)
+- ci(deps): sync integrated package updates (28e644580bc4)
+- build(deps): sync integrated package updates (a62e08b71acd)
+- ci(deps): sync integrated package updates (d6d4473890c4)
+- ci(deps): sync integrated package updates (fd320522455f)
+- build(ci): add workflow plane variables and update package dependencies (7b58715479e4)
+- test(deps): sync integrated package updates (c6536ba0bfbe)
+- chore(ci): refactor deployment workflows and update package dependencies (6f236aad0311)
+
+### Dependencies
+
+- ci(deps): sync integrated package updates (21f46238af8c)
+- build(deps): sync integrated package updates (d439c59f769b)
+- build(deps): sync integrated package updates (44b0c19fc3f5)
+- build(deps): sync integrated package updates (6dfa0d75337a)
+- build(deps): sync integrated package updates (af3d700938fa)
+- build(deps): sync package versions and update deployment workflows (d8cc5db9cb53)
+- ci(deps): sync integrated package updates (19fb7b3ea712)
+- build(deps): sync integrated package updates (a37c275c5c35)
+- build(deps): sync integrated package updates (297b336f054a)
+- build(deps): sync integrated package updates (288fa42fc676)
+- build(deps): sync integrated package updates (eb1130848b5b)
+- build(deps): sync integrated package updates (a0ee50842bf2)
+- build(deps): sync integrated package updates (1dca125c3465)
+- build(deps): sync integrated package updates (24431a79432d)
+- build(deps): sync integrated package updates (ce16b80f3f3c)
+- build(deps): sync integrated package updates (3fcf93421da5)
+- build(deps): sync integrated package updates (7ff4a85b806d)
+- build(deps): sync integrated package updates (3208cdcfc67e)
+- build(deps): sync integrated package updates (9fc55c142312)
+- build(deps): sync integrated package updates (7de407f3ff3a)
+- 30 additional changes omitted from this summary.
+
 ## [0.5.3] - 2026-05-10
 
 ### Dependencies

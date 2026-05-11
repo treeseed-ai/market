@@ -1,32 +1,52 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const root = process.cwd();
-const coreRoot = resolve(root, 'packages/core');
-const coreBuildScript = resolve(coreRoot, 'scripts/build-dist.ts');
-const installedCoreApi = resolve(root, 'node_modules/@treeseed/core/dist/api.js');
-const lockDir = resolve(root, 'node_modules/.cache/treeseed-build-api.lock');
+const sdkRoot = resolve(root, 'packages/sdk');
+const sdkBuildScript = resolve(sdkRoot, 'scripts/build-dist.ts');
+const agentRoot = resolve(root, 'packages/agent');
+const agentBuildScript = resolve(agentRoot, 'scripts/build-dist.ts');
+const installedAgentApi = resolve(root, 'node_modules/@treeseed/agent/dist/api/index.js');
+const lockDir = resolve(root, 'node_modules/.cache/treeseed-build-agent-api.lock');
 const staleLockMs = 10 * 60 * 1000;
 const waitTimeoutMs = 15 * 60 * 1000;
+const lockBuild = process.env.CI !== 'true'
+	&& !process.env.RAILWAY_PROJECT_ID
+	&& !process.env.RAILWAY_ENVIRONMENT_ID
+	&& !process.env.RAILWAY_SERVICE_ID;
+
+const requiredSdkOutputs = [
+	'dist/index.js',
+	'dist/workflow-support.js',
+	'dist/plugin-default.js',
+].map((relativePath) => resolve(sdkRoot, relativePath));
 
 const requiredWorkspaceOutputs = [
-	'dist/api.js',
-	'dist/config.js',
-	'dist/config.d.ts',
+	'dist/api/index.js',
+	'dist/api/index.d.ts',
 	'dist/services/agents.js',
 	'dist/services/workday-manager.js',
 	'dist/services/worker.js',
-].map((relativePath) => resolve(coreRoot, relativePath));
+].map((relativePath) => resolve(agentRoot, relativePath));
 
 const buildInputs = [
 	resolve(root, 'package.json'),
 	resolve(root, 'scripts/build-api.mjs'),
-	resolve(coreRoot, 'package.json'),
-	resolve(coreRoot, 'scripts/build-dist.ts'),
-	resolve(coreRoot, 'src'),
+	resolve(sdkRoot, 'package.json'),
+	resolve(sdkRoot, 'scripts/build-dist.ts'),
+	resolve(sdkRoot, 'src'),
+	resolve(agentRoot, 'package.json'),
+	resolve(agentRoot, 'scripts/build-dist.ts'),
+	resolve(agentRoot, 'src'),
+];
+
+const sdkBuildInputs = [
+	resolve(sdkRoot, 'package.json'),
+	resolve(sdkRoot, 'scripts/build-dist.ts'),
+	resolve(sdkRoot, 'src'),
 ];
 
 function walkFiles(path) {
@@ -46,23 +66,52 @@ function walkFiles(path) {
 	return files;
 }
 
-function newestInputMtime() {
-	return buildInputs
+function newestInputMtime(inputs = buildInputs) {
+	return inputs
 		.flatMap((input) => walkFiles(input))
 		.reduce((newest, filePath) => Math.max(newest, statSync(filePath).mtimeMs), 0);
 }
 
-function workspaceOutputsReady() {
-	if (!requiredWorkspaceOutputs.every((filePath) => existsSync(filePath))) {
+function outputsReady(requiredOutputs, inputs = buildInputs) {
+	if (!requiredOutputs.every((filePath) => existsSync(filePath))) {
 		return false;
 	}
 
-	const newestInput = newestInputMtime();
-	const oldestOutput = requiredWorkspaceOutputs.reduce(
+	const newestInput = newestInputMtime(inputs);
+	const oldestOutput = requiredOutputs.reduce(
 		(oldest, filePath) => Math.min(oldest, statSync(filePath).mtimeMs),
 		Number.POSITIVE_INFINITY,
 	);
 	return oldestOutput >= newestInput;
+}
+
+function sdkOutputsReady() {
+	return outputsReady(requiredSdkOutputs, sdkBuildInputs);
+}
+
+function workspaceOutputsReady() {
+	return outputsReady(requiredWorkspaceOutputs, buildInputs);
+}
+
+function runPackageBuild(packageRoot, label) {
+	const result = spawnSync('npm', ['run', 'build:dist'], {
+		cwd: packageRoot,
+		env: process.env,
+		stdio: 'inherit',
+	});
+	if (result.status !== 0) {
+		throw new Error(`${label} build command failed with exit code ${result.status ?? 1}.`);
+	}
+}
+
+function ensureAgentSdkWorkspacePackage() {
+	const packageScopeDir = resolve(agentRoot, 'node_modules/@treeseed');
+	const packageSdkPath = resolve(packageScopeDir, 'sdk');
+	mkdirSync(packageScopeDir, { recursive: true });
+	rmSync(packageSdkPath, { recursive: true, force: true });
+	mkdirSync(packageSdkPath, { recursive: true });
+	copyFileSync(resolve(sdkRoot, 'package.json'), resolve(packageSdkPath, 'package.json'));
+	cpSync(resolve(sdkRoot, 'dist'), resolve(packageSdkPath, 'dist'), { recursive: true, force: true });
 }
 
 function lockIsStale() {
@@ -94,12 +143,12 @@ async function waitForWorkspaceBuild() {
 
 	while (Date.now() - startedAt < waitTimeoutMs) {
 		if (workspaceOutputsReady()) {
-			console.log('Using workspace @treeseed/core API build from another build:api process.');
+			console.log('Using workspace @treeseed/agent API build from another build:api process.');
 			return;
 		}
 
 		if (lockIsStale()) {
-			console.warn('Removing stale @treeseed/core build lock.');
+			console.warn('Removing stale @treeseed/agent build lock.');
 			releaseLock();
 			return;
 		}
@@ -107,20 +156,40 @@ async function waitForWorkspaceBuild() {
 		await delay(1000);
 	}
 
-	throw new Error('Timed out waiting for @treeseed/core API build lock.');
+	throw new Error('Timed out waiting for @treeseed/agent API build lock.');
 }
 
 async function main() {
-	if (!existsSync(coreBuildScript)) {
-		if (existsSync(installedCoreApi)) {
-			console.log('Using installed @treeseed/core API build.');
+	if (existsSync(sdkBuildScript)) {
+		if (sdkOutputsReady()) {
+			console.log('Using existing workspace @treeseed/sdk build.');
+		} else {
+			runPackageBuild(sdkRoot, '@treeseed/sdk');
+			if (!sdkOutputsReady()) {
+				throw new Error('@treeseed/sdk build finished without required dist outputs.');
+			}
+		}
+		ensureAgentSdkWorkspacePackage();
+	}
+
+	if (!existsSync(agentBuildScript)) {
+		if (existsSync(installedAgentApi)) {
+			console.log('Using installed @treeseed/agent API build.');
 			return;
 		}
-		throw new Error('Unable to resolve @treeseed/core API build output.');
+		throw new Error('Unable to resolve @treeseed/agent API build output.');
 	}
 
 	if (workspaceOutputsReady()) {
-		console.log('Using existing workspace @treeseed/core API build.');
+		console.log('Using existing workspace @treeseed/agent API build.');
+		return;
+	}
+
+	if (!lockBuild) {
+		runPackageBuild(agentRoot, '@treeseed/agent API');
+		if (!workspaceOutputsReady()) {
+			throw new Error('@treeseed/agent API build finished without required dist outputs.');
+		}
 		return;
 	}
 
@@ -132,16 +201,9 @@ async function main() {
 	}
 
 	try {
-		const result = spawnSync('npm', ['--prefix', './packages/core', 'run', 'build:dist'], {
-			cwd: root,
-			env: process.env,
-			stdio: 'inherit',
-		});
-		if (result.status !== 0) {
-			throw new Error(`@treeseed/core API build command failed with exit code ${result.status ?? 1}.`);
-		}
+		runPackageBuild(agentRoot, '@treeseed/agent API');
 		if (!workspaceOutputsReady()) {
-			throw new Error('@treeseed/core API build finished without required dist outputs.');
+			throw new Error('@treeseed/agent API build finished without required dist outputs.');
 		}
 	} finally {
 		releaseLock();
