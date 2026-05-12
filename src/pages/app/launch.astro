@@ -1,5 +1,13 @@
 ---
-import KnowledgeCoopAppLayout from '../../layouts/KnowledgeCoopAppLayout.astro';
+import TreeseedAppLayout from '../../layouts/TreeseedAppLayout.astro';
+import Button from '../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../packages/core/src/components/ui/forms/FormActions.astro';
+import Select from '../../../packages/core/src/components/ui/forms/Select.astro';
+import TextInput from '../../../packages/core/src/components/ui/forms/TextInput.astro';
+import Textarea from '../../../packages/core/src/components/ui/forms/Textarea.astro';
+import KeyValueList from '../../../packages/core/src/components/ui/data/KeyValueList.astro';
+import Panel from '../../../packages/core/src/components/ui/surface/Panel.astro';
 import { listTreeseedManagedHostsFromConfig } from '../../lib/market/managed-hosts.js';
 import { loadAccessibleTeams, resolveMarketStore } from '../../lib/market/store.js';
 
@@ -31,7 +39,7 @@ const launchJson = JSON.stringify({
 }).replace(/</gu, '\\u003c');
 ---
 
-<KnowledgeCoopAppLayout
+<TreeseedAppLayout
 	title="Launch Project"
 	description="Create a new knowledge hub in the same control plane you will use to operate, release, and publish it."
 	currentPath={Astro.url.pathname}
@@ -39,106 +47,81 @@ const launchJson = JSON.stringify({
 	activeTeam={teams[0] ?? null}
 >
 	{teams.length === 0 ? (
-		<section class="kc-panel">
-			<div class="kc-panel__header">
-				<div>
-					<p class="kc-section__eyebrow">Team required</p>
-					<h2>Create a team first</h2>
-					<p>Projects belong to teams, so create a team before launching your first knowledge hub.</p>
-				</div>
-				<a class="kc-button" href="/app/teams/new">Create new team</a>
-			</div>
-		</section>
+		<Panel
+			eyebrow="Team required"
+			title="Create a team first"
+			description="Projects belong to teams, so create a team before launching your first knowledge hub."
+		>
+			<Button slot="actions" href="/app/teams/new" size="sm">Create new team</Button>
+		</Panel>
 	) : (
-		<section class="kc-grid-2">
-			<form class="kc-panel" id="project-launch-form">
-			<div class="kc-panel__header">
-				<div>
-					<p class="kc-section__eyebrow">Launch</p>
-					<h2>Create a knowledge hub</h2>
-						<p>Provision the control-plane record now. Runtime provisioning and repository bootstrap will follow through the launch job.</p>
-				</div>
-			</div>
-			<div class="kc-list">
-				<label class="kc-list-item kc-field">
-					<span class="kc-field__label">Team</span>
-					<select class="kc-control" name="teamId">
-						{teams.map((team: any) => <option value={team.id}>{team.name}</option>)}
-					</select>
-				</label>
-				<label class="kc-list-item kc-field">
-					<span class="kc-field__label">Name</span>
-					<input class="kc-control" name="name" required placeholder="Applied Systems Coop" />
-				</label>
-				<label class="kc-list-item kc-field">
-					<span class="kc-field__label">Slug</span>
-					<input class="kc-control" name="slug" required placeholder="applied-systems-coop" />
-				</label>
-				<label class="kc-list-item kc-field">
-					<span class="kc-field__label">Summary</span>
-					<textarea class="kc-control" name="summary" rows="4" placeholder="Short statement of what this hub exists to operate."></textarea>
-				</label>
-				<label class="kc-list-item kc-field">
-					<span class="kc-field__label">Source kind</span>
-					<select class="kc-control" name="sourceKind">
-						<option value="blank">Blank</option>
-						<option value="template">Template</option>
-						<option value="knowledge_pack">Knowledge pack</option>
-					</select>
-				</label>
-				<label class="kc-list-item kc-field">
-					<span class="kc-field__label">Hosting mode</span>
-					<select class="kc-control" name="hostingMode">
-						<option value="managed">Managed</option>
-					</select>
-				</label>
-				<label class="kc-list-item kc-field">
-					<span class="kc-field__label">Repository Host</span>
-					<select class="kc-control" name="repositoryHostId"></select>
-				</label>
-				<div class="kc-list-item">
-					<strong>Repository topology</strong><br />TreeSeed will create a software repository and a content repository.
-				</div>
-				<label class="kc-list-item kc-field">
-					<span class="kc-field__label">Web Host</span>
-					<select class="kc-control" name="cloudflareHostChoice" required></select>
-				</label>
-				<label class="kc-list-item kc-field">
-					<span class="kc-field__label">Processing Host</span>
-					<select class="kc-control" name="processingHostChoice" required></select>
-				</label>
-				<label class="kc-list-item kc-field">
-					<span class="kc-field__label">Email Host</span>
-					<select class="kc-control" name="emailHostChoice" required></select>
-				</label>
-				<div class="kc-list-item" id="launch-sensitive-notice" hidden>
-					<strong>Team-owned hosts require sensitive data unlock.</strong><br />
-					<span>Unlock sensitive data from the header before launch so TreeSeed can create short-lived credential sessions for the selected hosts.</span>
-				</div>
-			</div>
-			<div class="kc-inline-actions" style="margin-top: 1rem;">
-				<button class="kc-button" type="submit">Launch project</button>
-				<span class="kc-subtle" id="project-launch-status" role="status"></span>
-			</div>
-			</form>
+		<section class="ts-section-grid">
+			<Panel
+				eyebrow="Launch"
+				title="Create a knowledge hub"
+				description="Provision the control-plane record now. Runtime provisioning and repository bootstrap will follow through the launch job."
+			>
+				<form id="project-launch-form" class="ts-form-stack">
+					<Field label="Team" name="teamId" required>
+						<Select name="teamId" options={teams.map((team: any) => ({ label: team.name, value: team.id }))} required />
+					</Field>
+					<Field label="Name" name="name" required>
+						<TextInput name="name" required placeholder="Applied Systems Coop" />
+					</Field>
+					<Field label="Slug" name="slug" required>
+						<TextInput name="slug" required placeholder="applied-systems-coop" />
+					</Field>
+					<Field label="Summary" name="summary">
+						<Textarea name="summary" rows={4} placeholder="Short statement of what this hub exists to operate." />
+					</Field>
+					<Field label="Source kind" name="sourceKind">
+						<Select name="sourceKind" options={[
+							{ label: 'Blank', value: 'blank' },
+							{ label: 'Template', value: 'template' },
+							{ label: 'Knowledge pack', value: 'knowledge_pack' },
+						]} />
+					</Field>
+					<Field label="Hosting mode" name="hostingMode">
+						<Select name="hostingMode" options={[{ label: 'Managed', value: 'managed' }]} />
+					</Field>
+					<Field label="Repository Host" name="repositoryHostId">
+						<Select name="repositoryHostId" options={[]} />
+					</Field>
+					<div class="ts-form-note">
+						<strong>Repository topology</strong>
+						<span>TreeSeed will create a software repository and a content repository.</span>
+					</div>
+					<Field label="Web Host" name="cloudflareHostChoice" required>
+						<Select name="cloudflareHostChoice" options={[]} required />
+					</Field>
+					<Field label="Processing Host" name="processingHostChoice" required>
+						<Select name="processingHostChoice" options={[]} required />
+					</Field>
+					<Field label="Email Host" name="emailHostChoice" required>
+						<Select name="emailHostChoice" options={[]} required />
+					</Field>
+					<div class="ts-form-note" id="launch-sensitive-notice" hidden>
+						<strong>Team-owned hosts require sensitive data unlock.</strong>
+						<span>Unlock sensitive data from the header before launch so TreeSeed can create short-lived credential sessions for the selected hosts.</span>
+					</div>
+					<FormActions align="start">
+						<Button type="submit">Launch project</Button>
+						<span class="ts-subtle" id="project-launch-status" role="status"></span>
+					</FormActions>
+				</form>
+			</Panel>
 
-			<section class="kc-panel">
-			<div class="kc-panel__header">
-				<div>
-					<p class="kc-section__eyebrow">Launch defaults</p>
-					<h2>MVP launch behavior</h2>
-				</div>
-			</div>
-			<div class="kc-list">
-				<div class="kc-list-item"><strong>Visibility</strong><br />Hub surfaces are public-ready by default. Market listing remains draft until you publish from Share.</div>
-					<div class="kc-list-item"><strong>Repository provider</strong><br />The selected Repository Host creates software and content repositories for launch, release, and checks.</div>
-				<div class="kc-list-item"><strong>Release policy</strong><br />Agents can save and verify autonomously, but humans approve staging, release, and publish.</div>
-			</div>
-			</section>
+			<Panel eyebrow="Launch defaults" title="MVP launch behavior">
+				<KeyValueList items={[
+					{ key: 'Visibility', value: 'Hub surfaces are public-ready by default. Market listing remains draft until you publish from Share.' },
+					{ key: 'Repository provider', value: 'The selected Repository Host creates software and content repositories for launch, release, and checks.' },
+					{ key: 'Release policy', value: 'Agents can save and verify autonomously, but humans approve staging, release, and publish.' },
+				]} />
+			</Panel>
 		</section>
 	)}
 	<script is:inline type="application/json" id="launch-data" set:html={launchJson}></script>
-</KnowledgeCoopAppLayout>
+</TreeseedAppLayout>
 
 <script>
 	const dataElement = document.getElementById('launch-data');

@@ -1,0 +1,24 @@
+---
+import ActionList from '../../../../packages/core/src/components/ui/data/ActionList.astro';
+import DataTable from '../../../../packages/core/src/components/ui/data/DataTable.astro';
+import MetricGrid from '../../../../packages/core/src/components/ui/data/MetricGrid.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import StatusPill from '../../../../packages/core/src/components/ui/data/StatusPill.astro';
+
+const { agents, capacitySummary, agentReadinessLabel, agentReadinessToneValue, agentReadinessReasons } = Astro.props as any;
+---
+
+<div class="ts-section-grid">
+	<Panel eyebrow="Helper capacity" title={agentReadinessLabel} description={agentReadinessReasons}>
+		<StatusPill slot="actions" tone={agentReadinessToneValue}>{agentReadinessLabel}</StatusPill>
+		<MetricGrid min="8rem" metrics={[
+			{ label: 'Remaining today', value: capacitySummary?.dailyRemainingCredits ?? 0 },
+			{ label: 'Reserved', value: capacitySummary?.dailyReservedCredits ?? 0 },
+			{ label: 'Providers', value: capacitySummary?.activeProviderCount ?? 0 },
+		]} />
+	</Panel>
+	<DataTable columns={[{ key: 'pool', label: 'Pool' }, { key: 'environment', label: 'Environment' }, { key: 'status', label: 'Status' }, { key: 'service', label: 'Service' }]} rows={(agents?.pools ?? []).map((pool: any) => ({ pool: pool.name, environment: pool.environment, status: pool.status, service: pool.serviceBaseUrl ?? 'not registered' }))} emptyLabel="No agent pools are registered for this project yet." />
+	<Panel eyebrow="Recent summaries" title="Workday reporting">
+		<ActionList items={(agents?.workdaySummaries ?? []).map((item: any) => ({ title: item.kind, description: `${item.environment} - ${item.createdAt}` }))} />
+	</Panel>
+</div>

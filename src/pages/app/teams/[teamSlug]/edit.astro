@@ -1,5 +1,14 @@
 ---
-import KnowledgeCoopAppLayout from '../../../../layouts/KnowledgeCoopAppLayout.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import Button from '../../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import Select from '../../../../../packages/core/src/components/ui/forms/Select.astro';
+import TextInput from '../../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import Textarea from '../../../../../packages/core/src/components/ui/forms/Textarea.astro';
+import KeyValueList from '../../../../../packages/core/src/components/ui/data/KeyValueList.astro';
+import StatusPill from '../../../../../packages/core/src/components/ui/data/StatusPill.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
 import { sendAuthEmail } from '../../../../lib/auth/email';
 import { loadTeamAppContext } from '../../../../lib/market/app-data.js';
 import { teamDeletionConfirmationMatches, validateTeamName } from '../../../../api/store.js';
@@ -124,156 +133,124 @@ const statusLabels: Record<string, string> = {
 };
 ---
 
-<KnowledgeCoopAppLayout
+<TreeseedAppLayout
 	title={`${team.displayName ?? team.name} · Edit Team`}
 	description="Manage team profile settings, members, invites, and deletion safeguards."
 	currentPath={Astro.url.pathname}
 	teams={refreshed.teams}
 	activeTeam={team}
 >
-	{status ? <p class="kc-status-pill" data-tone={['last_owner', 'delete_confirmation', 'blocked'].includes(status) ? 'danger' : 'success'}>{statusLabels[status] ?? status}</p> : null}
-	<section class="kc-grid-2">
-		<form class="kc-panel" method="POST">
-			<input type="hidden" name="action" value="settings" />
-			<div class="kc-panel__header">
-				<div>
-					<p class="kc-section__eyebrow">Team settings</p>
-					<h2>{team.displayName ?? team.name}</h2>
-					<p><a href={`/t/${team.name}`}>View public profile</a></p>
-				</div>
-			</div>
-			<div class="kc-list">
-				<label class="kc-list-item">
-					<strong>Team name</strong><br />
-					<span>Team name is public and used in URLs.</span>
-					<input data-team-name-input name="name" value={team.name} required maxlength="39" pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?" aria-describedby="team-name-status" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
-					<span id="team-name-status" data-team-name-status class="kc-field-help">Team name is public and used in URLs.</span>
-				</label>
-				<label class="kc-list-item"><strong>Display name</strong><br /><input name="displayName" value={team.displayName ?? team.name} required style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" /></label>
-				<label class="kc-list-item"><strong>Logo URL</strong><br /><input name="logoUrl" type="url" value={team.logoUrl ?? ''} style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" /></label>
-				<label class="kc-list-item"><strong>Profile summary</strong><br /><textarea name="profileSummary" rows="4" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;">{team.profileSummary ?? ''}</textarea></label>
-			</div>
-			<div class="kc-inline-actions" style="margin-top:1rem;"><button class="kc-button" type="submit">Save settings</button></div>
-		</form>
+	{status ? <StatusPill tone={['last_owner', 'delete_confirmation', 'blocked'].includes(status) ? 'danger' : 'success'}>{statusLabels[status] ?? status}</StatusPill> : null}
+	<section class="ts-section-grid ts-stack-top">
+		<Panel
+			eyebrow="Team settings"
+			title={team.displayName ?? team.name}
+			actions={[{ label: 'View public profile', href: `/t/${team.name}`, variant: 'secondary' }]}
+		>
+			<form class="ts-form-stack" method="POST">
+				<input type="hidden" name="action" value="settings" />
+				<Field label="Team name" name="name" help="Team name is public and used in URLs." required>
+					<TextInput
+						data-team-name-input
+						name="name"
+						value={team.name}
+						required
+						maxlength={39}
+						pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?"
+						ariaDescribedby="team-name-status"
+					/>
+					<span id="team-name-status" data-team-name-status class="ts-field-help">Team name is public and used in URLs.</span>
+				</Field>
+				<Field label="Display name" name="displayName" required>
+					<TextInput name="displayName" value={team.displayName ?? team.name} required />
+				</Field>
+				<Field label="Logo URL" name="logoUrl">
+					<TextInput name="logoUrl" type="url" value={team.logoUrl ?? ''} />
+				</Field>
+				<Field label="Profile summary" name="profileSummary">
+					<Textarea name="profileSummary" rows={4} value={team.profileSummary ?? ''} />
+				</Field>
+				<FormActions align="start">
+					<Button type="submit">Save settings</Button>
+				</FormActions>
+			</form>
+		</Panel>
 
-		<form class="kc-panel" method="POST">
-			<input type="hidden" name="action" value="invite" />
-			<div class="kc-panel__header">
-				<div>
-					<p class="kc-section__eyebrow">Invite</p>
-					<h2>Add a member</h2>
-				</div>
-			</div>
-			<div class="kc-list">
-				<label class="kc-list-item"><strong>Email</strong><br /><input name="email" type="email" required style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" /></label>
-				<label class="kc-list-item"><strong>Role</strong><br /><select name="roleKey" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;">{roles.map((role) => <option value={role}>{role.replaceAll('_', ' ')}</option>)}</select></label>
-			</div>
-			<div class="kc-inline-actions" style="margin-top:1rem;"><button class="kc-button" type="submit">Invite member</button></div>
-		</form>
+		<Panel eyebrow="Invite" title="Add a member">
+			<form class="ts-form-stack" method="POST">
+				<input type="hidden" name="action" value="invite" />
+				<Field label="Email" name="email" required>
+					<TextInput name="email" type="email" required />
+				</Field>
+				<Field label="Role" name="roleKey">
+					<Select name="roleKey" options={roles.map((role) => ({ label: role.replaceAll('_', ' '), value: role }))} />
+				</Field>
+				<FormActions align="start">
+					<Button type="submit">Invite member</Button>
+				</FormActions>
+			</form>
+		</Panel>
 	</section>
 
-	<section class="kc-table-shell" style="margin-top:1rem;">
-		<table class="kc-table">
-			<thead><tr><th>Member</th><th>Status</th><th>Role</th><th>Actions</th></tr></thead>
-			<tbody>
-				{members.map((member: any) => (
-					<tr>
-						<td><strong>{member.displayName ?? member.email ?? member.userId}</strong><br /><span class="kc-subtle">{member.email ?? member.userId}</span></td>
-						<td>{member.status}</td>
-						<td>
-							<form method="POST" class="kc-inline-form">
-								<input type="hidden" name="action" value="role" />
-								<input type="hidden" name="membershipId" value={member.id} />
-								<select name="roleKey">{roles.map((role) => <option value={role} selected={(member.roles[0] ?? 'contributor') === role}>{role.replaceAll('_', ' ')}</option>)}</select>
-								<button class="kc-button-secondary" type="submit">Save</button>
-							</form>
-						</td>
-						<td>
-							<form method="POST">
-								<input type="hidden" name="action" value="remove" />
-								<input type="hidden" name="membershipId" value={member.id} />
-								<button class="kc-button-secondary" type="submit">Remove</button>
-							</form>
-						</td>
-					</tr>
-				))}
-				{invites.map((invite: any) => (
-					<tr>
-						<td><strong>{invite.email}</strong><br /><span class="kc-subtle">Pending invite</span></td>
-						<td>{invite.status}</td>
-						<td>{invite.roleKey.replaceAll('_', ' ')}</td>
-						<td>
-							<form method="POST">
-								<input type="hidden" name="action" value="revoke_invite" />
-								<input type="hidden" name="inviteId" value={invite.id} />
-								<button class="kc-button-secondary" type="submit">Revoke</button>
-							</form>
-						</td>
-					</tr>
-				))}
-			</tbody>
-		</table>
-	</section>
+	<Panel class="ts-stack-top" title="Members and invites">
+		<div class="ts-member-list">
+			{members.map((member: any) => (
+				<div class="ts-member-row">
+					<div>
+						<strong>{member.displayName ?? member.email ?? member.userId}</strong>
+						<span class="ts-subtle">{member.email ?? member.userId}</span>
+					</div>
+					<StatusPill tone="muted">{member.status}</StatusPill>
+					<form method="POST" class="ts-inline-form">
+						<input type="hidden" name="action" value="role" />
+						<input type="hidden" name="membershipId" value={member.id} />
+						<Select name="roleKey" value={member.roles[0] ?? 'contributor'} options={roles.map((role) => ({ label: role.replaceAll('_', ' '), value: role }))} />
+						<Button variant="secondary" size="sm" type="submit">Save</Button>
+					</form>
+					<form method="POST">
+						<input type="hidden" name="action" value="remove" />
+						<input type="hidden" name="membershipId" value={member.id} />
+						<Button variant="secondary" size="sm" type="submit">Remove</Button>
+					</form>
+				</div>
+			))}
+			{invites.map((invite: any) => (
+				<div class="ts-member-row">
+					<div>
+						<strong>{invite.email}</strong>
+						<span class="ts-subtle">Pending invite</span>
+					</div>
+					<StatusPill tone="warning">{invite.status}</StatusPill>
+					<span>{invite.roleKey.replaceAll('_', ' ')}</span>
+					<form method="POST">
+						<input type="hidden" name="action" value="revoke_invite" />
+						<input type="hidden" name="inviteId" value={invite.id} />
+						<Button variant="secondary" size="sm" type="submit">Revoke</Button>
+					</form>
+				</div>
+			))}
+		</div>
+	</Panel>
 
-	<section class="kc-panel kc-danger-zone" style="margin-top:1rem;">
-		<div class="kc-panel__header"><div><p class="kc-section__eyebrow">Danger zone</p><h2>Delete team</h2></div></div>
+	<Panel class="ts-stack-top ts-danger-zone" eyebrow="Danger zone" title="Delete team" tone="danger">
 		{blockers.length > 0 ? (
-			<div class="kc-list">
-				{blockers.map((blocker: any) => (
-					<div class="kc-list-item"><strong>{blocker.label}</strong><br /><span>{blocker.code.replaceAll('_', ' ')}</span></div>
-				))}
-			</div>
+			<KeyValueList items={blockers.map((blocker: any) => ({
+				key: blocker.label,
+				value: blocker.code.replaceAll('_', ' '),
+				tone: 'danger',
+			}))} />
 		) : (
-			<form method="POST">
+			<form class="ts-form-stack" method="POST">
 				<input type="hidden" name="action" value="delete" />
-				<label class="kc-list-item"><strong>Confirmation text</strong><br /><span>Type DELETE {team.name} to confirm.</span><input name="confirmation" autocomplete="off" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" /></label>
-				<div class="kc-inline-actions" style="margin-top:1rem;"><button class="kc-button kc-button-danger" type="submit">Delete team</button></div>
+				<Field label="Confirmation text" name="confirmation" help={`Type DELETE ${team.name} to confirm.`}>
+					<TextInput name="confirmation" autocomplete="off" />
+				</Field>
+				<FormActions align="start">
+					<Button variant="danger" type="submit">Delete team</Button>
+				</FormActions>
 			</form>
 		)}
-	</section>
-	<style>
-		.kc-inline-form {
-			display: flex;
-			gap: 0.5rem;
-			align-items: center;
-		}
-		.kc-inline-form select {
-			padding: 0.45rem;
-			border: 1px solid #d0d7de;
-			border-radius: 0.45rem;
-		}
-		.kc-danger-zone {
-			border-color: color-mix(in srgb, var(--kc-red) 35%, #d9ded4);
-		}
-		.kc-button-danger {
-			background: var(--kc-red);
-			border-color: var(--kc-red);
-		}
-		input[data-team-name-state="available"] {
-			border: 2px solid #1d7a42 !important;
-			padding: calc(0.75rem - 1px) !important;
-		}
-		input[data-team-name-state="taken"],
-		input[data-team-name-state="invalid"],
-		input[data-team-name-state="reserved"],
-		input[data-team-name-state="error"] {
-			border: 2px solid #9d2f20 !important;
-			padding: calc(0.75rem - 1px) !important;
-		}
-		.kc-field-help {
-			display: block;
-			margin-top: 0.35rem;
-			color: #667266;
-			font-size: 0.82rem;
-			font-weight: 600;
-		}
-		.kc-field-help[data-tone="success"] {
-			color: #1d7a42;
-		}
-		.kc-field-help[data-tone="danger"] {
-			color: #9d2f20;
-		}
-	</style>
+	</Panel>
 	<script is:inline define:vars={{ currentTeamId: team.id, currentTeamName: team.name }}>
 		const teamNameInput = document.querySelector('[data-team-name-input]');
 		const teamNameStatus = document.querySelector('[data-team-name-status]');
@@ -318,4 +295,4 @@ const statusLabels: Record<string, string> = {
 		teamNameInput?.addEventListener('change', updateTeamNameAvailability);
 		updateTeamNameAvailability();
 	</script>
-</KnowledgeCoopAppLayout>
+</TreeseedAppLayout>

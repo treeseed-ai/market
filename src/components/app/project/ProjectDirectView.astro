@@ -1,0 +1,24 @@
+---
+import ActionList from '../../../../packages/core/src/components/ui/data/ActionList.astro';
+import Badge from '../../../../packages/core/src/components/ui/data/Badge.astro';
+import KeyValueList from '../../../../packages/core/src/components/ui/data/KeyValueList.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+
+const { direct } = Astro.props as any;
+---
+
+<div class="ts-section-grid">
+	<Panel eyebrow="Direct" title="Direction board summary" description="Canonical direction stays in the hub repo. The market app renders the current summary and saved views.">
+		<KeyValueList items={[
+			{ key: 'Objectives', value: direct?.objectiveCount ?? 0 },
+			{ key: 'Questions', value: direct?.questionCount ?? 0 },
+			{ key: 'Notes', value: direct?.noteCount ?? 0 },
+			{ key: 'Proposals', value: direct?.proposalCount ?? 0 },
+			{ key: 'Decisions', value: direct?.decisionCount ?? 0 },
+		]} />
+	</Panel>
+	<Panel eyebrow="Saved views" title="Default operating slices">
+		<div class="ts-badges">{direct?.savedViews?.map((view: any) => <Badge>{view}</Badge>)}</div>
+		<ActionList class="ts-stack-top" items={(direct?.items ?? []).map((item: any) => ({ title: item.title ?? item.id ?? 'Direction item', description: item.kind ?? 'item' }))} />
+	</Panel>
+</div>

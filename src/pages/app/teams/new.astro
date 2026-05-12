@@ -1,5 +1,12 @@
 ---
-import KnowledgeCoopAppLayout from '../../../layouts/KnowledgeCoopAppLayout.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import TextInput from '../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import Textarea from '../../../../packages/core/src/components/ui/forms/Textarea.astro';
+import StatusPill from '../../../../packages/core/src/components/ui/data/StatusPill.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import { loadAccessibleTeams, resolveMarketStore } from '../../../lib/market/store.js';
 import { validateTeamName } from '../../../api/store.js';
 
@@ -46,43 +53,41 @@ if (Astro.request.method === 'POST' && store) {
 }
 ---
 
-<KnowledgeCoopAppLayout
+<TreeseedAppLayout
 	title="Create Team"
 	description="Create a team workspace for projects, members, releases, and market listings."
 	currentPath={Astro.url.pathname}
 	teams={teams}
 	activeTeam={teams[0] ?? null}
 >
-	<form class="kc-panel" method="POST">
-		<div class="kc-panel__header">
-			<div>
-				<p class="kc-section__eyebrow">New team</p>
-				<h2>Add a team</h2>
-				<p>The team name is public, used in URLs, and cannot be changed later.</p>
-			</div>
-		</div>
-		{error ? <p class="kc-status-pill" data-tone="danger">{error}</p> : null}
-		<div class="kc-list">
-			<label class="kc-list-item">
-				<strong>Team name</strong><br />
-				<span>Public handle for /t/name and app URLs.</span>
-				<input name="name" value={submittedName} required maxlength="39" pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
-			</label>
-			<label class="kc-list-item">
-				<strong>Display name</strong><br />
-				<input name="displayName" value={submittedDisplayName} required style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
-			</label>
-			<label class="kc-list-item">
-				<strong>Logo URL</strong><br />
-				<input name="logoUrl" type="url" value={submittedLogoUrl} placeholder="https://example.com/logo.png" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
-			</label>
-			<label class="kc-list-item">
-				<strong>Profile summary</strong><br />
-				<textarea name="profileSummary" rows="4" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;">{submittedSummary}</textarea>
-			</label>
-		</div>
-		<div class="kc-inline-actions" style="margin-top:1rem;">
-			<button class="kc-button" type="submit">Create team</button>
-		</div>
-	</form>
-</KnowledgeCoopAppLayout>
+	<Panel
+		eyebrow="New team"
+		title="Add a team"
+		description="The team name is public, used in URLs, and cannot be changed later."
+	>
+		<form class="ts-form-stack" method="POST">
+			{error ? <StatusPill tone="danger">{error}</StatusPill> : null}
+			<Field label="Team name" name="name" help="Public handle for /t/name and app URLs." required>
+				<TextInput
+					name="name"
+					value={submittedName}
+					required
+					maxlength={39}
+					pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?"
+				/>
+			</Field>
+			<Field label="Display name" name="displayName" required>
+				<TextInput name="displayName" value={submittedDisplayName} required />
+			</Field>
+			<Field label="Logo URL" name="logoUrl">
+				<TextInput name="logoUrl" type="url" value={submittedLogoUrl} placeholder="https://example.com/logo.png" />
+			</Field>
+			<Field label="Profile summary" name="profileSummary">
+				<Textarea name="profileSummary" rows={4} value={submittedSummary} />
+			</Field>
+			<FormActions align="start">
+				<Button type="submit">Create team</Button>
+			</FormActions>
+		</form>
+	</Panel>
+</TreeseedAppLayout>

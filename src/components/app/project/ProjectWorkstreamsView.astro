@@ -1,0 +1,17 @@
+---
+import ActionList from '../../../../packages/core/src/components/ui/data/ActionList.astro';
+import Badge from '../../../../packages/core/src/components/ui/data/Badge.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+
+const { workstreams } = Astro.props as any;
+---
+
+<div class="ts-section-grid">
+	<Panel eyebrow="Workstreams" title="Lifecycle columns">
+		<div class="ts-badges">{workstreams?.columns?.map((column: any) => <Badge>{column}</Badge>)}</div>
+		<ActionList class="ts-stack-top" items={(workstreams?.items ?? []).map((item: any) => ({ title: item.title ?? item.name ?? 'Workstream', description: item.status ?? 'drafting', tone: 'info' }))} />
+	</Panel>
+	<Panel eyebrow="Recent workflow jobs" title="Operational activity">
+		<ActionList items={(workstreams?.recentJobs ?? []).map((job: any) => ({ title: `${job.namespace}:${job.operation}`, description: `${job.status} - ${job.updatedAt}`, tone: job.status === 'failed' ? 'danger' : 'info' }))} />
+	</Panel>
+</div>

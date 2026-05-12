@@ -2497,7 +2497,7 @@ runtimeDescribe('market api', () => {
 				provider: 'railway',
 				ownership: 'team_owned',
 				status: 'active',
-				accountLabel: 'Knowledge Coop Railway',
+				accountLabel: 'TreeSeed Railway',
 				encryptedPayload: encryptedHostEnvelope(),
 				metadata: { hostType: 'processing' },
 			}),

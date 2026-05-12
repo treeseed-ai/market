@@ -20,6 +20,7 @@ const migrationPaths = [
 	'../../migrations/0018_capacity_providers.sql',
 	'../../migrations/0020_hub_launch_spine.sql',
 	'../../migrations/0021_capacity_provider_api_keys.sql',
+	'../../migrations/0022_user_preferences.sql',
 ];
 
 let cachedMigrationSql = null;
@@ -105,7 +106,7 @@ const TEAM_ROLE_CAPABILITIES = {
 	finance: ['manage_billing', 'manage_products'],
 };
 
-const KNOWLEDGE_COOP_ROLE_DESCRIPTIONS = {
+const TEAM_ROLE_DESCRIPTIONS = {
 	team_owner: 'Own the team portfolio and all project capabilities.',
 	market_steward: 'Manage market products and publish listings.',
 	project_lead: 'Lead projects, workstreams, and release promotion.',
@@ -1427,7 +1428,7 @@ export class MarketControlPlaneStore {
 				.then(() => this.ensureWorkdayManagerSchema())
 				.then(() => this.ensureProjectCapabilityGrantSchema())
 				.then(() => this.ensureHubLaunchEventSchema())
-				.then(() => this.seedKnowledgeCoopRoles());
+				.then(() => this.seedTeamRoles());
 		}
 		return this.initializationPromise;
 	}
@@ -1613,9 +1614,9 @@ export class MarketControlPlaneStore {
 		await this.run(`CREATE INDEX IF NOT EXISTS idx_team_invites_token_prefix ON team_invites(token_prefix)`);
 	}
 
-	async seedKnowledgeCoopRoles() {
+	async seedTeamRoles() {
 		const timestamp = isoNow();
-		for (const [key, description] of Object.entries(KNOWLEDGE_COOP_ROLE_DESCRIPTIONS)) {
+		for (const [key, description] of Object.entries(TEAM_ROLE_DESCRIPTIONS)) {
 			await this.run(
 				`INSERT OR IGNORE INTO roles (id, key, description, created_at)
 				 VALUES (?, ?, ?, ?)`,

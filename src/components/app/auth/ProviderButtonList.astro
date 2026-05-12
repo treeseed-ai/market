@@ -1,0 +1,22 @@
+---
+import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
+
+interface ProviderEntry {
+	id: string;
+}
+
+interface Props {
+	providers: ProviderEntry[];
+	returnTo: string;
+}
+
+const { providers, returnTo } = Astro.props as Props;
+---
+
+<div class="auth-provider-list">
+	{providers.map((entry) => (
+		<Button href={`/auth/sign-in?provider=${entry.id}&returnTo=${encodeURIComponent(returnTo)}`} variant="secondary">
+			Continue with {entry.id.charAt(0).toUpperCase() + entry.id.slice(1)}
+		</Button>
+	))}
+</div>

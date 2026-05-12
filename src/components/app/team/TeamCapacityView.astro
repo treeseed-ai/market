@@ -1,0 +1,260 @@
+---
+import TeamHostCapacityScript from './TeamHostCapacityScript.astro';
+
+const {
+	context,
+	teamHandle,
+	capacitySummary,
+	capacityGrants = [],
+	capacityDetails = [],
+	teamProjects = [],
+	activeTeamProcessingHosts = [],
+	processingHostsById = new Map(),
+	capacityPageJson,
+} = Astro.props as any;
+const section = 'capacity';
+---
+{section === 'capacity' ? (
+	<>
+		<section class="ts-metric-strip" data-columns="5">
+		<div class="ts-panel ts-metric">
+			<span class="ts-metric__label">Monthly helper credits</span>
+			<span class="ts-metric__value">{capacitySummary?.monthlyRemainingCredits ?? capacitySummary?.monthlyCredits ?? 0}</span>
+		</div>
+		<div class="ts-panel ts-metric">
+			<span class="ts-metric__label">Spent today</span>
+			<span class="ts-metric__value">{capacitySummary?.dailyUsedCredits ?? 0}</span>
+		</div>
+		<div class="ts-panel ts-metric">
+			<span class="ts-metric__label">Remaining today</span>
+			<span class="ts-metric__value">{capacitySummary?.dailyRemainingCredits ?? 0}</span>
+		</div>
+		<div class="ts-panel ts-metric">
+			<span class="ts-metric__label">Helpers ready</span>
+			<span class="ts-metric__value">{capacitySummary?.activeProviderCount ?? 0}</span>
+		</div>
+		<div class="ts-panel ts-metric">
+			<span class="ts-metric__label">Blocked work</span>
+			<span class="ts-metric__value">{capacitySummary?.blockedTaskCount ?? 0}</span>
+		</div>
+		</section>
+		<section class="ts-grid-2 ts-stack-top">
+		<div class="ts-panel">
+			<div class="ts-panel__header">
+			<div>
+				<p class="ts-section__eyebrow">Processing Capacity</p>
+				<h2>{(capacitySummary?.activeProviderCount ?? 0) > 0 ? 'Helpers are ready to process work' : 'No helper capacity is connected yet'}</h2>
+				<p>Capacity providers spend helper credits through active processing hosts. Multiple providers can share the same host.</p>
+			</div>
+			<span class="ts-status-pill" data-tone={(capacitySummary?.activeProviderCount ?? 0) > 0 ? 'success' : 'warning'}>{(capacitySummary?.activeProviderCount ?? 0) > 0 ? 'connected and healthy' : 'waiting for provider'}</span>
+			</div>
+			<div class="ts-list ts-stack-top">
+			<div class="ts-list-item">
+				<strong>{activeTeamProcessingHosts.length} active team processing host{activeTeamProcessingHosts.length === 1 ? '' : 's'}</strong><br />
+				<span class="ts-subtle">Host-backed capacity requires an active processing host. TreeSeed-managed capacity does not require team host credentials.</span>
+			</div>
+			<div class="ts-list-item">
+				<strong>{capacityGrants.length} allocation{capacityGrants.length === 1 ? '' : 's'}</strong><br />
+				<span class="ts-subtle">Project allocations decide where helper credits can be spent.</span>
+			</div>
+			</div>
+		</div>
+		<div class="ts-panel">
+			<div class="ts-panel__header">
+			<div>
+				<p class="ts-section__eyebrow">Add provider</p>
+				<h2>Connect helper capacity</h2>
+				<p>Create managed capacity or attach a provider to an active processing host.</p>
+			</div>
+			</div>
+			<div class="ts-list">
+			<div class="ts-list-item">
+				<div class="ts-panel__header">
+				<div>
+					<strong>TreeSeed-managed helper capacity</strong><br />
+					<span class="ts-subtle">Creates default lanes, a team allocation, project allocations, and a provider security code.</span>
+				</div>
+				<button class="ts-button" type="button" data-capacity-managed-launch>Use managed capacity</button>
+				</div>
+			</div>
+			<form class="ts-list-item ts-field" data-capacity-host-backed-form>
+				<strong>Host-backed helper capacity</strong>
+				<span class="ts-field__help">Select an active processing host. You can create several capacity providers on the same host.</span>
+				<div class="ts-form-grid ts-stack-top">
+				<label class="ts-field">
+					<span class="ts-field__label">Provider name</span>
+					<input class="ts-control" name="name" value={`${context.team?.displayName ?? context.team?.name ?? 'Team'} helper capacity`} required />
+				</label>
+				<label class="ts-field">
+					<span class="ts-field__label">Processing host</span>
+					<select class="ts-control" name="processingHostId" required disabled={activeTeamProcessingHosts.length === 0}>
+					{activeTeamProcessingHosts.map((host: any) => (
+						<option value={host.id}>{host.name} · {host.provider}</option>
+					))}
+					</select>
+				</label>
+				<label class="ts-field">
+					<span class="ts-field__label">Daily credits</span>
+					<input class="ts-control" name="dailyCreditBudget" type="number" min="0" step="1" value="50" required />
+				</label>
+				<label class="ts-field">
+					<span class="ts-field__label">Monthly credits</span>
+					<input class="ts-control" name="monthlyCreditBudget" type="number" min="0" step="1" value="1000" required />
+				</label>
+				<label class="ts-field">
+					<span class="ts-field__label">Max workers</span>
+					<input class="ts-control" name="maxConcurrentWorkers" type="number" min="1" step="1" value="2" required />
+				</label>
+				</div>
+				<div class="ts-inline-actions ts-stack-top">
+				<button class="ts-button" type="submit" disabled={activeTeamProcessingHosts.length === 0}>Create host-backed provider</button>
+				{activeTeamProcessingHosts.length === 0 ? <a class="ts-button-secondary" href={`/app/teams/${teamHandle}/hosts`}>Create processing host</a> : null}
+				</div>
+			</form>
+			</div>
+			<span class="ts-subtle" data-capacity-action-status role="status"></span>
+			<div class="ts-list-item ts-stack-top" data-capacity-secret-panel hidden>
+			<strong>Provider security code</strong>
+			<span class="ts-field__help">Copy this now. TreeSeed will not show the plaintext code again.</span>
+			<textarea class="ts-control" data-capacity-secret-output rows="2" readonly></textarea>
+			</div>
+		</div>
+		</section>
+		<section class="ts-panel ts-stack-top">
+		<div class="ts-panel__header">
+			<div>
+			<p class="ts-section__eyebrow">Connected providers</p>
+			<h2>Provider health, security codes, and allocations</h2>
+			</div>
+		</div>
+		<div class="ts-card-list">
+			{capacityDetails.length > 0 ? capacityDetails.map((provider: any) => {
+			const lastHealth = provider.metadata?.lastHealth ?? {};
+			const activeKey = provider.apiKeys?.find((key: any) => key.status === 'active');
+			const processingBinding = provider.hosts?.find((host: any) => host.role === 'processing');
+			const processingHost = processingBinding ? processingHostsById.get(processingBinding.hostId) : null;
+			const teamGrant = provider.grants?.find((grant: any) => !grant.projectId && grant.grantScope === 'team');
+			const allocatedDailyCredits = provider.grants?.filter((grant: any) => grant.state === 'active').reduce((total: number, grant: any) => total + Number(grant.dailyCreditLimit ?? 0), 0) ?? 0;
+			return (
+				<article class="ts-card">
+				<div class="ts-panel__header">
+					<div>
+					<h2 class="ts-compact-title">{provider.name}</h2>
+					<p>{provider.provider} · {provider.kind.replaceAll('_', ' ')} · {processingHost ? `host ${processingHost.name}` : 'managed processing'} · security code {activeKey?.keyPrefix ?? provider.metadata?.apiKey?.activeKeyPrefix ?? 'not created'}</p>
+					</div>
+					<span class="ts-status-pill" data-tone={provider.status === 'active' ? 'success' : provider.status === 'degraded' || provider.status === 'credential_required' ? 'warning' : 'info'}>{provider.status.replaceAll('_', ' ')}</span>
+				</div>
+				<div class="ts-metric-strip" data-columns="5">
+					<div class="ts-metric"><span class="ts-metric__label">Queue</span><span class="ts-metric__value">{lastHealth.queueDepth ?? 0}</span></div>
+					<div class="ts-metric"><span class="ts-metric__label">Active workers</span><span class="ts-metric__value">{lastHealth.activeWorkers ?? 0}</span></div>
+					<div class="ts-metric"><span class="ts-metric__label">Max workers</span><span class="ts-metric__value">{provider.maxConcurrentWorkers}</span></div>
+					<div class="ts-metric"><span class="ts-metric__label">Daily limit</span><span class="ts-metric__value">{provider.dailyCreditBudget ?? 'N/A'}</span></div>
+					<div class="ts-metric"><span class="ts-metric__label">Allocated daily</span><span class="ts-metric__value">{allocatedDailyCredits}</span></div>
+				</div>
+				<div class="ts-card__meta">
+					{provider.lanes.length > 0 ? provider.lanes.map((lane: any) => (
+					<span>{lane.name}: {lane.scarcityLevel} · {lane.routingPolicy?.repositoryMutationAllowed ? 'repository work' : 'drafting/review'}</span>
+					)) : <span>No lanes configured</span>}
+				</div>
+				<div class="ts-inline-actions">
+					<button class="ts-button-secondary" type="button" data-capacity-key-reset={provider.id}>Reset security code</button>
+					<span class="ts-subtle">Last health check {lastHealth.checkedAt ?? 'not reported yet'} · last used {activeKey?.lastUsedAt ?? provider.metadata?.apiKey?.lastUsedAt ?? 'never'}</span>
+				</div>
+				<div class="ts-list ts-stack-top">
+					<form class="ts-list-item ts-form-grid" data-capacity-grant-form>
+					<input type="hidden" name="grantId" value={teamGrant?.id ?? ''} />
+					<input type="hidden" name="capacityProviderId" value={provider.id} />
+					<input type="hidden" name="grantScope" value="team" />
+					<div class="ts-field ts-field--full">
+						<strong>Team pooled allocation</strong>
+						<span class="ts-field__help">Used after project-specific allocations for this provider.</span>
+					</div>
+					<label class="ts-field">
+						<span class="ts-field__label">Daily credits</span>
+						<input class="ts-control" name="dailyCreditLimit" type="number" min="0" step="1" value={teamGrant?.dailyCreditLimit ?? provider.dailyCreditBudget ?? 0} />
+					</label>
+					<label class="ts-field">
+						<span class="ts-field__label">Monthly credits</span>
+						<input class="ts-control" name="monthlyCreditLimit" type="number" min="0" step="1" value={teamGrant?.monthlyCreditLimit ?? provider.monthlyCreditBudget ?? 0} />
+					</label>
+					<label class="ts-field">
+						<span class="ts-field__label">Overflow</span>
+						<select class="ts-control" name="overflowPolicy">
+						{['approval_required', 'deny', 'fallback_lane', 'soft_grant'].map((policy) => (
+							<option value={policy} selected={(teamGrant?.overflowPolicy ?? 'approval_required') === policy}>{policy.replaceAll('_', ' ')}</option>
+						))}
+						</select>
+					</label>
+					<label class="ts-field">
+						<span class="ts-field__label">State</span>
+						<select class="ts-control" name="state">
+						{['active', 'paused', 'disabled'].map((state) => (
+							<option value={state} selected={(teamGrant?.state ?? 'active') === state}>{state}</option>
+						))}
+						</select>
+					</label>
+					<div class="ts-inline-actions">
+						<button class="ts-button-secondary" type="submit">Save pooled allocation</button>
+					</div>
+					</form>
+					{teamProjects.map((project: any) => {
+					const projectGrant = provider.grants?.find((grant: any) => grant.projectId === project.id);
+					return (
+						<form class="ts-list-item ts-form-grid" data-capacity-grant-form>
+						<input type="hidden" name="grantId" value={projectGrant?.id ?? ''} />
+						<input type="hidden" name="capacityProviderId" value={provider.id} />
+						<input type="hidden" name="projectId" value={project.id} />
+						<input type="hidden" name="grantScope" value="project" />
+						<div class="ts-field ts-field--full">
+							<strong>{project.name}</strong>
+							<span class="ts-field__help">Project helper capacity from this provider.</span>
+						</div>
+						<label class="ts-field">
+							<span class="ts-field__label">Lane</span>
+							<select class="ts-control" name="laneId">
+							<option value="">Any lane</option>
+							{provider.lanes.map((lane: any) => (
+								<option value={lane.id} selected={projectGrant?.laneId === lane.id}>{lane.name}</option>
+							))}
+							</select>
+						</label>
+						<label class="ts-field">
+							<span class="ts-field__label">Daily credits</span>
+							<input class="ts-control" name="dailyCreditLimit" type="number" min="0" step="1" value={projectGrant?.dailyCreditLimit ?? ''} placeholder="0" />
+						</label>
+						<label class="ts-field">
+							<span class="ts-field__label">Monthly credits</span>
+							<input class="ts-control" name="monthlyCreditLimit" type="number" min="0" step="1" value={projectGrant?.monthlyCreditLimit ?? ''} placeholder="0" />
+						</label>
+						<label class="ts-field">
+							<span class="ts-field__label">Overflow</span>
+							<select class="ts-control" name="overflowPolicy">
+							{['approval_required', 'deny', 'fallback_lane', 'soft_grant'].map((policy) => (
+								<option value={policy} selected={(projectGrant?.overflowPolicy ?? 'approval_required') === policy}>{policy.replaceAll('_', ' ')}</option>
+							))}
+							</select>
+						</label>
+						<label class="ts-field">
+							<span class="ts-field__label">State</span>
+							<select class="ts-control" name="state">
+							{['active', 'paused', 'disabled'].map((state) => (
+								<option value={state} selected={(projectGrant?.state ?? (projectGrant ? 'active' : 'disabled')) === state}>{state}</option>
+							))}
+							</select>
+						</label>
+						<div class="ts-inline-actions">
+							<button class="ts-button-secondary" type="submit">{projectGrant ? 'Save allocation' : 'Create allocation'}</button>
+						</div>
+						</form>
+					);
+					})}
+				</div>
+				</article>
+			);
+			}) : <div class="ts-empty">No processing capacity providers have been configured yet.</div>}
+		</div>
+		</section>
+	</>
+	) : null}
+<script is:inline type="application/json" id="capacity-page-data" set:html={capacityPageJson}></script>
+<TeamHostCapacityScript />

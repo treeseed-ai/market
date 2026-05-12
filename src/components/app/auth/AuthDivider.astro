@@ -1,0 +1,9 @@
+---
+interface Props {
+	label?: string;
+}
+
+const { label = 'or' } = Astro.props as Props;
+---
+
+<div class="auth-divider">{label}</div>

@@ -1,0 +1,638 @@
+---
+import TeamHostCapacityScript from './TeamHostCapacityScript.astro';
+
+const {
+	context,
+	teamHandle,
+	defaultHostName,
+	managedRepositoryHosts = [],
+	teamRepositoryHosts = [],
+	managedWebHosts = [],
+	teamWebHosts = [],
+	managedProcessingHosts = [],
+	teamProcessingHosts = [],
+	managedEmailHosts = [],
+	teamEmailHosts = [],
+	capacityProvidersByProcessingHostId = new Map(),
+	projectsUsingWebHost,
+	webHostsJson,
+} = Astro.props as any;
+const section = 'hosts';
+---
+{section === 'hosts' ? (
+	<section class="ts-panel">
+		<div class="ts-panel__header">
+		<div>
+			<p class="ts-section__eyebrow">Hosts</p>
+			<h2>Team hosts</h2>
+			<p>Saved hosts keep provider deployment values encrypted by the team sensitive-data passphrase. Use the header unlock control to edit or validate team-owned hosts.</p>
+		</div>
+		</div>
+
+		<div class="ts-tabs" role="tablist" aria-label="Host types" data-host-tabs>
+		<button class="ts-tab" id="repository-host-tab" type="button" role="tab" aria-controls="repository-host-panel" aria-selected="true" data-host-tab="repository">Repository</button>
+		<button class="ts-tab" id="web-host-tab" type="button" role="tab" aria-controls="web-host-panel" aria-selected="false" data-host-tab="web">Web</button>
+		<button class="ts-tab" id="processing-host-tab" type="button" role="tab" aria-controls="processing-host-panel" aria-selected="false" data-host-tab="processing">Processing</button>
+		<button class="ts-tab" id="email-host-tab" type="button" role="tab" aria-controls="email-host-panel" aria-selected="false" data-host-tab="email">Email</button>
+		</div>
+
+		<div id="repository-host-panel" role="tabpanel" aria-labelledby="repository-host-tab" data-host-tab-panel="repository">
+		<section class="ts-grid-2">
+			<div class="ts-panel">
+			<div class="ts-panel__header">
+				<div>
+				<p class="ts-section__eyebrow">Repository Hosts</p>
+				<h2>Repository ownership</h2>
+				<p>Repository Hosts create or connect split software and content repositories for launched hubs.</p>
+				</div>
+			</div>
+			<div class="ts-card-list" id="repository-host-list">
+				{managedRepositoryHosts.map((host: any) => (
+				<article class="ts-card">
+					<div class="ts-panel__header">
+					<div>
+						<h2 class="ts-compact-title">{host.name}</h2>
+						<p>Default centralized repository hosting in TreeSeed's organization.</p>
+					</div>
+					<span class="ts-status-pill" data-tone="info">default option</span>
+					</div>
+					<div class="ts-card__meta">
+					<span>{host.ownership}</span>
+					<span>{host.provider}</span>
+					<span>{host.organizationOrOwner}</span>
+					<span>{host.defaultVisibility}</span>
+					<span>public projects free</span>
+					<span>$0.01/build minute for private builds</span>
+					</div>
+				</article>
+				))}
+				{teamRepositoryHosts.map((host: any) => (
+				<article class="ts-card" data-repository-host-card={host.id}>
+					<div class="ts-panel__header">
+					<div>
+						<h2 class="ts-compact-title">{host.name}</h2>
+						<p>{host.accountLabel ?? host.organizationOrOwner}</p>
+					</div>
+					<span class="ts-status-pill" data-tone={host.status === 'active' ? 'success' : 'warning'}>{host.status}</span>
+					</div>
+					<div class="ts-card__meta">
+					<span>{host.ownership}</span>
+					<span>{host.provider}</span>
+					<span>{host.organizationOrOwner}</span>
+					<span>{host.defaultVisibility}</span>
+					<span>{host.metadata?.credentialStatus ?? (host.ownership === 'team_owned' ? 'encrypted credentials' : 'managed credentials')}</span>
+					</div>
+					{host.ownership === 'team_owned' ? (
+						<div class="ts-host-actions">
+						<button class="ts-button-secondary" type="button" data-repository-host-validate={host.id} data-sensitive-lock>Validate</button>
+						<button class="ts-button-secondary" data-tone="danger" type="button" data-repository-host-delete={host.id}>Delete</button>
+						<span class="ts-field__help" data-sensitive-lock-message>Unlock sensitive data from the header to edit or validate this value.</span>
+						</div>
+					) : null}
+				</article>
+				))}
+			</div>
+			</div>
+			<form class="ts-panel" id="repository-host-create-form">
+			<div class="ts-panel__header">
+				<div>
+				<p class="ts-section__eyebrow">New Repository Host</p>
+				<h2>Create Repository Host</h2>
+				<p><strong>Provider values are encrypted in your browser and are not available to TreeSeed.</strong></p>
+				</div>
+			</div>
+			<div class="ts-list ts-form-grid">
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Repository provider</span>
+				<select class="ts-control" name="provider" required>
+					<option value="github">GitHub</option>
+				</select>
+				</label>
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Display name</span>
+				<input class="ts-control" name="name" required value={`${context.team?.displayName ?? context.team?.name ?? 'Team'} repositories`} />
+				</label>
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Account label</span>
+				<input class="ts-control" name="accountLabel" />
+				</label>
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Owner or organization</span>
+				<input class="ts-control" name="organizationOrOwner" required />
+				</label>
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Default visibility</span>
+				<select class="ts-control" name="defaultVisibility" required>
+					<option value="private">Private</option>
+					<option value="internal">Internal</option>
+					<option value="public">Public</option>
+				</select>
+				</label>
+				<label class="ts-list-item ts-field ts-field--full">
+				<span class="ts-field__label">GitHub token</span>
+				<span class="ts-field__help">Use a token scoped to create and configure repositories in the owner or organization above.</span>
+				<span class="ts-field__help" data-sensitive-lock-message>Unlock sensitive data from the header to edit or validate this value.</span>
+				<input class="ts-control" name="GITHUB_TOKEN" required type="password" autocomplete="off" data-sensitive-lock />
+				</label>
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Software repo template</span>
+				<input class="ts-control" name="softwareRepositoryNameTemplate" value="{hub}-site" />
+				</label>
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Content repo template</span>
+				<input class="ts-control" name="contentRepositoryNameTemplate" value="{hub}-content" />
+				</label>
+			</div>
+			<div class="ts-inline-actions ts-stack-top">
+				<button class="ts-button" type="submit" data-sensitive-lock>Save Repository Host</button>
+				<span class="ts-subtle" id="repository-host-status" role="status" data-host-status="repository"></span>
+			</div>
+			</form>
+		</section>
+		</div>
+
+		<div id="web-host-panel" role="tabpanel" aria-labelledby="web-host-tab" data-host-tab-panel="web" hidden>
+		<section class="ts-grid-2">
+			<div class="ts-panel">
+			<div class="ts-panel__header">
+				<div>
+				<p class="ts-section__eyebrow">Web Hosts</p>
+				<h2>Web hosting</h2>
+				<p>Web hosts run public project surfaces, content storage, runtime data, queues, and optional DNS.</p>
+				</div>
+			</div>
+			<div class="ts-card-list" id="web-host-list">
+				{managedWebHosts.map((host: any) => (
+				<article class="ts-card">
+					<div class="ts-panel__header">
+					<div>
+						<h2 class="ts-compact-title">{host.name}</h2>
+						<p>Paid managed web hosting in the TreeSeed web account.</p>
+					</div>
+					<span class="ts-status-pill" data-tone="info">default option</span>
+					</div>
+					<div class="ts-card__meta">
+					<span>{host.ownership}</span>
+					<span>web</span>
+					<span>{host.provider}</span>
+					<span>staging + prod</span>
+					<span>$4.95/month</span>
+					<span>no unlock needed</span>
+					</div>
+				</article>
+				))}
+				{teamWebHosts.map((host: any) => {
+				const usedByProjects = projectsUsingWebHost(host.id);
+				return (
+					<article class="ts-card" data-host-card={host.id}>
+					<div class="ts-panel__header">
+						<div>
+						<h2 class="ts-compact-title">{host.name}</h2>
+						<p>{host.accountLabel ?? 'Web account'}</p>
+						</div>
+						<span class="ts-status-pill" data-tone={host.status === 'active' ? 'success' : 'warning'}>{host.status}</span>
+					</div>
+					<div class="ts-card__meta">
+						<span>{host.ownership}</span>
+						<span>web</span>
+						<span>{host.provider}</span>
+						<span>staging + prod</span>
+						<span>{host.metadata?.lastValidation?.status ?? 'not validated'}</span>
+						<span>{usedByProjects.length === 1 ? '1 project' : `${usedByProjects.length} projects`}</span>
+					</div>
+					{usedByProjects.length > 0 ? (
+						<div class="ts-host-usage">
+						<span class="ts-field__label">Projects using this host</span>
+						<div class="ts-badges ts-stack-top-sm">
+							{usedByProjects.map((project: any) => (
+							<a class="ts-badge" href={`/app/teams/${teamHandle}/projects/${project.slug}/settings`}>{project.name}</a>
+							))}
+						</div>
+						<span class="ts-field__help">Create a new host, then move these projects before deleting this configuration.</span>
+						</div>
+					) : null}
+					<div class="ts-host-actions">
+						<button class="ts-button-secondary" type="button" data-host-validate={host.id} data-sensitive-lock>Validate</button>
+						{usedByProjects.length === 0 ? (
+						<button class="ts-button-secondary" data-tone="danger" type="button" data-host-delete={host.id}>Delete</button>
+						) : null}
+						<span class="ts-field__help" data-sensitive-lock-message>Unlock sensitive data from the header to edit or validate this value.</span>
+					</div>
+					</article>
+				);
+				})}
+				{managedWebHosts.length === 0 && teamWebHosts.length === 0 ? <div class="ts-empty">No Web Hosts have been saved yet.</div> : null}
+			</div>
+			</div>
+			<form class="ts-panel" data-host-create-form data-host-type="web">
+			<div class="ts-panel__header">
+				<div>
+				<p class="ts-section__eyebrow">New Web Host</p>
+				<h2>Create Web Host</h2>
+				<p><strong>Provider values are encrypted in your browser and are not available to TreeSeed.</strong></p>
+				</div>
+			</div>
+			<div class="ts-list ts-form-grid">
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Web provider</span>
+				<select class="ts-control" name="provider" required>
+					<option value="cloudflare">Cloudflare</option>
+				</select>
+				</label>
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Display name</span>
+				<input class="ts-control" name="name" required value={`${defaultHostName} web`} />
+				</label>
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Account label</span>
+				<input class="ts-control" name="accountLabel" />
+				</label>
+				<div class="ts-list-item ts-field ts-field--full" data-provider-panel="cloudflare">
+				<span class="ts-field__label">Web provider configuration</span>
+				<span class="ts-field__help">The Cloudflare adapter is the first supported web provider. These values are encrypted into this host entry and unlocked only for validation, launch, and secret sync operations.</span>
+				</div>
+				<label class="ts-list-item ts-field ts-field--full" data-provider-panel="cloudflare">
+				<span class="ts-field__label">API token</span>
+				<span class="ts-field__help">Use a scoped token for the account and zones this team will host from.</span>
+				<span class="ts-field__help" data-sensitive-lock-message>Unlock sensitive data from the header to edit or validate this value.</span>
+				<input class="ts-control" name="CLOUDFLARE_API_TOKEN" data-required-when-active type="password" autocomplete="off" data-sensitive-lock />
+				</label>
+				<label class="ts-list-item ts-field ts-field--full" data-provider-panel="cloudflare">
+				<span class="ts-field__label">Account ID</span>
+				<span class="ts-field__help">The account where TreeSeed should create or update project web resources.</span>
+				<span class="ts-field__help" data-sensitive-lock-message>Unlock sensitive data from the header to edit or validate this value.</span>
+				<input class="ts-control" name="CLOUDFLARE_ACCOUNT_ID" data-required-when-active data-sensitive-lock />
+				</label>
+				<div class="ts-list-item ts-field ts-field--full" data-provider-panel="cloudflare">
+				<span class="ts-field__label">What TreeSeed provisions</span>
+				<ul class="ts-field__help ts-help-list">
+					<li>Cloudflare Pages projects for production and staging deploys.</li>
+					<li>R2 content bucket and `TREESEED_CONTENT_BUCKET` binding.</li>
+					<li>D1 database, Worker/KV bindings, and agent queue plus dead-letter queue when selected project features need them.</li>
+					<li>Optional DNS records or custom domain attachment when the launched project uses Cloudflare-hosted zones.</li>
+				</ul>
+				</div>
+				<div class="ts-list-item ts-field ts-field--full" data-provider-panel="cloudflare">
+				<span class="ts-field__label">Token scope</span>
+				<ul class="ts-field__help ts-help-list">
+					<li>Account permissions: Cloudflare Pages Edit, Workers R2 Storage Edit, D1 Edit, Queues Edit, Workers Scripts Edit, and Workers KV Storage Edit.</li>
+					<li>Zone permissions: Zone Read and DNS Edit/Write for every zone TreeSeed may attach project domains to.</li>
+					<li>Restrict account resources to the account ID above and zone resources to the specific domains this team controls.</li>
+				</ul>
+				</div>
+				<div class="ts-list-item ts-field ts-field--full" data-provider-panel="cloudflare">
+				<span class="ts-field__label">Naming generated at launch</span>
+				<ul class="ts-field__help ts-help-list">
+					<li>Resource names start with the normalized project slug, such as `project-slug`.</li>
+					<li>Staging Pages defaults to `project-slug-staging`; production Pages defaults to `project-slug`.</li>
+					<li>Content storage defaults to `project-slug-content`; queues default to `project-slug-agent-work` and `project-slug-agent-work-dlq`.</li>
+					<li>Persistent environment resources add the target environment where Cloudflare requires separate staging and production resources.</li>
+				</ul>
+				</div>
+			</div>
+			<div class="ts-inline-actions ts-stack-top">
+				<button class="ts-button" type="submit" data-sensitive-lock>Save Web Host</button>
+				<span class="ts-subtle" id="web-host-status" role="status" data-host-status="web"></span>
+			</div>
+			</form>
+		</section>
+		</div>
+
+		<div id="processing-host-panel" role="tabpanel" aria-labelledby="processing-host-tab" data-host-tab-panel="processing" hidden>
+		<section class="ts-grid-2">
+			<div class="ts-panel">
+			<div class="ts-panel__header">
+				<div>
+				<p class="ts-section__eyebrow">Processing Hosts</p>
+				<h2>Processing runtime</h2>
+				<p>Processing hosts run project API, manager, worker, and scheduled-job services.</p>
+				</div>
+			</div>
+			<div class="ts-card-list" id="processing-host-list">
+				{managedProcessingHosts.map((host: any) => (
+				<article class="ts-card">
+					<div class="ts-panel__header">
+					<div>
+						<h2 class="ts-compact-title">{host.name}</h2>
+						<p>Paid managed processing in the TreeSeed processing workspace.</p>
+					</div>
+					<span class="ts-status-pill" data-tone="info">default option</span>
+					</div>
+					<div class="ts-card__meta">
+					<span>{host.ownership}</span>
+					<span>processing</span>
+					<span>{host.provider}</span>
+					<span>staging + prod</span>
+					<span>$0.005/minute</span>
+					<span>no unlock needed</span>
+					</div>
+					{(capacityProvidersByProcessingHostId.get(host.id) ?? []).length > 0 ? (
+					<div class="ts-host-usage">
+						<span class="ts-field__label">Used by {(capacityProvidersByProcessingHostId.get(host.id) ?? []).length} capacity provider{(capacityProvidersByProcessingHostId.get(host.id) ?? []).length === 1 ? '' : 's'}</span>
+						<div class="ts-badges ts-stack-top-sm">
+						{(capacityProvidersByProcessingHostId.get(host.id) ?? []).map((provider: any) => (
+							<a class="ts-badge" href={`/app/teams/${teamHandle}/capacity`}>{provider.name}</a>
+						))}
+						</div>
+					</div>
+					) : null}
+				</article>
+				))}
+				{teamProcessingHosts.map((host: any) => {
+				const usedByProjects = projectsUsingWebHost(host.id);
+				const usedByCapacityProviders = capacityProvidersByProcessingHostId.get(host.id) ?? [];
+				return (
+					<article class="ts-card" data-host-card={host.id}>
+					<div class="ts-panel__header">
+						<div>
+						<h2 class="ts-compact-title">{host.name}</h2>
+						<p>{host.accountLabel ?? 'Processing workspace'}</p>
+						</div>
+						<span class="ts-status-pill" data-tone={host.status === 'active' ? 'success' : 'warning'}>{host.status}</span>
+					</div>
+					<div class="ts-card__meta">
+						<span>{host.ownership}</span>
+						<span>processing</span>
+						<span>{host.provider}</span>
+						<span>staging + prod</span>
+						<span>{host.metadata?.lastValidation?.status ?? 'not validated'}</span>
+						<span>{usedByProjects.length === 1 ? '1 project' : `${usedByProjects.length} projects`}</span>
+						<span>{usedByCapacityProviders.length === 1 ? '1 capacity provider' : `${usedByCapacityProviders.length} capacity providers`}</span>
+					</div>
+					{usedByCapacityProviders.length > 0 ? (
+						<div class="ts-host-usage">
+						<span class="ts-field__label">Capacity providers using this host</span>
+						<div class="ts-badges ts-stack-top-sm">
+							{usedByCapacityProviders.map((provider: any) => (
+							<a class="ts-badge" href={`/app/teams/${teamHandle}/capacity`}>{provider.name}</a>
+							))}
+						</div>
+						</div>
+					) : null}
+					{usedByProjects.length > 0 ? (
+						<div class="ts-host-usage">
+						<span class="ts-field__label">Projects using this host</span>
+						<div class="ts-badges ts-stack-top-sm">
+							{usedByProjects.map((project: any) => (
+							<a class="ts-badge" href={`/app/teams/${teamHandle}/projects/${project.slug}/settings`}>{project.name}</a>
+							))}
+						</div>
+						<span class="ts-field__help">Create a new host, then move these projects before deleting this configuration.</span>
+						</div>
+					) : null}
+					<div class="ts-host-actions">
+						<button class="ts-button-secondary" type="button" data-host-validate={host.id} data-sensitive-lock>Validate</button>
+						{usedByProjects.length === 0 ? (
+						<button class="ts-button-secondary" data-tone="danger" type="button" data-host-delete={host.id}>Delete</button>
+						) : null}
+						<span class="ts-field__help" data-sensitive-lock-message>Unlock sensitive data from the header to edit or validate this value.</span>
+					</div>
+					</article>
+				);
+				})}
+				{managedProcessingHosts.length === 0 && teamProcessingHosts.length === 0 ? <div class="ts-empty">No Processing Hosts have been saved yet.</div> : null}
+			</div>
+			</div>
+			<form class="ts-panel" data-host-create-form data-host-type="processing">
+			<div class="ts-panel__header">
+				<div>
+				<p class="ts-section__eyebrow">New Processing Host</p>
+				<h2>Create Processing Host</h2>
+				<p><strong>Provider values are encrypted in your browser and are not available to TreeSeed.</strong></p>
+				</div>
+			</div>
+			<div class="ts-list ts-form-grid">
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Processing provider</span>
+				<select class="ts-control" name="provider" required>
+					<option value="railway">Railway</option>
+				</select>
+				</label>
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Display name</span>
+				<input class="ts-control" name="name" required value={`${defaultHostName} processing`} />
+				</label>
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Account label</span>
+				<input class="ts-control" name="accountLabel" />
+				</label>
+				<div class="ts-list-item ts-field ts-field--full" data-provider-panel="railway">
+				<span class="ts-field__label">Processing provider configuration</span>
+				<span class="ts-field__help">The Railway adapter is the first supported processing provider. These values are encrypted into this host entry and unlocked only for validation, launch, and secret sync operations.</span>
+				</div>
+				<label class="ts-list-item ts-field ts-field--full" data-provider-panel="railway">
+				<span class="ts-field__label">API token</span>
+				<span class="ts-field__help">Use a Railway user or workspace token that can create and manage projects, environments, services, variables, and deployments in the selected workspace.</span>
+				<span class="ts-field__help" data-sensitive-lock-message>Unlock sensitive data from the header to edit or validate this value.</span>
+				<input class="ts-control" name="RAILWAY_API_TOKEN" data-required-when-active type="password" autocomplete="off" data-sensitive-lock />
+				</label>
+				<label class="ts-list-item ts-field ts-field--full" data-provider-panel="railway">
+				<span class="ts-field__label">Workspace</span>
+				<span class="ts-field__help">Use the Railway workspace slug or name where TreeSeed should create each project's agent runtime.</span>
+				<span class="ts-field__help" data-sensitive-lock-message>Unlock sensitive data from the header to edit or validate this value.</span>
+				<input class="ts-control" name="TREESEED_RAILWAY_WORKSPACE" data-required-when-active data-sensitive-lock />
+				</label>
+				<div class="ts-list-item ts-field ts-field--full" data-provider-panel="railway">
+				<span class="ts-field__label">What TreeSeed provisions</span>
+				<ul class="ts-field__help ts-help-list">
+					<li>Railway project and staging/production environments for each launched TreeSeed project.</li>
+					<li>API, manager, scalable worker, workday start, and workday report services when selected project features need them.</li>
+					<li>Runtime secrets and variables needed by Railway services, synced during launch and repair operations.</li>
+					<li>Worker pool scaling configuration so the manager can adjust agent capacity.</li>
+				</ul>
+				</div>
+				<div class="ts-list-item ts-field ts-field--full" data-provider-panel="railway">
+				<span class="ts-field__label">Token scope</span>
+				<ul class="ts-field__help ts-help-list">
+					<li>Create and manage projects, environments, services, variables, deploys, and service settings in the selected Railway workspace.</li>
+					<li>Restrict the token to the workspace above when Railway allows scoped token creation for your account.</li>
+					<li>Do not enter project IDs, environment IDs, or service IDs here; TreeSeed records those after provisioning.</li>
+				</ul>
+				</div>
+				<div class="ts-list-item ts-field ts-field--full" data-provider-panel="railway">
+				<span class="ts-field__label">Naming generated at launch</span>
+				<ul class="ts-field__help ts-help-list">
+					<li>Railway projects and services start from the normalized TreeSeed project slug.</li>
+					<li>Staging and production environments are always created or matched for each project.</li>
+					<li>Service names follow the TreeSeed service role: `api`, `workday-manager`, and `worker-runner`.</li>
+					<li>Provisioned IDs are saved back as project state and repository environment variables, not requested up front.</li>
+				</ul>
+				</div>
+			</div>
+			<div class="ts-inline-actions ts-stack-top">
+				<button class="ts-button" type="submit" data-sensitive-lock>Save Processing Host</button>
+				<span class="ts-subtle" id="processing-host-status" role="status" data-host-status="processing"></span>
+			</div>
+			</form>
+		</section>
+		</div>
+
+		<div id="email-host-panel" role="tabpanel" aria-labelledby="email-host-tab" data-host-tab-panel="email" hidden>
+		<section class="ts-grid-2">
+			<div class="ts-panel">
+			<div class="ts-panel__header">
+				<div>
+				<p class="ts-section__eyebrow">Email Hosts</p>
+				<h2>Email delivery</h2>
+				<p>Email hosts send project notifications, invitations, approval messages, and operational mail.</p>
+				</div>
+			</div>
+			<div class="ts-card-list" id="email-host-list">
+				{managedEmailHosts.map((host: any) => (
+				<article class="ts-card">
+					<div class="ts-panel__header">
+					<div>
+						<h2 class="ts-compact-title">{host.name}</h2>
+						<p>Paid managed email delivery through the TreeSeed email service.</p>
+					</div>
+					<span class="ts-status-pill" data-tone="info">default option</span>
+					</div>
+					<div class="ts-card__meta">
+					<span>{host.ownership}</span>
+					<span>email</span>
+					<span>{host.provider}</span>
+					<span>staging + prod</span>
+					<span>$0.01/email sent</span>
+					<span>no unlock needed</span>
+					</div>
+				</article>
+				))}
+				{teamEmailHosts.map((host: any) => {
+				const usedByProjects = projectsUsingWebHost(host.id);
+				return (
+					<article class="ts-card" data-host-card={host.id}>
+					<div class="ts-panel__header">
+						<div>
+						<h2 class="ts-compact-title">{host.name}</h2>
+						<p>{host.accountLabel ?? 'Email service'}</p>
+						</div>
+						<span class="ts-status-pill" data-tone={host.status === 'active' ? 'success' : 'warning'}>{host.status}</span>
+					</div>
+					<div class="ts-card__meta">
+						<span>{host.ownership}</span>
+						<span>email</span>
+						<span>{host.provider}</span>
+						<span>staging + prod</span>
+						<span>{host.metadata?.lastValidation?.status ?? 'not validated'}</span>
+						<span>{usedByProjects.length === 1 ? '1 project' : `${usedByProjects.length} projects`}</span>
+					</div>
+					{usedByProjects.length > 0 ? (
+						<div class="ts-host-usage">
+						<span class="ts-field__label">Projects using this host</span>
+						<div class="ts-badges ts-stack-top-sm">
+							{usedByProjects.map((project: any) => (
+							<a class="ts-badge" href={`/app/teams/${teamHandle}/projects/${project.slug}/settings`}>{project.name}</a>
+							))}
+						</div>
+						<span class="ts-field__help">Create a new host, then move these projects before deleting this configuration.</span>
+						</div>
+					) : null}
+					<div class="ts-host-actions">
+						<button class="ts-button-secondary" type="button" data-host-validate={host.id} data-sensitive-lock>Validate</button>
+						{usedByProjects.length === 0 ? (
+						<button class="ts-button-secondary" data-tone="danger" type="button" data-host-delete={host.id}>Delete</button>
+						) : null}
+						<span class="ts-field__help" data-sensitive-lock-message>Unlock sensitive data from the header to edit or validate this value.</span>
+					</div>
+					</article>
+				);
+				})}
+				{managedEmailHosts.length === 0 && teamEmailHosts.length === 0 ? <div class="ts-empty">No Email Hosts have been saved yet.</div> : null}
+			</div>
+			</div>
+			<form class="ts-panel" data-host-create-form data-host-type="email">
+			<div class="ts-panel__header">
+				<div>
+				<p class="ts-section__eyebrow">New Email Host</p>
+				<h2>Create Email Host</h2>
+				<p><strong>Provider values are encrypted in your browser and are not available to TreeSeed.</strong></p>
+				</div>
+			</div>
+			<div class="ts-list ts-form-grid">
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Email provider</span>
+				<select class="ts-control" name="provider" required>
+					<option value="smtp">SMTP</option>
+				</select>
+				</label>
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Display name</span>
+				<input class="ts-control" name="name" required value={`${defaultHostName} email`} />
+				</label>
+				<label class="ts-list-item ts-field">
+				<span class="ts-field__label">Account label</span>
+				<input class="ts-control" name="accountLabel" />
+				</label>
+				<div class="ts-list-item ts-field ts-field--full" data-provider-panel="smtp">
+				<span class="ts-field__label">SMTP provider configuration</span>
+				<span class="ts-field__help">The SMTP adapter is the first supported email provider. These values are encrypted into this host entry and unlocked only for validation, launch, and secret sync operations.</span>
+				</div>
+				<label class="ts-list-item ts-field" data-provider-panel="smtp">
+				<span class="ts-field__label">SMTP host</span>
+				<span class="ts-field__help" data-sensitive-lock-message>Unlock sensitive data from the header to edit or validate this value.</span>
+				<input class="ts-control" name="SMTP_HOST" data-required-when-active data-sensitive-lock />
+				</label>
+				<label class="ts-list-item ts-field" data-provider-panel="smtp">
+				<span class="ts-field__label">SMTP port</span>
+				<input class="ts-control" name="SMTP_PORT" inputmode="numeric" data-required-when-active data-sensitive-lock />
+				</label>
+				<label class="ts-list-item ts-field" data-provider-panel="smtp">
+				<span class="ts-field__label">Secure/TLS mode</span>
+				<select class="ts-control" name="SMTP_SECURE" data-required-when-active data-sensitive-lock>
+					<option value="starttls">STARTTLS</option>
+					<option value="true">TLS</option>
+					<option value="false">None</option>
+				</select>
+				</label>
+				<label class="ts-list-item ts-field" data-provider-panel="smtp">
+				<span class="ts-field__label">Username</span>
+				<input class="ts-control" name="SMTP_USERNAME" data-required-when-active autocomplete="off" data-sensitive-lock />
+				</label>
+				<label class="ts-list-item ts-field" data-provider-panel="smtp">
+				<span class="ts-field__label">Password</span>
+				<input class="ts-control" name="SMTP_PASSWORD" data-required-when-active type="password" autocomplete="off" data-sensitive-lock />
+				</label>
+				<label class="ts-list-item ts-field" data-provider-panel="smtp">
+				<span class="ts-field__label">Sender email</span>
+				<input class="ts-control" name="SMTP_FROM_EMAIL" data-required-when-active type="email" data-sensitive-lock />
+				</label>
+				<label class="ts-list-item ts-field" data-provider-panel="smtp">
+				<span class="ts-field__label">Sender name</span>
+				<input class="ts-control" name="SMTP_FROM_NAME" data-sensitive-lock />
+				</label>
+				<label class="ts-list-item ts-field" data-provider-panel="smtp">
+				<span class="ts-field__label">Reply-to email</span>
+				<input class="ts-control" name="SMTP_REPLY_TO" type="email" data-sensitive-lock />
+				</label>
+				<label class="ts-list-item ts-field" data-provider-panel="smtp">
+				<span class="ts-field__label">Connection timeout</span>
+				<input class="ts-control" name="SMTP_CONNECTION_TIMEOUT_MS" inputmode="numeric" placeholder="10000" data-sensitive-lock />
+				</label>
+				<div class="ts-list-item ts-field ts-field--full" data-provider-panel="smtp">
+				<span class="ts-field__label">What TreeSeed sends</span>
+				<ul class="ts-field__help ts-help-list">
+					<li>Team invitations, sign-in, and account messages.</li>
+					<li>Launch, approval, release, and publish notifications.</li>
+					<li>Operational alerts tied to project workflows and inbox items.</li>
+				</ul>
+				</div>
+				<div class="ts-list-item ts-field ts-field--full" data-provider-panel="smtp">
+				<span class="ts-field__label">Credential scope</span>
+				<ul class="ts-field__help ts-help-list">
+					<li>Use credentials restricted to outbound mail for this team or domain.</li>
+					<li>Prefer authenticated submission with TLS or STARTTLS enabled.</li>
+					<li>Use sender and reply-to addresses that match verified domains.</li>
+				</ul>
+				</div>
+			</div>
+			<div class="ts-inline-actions ts-stack-top">
+				<button class="ts-button" type="submit" data-sensitive-lock>Save Email Host</button>
+				<span class="ts-subtle" id="email-host-status" role="status" data-host-status="email"></span>
+			</div>
+			</form>
+		</section>
+		</div>
+		<script is:inline type="application/json" id="hosts-page-data" set:html={webHostsJson}></script>
+	</section>
+	) : null}
+<TeamHostCapacityScript />

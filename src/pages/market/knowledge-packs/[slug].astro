@@ -1,5 +1,9 @@
 ---
-import KnowledgeCoopPublicLayout from '../../../layouts/KnowledgeCoopPublicLayout.astro';
+import TreeseedPublicLayout from '../../../layouts/TreeseedPublicLayout.astro';
+import Badge from '../../../../packages/core/src/components/ui/data/Badge.astro';
+import KeyValueList from '../../../../packages/core/src/components/ui/data/KeyValueList.astro';
+import ActionList from '../../../../packages/core/src/components/ui/data/ActionList.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import { resolveMarketStore } from '../../../lib/market/store.js';
 
 const slug = Astro.params.slug ?? '';
@@ -12,52 +16,41 @@ if (!entry) {
 }
 ---
 
-<KnowledgeCoopPublicLayout
-	title={`${entry?.title ?? 'Knowledge pack'} | Knowledge Coop`}
+<TreeseedPublicLayout
+	title={`${entry?.title ?? 'Knowledge pack'} | TreeSeed`}
 	description={entry?.summary ?? 'Knowledge pack detail'}
 	currentPath={Astro.url.pathname}
 >
-	<section class="kc-panel">
-		<p class="kc-section__eyebrow">Knowledge pack</p>
-		<h1>{entry?.title ?? 'Unknown knowledge pack'}</h1>
-		<p>{entry?.summary ?? 'This knowledge pack could not be resolved.'}</p>
-		<div class="kc-badges" style="margin-top: 0.75rem;">
-			{entry ? <span class="kc-badge">{entry.visibility}</span> : null}
-			{entry?.offerMode ? <span class="kc-badge">{entry.offerMode.replaceAll('_', ' ')}</span> : null}
-			{entry?.metadata?.installStrategy ? <span class="kc-badge">{String(entry.metadata.installStrategy)}</span> : null}
+	<Panel
+		eyebrow="Knowledge pack"
+		title={entry?.title ?? 'Unknown knowledge pack'}
+		description={entry?.summary ?? 'This knowledge pack could not be resolved.'}
+	>
+		<div class="ts-badges">
+			{entry ? <Badge tone="muted">{entry.visibility}</Badge> : null}
+			{entry?.offerMode ? <Badge tone="muted">{entry.offerMode.replaceAll('_', ' ')}</Badge> : null}
+			{entry?.metadata?.installStrategy ? <Badge tone="muted">{String(entry.metadata.installStrategy)}</Badge> : null}
 		</div>
-	</section>
+	</Panel>
 
-	<section class="kc-grid-2" style="margin-top: 1rem;">
-		<div class="kc-panel">
-			<div class="kc-panel__header">
-				<div>
-					<h2>Trust and packaging</h2>
-					<p>Visibility, source, and publication context carried in the catalog entry.</p>
-				</div>
-			</div>
-			<div class="kc-list">
-				<div class="kc-list-item"><strong>Visibility</strong><br />{entry?.visibility ?? 'unknown'}</div>
-				<div class="kc-list-item"><strong>Offer mode</strong><br />{entry?.offerMode?.replaceAll('_', ' ') ?? 'unknown'}</div>
-				<div class="kc-list-item"><strong>Source kind</strong><br />{String(entry?.metadata?.sourceKind ?? 'market_import')}</div>
-				<div class="kc-list-item"><strong>Install strategy</strong><br />{String(entry?.metadata?.installStrategy ?? 'import_export')}</div>
-			</div>
-		</div>
-		<div class="kc-panel">
-			<div class="kc-panel__header">
-				<div>
-					<h2>Published artifacts</h2>
-					<p>Artifact versions packaged for this knowledge pack.</p>
-				</div>
-			</div>
-			<div class="kc-list">
-					{artifacts.length > 0 ? artifacts.map((artifact: any) => (
-					<div class="kc-list-item">
-						<strong>{artifact.version}</strong><br />
-						{artifact.kind} · {artifact.publishedAt}
-					</div>
-				)) : <div class="kc-empty">No published artifacts are attached yet.</div>}
-			</div>
-		</div>
+	<section class="ts-section-grid ts-stack-top">
+		<Panel title="Trust and packaging" description="Visibility, source, and publication context carried in the catalog entry.">
+			<KeyValueList items={[
+				{ key: 'Visibility', value: entry?.visibility ?? 'unknown' },
+				{ key: 'Offer mode', value: entry?.offerMode?.replaceAll('_', ' ') ?? 'unknown' },
+				{ key: 'Source kind', value: String(entry?.metadata?.sourceKind ?? 'market_import') },
+				{ key: 'Install strategy', value: String(entry?.metadata?.installStrategy ?? 'import_export') },
+			]} />
+		</Panel>
+		<Panel title="Published artifacts" description="Artifact versions packaged for this knowledge pack.">
+			<ActionList
+				items={artifacts.map((artifact: any) => ({
+					title: artifact.version,
+					description: `${artifact.kind} · ${artifact.publishedAt}`,
+				}))}
+			>
+				<div class="ts-empty-inline">No published artifacts are attached yet.</div>
+			</ActionList>
+		</Panel>
 	</section>
-</KnowledgeCoopPublicLayout>
+</TreeseedPublicLayout>

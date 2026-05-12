@@ -1,0 +1,19 @@
+---
+import ActionList from '../../../../packages/core/src/components/ui/data/ActionList.astro';
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+
+const { inbox = [] } = Astro.props as any;---
+
+<Panel eyebrow="Inbox" title="Action-required work across the team">
+	{inbox.length > 0 ? (
+		<ActionList items={inbox.map((item: any) => ({
+			title: item.title,
+			description: item.summary,
+			href: item.href,
+			meta: item.state.replaceAll('_', ' '),
+			tone: item.state === 'action_required' ? 'danger' : item.state === 'waiting_for_approval' ? 'warning' : 'info',
+			actionLabel: item.href ? 'Open' : undefined,
+		}))} />
+	) : <EmptyState title="Inbox clear" description="No action items are waiting for this team right now." />}
+</Panel>

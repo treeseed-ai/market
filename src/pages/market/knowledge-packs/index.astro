@@ -1,28 +1,26 @@
 ---
-import KnowledgeCoopPublicLayout from '../../../layouts/KnowledgeCoopPublicLayout.astro';
+import TreeseedPublicLayout from '../../../layouts/TreeseedPublicLayout.astro';
 import MarketProductCard from '../../../components/market/MarketProductCard.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import { resolveMarketStore } from '../../../lib/market/store.js';
 
 const store = resolveMarketStore(Astro.locals);
 const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
 ---
 
-<KnowledgeCoopPublicLayout
-	title="Knowledge Coop Knowledge Packs"
-	description="Packaged knowledge assets for Knowledge Coop and Treeseed."
+<TreeseedPublicLayout
+	title="TreeSeed Knowledge Packs"
+	description="Packaged knowledge assets for TreeSeed and Treeseed."
 	currentPath={Astro.url.pathname}
 >
-	<section class="kc-panel">
-		<div class="kc-panel__header">
-			<div>
-				<p class="kc-section__eyebrow">Knowledge packs</p>
-				<h1>Publish reusable direction, context, and source material</h1>
-				<p>Knowledge packs carry audience, install strategy, trust posture, and reusable knowledge artifacts through the same market app.</p>
-			</div>
-		</div>
-	</section>
+	<Panel
+		eyebrow="Knowledge packs"
+		title="Publish reusable direction, context, and source material"
+		description="Knowledge packs carry audience, install strategy, trust posture, and reusable knowledge artifacts through the same market app."
+	/>
 
-	<section class="kc-grid-3" style="margin-top: 1rem;">
+	<section class="ts-market-grid ts-stack-top">
 		{knowledgePacks.length > 0 ? knowledgePacks.map((entry: any) => (
 			<MarketProductCard
 				href={`/market/knowledge-packs/${entry.slug}/`}
@@ -30,9 +28,9 @@ const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
 				title={entry.name}
 				summary={entry.summary ?? 'Reusable packaged knowledge for teams and agents.'}
 				category="Knowledge pack"
-				publisherName="Knowledge Coop"
+				publisherName="TreeSeed"
 				badges={[entry.visibility, entry.installStrategy, entry.sourceKind]}
 			/>
-		)) : <div class="kc-empty">No public knowledge packs are available yet.</div>}
+		)) : <EmptyState title="No public knowledge packs" description="No public knowledge packs are available yet." />}
 	</section>
-</KnowledgeCoopPublicLayout>
+</TreeseedPublicLayout>

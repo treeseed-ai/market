@@ -1,5 +1,5 @@
 ---
-import KnowledgeCoopPublicLayout from '../../layouts/KnowledgeCoopPublicLayout.astro';
+import TreeseedPublicLayout from '../../layouts/TreeseedPublicLayout.astro';
 import { normalizeTeamName, validateTeamName } from '../../api/store.js';
 import { resolveMarketStore } from '../../lib/market/store.js';
 
@@ -23,34 +23,34 @@ const joinedDate = new Date(team.createdAt).toLocaleDateString('en', { month: 'l
 const visibleCount = profile.activity.projects.length + profile.activity.catalogItems.length + profile.activity.knowledgePacks.length;
 ---
 
-<KnowledgeCoopPublicLayout
-	title={`${displayName} (@${team.name}) | Knowledge Coop`}
-	description={team.profileSummary ?? `Public Knowledge Coop profile for @${team.name}.`}
+<TreeseedPublicLayout
+	title={`${displayName} (@${team.name}) | TreeSeed`}
+	description={team.profileSummary ?? `Public TreeSeed profile for @${team.name}.`}
 	currentPath={`/t/${team.name}`}
 >
-	<main class="kc-section">
-		<section class="kc-user-profile">
-			<div class="kc-user-profile__avatar" aria-hidden="true">
+	<main class="ts-section">
+		<section class="ts-user-profile">
+			<div class="ts-user-profile__avatar" aria-hidden="true">
 				{team.logoUrl ? <img src={team.logoUrl} alt="" loading="lazy" /> : <span>{displayName.slice(0, 1).toUpperCase()}</span>}
 			</div>
 			<div>
-				<p class="kc-section__eyebrow">Team profile</p>
+				<p class="ts-section__eyebrow">Team profile</p>
 				<h1>{displayName}</h1>
-				<p class="kc-user-profile__handle">@{team.name}</p>
-				<p class="kc-user-profile__meta">Created {joinedDate}</p>
+				<p class="ts-user-profile__handle">@{team.name}</p>
+				<p class="ts-user-profile__meta">Created {joinedDate}</p>
 				{team.profileSummary ? <p>{team.profileSummary}</p> : null}
 			</div>
 		</section>
 
-		<section class="kc-grid-2 kc-profile-activity" aria-label="Team activity">
-			<div class="kc-panel">
-				<div class="kc-panel__header">
+		<section class="ts-grid-2 ts-profile-activity" aria-label="Team activity">
+			<div class="ts-panel">
+				<div class="ts-panel__header">
 					<h2>Projects</h2>
-					<span class="kc-badge">{profile.activity.projects.length}</span>
+					<span class="ts-badge">{profile.activity.projects.length}</span>
 				</div>
-				<div class="kc-list">
+				<div class="ts-list">
 					{profile.activity.projects.length > 0 ? profile.activity.projects.map((project: any) => (
-						<div class="kc-list-item">
+						<div class="ts-list-item">
 							<strong>{project.name}</strong><br />
 							<span>{project.description || project.slug}</span>
 						</div>
@@ -58,14 +58,14 @@ const visibleCount = profile.activity.projects.length + profile.activity.catalog
 				</div>
 			</div>
 
-			<div class="kc-panel">
-				<div class="kc-panel__header">
+			<div class="ts-panel">
+				<div class="ts-panel__header">
 					<h2>Catalog listings</h2>
-					<span class="kc-badge">{profile.activity.catalogItems.length}</span>
+					<span class="ts-badge">{profile.activity.catalogItems.length}</span>
 				</div>
-				<div class="kc-list">
+				<div class="ts-list">
 					{profile.activity.catalogItems.length > 0 ? profile.activity.catalogItems.map((item: any) => (
-						<a class="kc-list-item" href={`/market/${item.kind === 'knowledge_pack' ? 'knowledge-packs' : 'templates'}/${item.slug}`}>
+						<a class="ts-list-item" href={`/market/${item.kind === 'knowledge_pack' ? 'knowledge-packs' : 'templates'}/${item.slug}`}>
 							<strong>{item.title}</strong><br />
 							<span>{item.summary || item.kind}</span>
 						</a>
@@ -73,14 +73,14 @@ const visibleCount = profile.activity.projects.length + profile.activity.catalog
 				</div>
 			</div>
 
-			<div class="kc-panel">
-				<div class="kc-panel__header">
+			<div class="ts-panel">
+				<div class="ts-panel__header">
 					<h2>Knowledge packs</h2>
-					<span class="kc-badge">{profile.activity.knowledgePacks.length}</span>
+					<span class="ts-badge">{profile.activity.knowledgePacks.length}</span>
 				</div>
-				<div class="kc-list">
+				<div class="ts-list">
 					{profile.activity.knowledgePacks.length > 0 ? profile.activity.knowledgePacks.map((pack: any) => (
-						<a class="kc-list-item" href={`/market/knowledge-packs/${pack.slug}`}>
+						<a class="ts-list-item" href={`/market/knowledge-packs/${pack.slug}`}>
 							<strong>{pack.name}</strong><br />
 							<span>{pack.summary || pack.visibility}</span>
 						</a>
@@ -88,32 +88,32 @@ const visibleCount = profile.activity.projects.length + profile.activity.catalog
 				</div>
 			</div>
 		</section>
-		{visibleCount === 0 ? <p class="kc-muted">No team activity is visible to you yet.</p> : null}
+		{visibleCount === 0 ? <p class="ts-muted">No team activity is visible to you yet.</p> : null}
 	</main>
 	<style>
-		.kc-user-profile {
+		.ts-user-profile {
 			display: grid;
 			grid-template-columns: auto 1fr;
 			align-items: center;
 			gap: 1rem;
 			margin-bottom: 1.5rem;
 		}
-		.kc-user-profile__avatar {
+		.ts-user-profile__avatar {
 			width: 5rem;
 			height: 5rem;
 			border-radius: 8px;
 			overflow: hidden;
 			display: grid;
 			place-items: center;
-			background: #204c3f;
-			color: #fff;
+			background: var(--ts-color-link);
+			color: var(--ts-color-accent-text);
 			font-weight: 900;
 			font-size: 2rem;
 		}
-		.kc-user-profile__avatar img {
+		.ts-user-profile__avatar img {
 			width: 100%;
 			height: 100%;
 			object-fit: cover;
 		}
 	</style>
-</KnowledgeCoopPublicLayout>
+</TreeseedPublicLayout>
