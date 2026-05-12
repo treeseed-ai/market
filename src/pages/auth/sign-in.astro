@@ -1,4 +1,12 @@
 ---
+import AuthShell from '../../components/app/auth/AuthShell.astro';
+import AuthCard from '../../components/app/auth/AuthCard.astro';
+import AuthDivider from '../../components/app/auth/AuthDivider.astro';
+import ProviderButtonList from '../../components/app/auth/ProviderButtonList.astro';
+import Field from '../../../packages/core/src/components/ui/forms/Field.astro';
+import TextInput from '../../../packages/core/src/components/ui/forms/TextInput.astro';
+import Button from '../../../packages/core/src/components/ui/forms/Button.astro';
+import FormActions from '../../../packages/core/src/components/ui/forms/FormActions.astro';
 import {
 	authProviderCapabilities,
 	isSupportedAuthProvider,
@@ -8,6 +16,7 @@ import {
 	submitBetterAuthEmailFlow,
 } from '../../lib/auth/flow';
 import { resolveLoginIdentifier } from '../../lib/auth/account';
+import { resolveAnonymousThemePreference } from '../../lib/auth/appearance';
 
 export const prerender = false;
 
@@ -78,172 +87,45 @@ if (Astro.request.method === 'POST') {
 }
 
 const enabledProviders = capabilities.providers.filter((entry) => entry.enabled);
+const appearance = resolveAnonymousThemePreference(Astro);
 ---
 
-<!doctype html>
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Sign In | Knowledge Coop</title>
-		<style>
-			:root {
-				color-scheme: light;
-				font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-				background: #f6f7f2;
-				color: #17211b;
-			}
-			body {
-				margin: 0;
-				min-height: 100vh;
-				display: grid;
-				place-items: center;
-				padding: 2rem;
-			}
-			main {
-				width: min(100%, 460px);
-				background: #ffffff;
-				border: 1px solid #d9ded4;
-				border-radius: 8px;
-				box-shadow: 0 18px 40px rgba(19, 31, 22, 0.08);
-				padding: 2rem;
-			}
-			h1 {
-				margin: 0 0 0.5rem;
-				font-size: 1.65rem;
-				letter-spacing: 0;
-			}
-			p {
-				margin: 0 0 1.25rem;
-				color: #516052;
-				line-height: 1.5;
-			}
-			form {
-				display: grid;
-				gap: 0.9rem;
-			}
-			label {
-				display: grid;
-				gap: 0.35rem;
-				font-size: 0.9rem;
-				font-weight: 700;
-			}
-			input {
-				width: 100%;
-				box-sizing: border-box;
-				border: 1px solid #c9d1c4;
-				border-radius: 6px;
-				padding: 0.78rem 0.85rem;
-				font: inherit;
-			}
-			button,
-			.provider-link {
-				display: inline-flex;
-				align-items: center;
-				justify-content: center;
-				min-height: 2.75rem;
-				border-radius: 6px;
-				border: 1px solid #17211b;
-				background: #17211b;
-				color: #fff;
-				font: inherit;
-				font-weight: 800;
-				text-decoration: none;
-				cursor: pointer;
-			}
-			.provider-link {
-				background: #fff;
-				color: #17211b;
-				border-color: #c9d1c4;
-			}
-			.auth-divider {
-				display: flex;
-				align-items: center;
-				gap: 0.75rem;
-				margin: 1.35rem 0;
-				color: #667266;
-				font-size: 0.82rem;
-				text-transform: uppercase;
-				letter-spacing: 0;
-			}
-			.auth-divider::before,
-			.auth-divider::after {
-				content: "";
-				height: 1px;
-				background: #d9ded4;
-				flex: 1;
-			}
-			.provider-list {
-				display: grid;
-				gap: 0.65rem;
-			}
-			.auth-error {
-				background: #fff2f0;
-				border: 1px solid #f0b8b0;
-				color: #8a1f11;
-				border-radius: 6px;
-				padding: 0.75rem;
-				margin-bottom: 1rem;
-			}
-			.auth-notice {
-				background: #eef8ef;
-				border: 1px solid #aed7b8;
-				color: #1d6d3c;
-				border-radius: 6px;
-				padding: 0.75rem;
-				margin-bottom: 1rem;
-			}
-			.auth-footer {
-				margin-top: 1rem;
-				font-size: 0.92rem;
-			}
-			.auth-footer a {
-				color: #204c3f;
-				font-weight: 800;
-			}
-		</style>
-	</head>
-	<body>
-		<main>
-			<h1>Sign in</h1>
-			<p>Use your account email or username and password, or continue with a configured provider.</p>
-			{error ? <div class="auth-error" role="alert">{error}</div> : null}
-			{notice ? <div class="auth-notice" role="status">{notice}</div> : null}
-			{capabilities.internal.enabled ? (
-				<form method="POST" action={`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`}>
-					<label>
-						Email or username
-						<input name="login" type="text" autocomplete="username" value={submittedIdentifier} required />
-					</label>
-					<label>
-						Password
-						<input name="password" type="password" autocomplete="current-password" required minlength="8" />
-					</label>
-					<button type="submit">Sign in</button>
-				</form>
-			) : null}
-			{capabilities.internal.enabled ? (
-				<p class="auth-footer">
-					<a href={`/auth/forgot-password?returnTo=${encodeURIComponent(returnTo)}`}>Forgot password?</a>
-				</p>
-			) : null}
-			{enabledProviders.length > 0 ? (
-				<>
-					<div class="auth-divider">or</div>
-					<div class="provider-list">
-						{enabledProviders.map((entry) => (
-							<a class="provider-link" href={`/auth/sign-in?provider=${entry.id}&returnTo=${encodeURIComponent(returnTo)}`}>
-								Continue with {entry.id.charAt(0).toUpperCase() + entry.id.slice(1)}
-							</a>
-						))}
-					</div>
-				</>
-			) : null}
-			{capabilities.internal.signupEnabled ? (
-				<p class="auth-footer">
-					Need an account? <a href={`/auth/register?returnTo=${encodeURIComponent(returnTo)}`}>Create one</a>
-				</p>
-			) : null}
-		</main>
-	</body>
-</html>
+<AuthShell title="Sign In | TreeSeed" description="Sign in to TreeSeed Market." appearance={appearance}>
+	<AuthCard
+		title="Sign in"
+		description="Use your account email or username and password, or continue with a configured provider."
+		error={error}
+		notice={notice}
+		appearance={appearance}
+	>
+		{capabilities.internal.enabled ? (
+			<form class="auth-form" method="POST" action={`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`}>
+				<Field label="Email or username" name="login" required>
+					<TextInput name="login" type="text" autocomplete="username" value={submittedIdentifier} required />
+				</Field>
+				<Field label="Password" name="password" required>
+					<TextInput name="password" type="password" autocomplete="current-password" required minlength={8} />
+				</Field>
+				<FormActions>
+					<Button type="submit">Sign in</Button>
+				</FormActions>
+			</form>
+		) : null}
+		{capabilities.internal.enabled ? (
+			<p class="auth-card__footer">
+				<a href={`/auth/forgot-password?returnTo=${encodeURIComponent(returnTo)}`}>Forgot password?</a>
+			</p>
+		) : null}
+		{enabledProviders.length > 0 ? (
+			<>
+				<AuthDivider />
+				<ProviderButtonList providers={enabledProviders} returnTo={returnTo} />
+			</>
+		) : null}
+		{capabilities.internal.signupEnabled ? (
+			<p class="auth-card__footer">
+				Need an account? <a href={`/auth/register?returnTo=${encodeURIComponent(returnTo)}`}>Create one</a>
+			</p>
+		) : null}
+	</AuthCard>
+</AuthShell>

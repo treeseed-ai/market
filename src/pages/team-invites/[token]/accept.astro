@@ -1,5 +1,5 @@
 ---
-import KnowledgeCoopPublicLayout from '../../../layouts/KnowledgeCoopPublicLayout.astro';
+import TreeseedPublicLayout from '../../../layouts/TreeseedPublicLayout.astro';
 import { resolveMarketStore } from '../../../lib/market/store.js';
 
 export const prerender = false;
@@ -19,13 +19,13 @@ if (result.ok && result.team) {
 }
 ---
 
-<KnowledgeCoopPublicLayout title="Team invite" description="Accept a Treeseed Market team invite." currentPath={Astro.url.pathname}>
-	<main class="kc-section">
-		<section class="kc-panel">
-			<p class="kc-section__eyebrow">Team invite</p>
+<TreeseedPublicLayout title="Team invite" description="Accept a Treeseed Market team invite." currentPath={Astro.url.pathname}>
+	<main class="ts-section">
+		<section class="ts-panel">
+			<p class="ts-section__eyebrow">Team invite</p>
 			<h1>Invite could not be accepted</h1>
 			<p>{result.message ?? 'The invite link is invalid or expired.'}</p>
-			<a class="kc-button" href="/app/">Open app</a>
+			<a class="ts-button" href="/app/">Open app</a>
 		</section>
 	</main>
-</KnowledgeCoopPublicLayout>
+</TreeseedPublicLayout>

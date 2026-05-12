@@ -1,10 +1,23 @@
 ---
-import KnowledgeCoopAppLayout from '../../layouts/KnowledgeCoopAppLayout.astro';
+import TreeseedAppLayout from '../../layouts/TreeseedAppLayout.astro';
+import '../../../packages/core/src/styles/ui.css';
+import '../../../packages/core/src/styles/forms.css';
+import '../../styles/auth.css';
+import ThemeSelector from '../../../packages/core/src/components/ui/theme/ThemeSelector.astro';
+import Panel from '../../../packages/core/src/components/ui/surface/Panel.astro';
+import Field from '../../../packages/core/src/components/ui/forms/Field.astro';
+import TextInput from '../../../packages/core/src/components/ui/forms/TextInput.astro';
+import Button from '../../../packages/core/src/components/ui/forms/Button.astro';
+import FormActions from '../../../packages/core/src/components/ui/forms/FormActions.astro';
+import PasswordMeter from '../../../packages/core/src/components/ui/forms/PasswordMeter.astro';
+import Badge from '../../../packages/core/src/components/ui/data/Badge.astro';
+import StatusPill from '../../../packages/core/src/components/ui/data/StatusPill.astro';
+import KeyValueList from '../../../packages/core/src/components/ui/data/KeyValueList.astro';
 import { ensureBetterAuthD1Schema } from '../../lib/auth/better-auth';
 import { listSiteWebSessions } from '../../lib/auth/session-store';
-import { PASSWORD_RULE_DEFINITIONS } from '../../lib/auth/password-policy';
 import { loadAccessibleTeams } from '../../lib/market/store';
 import { DELETE_ACCOUNT_CONFIRMATION, evaluateAccountDeletionBlockers, loadCurrentBetterAuthAccount } from '../../lib/auth/account';
+import { resolveAuthenticatedThemePreference } from '../../lib/auth/appearance';
 
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/account')}`);
@@ -19,13 +32,13 @@ const passwordStatus = Astro.url.searchParams.get('password') ?? '';
 const profileStatus = Astro.url.searchParams.get('profile') ?? '';
 const emailStatus = Astro.url.searchParams.get('email') ?? '';
 const deleteStatus = Astro.url.searchParams.get('delete') ?? '';
+const appearanceStatus = Astro.url.searchParams.get('appearance') ?? '';
 const statusMessage = Astro.url.searchParams.get('message') ?? '';
 const hasCredential = accounts.some((account: any) => account.providerId === 'credential');
 const principal = Astro.locals.auth.principal;
 const roles = principal.roles ?? [];
 const permissions = principal.permissions ?? [];
 const isPlatformAdmin = roles.includes('platform_admin') || permissions.includes('*:*:*');
-const passwordRules = PASSWORD_RULE_DEFINITIONS.map((rule) => ({ id: rule.id, label: rule.label }));
 const deletionBlockers = await evaluateAccountDeletionBlockers(Astro);
 const currentUser = currentAccount?.user;
 const metadataEmail = typeof principal.metadata?.email === 'string' ? principal.metadata.email : '';
@@ -35,6 +48,7 @@ const currentImage = typeof currentUser?.image === 'string' ? currentUser.image 
 const currentUsername = typeof currentUser?.username === 'string'
 	? currentUser.username
 	: (typeof principal.metadata?.username === 'string' ? principal.metadata.username : '');
+const appearance = await resolveAuthenticatedThemePreference(Astro);
 const profileStatusLabels: Record<string, string> = {
 	updated: 'Profile updated',
 	missing_name: 'Display name is required',
@@ -64,301 +78,256 @@ const passwordStatusLabels: Record<string, string> = {
 	change_failed: 'Password change failed',
 	set_failed: 'Password update failed',
 };
+const appearanceStatusLabels: Record<string, string> = {
+	updated: 'Appearance updated',
+	failed: 'Appearance update failed',
+};
+const permissionSummary = isPlatformAdmin
+	? 'This account has every global permission through the platform_admin role.'
+	: 'This account is limited to assigned global roles and market team membership.';
+const activeAccountTab: string = deleteStatus
+	? 'danger'
+	: (passwordStatus ? 'security' : (appearanceStatus ? 'appearance' : (emailStatus || profileStatus ? 'profile' : 'profile')));
+const accountTabs = [
+	{ id: 'profile', label: 'Profile' },
+	{ id: 'appearance', label: 'Appearance' },
+	{ id: 'security', label: 'Security' },
+	{ id: 'sessions', label: 'Sessions' },
+	{ id: 'danger', label: 'Delete' },
+];
 ---
 
-<KnowledgeCoopAppLayout
+<TreeseedAppLayout
 	title="Account"
 	description="Manage your sign-in methods and active sessions."
 	currentPath={Astro.url.pathname}
 	teams={teams}
 	activeTeam={teams[0] ?? null}
 >
-	<section class="kc-grid-2">
-		<form class="kc-panel" method="POST" action="/auth/profile">
-			<div class="kc-panel__header">
-				<div>
-					<p class="kc-section__eyebrow">Profile</p>
-					<h2>Public account details</h2>
-				</div>
-			</div>
-			{profileStatus ? <p class="kc-badge">{profileStatusLabels[profileStatus] ?? 'Profile update failed'}</p> : null}
-			<div class="kc-list">
-				<div class="kc-list-item">
-					<strong>Username</strong><br />
-					{currentUsername ? (
-						<a href={`/u/${currentUsername}`}>@{currentUsername}</a>
-					) : (
-						<a href="/auth/username?returnTo=/app/account">Choose username</a>
-					)}
-					<br />
-					<span>Username is public and cannot be changed after registration.</span>
-				</div>
-				<label class="kc-list-item">
-					<strong>Display name</strong><br />
-					<input name="name" type="text" autocomplete="name" value={currentName} required style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
-				</label>
-				<label class="kc-list-item">
-					<strong>Profile image URL</strong><br />
-					<input name="image" type="url" inputmode="url" placeholder="https://example.com/avatar.png" value={currentImage} style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
-				</label>
-			</div>
-			<div class="kc-inline-actions" style="margin-top: 1rem;">
-				<button class="kc-button" type="submit">Update profile</button>
-			</div>
-		</form>
-
-		<form class="kc-panel" method="POST" action="/auth/email">
-			<div class="kc-panel__header">
-				<div>
-					<p class="kc-section__eyebrow">Email</p>
-					<h2>Verified email</h2>
-				</div>
-			</div>
-			{emailStatus ? <p class="kc-badge">{emailStatusLabels[emailStatus] ?? 'Email update failed'}</p> : null}
-			<div class="kc-list">
-				<label class="kc-list-item">
-					<strong>Email address</strong><br />
-					<input name="email" type="email" autocomplete="email" value={currentEmail} required style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
-				</label>
-			</div>
-			<div class="kc-inline-actions" style="margin-top: 1rem;">
-				<button class="kc-button" type="submit">Send verification</button>
-			</div>
-		</form>
-
-		<div class="kc-panel">
-			<div class="kc-panel__header">
-				<div>
-					<p class="kc-section__eyebrow">Platform access</p>
-					<h2>{isPlatformAdmin ? 'Root user' : 'Standard user'}</h2>
-				</div>
-				<span class="kc-status-pill" data-tone={isPlatformAdmin ? 'success' : 'info'}>
-					{isPlatformAdmin ? 'platform_admin' : 'member'}
-				</span>
-			</div>
-			<div class="kc-list">
-				<div class="kc-list-item">
-					<strong>Permission model</strong><br />
-					<span>
-						{isPlatformAdmin
-							? 'This account has every global permission through the platform_admin role.'
-							: 'This account is limited to assigned global roles and market team membership.'}
-					</span>
-				</div>
-				<div class="kc-list-item">
-					<strong>Roles</strong><br />
-					<div class="kc-badges" style="margin-top:0.5rem;">
-						{roles.length > 0 ? roles.map((role: string) => <span class="kc-badge">{role}</span>) : <span class="kc-badge">none</span>}
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<div class="kc-panel">
-			<div class="kc-panel__header">
-				<div>
-					<p class="kc-section__eyebrow">Sign-in methods</p>
-					<h2>Connected accounts</h2>
-				</div>
-			</div>
-			<div class="kc-list">
-				{accounts.map((account: any) => (
-					<div class="kc-list-item">
-						<strong>{account.providerId === 'credential' ? 'Email and password' : account.providerId}</strong><br />
-						<span>{account.accountId}</span>
-					</div>
-				))}
-			</div>
-		</div>
-
-		<form class="kc-panel" method="POST" action="/auth/password">
-			<div class="kc-panel__header">
-				<div>
-					<p class="kc-section__eyebrow">Password</p>
-					<h2>{hasCredential ? 'Change password' : 'Set password'}</h2>
-				</div>
-			</div>
-			{passwordStatus === 'updated' ? <p class="kc-badge">Password updated</p> : null}
-			{passwordStatus && passwordStatus !== 'updated' ? <p class="kc-badge">{passwordStatusLabels[passwordStatus] ?? 'Password update failed'}</p> : null}
-			<div class="kc-list">
-				{hasCredential ? (
-					<label class="kc-list-item">
-						<strong>Current password</strong><br />
-						<input name="currentPassword" type="password" autocomplete="current-password" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
-					</label>
-				) : null}
-				<label class="kc-list-item">
-					<strong>New password</strong><br />
-					<input data-password-input name="newPassword" type="password" autocomplete="new-password" required minlength="12" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
-				</label>
-				<label class="kc-list-item">
-					<strong>Confirm new password</strong><br />
-					<input name="confirmPassword" type="password" autocomplete="new-password" required minlength="12" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
-				</label>
-				<div class="kc-list-item">
-					<strong>Password strength</strong>
-					<div class="kc-password-meter" aria-live="polite">
-						<div class="kc-password-meter__bar" aria-hidden="true">
-							<span data-password-fill class="kc-password-meter__fill"></span>
-						</div>
-						<p data-password-label class="kc-password-meter__label">Too weak</p>
-						<ul class="kc-password-rules">
-							{passwordRules.map((rule) => <li data-password-rule={rule.id} data-met="false">{rule.label}</li>)}
-						</ul>
-					</div>
-				</div>
-			</div>
-			<div class="kc-inline-actions" style="margin-top: 1rem;">
-				<button class="kc-button" type="submit">{hasCredential ? 'Change password' : 'Set password'}</button>
-			</div>
-		</form>
-	</section>
-
-	<section class="kc-panel kc-danger-zone" style="margin-top: 1rem;">
-		<div class="kc-panel__header">
-			<div>
-				<p class="kc-section__eyebrow">Delete account</p>
-				<h2>Remove your personal account</h2>
-			</div>
-		</div>
-		{deleteStatus ? <p class="kc-badge">{deleteStatusLabels[deleteStatus] ?? 'Account deletion failed'}</p> : null}
-		{deletionBlockers.length > 0 ? (
-			<div class="kc-list" style="margin-bottom:1rem;">
-				{deletionBlockers.map((blocker) => (
-					<div class="kc-list-item">
-						<strong>{blocker.code === 'platform_admin' ? 'Platform administrator' : blocker.teamName}</strong><br />
-						<span>{blocker.message}</span>
-					</div>
-				))}
-			</div>
-		) : null}
-		<form method="POST" action="/auth/delete-account">
-			<div class="kc-list">
-				<label class="kc-list-item">
-					<strong>Confirmation text</strong><br />
-					<span>Type {DELETE_ACCOUNT_CONFIRMATION} to confirm.</span>
-					<input name="confirmation" type="text" autocomplete="off" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
-				</label>
-				{hasCredential ? (
-					<label class="kc-list-item">
-						<strong>Current password</strong><br />
-						<input name="password" type="password" autocomplete="current-password" style="margin-top:0.5rem; width:100%; padding:0.75rem; border:1px solid #d0d7de; border-radius:0.45rem;" />
-					</label>
-				) : null}
-			</div>
-			<div class="kc-inline-actions" style="margin-top: 1rem;">
-				<button class="kc-button kc-button-danger" type="submit" disabled={deletionBlockers.length > 0}>Delete account</button>
-			</div>
-		</form>
-	</section>
-
-	<style>
-		.kc-danger-zone {
-			border-color: color-mix(in srgb, var(--kc-red) 35%, #d9ded4);
-		}
-		.kc-button-danger {
-			background: var(--kc-red);
-			border-color: var(--kc-red);
-		}
-		.kc-button-danger:disabled {
-			opacity: 0.55;
-			cursor: not-allowed;
-		}
-		.kc-password-meter {
-			display: grid;
-			gap: 0.55rem;
-			margin-top: 0.75rem;
-		}
-		.kc-password-meter__bar {
-			height: 0.45rem;
-			border-radius: 999px;
-			background: var(--kc-surface-strong);
-			overflow: hidden;
-		}
-		.kc-password-meter__fill {
-			display: block;
-			height: 100%;
-			width: 0%;
-			background: var(--kc-red);
-			transition: width 160ms ease, background-color 160ms ease;
-		}
-		.kc-password-meter__label {
-			margin: 0;
-			font-size: 0.86rem;
-			font-weight: 800;
-		}
-		.kc-password-rules {
-			display: grid;
-			gap: 0.35rem;
-			margin: 0;
-			padding: 0;
-			list-style: none;
-		}
-		.kc-password-rules li {
-			color: var(--kc-red);
-			font-size: 0.86rem;
-			font-weight: 700;
-		}
-		.kc-password-rules li[data-met="true"] {
-			color: var(--kc-green);
-		}
-	</style>
-
-	<script is:inline define:vars={{ passwordRules }}>
-		const input = document.querySelector('[data-password-input]');
-		const fill = document.querySelector('[data-password-fill]');
-		const label = document.querySelector('[data-password-label]');
-		const tests = {
-			length: (value) => value.length >= 12,
-			lowercase: (value) => /[a-z]/.test(value),
-			uppercase: (value) => /[A-Z]/.test(value),
-			number: (value) => /\d/.test(value),
-			symbol: (value) => /[^A-Za-z0-9\s]/.test(value),
-			spaces: (value) => value.length > 0 && !/\s/.test(value),
-		};
-		function updatePasswordMeter() {
-			const value = input?.value ?? '';
-			let score = 0;
-			for (const rule of passwordRules) {
-				const met = Boolean(tests[rule.id]?.(value));
-				if (met) score += 1;
-				document.querySelector(`[data-password-rule="${rule.id}"]`)?.setAttribute('data-met', String(met));
-			}
-			const total = passwordRules.length;
-			const percent = total > 0 ? Math.round((score / total) * 100) : 0;
-			if (fill) {
-				fill.style.width = `${percent}%`;
-				fill.style.backgroundColor = score === total ? 'var(--kc-green)' : score >= 4 ? 'var(--kc-amber)' : 'var(--kc-red)';
-			}
-			if (label) {
-				label.textContent = score === total ? 'Strong' : score >= 4 ? 'Almost there' : score >= 2 ? 'Weak' : 'Too weak';
-			}
-		}
-		input?.addEventListener('input', updatePasswordMeter);
-		updatePasswordMeter();
-	</script>
-
-	<section class="kc-panel" style="margin-top: 1rem;">
-		<div class="kc-panel__header">
-			<div>
-				<p class="kc-section__eyebrow">Sessions</p>
-				<h2>Active and recent sessions</h2>
-			</div>
-		</div>
-		<div class="kc-list">
-			{sessions.map((session: any) => (
-				<div class="kc-list-item">
-					<strong>{session.current ? 'Current session' : session.provider}</strong><br />
-					<span>{session.userAgent ?? 'Unknown device'}</span><br />
-					<span>Last seen {session.lastSeenAt ?? session.authenticatedAt}</span>
-					{session.revokedAt ? <span>Revoked {session.revokedAt}</span> : null}
-					{!session.current && !session.revokedAt ? (
-						<form method="POST" action={`/auth/sessions/${session.id}`} style="margin-top:0.75rem;">
-							<button class="kc-button-secondary" type="submit">Revoke session</button>
-						</form>
-					) : null}
-				</div>
+	<section class="account-tabs-shell" data-account-tabs-root data-default-tab={activeAccountTab}>
+		<nav class="ts-tabs account-tabs" role="tablist" aria-label="Account sections">
+			{accountTabs.map((tab) => (
+				<button
+					class="ts-tab"
+					type="button"
+					role="tab"
+					id={`account-tab-${tab.id}`}
+					aria-controls={`account-panel-${tab.id}`}
+					aria-selected={activeAccountTab === tab.id ? 'true' : 'false'}
+					tabindex={activeAccountTab === tab.id ? '0' : '-1'}
+					data-account-tab={tab.id}
+				>
+					{tab.label}
+				</button>
 			))}
+		</nav>
+
+		<div class="account-tab-panels">
+			<section id="account-panel-profile" class="account-tab-panel" role="tabpanel" aria-labelledby="account-tab-profile" data-account-panel="profile" hidden={activeAccountTab !== 'profile'}>
+				<div class="account-two-column">
+					<form method="POST" action="/auth/profile">
+						<Panel eyebrow="Profile" title="Public account details">
+							<div class="account-form">
+								{profileStatus ? <Badge tone={profileStatus === 'updated' ? 'success' : 'danger'}>{profileStatusLabels[profileStatus] ?? 'Profile update failed'}</Badge> : null}
+								<div class="account-list-item">
+									<strong>Username</strong>
+									{currentUsername ? (
+										<a href={`/u/${currentUsername}`}>@{currentUsername}</a>
+									) : (
+										<a href="/auth/username?returnTo=/app/account">Choose username</a>
+									)}
+									<span>Username is public and cannot be changed after registration.</span>
+								</div>
+								<Field label="Display name" name="name" required>
+									<TextInput name="name" type="text" autocomplete="name" value={currentName} required />
+								</Field>
+								<Field label="Profile image URL" name="image">
+									<TextInput name="image" type="url" inputmode="url" placeholder="https://example.com/avatar.png" value={currentImage} />
+								</Field>
+								<FormActions>
+									<Button type="submit">Update profile</Button>
+								</FormActions>
+							</div>
+						</Panel>
+					</form>
+
+					<form method="POST" action="/auth/email">
+						<Panel eyebrow="Email" title="Verified email">
+							<div class="account-form">
+								{emailStatus ? <Badge tone={emailStatus === 'sent' || emailStatus === 'verified' ? 'success' : 'danger'}>{emailStatusLabels[emailStatus] ?? 'Email update failed'}</Badge> : null}
+								<Field label="Email address" name="email" required>
+									<TextInput name="email" type="email" autocomplete="email" value={currentEmail} required />
+								</Field>
+								<FormActions>
+									<Button type="submit">Send verification</Button>
+								</FormActions>
+							</div>
+						</Panel>
+					</form>
+
+					<Panel eyebrow="Platform access" title={isPlatformAdmin ? 'Root user' : 'Standard user'}>
+						<Fragment slot="actions">
+							<StatusPill tone={isPlatformAdmin ? 'success' : 'info'}>
+								{isPlatformAdmin ? 'platform_admin' : 'member'}
+							</StatusPill>
+						</Fragment>
+						<div class="account-form">
+							<KeyValueList items={[{ key: 'Permission model', value: permissionSummary }]} />
+							<div class="account-list-item">
+								<strong>Roles</strong>
+								<div class="account-badges">
+									{roles.length > 0 ? roles.map((role: string) => <Badge>{role}</Badge>) : <Badge>none</Badge>}
+								</div>
+							</div>
+						</div>
+					</Panel>
+				</div>
+			</section>
+
+			<section id="account-panel-appearance" class="account-tab-panel" role="tabpanel" aria-labelledby="account-tab-appearance" data-account-panel="appearance" hidden={activeAccountTab !== 'appearance'}>
+				<form method="POST" action="/auth/appearance">
+					<Panel eyebrow="Appearance" title="Color scheme and mode" description="Choose the color scheme and light/dark behavior used across TreeSeed.">
+						<div class="account-form">
+							{appearanceStatus ? <Badge tone={appearanceStatus === 'updated' ? 'success' : 'danger'}>{appearanceStatusLabels[appearanceStatus] ?? 'Appearance update failed'}</Badge> : null}
+							<ThemeSelector
+								label="Appearance"
+								selectedScheme={appearance.scheme}
+								selectedMode={appearance.mode}
+								includeHiddenFields={true}
+								schemeFieldName="colorScheme"
+								modeFieldName="themeMode"
+								compact={false}
+							/>
+							<FormActions>
+								<Button type="submit">Save appearance</Button>
+							</FormActions>
+						</div>
+					</Panel>
+				</form>
+			</section>
+
+			<section id="account-panel-security" class="account-tab-panel" role="tabpanel" aria-labelledby="account-tab-security" data-account-panel="security" hidden={activeAccountTab !== 'security'}>
+				<div class="account-two-column">
+					<Panel eyebrow="Sign-in methods" title="Connected accounts">
+						<div class="account-list">
+							{accounts.map((account: any) => (
+								<div class="account-list-item">
+									<strong>{account.providerId === 'credential' ? 'Email and password' : account.providerId}</strong>
+									<span>{account.accountId}</span>
+								</div>
+							))}
+						</div>
+					</Panel>
+
+					<form method="POST" action="/auth/password">
+						<Panel eyebrow="Password" title={hasCredential ? 'Change password' : 'Set password'}>
+							<div class="account-form">
+								{passwordStatus === 'updated' ? <Badge tone="success">Password updated</Badge> : null}
+								{passwordStatus && passwordStatus !== 'updated' ? <Badge tone="danger">{passwordStatusLabels[passwordStatus] ?? 'Password update failed'}</Badge> : null}
+								{hasCredential ? (
+									<Field label="Current password" name="currentPassword">
+										<TextInput name="currentPassword" type="password" autocomplete="current-password" />
+									</Field>
+								) : null}
+								<Field label="New password" name="newPassword" required>
+									<TextInput id="accountNewPassword" name="newPassword" type="password" autocomplete="new-password" required minlength={12} />
+								</Field>
+								<Field label="Confirm new password" name="confirmPassword" required>
+									<TextInput name="confirmPassword" type="password" autocomplete="new-password" required minlength={12} />
+								</Field>
+								<PasswordMeter inputId="accountNewPassword" />
+								<FormActions>
+									<Button type="submit">{hasCredential ? 'Change password' : 'Set password'}</Button>
+								</FormActions>
+							</div>
+						</Panel>
+					</form>
+				</div>
+			</section>
+
+			<section id="account-panel-sessions" class="account-tab-panel" role="tabpanel" aria-labelledby="account-tab-sessions" data-account-panel="sessions" hidden={activeAccountTab !== 'sessions'}>
+				<Panel eyebrow="Sessions" title="Active and recent sessions" class="account-stack">
+					<div class="account-list">
+						{sessions.map((session: any) => (
+							<div class="account-list-item">
+								<strong>{session.current ? 'Current session' : session.provider}</strong>
+								<span>{session.userAgent ?? 'Unknown device'}</span>
+								<span>Last seen {session.lastSeenAt ?? session.authenticatedAt}</span>
+								{session.revokedAt ? <span>Revoked {session.revokedAt}</span> : null}
+								{!session.current && !session.revokedAt ? (
+									<form method="POST" action={`/auth/sessions/${session.id}`}>
+										<Button variant="secondary" type="submit">Revoke session</Button>
+									</form>
+								) : null}
+							</div>
+						))}
+					</div>
+				</Panel>
+			</section>
+
+			<section id="account-panel-danger" class="account-tab-panel" role="tabpanel" aria-labelledby="account-tab-danger" data-account-panel="danger" hidden={activeAccountTab !== 'danger'}>
+				<Panel class="account-danger-panel" eyebrow="Delete account" title="Remove your personal account">
+					<div class="account-form">
+						{deleteStatus ? <Badge tone="danger">{deleteStatusLabels[deleteStatus] ?? 'Account deletion failed'}</Badge> : null}
+						{deletionBlockers.length > 0 ? (
+							<div class="account-list">
+								{deletionBlockers.map((blocker) => (
+									<div class="account-list-item">
+										<strong>{blocker.code === 'platform_admin' ? 'Platform administrator' : blocker.teamName}</strong>
+										<span>{blocker.message}</span>
+									</div>
+								))}
+							</div>
+						) : null}
+						<form class="account-form" method="POST" action="/auth/delete-account">
+							<Field label="Confirmation text" name="confirmation" help={`Type ${DELETE_ACCOUNT_CONFIRMATION} to confirm.`}>
+								<TextInput name="confirmation" type="text" autocomplete="off" />
+							</Field>
+							{hasCredential ? (
+								<Field label="Current password" name="password">
+									<TextInput name="password" type="password" autocomplete="current-password" />
+								</Field>
+							) : null}
+							<FormActions>
+								<Button variant="danger" type="submit" disabled={deletionBlockers.length > 0}>Delete account</Button>
+							</FormActions>
+						</form>
+					</div>
+				</Panel>
+			</section>
 		</div>
 	</section>
-</KnowledgeCoopAppLayout>
+
+	<script>
+		(() => {
+			const root = document.querySelector('[data-account-tabs-root]');
+			if (!root) return;
+			const tabs = Array.from(root.querySelectorAll<HTMLElement>('[data-account-tab]'));
+			const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-account-panel]'));
+			const ids = new Set(tabs.map((tab) => tab.getAttribute('data-account-tab')));
+			const defaultTab = root.getAttribute('data-default-tab') || 'profile';
+
+			function activate(id: string | null, updateHash = true) {
+				const next = ids.has(id) ? id : defaultTab;
+				tabs.forEach((tab) => {
+					const selected = tab.getAttribute('data-account-tab') === next;
+					tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+					tab.setAttribute('tabindex', selected ? '0' : '-1');
+				});
+				panels.forEach((panel) => {
+					panel.hidden = panel.getAttribute('data-account-panel') !== next;
+				});
+				if (updateHash) {
+					history.replaceState(null, '', `${location.pathname}${location.search}#${next}`);
+				}
+			}
+
+			tabs.forEach((tab) => {
+				tab.addEventListener('click', () => activate(tab.getAttribute('data-account-tab')));
+			});
+			if (location.hash.length > 1) {
+				activate(location.hash.slice(1), false);
+			}
+		})();
+	</script>
+</TreeseedAppLayout>

@@ -1,6 +1,6 @@
 ---
 import { listSiteTemplates } from '@treeseed/core/templates';
-import KnowledgeCoopPublicLayout from '../../layouts/KnowledgeCoopPublicLayout.astro';
+import TreeseedPublicLayout from '../../layouts/TreeseedPublicLayout.astro';
 import MarketProductCard from '../../components/market/MarketProductCard.astro';
 import { createMarketTemplateCatalogProvider } from '../../lib/market/catalog.js';
 import { resolveMarketStore } from '../../lib/market/store.js';
@@ -16,53 +16,53 @@ const featuredPacks = knowledgePacks.slice(0, 3);
 const accountDeleted = Astro.url.searchParams.get('account') === 'deleted';
 ---
 
-<KnowledgeCoopPublicLayout
-	title="Knowledge Coop | Launch, guide, release, and publish knowledge work"
-	description="Knowledge Coop is the operating system and market for knowledge hubs, agent teams, releases, and reusable packages."
+<TreeseedPublicLayout
+	title="TreeSeed | Launch, guide, release, and publish knowledge work"
+	description="TreeSeed is the operating system and market for knowledge hubs, agent teams, releases, and reusable packages."
 	currentPath={Astro.url.pathname}
 >
-	<section class="kc-hero">
-		<div class="kc-hero__main">
-			{accountDeleted ? <p class="kc-badge">Account deleted</p> : null}
-			<p class="kc-hero__eyebrow">Knowledge Coop</p>
-			<h1 class="kc-hero-copy">Launch, guide, release, and publish knowledge hubs from one operational home.</h1>
-			<p class="kc-hero-copy">
-				Knowledge Coop combines a GitHub-inspired product shell with Treeseed runtime workflows so your team can
+	<section class="ts-hero">
+		<div class="ts-hero__main">
+			{accountDeleted ? <p class="ts-badge">Account deleted</p> : null}
+			<p class="ts-hero__eyebrow">TreeSeed</p>
+			<h1 class="ts-hero-copy">Launch, guide, release, and publish knowledge hubs from one operational home.</h1>
+			<p class="ts-hero-copy">
+				TreeSeed combines a GitHub-inspired product shell with Treeseed runtime workflows so your team can
 				run research, development, release, and market publishing from the same app.
 			</p>
-			<div class="kc-hero__actions">
-				<a class="kc-button" href="/app/">Open the app</a>
-				<a class="kc-button-secondary" href="/market/">Browse the market</a>
+			<div class="ts-hero__actions">
+				<a class="ts-button" href="/app/">Open the app</a>
+				<a class="ts-button-secondary" href="/market/">Browse the market</a>
 			</div>
 		</div>
-		<div class="kc-metric-strip">
-			<div class="kc-panel kc-metric">
-				<span class="kc-metric__label">Templates</span>
-				<span class="kc-metric__value">{templateListing.items.length}</span>
+		<div class="ts-metric-strip">
+			<div class="ts-panel ts-metric">
+				<span class="ts-metric__label">Templates</span>
+				<span class="ts-metric__value">{templateListing.items.length}</span>
 			</div>
-			<div class="kc-panel kc-metric">
-				<span class="kc-metric__label">Knowledge packs</span>
-				<span class="kc-metric__value">{knowledgePacks.length}</span>
+			<div class="ts-panel ts-metric">
+				<span class="ts-metric__label">Knowledge packs</span>
+				<span class="ts-metric__value">{knowledgePacks.length}</span>
 			</div>
-			<div class="kc-panel kc-metric">
-				<span class="kc-metric__label">Workflow model</span>
-				<span class="kc-metric__value">Direct</span>
+			<div class="ts-panel ts-metric">
+				<span class="ts-metric__label">Workflow model</span>
+				<span class="ts-metric__value">Direct</span>
 			</div>
-			<div class="kc-panel kc-metric">
-				<span class="kc-metric__label">Release model</span>
-				<span class="kc-metric__value">Human gated</span>
+			<div class="ts-panel ts-metric">
+				<span class="ts-metric__label">Release model</span>
+				<span class="ts-metric__value">Human gated</span>
 			</div>
 		</div>
 	</section>
 
-	<section class="kc-panel">
-		<div class="kc-panel__header">
+	<section class="ts-panel">
+		<div class="ts-panel__header">
 			<div>
-				<p class="kc-section__eyebrow">Product shape</p>
+				<p class="ts-section__eyebrow">Product shape</p>
 				<h2>One shell for discovery and operations</h2>
 			</div>
 		</div>
-		<div class="kc-feature-grid">
+		<div class="ts-feature-grid">
 			<article>
 				<h3>Launch and operate</h3>
 				<p>Create a knowledge hub, connect hosting, and manage releases, agent runs, and share workflows inside the same control plane.</p>
@@ -78,16 +78,16 @@ const accountDeleted = Astro.url.searchParams.get('account') === 'deleted';
 		</div>
 	</section>
 
-	<section class="kc-grid-2" style="margin-top: 1rem;">
-		<div class="kc-panel">
-			<div class="kc-panel__header">
+	<section class="ts-grid-2" style="margin-top: 1rem;">
+		<div class="ts-panel">
+			<div class="ts-panel__header">
 				<div>
-					<p class="kc-section__eyebrow">Featured templates</p>
+					<p class="ts-section__eyebrow">Featured templates</p>
 					<h2>Start with a proven foundation</h2>
 				</div>
 				<a href="/market/templates/">View all</a>
 			</div>
-			<div class="kc-card-list">
+			<div class="ts-card-list">
 				{featuredTemplates.map((entry) => (
 					<MarketProductCard
 						href={`/market/templates/${entry.slug}/`}
@@ -103,15 +103,15 @@ const accountDeleted = Astro.url.searchParams.get('account') === 'deleted';
 				))}
 			</div>
 		</div>
-		<div class="kc-panel">
-			<div class="kc-panel__header">
+		<div class="ts-panel">
+			<div class="ts-panel__header">
 				<div>
-					<p class="kc-section__eyebrow">Knowledge packs</p>
+					<p class="ts-section__eyebrow">Knowledge packs</p>
 					<h2>Reuse proven knowledge assets</h2>
 				</div>
 				<a href="/market/knowledge-packs/">View all</a>
 			</div>
-			<div class="kc-card-list">
+			<div class="ts-card-list">
 				{featuredPacks.length > 0 ? featuredPacks.map((entry: any) => (
 					<MarketProductCard
 						href={`/market/knowledge-packs/${entry.slug}/`}
@@ -119,11 +119,11 @@ const accountDeleted = Astro.url.searchParams.get('account') === 'deleted';
 						title={entry.name}
 						summary={entry.summary ?? 'Reusable source material and market-packaged knowledge assets.'}
 						category="Knowledge pack"
-						publisherName="Knowledge Coop"
+						publisherName="TreeSeed"
 						badges={[entry.visibility, entry.installStrategy]}
 					/>
-				)) : <div class="kc-empty">No public knowledge packs are published yet.</div>}
+				)) : <div class="ts-empty">No public knowledge packs are published yet.</div>}
 			</div>
 		</div>
 	</section>
-</KnowledgeCoopPublicLayout>
+</TreeseedPublicLayout>

@@ -13,7 +13,7 @@ export function resolveMarketStore(locals: App.Locals | Record<string, unknown> 
 	}
 	const authConfig = getSiteAuthConfig({ locals: locals as App.Locals });
 	return new MarketControlPlaneStore({
-		authSecret: String(runtime.env.TREESEED_EDITORIAL_PREVIEW_SECRET ?? runtime.env.TREESEED_FORM_TOKEN_SECRET ?? 'knowledge-coop'),
+		authSecret: String(runtime.env.TREESEED_EDITORIAL_PREVIEW_SECRET ?? runtime.env.TREESEED_FORM_TOKEN_SECRET ?? 'treeseed-market'),
 		assertionSecret: authConfig.apiAssertionSecret,
 		serviceId: authConfig.apiServiceId,
 		serviceSecret: authConfig.apiServiceSecret,

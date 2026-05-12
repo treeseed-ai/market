@@ -40,6 +40,7 @@ describe('Treeseed Drizzle schema baseline', () => {
 			'better_auth_session',
 			'better_auth_account',
 			'better_auth_verification',
+			'user_preferences',
 			'users',
 			'user_identities',
 			'roles',
@@ -54,5 +55,6 @@ describe('Treeseed Drizzle schema baseline', () => {
 		]) {
 			expect(sql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS ${tableName}\\b`, 'u'));
 		}
+		expect(sql).toContain('FOREIGN KEY (user_id) REFERENCES better_auth_user(id) ON DELETE CASCADE');
 	});
 });

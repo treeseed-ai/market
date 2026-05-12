@@ -1,0 +1,125 @@
+---
+import '../styles/treeseed.css';
+import AppShell from '../../packages/core/src/components/ui/shell/AppShell.astro';
+import ProjectHeader from '../../packages/core/src/components/ui/shell/ProjectHeader.astro';
+import SensitiveDataUnlock from '../components/app/sensitive/SensitiveDataUnlock.astro';
+import { resolveAuthenticatedThemePreference } from '../lib/auth/appearance';
+
+interface TeamEntry {
+	id: string;
+	name: string;
+	slug?: string;
+	displayName?: string | null;
+}
+
+interface ProjectEntry {
+	id: string;
+	slug: string;
+	name: string;
+	health?: { label?: string } | null;
+}
+
+interface Props {
+	title: string;
+	description?: string;
+	currentPath: string;
+	teams: TeamEntry[];
+	activeTeam?: TeamEntry | null;
+	project?: ProjectEntry | null;
+}
+
+const {
+	title,
+	description = 'Operate your knowledge hubs, releases, and listings from one control plane.',
+	currentPath,
+	teams,
+	activeTeam = null,
+	project = null,
+} = Astro.props as Props;
+
+const activeTeamHandle = activeTeam?.name ?? activeTeam?.slug ?? '';
+const baseTeamPath = activeTeam ? `/app/teams/${activeTeamHandle}` : '/app';
+const railItems = [
+	{ label: 'Home', href: activeTeam ? `${baseTeamPath}/home` : '/app/' },
+	{ label: 'Market', href: '/market/' },
+	{ label: 'Teams', href: activeTeam ? `${baseTeamPath}/members` : '/app/' },
+	{ label: 'Inbox', href: activeTeam ? `${baseTeamPath}/inbox` : '/app/' },
+	{ label: 'Hosts', href: activeTeam ? `${baseTeamPath}/hosts` : '/app/' },
+	{ label: 'Capacity', href: activeTeam ? `${baseTeamPath}/capacity` : '/app/' },
+	{ label: 'Settings', href: activeTeam ? `${baseTeamPath}/settings` : '/app/' },
+];
+
+const projectTabs = project && activeTeam
+	? [
+		{ label: 'Overview', href: `${baseTeamPath}/projects/${project.slug}/overview` },
+		{ label: 'Direct', href: `${baseTeamPath}/projects/${project.slug}/direct` },
+		{ label: 'Workstreams', href: `${baseTeamPath}/projects/${project.slug}/workstreams` },
+		{ label: 'Agents', href: `${baseTeamPath}/projects/${project.slug}/agents` },
+		{ label: 'Releases', href: `${baseTeamPath}/projects/${project.slug}/releases` },
+		{ label: 'Share', href: `${baseTeamPath}/projects/${project.slug}/share` },
+		{ label: 'Settings', href: `${baseTeamPath}/projects/${project.slug}/settings` },
+	]
+	: [];
+const appearance = await resolveAuthenticatedThemePreference(Astro);
+const quickActions = [
+	{ label: 'Launch project', href: '/app/launch', variant: 'primary' as const },
+	{ label: 'Account', href: '/app/account', variant: 'secondary' as const },
+	{ label: 'Sign out', href: '/auth/sign-out', variant: 'secondary' as const },
+];
+const projectActions = project && activeTeam
+	? [
+		{ label: 'Start change', href: `${baseTeamPath}/projects/${project.slug}/direct`, variant: 'secondary' as const },
+		{ label: 'Release', href: `${baseTeamPath}/projects/${project.slug}/releases`, variant: 'secondary' as const },
+		{ label: 'Share', href: `${baseTeamPath}/projects/${project.slug}/share`, variant: 'primary' as const },
+	]
+	: [];
+---
+
+<AppShell
+	title={title}
+	description={description}
+	currentPath={currentPath}
+	appearance={appearance}
+	brand={{
+		name: 'TreeSeed Platform',
+		tag: 'Knowledge: Evolved, Shared, and Operationalized',
+		href: '/app/',
+		logoSrc: '/logo.svg',
+		logoAlt: '',
+	}}
+	navItems={railItems}
+	quickActions={quickActions}
+>
+	<div slot="railContext" class="ts-team-switcher">
+		<div class="ts-section__eyebrow">Active team</div>
+		{teams.length > 0 ? (
+			<div class="ts-team-selector">
+				<select aria-label="Active team" onchange="if (this.value) window.location.href = this.value;">
+					{teams.map((team) => (
+						<option value={`/app/teams/${team.name}/home`} selected={activeTeam?.id === team.id}>
+							{team.displayName ?? team.name}
+						</option>
+					))}
+				</select>
+				<a class="ts-icon-button" href={activeTeam ? `/app/teams/${activeTeamHandle}/edit` : '/app/teams/new'} title="Edit current team" aria-label="Edit current team">Edit</a>
+				<a class="ts-icon-button" href="/app/teams/new" title="Add a new team" aria-label="Add a new team">Add</a>
+			</div>
+		) : (
+			<a class="ts-create-team-button" href="/app/teams/new">Create new team</a>
+		)}
+	</div>
+	<SensitiveDataUnlock part="button" slot="headerAction" />
+	{project ? (
+		<ProjectHeader
+			slot="projectContext"
+			title={project.name}
+			description={project.health?.label ?? 'Project workspace'}
+			badges={['Local', 'Staging', 'Prod']}
+			actions={projectActions}
+			tabs={projectTabs}
+			currentPath={currentPath}
+		/>
+	) : null}
+	<slot />
+	<SensitiveDataUnlock part="modal" slot="sensitiveModal" />
+</AppShell>

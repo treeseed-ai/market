@@ -1,4 +1,4 @@
-# Knowledge Coop Market UI
+# TreeSeed Market UI
 
 ## Product thesis
 

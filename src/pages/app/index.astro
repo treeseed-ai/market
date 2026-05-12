@@ -1,5 +1,5 @@
 ---
-import KnowledgeCoopAppLayout from '../../layouts/KnowledgeCoopAppLayout.astro';
+import TreeseedAppLayout from '../../layouts/TreeseedAppLayout.astro';
 import { loadAccessibleTeams } from '../../lib/market/store.js';
 
 if (!Astro.locals.auth?.principal) {
@@ -12,21 +12,21 @@ if (teams[0]) {
 }
 ---
 
-<KnowledgeCoopAppLayout
+<TreeseedAppLayout
 	title="Create Your First Team"
 	description="Teams organize projects, members, and public profiles. Create one when you are ready to start building."
 	currentPath={Astro.url.pathname}
 	teams={teams}
 	activeTeam={null}
 >
-	<section class="kc-panel">
-		<div class="kc-panel__header">
+	<section class="ts-panel">
+		<div class="ts-panel__header">
 			<div>
-				<p class="kc-section__eyebrow">No teams yet</p>
+				<p class="ts-section__eyebrow">No teams yet</p>
 				<h2>Start with a team</h2>
 				<p>Create a team to launch projects, invite collaborators, and publish a public team profile.</p>
 			</div>
-			<a class="kc-button" href="/app/teams/new">Create new team</a>
+			<a class="ts-button" href="/app/teams/new">Create new team</a>
 		</div>
 	</section>
-</KnowledgeCoopAppLayout>
+</TreeseedAppLayout>

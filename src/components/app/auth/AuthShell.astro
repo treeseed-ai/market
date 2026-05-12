@@ -1,0 +1,33 @@
+---
+import '../../../../packages/core/src/styles/tokens.css';
+import '../../../../packages/core/src/styles/theme.css';
+import '../../../../packages/core/src/styles/ui.css';
+import '../../../../packages/core/src/styles/forms.css';
+import '../../../styles/auth.css';
+import ThemeScript from '../../../../packages/core/src/components/ui/theme/ThemeScript.astro';
+import type { ThemePreference } from '../../../../packages/core/src/utils/theme.ts';
+
+interface Props {
+	title: string;
+	description?: string;
+	appearance: ThemePreference;
+}
+
+const { title, description = 'TreeSeed account access.', appearance } = Astro.props as Props;
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{title}</title>
+		<meta name="description" content={description} />
+		<ThemeScript defaultScheme={appearance.scheme} defaultMode={appearance.mode} />
+	</head>
+	<body>
+		<main class="auth-shell">
+			<slot />
+		</main>
+	</body>
+</html>

@@ -1,7 +1,8 @@
 ---
 import { listSiteTemplates, type TemplateSiteCard } from '@treeseed/core/templates';
-import KnowledgeCoopPublicLayout from '../../../layouts/KnowledgeCoopPublicLayout.astro';
+import TreeseedPublicLayout from '../../../layouts/TreeseedPublicLayout.astro';
 import MarketProductCard from '../../../components/market/MarketProductCard.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import { createMarketTemplateCatalogProvider } from '../../../lib/market/catalog.js';
 
 const templateListing = await listSiteTemplates({
@@ -10,22 +11,18 @@ const templateListing = await listSiteTemplates({
 });
 ---
 
-<KnowledgeCoopPublicLayout
-	title="Knowledge Coop Templates"
+<TreeseedPublicLayout
+	title="TreeSeed Templates"
 	description="Template foundations for Treeseed knowledge hubs."
 	currentPath={Astro.url.pathname}
 >
-	<section class="kc-panel">
-		<div class="kc-panel__header">
-			<div>
-				<p class="kc-section__eyebrow">Templates</p>
-				<h1>Launch a knowledge hub with a working Treeseed foundation</h1>
-				<p>Templates define project structure, deployment defaults, compatibility ranges, and packaging posture for new hubs.</p>
-			</div>
-		</div>
-	</section>
+	<Panel
+		eyebrow="Templates"
+		title="Launch a knowledge hub with a working Treeseed foundation"
+		description="Templates define project structure, deployment defaults, compatibility ranges, and packaging posture for new hubs."
+	/>
 
-	<section class="kc-grid-3" style="margin-top: 1rem;">
+	<section class="ts-market-grid ts-stack-top">
 		{templateListing.items.map((entry: TemplateSiteCard) => (
 			<MarketProductCard
 				href={`/market/templates/${entry.slug}/`}
@@ -40,4 +37,4 @@ const templateListing = await listSiteTemplates({
 			/>
 		))}
 	</section>
-</KnowledgeCoopPublicLayout>
+</TreeseedPublicLayout>

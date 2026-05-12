@@ -1,7 +1,10 @@
 ---
 import { render } from 'astro:content';
 import { resolveSiteTemplate } from '@treeseed/core/templates';
-import KnowledgeCoopPublicLayout from '../../../layouts/KnowledgeCoopPublicLayout.astro';
+import TreeseedPublicLayout from '../../../layouts/TreeseedPublicLayout.astro';
+import Badge from '../../../../packages/core/src/components/ui/data/Badge.astro';
+import KeyValueList from '../../../../packages/core/src/components/ui/data/KeyValueList.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import { createMarketTemplateCatalogProvider } from '../../../lib/market/catalog.js';
 
 const slug = Astro.params.slug ?? '';
@@ -16,60 +19,49 @@ const contentRender = template.item?.contentEntry ? await render(template.item.c
 const Content = contentRender?.Content;
 ---
 
-<KnowledgeCoopPublicLayout
-	title={`${template.item?.title ?? 'Template'} | Knowledge Coop`}
-	description={template.item?.description ?? 'Knowledge Coop template detail'}
+<TreeseedPublicLayout
+	title={`${template.item?.title ?? 'Template'} | TreeSeed`}
+	description={template.item?.description ?? 'TreeSeed template detail'}
 	currentPath={Astro.url.pathname}
 >
-	<section class="kc-panel">
-		<p class="kc-section__eyebrow">Template</p>
-		<h1>{template.item?.title ?? 'Unknown template'}</h1>
-		<p>{template.item?.description ?? 'This template could not be resolved.'}</p>
-		<div class="kc-badges" style="margin-top: 0.75rem;">
-			<span class="kc-badge">{template.item?.category ?? 'Template'}</span>
-			{template.item?.compatibility.templateVersion ? <span class="kc-badge">v{template.item.compatibility.templateVersion}</span> : null}
-			{template.item?.priceModel ? <span class="kc-badge">{template.item.priceModel.replaceAll('_', ' ')}</span> : null}
+	<Panel
+		eyebrow="Template"
+		title={template.item?.title ?? 'Unknown template'}
+		description={template.item?.description ?? 'This template could not be resolved.'}
+	>
+		<div class="ts-badges">
+			<Badge tone="muted">{template.item?.category ?? 'Template'}</Badge>
+			{template.item?.compatibility.templateVersion ? <Badge tone="muted">v{template.item.compatibility.templateVersion}</Badge> : null}
+			{template.item?.priceModel ? <Badge tone="muted">{template.item.priceModel.replaceAll('_', ' ')}</Badge> : null}
 		</div>
-	</section>
+	</Panel>
 
 	{template.item ? (
-		<section class="kc-grid-2" style="margin-top: 1rem;">
-			<div class="kc-panel">
-				<div class="kc-panel__header">
-					<div>
-						<h2>Compatibility</h2>
-						<p>Version and runtime expectations for this template.</p>
-					</div>
-				</div>
-				<div class="kc-list">
-					<div class="kc-list-item"><strong>Template version</strong><br />{template.item.compatibility.templateVersion ?? 'unknown'}</div>
-					<div class="kc-list-item"><strong>Template API</strong><br />{template.item.compatibility.templateApiVersion ?? 'unknown'}</div>
-					<div class="kc-list-item"><strong>Minimum CLI</strong><br />{template.item.compatibility.minCliVersion ?? 'unknown'}</div>
-					<div class="kc-list-item"><strong>Minimum core</strong><br />{template.item.compatibility.minCoreVersion ?? 'unknown'}</div>
-				</div>
-			</div>
-			<div class="kc-panel">
-				<div class="kc-panel__header">
-					<div>
-						<h2>Fulfillment</h2>
-						<p>Where this template comes from and how it should be installed.</p>
-					</div>
-				</div>
-				<div class="kc-list">
-					<div class="kc-list-item"><strong>Mode</strong><br />{template.item.fulfillment.mode ?? 'unknown'}</div>
-					<div class="kc-list-item"><strong>Source</strong><br />{template.item.fulfillment.sourceLabel ?? 'unknown'}</div>
-					{template.item.fulfillment.repoUrl ? <div class="kc-list-item"><strong>Repository</strong><br />{template.item.fulfillment.repoUrl}</div> : null}
-					{template.item.fulfillment.directory ? <div class="kc-list-item"><strong>Directory</strong><br />{template.item.fulfillment.directory}</div> : null}
-					{template.item.fulfillment.ref ? <div class="kc-list-item"><strong>Ref</strong><br />{template.item.fulfillment.ref}</div> : null}
-					{template.item.fulfillment.manifestKey ? <div class="kc-list-item"><strong>Manifest key</strong><br />{template.item.fulfillment.manifestKey}</div> : null}
-				</div>
-			</div>
+		<section class="ts-section-grid ts-stack-top">
+			<Panel title="Compatibility" description="Version and runtime expectations for this template.">
+				<KeyValueList items={[
+					{ key: 'Template version', value: template.item.compatibility.templateVersion ?? 'unknown' },
+					{ key: 'Template API', value: template.item.compatibility.templateApiVersion ?? 'unknown' },
+					{ key: 'Minimum CLI', value: template.item.compatibility.minCliVersion ?? 'unknown' },
+					{ key: 'Minimum core', value: template.item.compatibility.minCoreVersion ?? 'unknown' },
+				]} />
+			</Panel>
+			<Panel title="Fulfillment" description="Where this template comes from and how it should be installed.">
+				<KeyValueList items={[
+					{ key: 'Mode', value: template.item.fulfillment.mode ?? 'unknown' },
+					{ key: 'Source', value: template.item.fulfillment.sourceLabel ?? 'unknown' },
+					...(template.item.fulfillment.repoUrl ? [{ key: 'Repository', value: template.item.fulfillment.repoUrl }] : []),
+					...(template.item.fulfillment.directory ? [{ key: 'Directory', value: template.item.fulfillment.directory }] : []),
+					...(template.item.fulfillment.ref ? [{ key: 'Ref', value: template.item.fulfillment.ref }] : []),
+					...(template.item.fulfillment.manifestKey ? [{ key: 'Manifest key', value: template.item.fulfillment.manifestKey }] : []),
+				]} />
+			</Panel>
 		</section>
 	) : null}
 
 	{Content ? (
-		<section class="kc-panel" style="margin-top: 1rem;">
+		<Panel class="ts-stack-top">
 			<Content />
-		</section>
+		</Panel>
 	) : null}
-</KnowledgeCoopPublicLayout>
+</TreeseedPublicLayout>

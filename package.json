@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/market",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "TreeSeed marketplace site built on top of @treeseed/core.",
   "license": "COMMERCIAL",
   "repository": {
@@ -49,6 +49,7 @@
     "dev:agents": "if test -f ./packages/agent/scripts/run-ts.mjs; then node ./packages/agent/scripts/run-ts.mjs ./packages/agent/src/services/agents.ts; else treeseed-agent-service agents; fi",
     "dev:watch": "treeseed dev --watch",
     "lint": "npm run check",
+    "audit:ui": "node ./scripts/audit-ui.mjs",
     "test": "npm run test:unit",
     "test:unit": "vitest run --config ./vitest.config.ts",
     "check": "if test -f ./packages/sdk/scripts/tenant-check.ts; then node ./packages/sdk/scripts/run-ts.mjs ./packages/sdk/scripts/tenant-check.ts; elif test -f ./node_modules/@treeseed/sdk/dist/scripts/tenant-check.js; then node ./node_modules/@treeseed/sdk/dist/scripts/tenant-check.js; else treeseed check; fi",
@@ -64,10 +65,10 @@
   },
   "dependencies": {
     "@react-email/render": "^2.0.8",
-    "@treeseed/agent": "0.8.8",
-    "@treeseed/cli": "0.8.8",
-    "@treeseed/core": "0.8.8",
-    "@treeseed/sdk": "0.8.8",
+    "@treeseed/agent": "0.8.9",
+    "@treeseed/cli": "0.8.9",
+    "@treeseed/core": "0.8.9",
+    "@treeseed/sdk": "0.8.9",
     "better-auth": "^1.6.2",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.8.2",

@@ -72,7 +72,7 @@ If these are unset, Treeseed falls back to structural defaults derived from the 
 These can remain unset while you are only preparing the repo for foundational bring-up:
 
 - optional OAuth provider credentials
-- remote Knowledge Coop pairing values
+- remote TreeSeed pairing values
 - final custom domain wiring beyond the committed tenant URLs
 - any provider-side IDs that are created during real provisioning and later written back into local state
 

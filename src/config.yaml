@@ -67,10 +67,18 @@ site:
   projectStage: Working market
   projectStageDetail: Site-first marketplace proving the layered TreeSeed architecture in production-like form.
   theme:
-    accent:
-      base: "#d9d2b6"
-      strong: "#6f5f2e"
-      soft: "#f7f1db"
+    defaultScheme: fern
+    defaultMode: system
+    schemes:
+      fern:
+        light:
+          accent: "#4f7d4e"
+          accentStrong: "#2f5a35"
+          accentSoft: "#dcebd6"
+        dark:
+          accent: "#8bbb75"
+          accentStrong: "#b9e69e"
+          accentSoft: "#20351f"
 models:
   pages:
     defaults:

@@ -12,7 +12,7 @@ TreeSeed helps teams grow knowledge through objectives and questions, compare pr
 
 TreeSeed should not be positioned as only a content management system, only a project tracker, only a developer workflow, only a marketplace, or only an AI-agent platform.
 
-TreeSeed is a **Knowledge Coop operating system**: a connected set of tools that helps teams decide what knowledge should exist, produce it safely, verify it, release it, and distribute it in reusable forms.
+TreeSeed is a **TreeSeed operating system**: a connected set of tools that helps teams decide what knowledge should exist, produce it safely, verify it, release it, and distribute it in reusable forms.
 
 The core product distinction is the **direction-to-release chain**:
 
@@ -504,7 +504,7 @@ Development guidance:
 
 ## Market web application
 
-The Market app should be the human-facing Knowledge Coop portal.
+The Market app should be the human-facing TreeSeed portal.
 
 Primary responsibilities:
 
@@ -535,7 +535,7 @@ The SDK should be the programmable foundation for TreeSeed workflows.
 
 Primary responsibilities:
 
-* knowledge coop domain primitives
+* TreeSeed domain primitives
 * graph and query model
 * workflow state
 * operations runtime
@@ -577,7 +577,7 @@ Development focus:
 * keep public hubs cheap and reliable
 * support static or heavily cached public delivery wherever possible
 * keep forms, preview, authenticated, and workflow-driven surfaces dynamic where needed
-* align content types with the Knowledge Coop model
+* align content types with the TreeSeed model
 * make release and publish behavior traceable
 * keep agent behavior constrained by the decision boundary
 
@@ -896,7 +896,7 @@ The development strategy should keep all systems aligned to that purpose:
 
 ## Final positioning statement
 
-TreeSeed is a Knowledge Coop platform for teams that need to turn shared inquiry into approved knowledge work and trusted reusable outputs.
+TreeSeed is a TreeSeed platform for teams that need to turn shared inquiry into approved knowledge work and trusted reusable outputs.
 
 It combines cooperative direction, human decision-making, traceable change lanes, safe releases, helper agents, and a market for templates and knowledge packs.
 

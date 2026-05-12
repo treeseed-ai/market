@@ -1,0 +1,16 @@
+---
+import ActionList from '../../../../packages/core/src/components/ui/data/ActionList.astro';
+import KeyValueList from '../../../../packages/core/src/components/ui/data/KeyValueList.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+
+const { summary } = Astro.props as any;
+---
+
+<div class="ts-section-grid">
+	<Panel eyebrow="Runtime" title="Connection and hosting">
+		<KeyValueList items={[{ key: 'Connection mode', value: summary?.connection?.mode ?? 'unconfigured' }, { key: 'Execution owner', value: summary?.connection?.executionOwner ?? 'unconfigured' }, { key: 'Hosting kind', value: summary?.hosting?.kind ?? 'unconfigured' }]} />
+	</Panel>
+	<Panel eyebrow="Environments" title="Configured surfaces">
+		<ActionList items={(summary?.environments ?? []).map((environment: any) => ({ title: environment.environment, description: environment.deploymentProfile }))} />
+	</Panel>
+</div>

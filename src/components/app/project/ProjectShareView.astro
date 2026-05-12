@@ -1,0 +1,16 @@
+---
+import ActionList from '../../../../packages/core/src/components/ui/data/ActionList.astro';
+import KeyValueList from '../../../../packages/core/src/components/ui/data/KeyValueList.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+
+const { share } = Astro.props as any;
+---
+
+<div class="ts-section-grid">
+	<Panel eyebrow="Listing state" title="Market packaging">
+		<KeyValueList items={[{ key: 'Catalog listing', value: share?.listing?.title ?? 'No listing record yet.' }, { key: 'Visibility', value: share?.listing?.visibility ?? 'draft' }, { key: 'Publishable', value: share?.canPublish ? 'yes' : 'not yet' }]} />
+	</Panel>
+	<Panel eyebrow="Artifacts" title="Exported versions">
+		<ActionList items={(share?.artifacts ?? []).map((artifact: any) => ({ title: artifact.version, description: `${artifact.kind} - ${artifact.publishedAt}` }))} />
+	</Panel>
+</div>

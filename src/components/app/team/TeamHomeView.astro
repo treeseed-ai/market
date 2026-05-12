@@ -1,0 +1,50 @@
+---
+import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
+import Card from '../../../../packages/core/src/components/ui/surface/Card.astro';
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import MetricGrid from '../../../../packages/core/src/components/ui/data/MetricGrid.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import StatusPill from '../../../../packages/core/src/components/ui/data/StatusPill.astro';
+
+const { teamHome, teamHandle } = Astro.props as any;---
+
+<>
+	<MetricGrid metrics={[
+		{ label: 'Projects', value: teamHome?.counts.projects ?? 0 },
+		{ label: 'Release ready', value: teamHome?.counts.releaseReady ?? 0, tone: 'success' },
+		{ label: 'Active agents', value: teamHome?.counts.activeAgents ?? 0, tone: 'info' },
+		{ label: 'Live listings', value: teamHome?.counts.liveListings ?? 0, tone: 'accent' },
+	]} />
+
+	<div class="ts-section-grid ts-stack-top">
+		<Panel eyebrow="Continue working" title="Active projects" actions={[{ label: 'Launch project', href: '/app/launch', variant: 'secondary' }]}>
+			<div class="ts-card-list">
+				{teamHome?.continueWorking?.length ? teamHome.continueWorking.map((entry: any) => (
+					<Card title={entry.project.name} description={entry.health.label}>
+						<Fragment slot="footer">
+							<div class="ts-panel__header">
+								<div class="ts-card__meta">
+									<span>{entry.counts.activeWorkstreams} workstreams</span>
+									<span>{entry.counts.agentPools} agent pools</span>
+									<span>{entry.latestProdDeployment?.releaseTag ?? 'no prod release yet'}</span>
+								</div>
+								<StatusPill tone={entry.health.state === 'release_ready' ? 'success' : entry.health.state === 'verification_failing' ? 'danger' : entry.health.state === 'setup_needed' ? 'warning' : 'info'}>{entry.health.label}</StatusPill>
+							</div>
+							<Button href={`/app/teams/${teamHandle}/projects/${entry.project.slug}/overview`} variant="secondary" size="sm">Open project</Button>
+						</Fragment>
+					</Card>
+				)) : <EmptyState title="No projects yet" description="No projects have been launched for this team yet." />}
+			</div>
+		</Panel>
+
+		<Panel eyebrow="Ready to release" title="Human approvals needed" actions={[{ label: 'Open inbox', href: `/app/teams/${teamHandle}/inbox`, variant: 'secondary' }]}>
+			<div class="ts-card-list">
+				{teamHome?.readyToRelease?.length ? teamHome.readyToRelease.map((entry: any) => (
+					<Card title={entry.project.name} description={entry.latestStagingDeployment?.releaseTag ? `Staging candidate ${entry.latestStagingDeployment.releaseTag}` : 'Staging candidate ready for review.'}>
+						<Button slot="footer" href={`/app/teams/${teamHandle}/projects/${entry.project.slug}/releases`} variant="secondary" size="sm">Review release</Button>
+					</Card>
+				)) : <EmptyState title="No releases waiting" description="No staging candidates are currently waiting for release approval." />}
+			</div>
+		</Panel>
+	</div>
+</>

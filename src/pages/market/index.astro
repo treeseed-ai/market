@@ -1,7 +1,10 @@
 ---
 import { listSiteTemplates } from '@treeseed/core/templates';
-import KnowledgeCoopPublicLayout from '../../layouts/KnowledgeCoopPublicLayout.astro';
+import TreeseedPublicLayout from '../../layouts/TreeseedPublicLayout.astro';
 import MarketProductCard from '../../components/market/MarketProductCard.astro';
+import Button from '../../../packages/core/src/components/ui/forms/Button.astro';
+import Panel from '../../../packages/core/src/components/ui/surface/Panel.astro';
+import EmptyState from '../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import { createMarketTemplateCatalogProvider } from '../../lib/market/catalog.js';
 import { resolveMarketStore } from '../../lib/market/store.js';
 
@@ -13,31 +16,21 @@ const store = resolveMarketStore(Astro.locals);
 const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
 ---
 
-<KnowledgeCoopPublicLayout
-	title="Knowledge Coop Market"
-	description="Browse templates and knowledge packs inside Knowledge Coop."
+<TreeseedPublicLayout
+	title="TreeSeed Market"
+	description="Browse templates and knowledge packs inside TreeSeed."
 	currentPath={Astro.url.pathname}
 >
-	<section class="kc-panel">
-		<div class="kc-panel__header">
-			<div>
-				<p class="kc-section__eyebrow">Market</p>
-				<h1>Reusable foundations for knowledge hubs and agent teams</h1>
-				<p>Templates give you working project scaffolds. Knowledge packs give you reusable direction, source material, and packaged operational context.</p>
-			</div>
-		</div>
-	</section>
+	<Panel
+		eyebrow="Market"
+		title="Reusable foundations for knowledge hubs and agent teams"
+		description="Templates give you working project scaffolds. Knowledge packs give you reusable direction, source material, and packaged operational context."
+	/>
 
-	<section class="kc-grid-2" style="margin-top: 1rem;">
-		<div class="kc-panel">
-			<div class="kc-panel__header">
-				<div>
-					<h2>Templates</h2>
-					<p>Launch hubs with a proven operational baseline.</p>
-				</div>
-				<a href="/market/templates/">Browse templates</a>
-			</div>
-			<div class="kc-card-list">
+	<section class="ts-section-grid ts-stack-top">
+		<Panel title="Templates" description="Launch hubs with a proven operational baseline.">
+			<Button slot="actions" href="/market/templates/" variant="secondary" size="sm">Browse templates</Button>
+			<div class="ts-card-list">
 				{templateListing.items.map((entry) => (
 					<MarketProductCard
 						href={`/market/templates/${entry.slug}/`}
@@ -52,16 +45,10 @@ const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
 					/>
 				))}
 			</div>
-		</div>
-		<div class="kc-panel">
-			<div class="kc-panel__header">
-				<div>
-					<h2>Knowledge packs</h2>
-					<p>Publish reusable knowledge sets with install and trust context attached.</p>
-				</div>
-				<a href="/market/knowledge-packs/">Browse packs</a>
-			</div>
-			<div class="kc-card-list">
+		</Panel>
+		<Panel title="Knowledge packs" description="Publish reusable knowledge sets with install and trust context attached.">
+			<Button slot="actions" href="/market/knowledge-packs/" variant="secondary" size="sm">Browse packs</Button>
+			<div class="ts-card-list">
 				{knowledgePacks.length > 0 ? knowledgePacks.map((entry: any) => (
 					<MarketProductCard
 						href={`/market/knowledge-packs/${entry.slug}/`}
@@ -69,11 +56,11 @@ const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
 						title={entry.name}
 						summary={entry.summary ?? 'Reusable source material and market-packaged knowledge assets.'}
 						category="Knowledge pack"
-						publisherName="Knowledge Coop"
+						publisherName="TreeSeed"
 						badges={[entry.visibility, entry.installStrategy]}
 					/>
-				)) : <div class="kc-empty">No public knowledge packs are published yet.</div>}
+				)) : <EmptyState title="No public knowledge packs" description="No public knowledge packs are published yet." />}
 			</div>
-		</div>
+		</Panel>
 	</section>
-</KnowledgeCoopPublicLayout>
+</TreeseedPublicLayout>

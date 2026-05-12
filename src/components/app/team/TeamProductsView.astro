@@ -1,0 +1,20 @@
+---
+import DataTable from '../../../../packages/core/src/components/ui/data/DataTable.astro';
+
+const { products = [] } = Astro.props as any;---
+
+<DataTable
+	columns={[
+		{ key: 'product', label: 'Product' },
+		{ key: 'kind', label: 'Kind' },
+		{ key: 'visibility', label: 'Visibility' },
+		{ key: 'latestArtifact', label: 'Latest artifact' },
+	]}
+	rows={products.map((item: any) => ({
+		product: `${item.title} - ${item.summary ?? 'No summary yet.'}`,
+		kind: item.kind,
+		visibility: item.visibility,
+		latestArtifact: item.latestArtifact?.version ?? 'Not published yet',
+	}))}
+	emptyLabel="No products are listed for this team yet."
+/>
