@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.5.8] - 2026-05-12
+
+### Added
+
+- feat(market): rename branding from Knowledge Coop to TreeSeed (9376cf4aa721)
+
+### Infrastructure
+
+- release: sync package staging heads (dffa4f7e35ad)
+
+### Tests
+
+- build(market): update dependencies and extend team capacity API (980ec0e5daae)
+
+### Dependencies
+
+- build(market): update dependencies and refactor account settings (ee29cdfb3b0a)
+- build(deps): sync integrated package updates (c9284cf3a8cd)
+- build(deps): sync integrated package updates (b470fa14bcd5)
+- Release @treeseed/market 0.5.8.
+- Release package @treeseed/agent: 0.8.9.
+- Release package @treeseed/cli: 0.8.9.
+- Release package @treeseed/core: 0.8.9.
+- Release package @treeseed/sdk: 0.8.9.
+
 ## [0.5.7] - 2026-05-11
 
 ### Added
