@@ -142,12 +142,52 @@
 .account-stack,
 .account-form,
 .account-list,
-.account-badges {
+.account-badges,
+.account-tabs-shell,
+.account-tab-panels {
 	display: grid;
 	gap: var(--ts-space-3);
 }
 
-.account-grid {
+.account-tabs-shell {
+	gap: var(--ts-space-4);
+}
+
+.account-tabs {
+	align-items: stretch;
+	background: var(--ts-color-surface);
+	border: 1px solid var(--ts-color-border);
+	box-sizing: border-box;
+	border-radius: var(--ts-radius-lg);
+	box-shadow: var(--ts-color-shadow);
+	display: grid;
+	gap: var(--ts-space-2);
+	grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+	margin-bottom: 0;
+	padding: var(--ts-space-2);
+}
+
+.account-tabs .ts-tab {
+	background: transparent;
+	border-color: transparent;
+	height: 2.5rem;
+	min-height: 2.5rem;
+	width: 100%;
+}
+
+.account-tabs .ts-tab[aria-selected='true'] {
+	background: var(--ts-color-accent-soft);
+	border-color: var(--ts-color-accent);
+	color: var(--ts-color-text);
+	height: 2.5rem;
+	min-height: 2.5rem;
+}
+
+.account-tab-panel[hidden] {
+	display: none;
+}
+
+.account-two-column {
 	display: grid;
 	gap: var(--ts-space-3);
 	grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));

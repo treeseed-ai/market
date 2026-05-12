@@ -1,7 +1,7 @@
 ---
 import '../styles/treeseed.css';
 import PublicShell from '../../packages/core/src/components/ui/shell/PublicShell.astro';
-import { resolveAnonymousThemePreference } from '../lib/auth/appearance';
+import { resolveAnonymousThemePreference, resolveAuthenticatedThemePreference } from '../lib/auth/appearance';
 
 interface NavItem {
 	label: string;
@@ -28,7 +28,9 @@ const navItems: NavItem[] = [
 ];
 
 const isSignedIn = Boolean(Astro.locals.auth?.principal);
-const appearance = resolveAnonymousThemePreference(Astro);
+const appearance = isSignedIn
+	? await resolveAuthenticatedThemePreference(Astro)
+	: resolveAnonymousThemePreference(Astro);
 const actions = isSignedIn
 	? [{ label: 'Open app', href: '/app/', variant: 'secondary' as const }]
 	: [
@@ -46,10 +48,13 @@ const actions = isSignedIn
 		name: 'TreeSeed',
 		tag: 'The GitHub of knowledge and agent teams',
 		href: '/',
-		mark: 'KC',
+		logoSrc: '/logo.svg',
+		logoAlt: '',
 	}}
 	navItems={navItems}
 	actions={actions}
+	showAppearanceControl={!isSignedIn}
+	preferServerAppearance={isSignedIn}
 >
 	<slot />
 </PublicShell>
