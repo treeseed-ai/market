@@ -28,7 +28,23 @@ triggers:
 permissions:
   - model: template
     operations: [get, search]
-execution: {}
+execution:
+  provider: codex
+  model: gpt-5.5
+  approvalPolicy: never
+  sandboxMode: workspace_write
+  reasoningEffort: medium
+  timeoutSeconds: 900
+  allowedPaths:
+    - src/content/**
+    - docs/**
+  forbiddenPaths:
+    - .git/**
+    - .agent-worktrees/**
+    - .treeseed/secrets/**
+    - node_modules/**
+  worktree:
+    enabled: true
 outputs: {}
 ---
 

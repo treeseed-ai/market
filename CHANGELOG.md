@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.5.10] - 2026-05-13
+
+### Added
+
+- feat(market): implement agent research and Codex provider infrastructure (f9b17f78d92a)
+
+### Infrastructure
+
+- release: sync package staging heads (bfade2363171)
+
+### Dependencies
+
+- build(deps): sync integrated package updates (ae02bf531263)
+- build(deps): sync integrated package updates (ddf4a0bf7aa1)
+- Release @treeseed/market 0.5.10.
+- Release package @treeseed/agent: 0.8.11.
+- Release package @treeseed/cli: 0.8.11.
+- Release package @treeseed/core: 0.8.11.
+- Release package @treeseed/sdk: 0.8.11.
+
 ## [0.5.9] - 2026-05-13
 
 ### Added
