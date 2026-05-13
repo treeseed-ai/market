@@ -177,6 +177,23 @@ export async function resolveUserThemePreference(
 	return anonymousPreference;
 }
 
+export async function setUserThemeCookies(
+	context: AppearanceContext,
+	userId: string,
+): Promise<ThemePreference> {
+	const preference = await resolveUserThemePreference(context, userId);
+	setAnonymousThemeCookies(context, preference);
+	return preference;
+}
+
+export async function setCurrentUserThemeCookies(
+	context: AppearanceContext,
+): Promise<ThemePreference | null> {
+	const userId = await currentBetterAuthUserId(context).catch(() => null);
+	if (!userId) return null;
+	return setUserThemeCookies(context, userId);
+}
+
 export async function saveCurrentUserThemePreference(context: AppearanceContext, input: unknown) {
 	const userId = await currentBetterAuthUserId(context);
 	if (!userId) return null;

@@ -29,6 +29,19 @@ describe('app and public shell conversion', () => {
 		expect(contents).toContain('actions={actions}');
 	});
 
+	it('installs the dev reload client through shared core shells', () => {
+		for (const path of [
+			'packages/core/src/components/ui/shell/AppShell.astro',
+			'packages/core/src/components/ui/shell/PublicShell.astro',
+		]) {
+			const contents = source(path);
+			expect(contents, path).toContain('DevWatchReload');
+		}
+
+		const mainLayout = source('packages/core/src/layouts/MainLayout.astro');
+		expect(mainLayout).not.toContain('DevWatchReload');
+	});
+
 	it('keeps sensitive unlock behavior in the market component', () => {
 		const contents = source('src/components/app/sensitive/SensitiveDataUnlock.astro');
 

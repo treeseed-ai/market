@@ -674,9 +674,9 @@ a:hover {
 	display: inline-flex;
 	flex: 1 1 8rem;
 	justify-content: center;
-	line-height: 1.15;
+	line-height: 1.2;
 	min-height: 2.5rem;
-	padding: 0.62rem 0.82rem;
+	padding: 0.55rem 0.75rem;
 	border-radius: 0.8rem;
 	border: 1px solid var(--ts-color-border);
 	background: var(--ts-color-surface-muted);

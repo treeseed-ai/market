@@ -16,7 +16,7 @@ import {
 	submitBetterAuthEmailFlow,
 } from '../../lib/auth/flow';
 import { resolveLoginIdentifier } from '../../lib/auth/account';
-import { resolveAnonymousThemePreference } from '../../lib/auth/appearance';
+import { resolveAnonymousThemePreference, setUserThemeCookies } from '../../lib/auth/appearance';
 
 export const prerender = false;
 
@@ -72,6 +72,7 @@ if (Astro.request.method === 'POST') {
 				rememberMe: true,
 			});
 			if (result.ok) {
+				await setUserThemeCookies(Astro, result.user.id).catch(() => null);
 				const response = Astro.redirect(returnTo, 303);
 				for (const cookie of result.setCookies) {
 					response.headers.append('set-cookie', cookie);

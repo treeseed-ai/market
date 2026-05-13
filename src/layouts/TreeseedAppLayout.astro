@@ -3,7 +3,7 @@ import '../styles/treeseed.css';
 import AppShell from '../../packages/core/src/components/ui/shell/AppShell.astro';
 import ProjectHeader from '../../packages/core/src/components/ui/shell/ProjectHeader.astro';
 import SensitiveDataUnlock from '../components/app/sensitive/SensitiveDataUnlock.astro';
-import { resolveAuthenticatedThemePreference } from '../lib/auth/appearance';
+import { resolveAuthenticatedThemePreference, setAnonymousThemeCookies } from '../lib/auth/appearance';
 
 interface TeamEntry {
 	id: string;
@@ -61,6 +61,7 @@ const projectTabs = project && activeTeam
 	]
 	: [];
 const appearance = await resolveAuthenticatedThemePreference(Astro);
+setAnonymousThemeCookies(Astro, appearance);
 const quickActions = [
 	{ label: 'Launch project', href: '/app/launch', variant: 'primary' as const },
 	{ label: 'Account', href: '/app/account', variant: 'secondary' as const },
