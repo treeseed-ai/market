@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.9] - 2026-05-13
+
+### Added
+
+- feat(auth): update authentication UI and layouts (c3ed71ab1fa1)
+
+### Infrastructure
+
+- release: sync package staging heads (248b8d08a4d2)
+
+### Dependencies
+
+- Release @treeseed/market 0.5.9.
+- Release package @treeseed/agent: 0.8.10.
+- Release package @treeseed/cli: 0.8.10.
+- Release package @treeseed/core: 0.8.10.
+- Release package @treeseed/sdk: 0.8.10.
+
 ## [0.5.8] - 2026-05-12
 
 ### Added
