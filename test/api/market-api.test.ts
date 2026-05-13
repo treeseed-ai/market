@@ -930,6 +930,307 @@ runtimeDescribe('market api', () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
 
+	it('delegates project agents artifact, approval, and Codex readiness requests with read-only fallbacks', async () => {
+		const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url === 'https://project.example.com/v1/agent-artifacts') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						projectId: 'hosted-project',
+						items: [{
+							artifactKind: 'knowledge_draft',
+							id: 'knowledge:runtime',
+							title: 'Runtime',
+							targetPath: 'src/content/knowledge/architecture/runtime/runtime.mdx',
+							totalScore: 29,
+							recommendation: 'promote',
+						}],
+						warnings: [],
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/approvals') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						projectId: 'hosted-project',
+						items: [{ id: 'promotion:runtime', taskId: 'task-promote' }],
+						warnings: [],
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/approvals/promotion%3Aruntime/decision') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						id: 'promotion:runtime',
+						decision: JSON.parse(String(init?.body ?? '{}')).decision,
+						releaseAttempted: false,
+						stagingAttempted: false,
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/providers/codex/readiness') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						ok: true,
+						providerSelected: true,
+						sdkInstalled: true,
+						nodeVersionOk: true,
+						authDetected: false,
+						subscriptionPlan: 'pro',
+						warnings: [],
+						blockingIssues: [],
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/operations/grants') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						projectId: 'hosted-project',
+						items: [{
+							id: 'grant-stage-docs',
+							operations: ['stage'],
+							modes: ['dry_run'],
+							allowedPaths: ['src/content/knowledge/**'],
+						}],
+						warnings: [],
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/operations/events') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						projectId: 'hosted-project',
+						items: [{
+							id: 'event-stage-1',
+							operation: 'stage',
+							status: 'completed',
+							changedPaths: ['src/content/knowledge/architecture/runtime/runtime.mdx'],
+							stagedPaths: ['src/content/knowledge/architecture/runtime/runtime.mdx'],
+						}],
+						lifecycle: {
+							worktreeSnapshots: [{ kind: 'verified_snapshot', taskId: 'task-promote' }],
+							stagingMerges: [{ mergedToStaging: true, commitSha: 'abc123' }],
+							mergeFailures: [],
+							repairTasks: [],
+							releaseApprovals: [],
+							releaseResults: [],
+							codexUsage: [],
+						},
+						warnings: [],
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/operations/stage/dry-run') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						projectId: 'hosted-project',
+						dryRun: true,
+						decision: { allowed: true },
+						result: { status: 'completed' },
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/workdays/current') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						id: 'workday-1',
+						state: 'active',
+						updatedAt: '2026-05-13T00:00:00.000Z',
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/workdays/reports') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						projectId: 'hosted-project',
+						items: [{ id: 'report-1', kind: 'workday_summary', workDayId: 'workday-1', createdAt: '2026-05-13T00:01:00.000Z' }],
+						warnings: [],
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			return new Response(JSON.stringify({ ok: false }), { status: 404, headers: { 'content-type': 'application/json' } });
+		});
+		const app = createTestApp({ fetchImpl: fetchMock as unknown as typeof fetch });
+		const token = await authorizeApp(app);
+		const { project } = await createTeamAndProject(app, token, {
+			id: 'hosted-project',
+			slug: 'hosted-project',
+			name: 'Hosted Project',
+		});
+
+		await app.request(`/v1/projects/${project.id}/connection`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				mode: 'hosted',
+				projectApiBaseUrl: 'https://project.example.com',
+				metadata: {
+					projectApiKey: 'hosted-project-key',
+				},
+			}),
+		});
+
+		const headers = { authorization: `Bearer ${token}` };
+		const artifacts = await json(await app.request(`/v1/projects/${project.id}/agent-artifacts`, { headers }));
+		expect(artifacts.payload.items).toEqual([expect.objectContaining({ id: 'knowledge:runtime' })]);
+
+		const approvals = await json(await app.request(`/v1/projects/${project.id}/approvals`, { headers }));
+		expect(approvals.payload.items).toEqual([expect.objectContaining({ id: 'promotion:runtime' })]);
+
+		const operationGrants = await json(await app.request(`/v1/projects/${project.id}/operations/grants`, { headers }));
+		expect(operationGrants.payload.items).toEqual([expect.objectContaining({ id: 'grant-stage-docs' })]);
+
+		const operationEvents = await json(await app.request(`/v1/projects/${project.id}/operations/events`, { headers }));
+		expect(operationEvents.payload.items).toEqual([expect.objectContaining({ operation: 'stage' })]);
+		expect(operationEvents.payload.lifecycle).toMatchObject({
+			worktreeSnapshots: [expect.objectContaining({ kind: 'verified_snapshot' })],
+			stagingMerges: [expect.objectContaining({ mergedToStaging: true })],
+		});
+
+		const operationDryRun = await json(await app.request(`/v1/projects/${project.id}/operations/stage/dry-run`, {
+			method: 'POST',
+			headers: {
+				...headers,
+				'content-type': 'application/json',
+			},
+			body: JSON.stringify({ request: { mode: 'dry_run' } }),
+		}));
+		expect(operationDryRun.payload).toMatchObject({
+			dryRun: true,
+			result: { status: 'completed' },
+		});
+
+		const delegatedDecision = await json(await app.request(`/v1/projects/${project.id}/approvals/promotion%3Aruntime/decision`, {
+			method: 'POST',
+			headers: {
+				...headers,
+				'content-type': 'application/json',
+			},
+			body: JSON.stringify({ decision: 'approve_as_book_content', reason: 'Reviewed in Agents page.' }),
+		}));
+		expect(delegatedDecision.payload).toMatchObject({
+			id: 'promotion:runtime',
+			decision: 'approve_as_book_content',
+			releaseAttempted: false,
+			stagingAttempted: false,
+		});
+		const decisionCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/v1/approvals/promotion%3Aruntime/decision'));
+		expect(decisionCall?.[1]).toMatchObject({ method: 'POST' });
+		expect(JSON.parse(String(decisionCall?.[1]?.body ?? '{}'))).toMatchObject({
+			decision: 'approve_as_book_content',
+			reason: 'Reviewed in Agents page.',
+		});
+
+		const invalidDecision = await app.request(`/v1/projects/${project.id}/approvals/promotion%3Aruntime/decision`, {
+			method: 'POST',
+			headers: {
+				...headers,
+				'content-type': 'application/json',
+			},
+			body: JSON.stringify({ decision: 'publish_release' }),
+		});
+		expect(invalidDecision.status).toBe(400);
+		expect(fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/v1/approvals/promotion%3Aruntime/decision'))).toHaveLength(1);
+
+		const readiness = await json(await app.request(`/v1/projects/${project.id}/providers/codex/readiness`, { headers }));
+		expect(readiness.payload).toMatchObject({ providerSelected: true, subscriptionPlan: 'pro' });
+
+		const agents = await json(await app.request(`/v1/projects/${project.id}/agents`, { headers }));
+		expect(agents.payload).toMatchObject({
+			projectId: 'hosted-project',
+			generatedArtifacts: [expect.objectContaining({ id: 'knowledge:runtime', totalScore: 29 })],
+			approvals: [expect.objectContaining({ id: 'promotion:runtime' })],
+			operationGrants: [expect.objectContaining({ id: 'grant-stage-docs' })],
+			operationEvents: [expect.objectContaining({ operation: 'stage' })],
+			operationLifecycle: expect.objectContaining({
+				worktreeSnapshots: [expect.objectContaining({ kind: 'verified_snapshot' })],
+				stagingMerges: [expect.objectContaining({ mergedToStaging: true })],
+			}),
+			codexReadiness: expect.objectContaining({ providerSelected: true, subscriptionPlan: 'pro' }),
+			currentWorkday: expect.objectContaining({ id: 'workday-1', state: 'active' }),
+			runtimeReports: [expect.objectContaining({ id: 'report-1' })],
+		});
+
+		const disconnectedProjectResponse = await json(await app.request(`/v1/teams/${project.teamId}/projects`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				id: 'disconnected-project',
+				slug: 'disconnected-project',
+				name: 'Disconnected Project',
+			}),
+		}));
+		const disconnectedProject = disconnectedProjectResponse.payload.project;
+		const fallback = await json(await app.request(`/v1/projects/${disconnectedProject.id}/agent-artifacts`, { headers }));
+		expect(fallback.payload).toMatchObject({
+			items: [],
+			warnings: ['Project runtime is not connected or unavailable.'],
+		});
+		const fallbackOperations = await json(await app.request(`/v1/projects/${disconnectedProject.id}/operations/grants`, { headers }));
+		expect(fallbackOperations.payload).toMatchObject({
+			items: [],
+			warnings: ['Project runtime is not connected or unavailable.'],
+		});
+
+		const fallbackDryRun = await app.request(`/v1/projects/${disconnectedProject.id}/operations/stage/dry-run`, {
+			method: 'POST',
+			headers: {
+				...headers,
+				'content-type': 'application/json',
+			},
+			body: JSON.stringify({ request: { mode: 'dry_run' } }),
+		});
+		expect(fallbackDryRun.status).toBe(409);
+
+		const unavailableDecision = await json(await app.request(`/v1/projects/${disconnectedProject.id}/approvals/promotion%3Aruntime/decision`, {
+			method: 'POST',
+			headers: {
+				...headers,
+				'content-type': 'application/json',
+			},
+			body: JSON.stringify({ decision: 'reject' }),
+		}));
+		expect(unavailableDecision).toMatchObject({
+			ok: false,
+			payload: {
+				approvalId: 'promotion:runtime',
+				warnings: ['Project runtime is not connected or unavailable.'],
+				releaseAttempted: false,
+				stagingAttempted: false,
+			},
+		});
+
+		const disconnectedAgents = await json(await app.request(`/v1/projects/${disconnectedProject.id}/agents`, { headers }));
+		expect(disconnectedAgents.payload).toMatchObject({
+			generatedArtifacts: [],
+			approvals: [],
+			operationGrants: [],
+			operationEvents: [],
+			operationLifecycle: expect.objectContaining({
+				worktreeSnapshots: [],
+				stagingMerges: [],
+			}),
+			currentWorkday: null,
+			runtimeReports: [],
+			runtimeWarnings: ['Project runtime is not connected or unavailable.'],
+		});
+	});
+
 	it('manages team profiles, invites, member roles, and guarded deletion', async () => {
 		const app = createTestApp();
 		const token = await authorizeApp(app);

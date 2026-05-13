@@ -39,6 +39,31 @@ function jsonError(c, status, error, details = {}) {
 	}, { status });
 }
 
+const AGENT_PROMOTION_APPROVAL_DECISIONS = new Set([
+	'approve_as_book_content',
+	'request_more_research',
+	'reject',
+	'approve_release',
+	'reject_release',
+]);
+
+async function readJsonOrFormBody(c) {
+	const contentType = c.req.header('content-type') ?? '';
+	if (contentType.includes('application/json')) {
+		const json = await c.req.json().catch(() => null);
+		if (json && typeof json === 'object' && !Array.isArray(json)) {
+			return json;
+		}
+	}
+	const form = await c.req.parseBody?.().catch(() => ({}));
+	if (!form || typeof form !== 'object') {
+		return {};
+	}
+	return Object.fromEntries(
+		Object.entries(form).map(([key, value]) => [key, typeof value === 'string' ? value : String(value ?? '')]),
+	);
+}
+
 function bearerTokenFromRequest(request) {
 	const header = request.headers.get('authorization');
 	if (!header) return null;
@@ -3356,6 +3381,157 @@ export function createMarketApiApp(options = {}) {
 				const delegated = await requireConnectedProjectRuntime(c, store, access.details.project.id, access.principal, '/v1/agents/messages');
 				if (delegated.response) return delegated.response;
 				return c.json({ ok: true, payload: delegated.payload });
+			});
+
+			app.get('/v1/projects/:projectId/agent-artifacts', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const payload = await store.requestProjectRuntime(access.details.project.id, access.principal, '/v1/agent-artifacts');
+				return c.json({
+					ok: true,
+					payload: payload ?? {
+						projectId: access.details.project.id,
+						items: [],
+						warnings: ['Project runtime is not connected or unavailable.'],
+					},
+				});
+			});
+
+			app.get('/v1/projects/:projectId/approvals', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const payload = await store.requestProjectRuntime(access.details.project.id, access.principal, '/v1/approvals');
+				return c.json({
+					ok: true,
+					payload: payload ?? {
+						projectId: access.details.project.id,
+						items: [],
+						warnings: ['Project runtime is not connected or unavailable.'],
+					},
+				});
+			});
+
+			app.get('/v1/projects/:projectId/operations/grants', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const payload = await store.requestProjectRuntime(access.details.project.id, access.principal, '/v1/operations/grants');
+				return c.json({
+					ok: true,
+					payload: payload ?? {
+						projectId: access.details.project.id,
+						items: [],
+						warnings: ['Project runtime is not connected or unavailable.'],
+					},
+				});
+			});
+
+			app.get('/v1/projects/:projectId/operations/events', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const payload = await store.requestProjectRuntime(access.details.project.id, access.principal, '/v1/operations/events');
+				return c.json({
+					ok: true,
+					payload: payload ?? {
+						projectId: access.details.project.id,
+						items: [],
+						lifecycle: {
+							worktreeSnapshots: [],
+							stagingMerges: [],
+							mergeFailures: [],
+							repairTasks: [],
+							releaseApprovals: [],
+							releaseResults: [],
+							codexUsage: [],
+						},
+						warnings: ['Project runtime is not connected or unavailable.'],
+					},
+				});
+			});
+
+			app.post('/v1/projects/:projectId/operations/:operation/dry-run', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await readJsonOrFormBody(c);
+				const payload = await store.requestProjectRuntime(
+					access.details.project.id,
+					access.principal,
+					`/v1/operations/${encodeURIComponent(c.req.param('operation'))}/dry-run`,
+					{
+						method: 'POST',
+						body,
+					},
+				);
+				if (!payload) {
+					return jsonError(c, 409, 'Project runtime is not connected or unavailable.', {
+						payload: {
+							projectId: access.details.project.id,
+							operation: c.req.param('operation'),
+							dryRun: true,
+							warnings: ['Project runtime is not connected or unavailable.'],
+						},
+					});
+				}
+				return c.json({ ok: true, payload });
+			});
+
+			app.post('/v1/projects/:projectId/approvals/:approvalId/decision', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				if (c.get('actorType') === 'service') {
+					return jsonError(c, 403, 'Service principals cannot decide agent approvals.');
+				}
+				const body = await readJsonOrFormBody(c);
+				const decision = typeof body.decision === 'string' && body.decision.trim() ? body.decision.trim() : '';
+				if (!decision) {
+					return jsonError(c, 400, 'Approval decision is required.');
+				}
+				if (!AGENT_PROMOTION_APPROVAL_DECISIONS.has(decision)) {
+					return jsonError(c, 400, 'Unsupported approval decision.');
+				}
+				const approvalId = c.req.param('approvalId');
+				const payload = await store.requestProjectRuntime(
+					access.details.project.id,
+					access.principal,
+					`/v1/approvals/${encodeURIComponent(approvalId)}/decision`,
+					{
+						method: 'POST',
+						body: {
+							decision,
+							reason: typeof body.reason === 'string' ? body.reason : null,
+						},
+					},
+				);
+				if (!payload) {
+					return jsonError(c, 409, 'Project runtime is not connected or unavailable.', {
+						payload: {
+							projectId: access.details.project.id,
+							approvalId,
+							warnings: ['Project runtime is not connected or unavailable.'],
+							releaseAttempted: false,
+							stagingAttempted: false,
+						},
+					});
+				}
+				return c.json({ ok: true, payload });
+			});
+
+			app.get('/v1/projects/:projectId/providers/codex/readiness', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const payload = await store.requestProjectRuntime(access.details.project.id, access.principal, '/v1/providers/codex/readiness');
+				return c.json({
+					ok: true,
+					payload: payload ?? {
+						ok: false,
+						providerSelected: false,
+						sdkInstalled: false,
+						nodeVersionOk: true,
+						authDetected: false,
+						subscriptionPlan: 'unknown',
+						warnings: ['Project runtime is not connected or unavailable.'],
+						blockingIssues: [],
+					},
+				});
 			});
 
 			app.post('/v1/projects/:projectId/share/export', async (c) => {

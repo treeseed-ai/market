@@ -5714,19 +5714,79 @@ export class MarketControlPlaneStore {
 		if (!details) {
 			return null;
 		}
-		const [statusPayload, messagePayload, workdaySummaries] = await Promise.all([
+		const [
+			statusPayload,
+			messagePayload,
+			artifactPayload,
+			approvalPayload,
+			operationGrantPayload,
+			operationEventPayload,
+			codexReadiness,
+			currentWorkday,
+			runtimeReportsPayload,
+			workdaySummaries,
+		] = await Promise.all([
 			this.requestProjectRuntime(projectId, principal, '/v1/agents/status'),
 			this.requestProjectRuntime(projectId, principal, '/v1/agents/messages'),
+			this.requestProjectRuntime(projectId, principal, '/v1/agent-artifacts'),
+			this.requestProjectRuntime(projectId, principal, '/v1/approvals'),
+			this.requestProjectRuntime(projectId, principal, '/v1/operations/grants'),
+			this.requestProjectRuntime(projectId, principal, '/v1/operations/events'),
+			this.requestProjectRuntime(projectId, principal, '/v1/providers/codex/readiness'),
+			this.requestProjectRuntime(projectId, principal, '/v1/workdays/current'),
+			this.requestProjectRuntime(projectId, principal, '/v1/workdays/reports'),
 			this.all(
 				`SELECT * FROM project_workday_summaries WHERE project_id = ? ORDER BY created_at DESC LIMIT 6`,
 				[projectId],
 			),
 		]);
+		const runtimeUnavailableWarning = 'Project runtime is not connected or unavailable.';
+		const generatedArtifacts = Array.isArray(artifactPayload?.items) ? artifactPayload.items : [];
+		const approvals = Array.isArray(approvalPayload?.items) ? approvalPayload.items : [];
+		const operationGrants = Array.isArray(operationGrantPayload?.items) ? operationGrantPayload.items : [];
+		const operationEvents = Array.isArray(operationEventPayload?.items) ? operationEventPayload.items : [];
+		const operationLifecycle = operationEventPayload?.lifecycle && typeof operationEventPayload.lifecycle === 'object' ? operationEventPayload.lifecycle : {
+			worktreeSnapshots: [],
+			stagingMerges: [],
+			mergeFailures: [],
+			repairTasks: [],
+			releaseApprovals: [],
+			releaseResults: [],
+			codexUsage: [],
+		};
+		const runtimeReports = Array.isArray(runtimeReportsPayload?.items) ? runtimeReportsPayload.items : [];
+		const runtimeWarnings = [
+			...(Array.isArray(artifactPayload?.warnings) ? artifactPayload.warnings : artifactPayload ? [] : [runtimeUnavailableWarning]),
+			...(Array.isArray(approvalPayload?.warnings) ? approvalPayload.warnings : []),
+			...(Array.isArray(operationGrantPayload?.warnings) ? operationGrantPayload.warnings : []),
+			...(Array.isArray(operationEventPayload?.warnings) ? operationEventPayload.warnings : []),
+			...(Array.isArray(runtimeReportsPayload?.warnings) ? runtimeReportsPayload.warnings : []),
+			...(Array.isArray(codexReadiness?.warnings) ? codexReadiness.warnings : []),
+			...(Array.isArray(codexReadiness?.blockingIssues) ? codexReadiness.blockingIssues : []),
+		].filter(Boolean);
 		return {
 			projectId,
 			pools: details.agentPools,
 			agents: Array.isArray(statusPayload?.agents) ? statusPayload.agents : [],
 			messages: Array.isArray(messagePayload) ? messagePayload : [],
+			generatedArtifacts,
+			approvals,
+			operationGrants,
+			operationEvents,
+			operationLifecycle,
+			codexReadiness: codexReadiness ?? {
+				ok: false,
+				providerSelected: false,
+				sdkInstalled: false,
+				nodeVersionOk: true,
+				authDetected: false,
+				subscriptionPlan: 'unknown',
+				warnings: [runtimeUnavailableWarning],
+				blockingIssues: [],
+			},
+			currentWorkday: currentWorkday ?? null,
+			runtimeReports,
+			runtimeWarnings,
 			workdaySummaries: workdaySummaries.map((row) => ({
 				id: row.id,
 				environment: row.environment,

@@ -108,4 +108,35 @@ describe('team and project section extraction', () => {
 		expect(teamHome).toContain('MetricGrid');
 		expect(teamHome).toContain('Card');
 	});
+
+	it('exposes the project agent supervision sections', () => {
+		const agents = source('src/components/app/project/ProjectAgentsView.astro');
+
+		for (const marker of [
+			'Runtime readiness',
+			'Current workday',
+			'Codex provider',
+			'Generated knowledge',
+			'Pending approvals',
+			'Workday report timeline',
+			'generatedArtifacts',
+			'codexReadiness',
+			'runtimeReports',
+			'approve_as_book_content',
+			'request_more_research',
+			'reject',
+			'approve_release',
+			'reject_release',
+			'Release approvals',
+			'Grants and event log',
+			'Snapshots, repair, and release',
+			'operationGrants',
+			'operationEvents',
+			'operationLifecycle',
+			'Production release still requires a separate human release approval',
+		]) {
+			expect(agents).toContain(marker);
+		}
+		expect(agents).not.toContain('inspect-only');
+	});
 });
