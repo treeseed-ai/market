@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { createSiteBetterAuth, ensureBetterAuthD1Schema } from '../../../lib/auth/better-auth';
 import { assignImmutableUsername, deriveAvailableUsernameForAccount, normalizeUsername } from '../../../lib/auth/account';
 import { finalizeBetterAuthSession, isSupportedAuthProvider, normalizeReturnTo } from '../../../lib/auth/flow';
+import { setUserThemeCookies } from '../../../lib/auth/appearance';
 
 export const prerender = false;
 
@@ -42,9 +43,12 @@ export const GET: APIRoute = async (context) => {
 			session: sessionData.session,
 			providerSubject: providerAccount?.accountId ?? user.id,
 		});
+		await setUserThemeCookies(context, user.id).catch(() => null);
 	} catch (error) {
 		console.error('[auth] OAuth account sync failed.', error);
 		return context.redirect('/auth/sign-in?error=sync_failed', 302);
 	}
-	return context.redirect(normalizeReturnTo(context), 302);
+	const response = context.redirect(normalizeReturnTo(context), 302);
+	for (const cookie of context.cookies.headers()) response.headers.append('set-cookie', cookie);
+	return response;
 };

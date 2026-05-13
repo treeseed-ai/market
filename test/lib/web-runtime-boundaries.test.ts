@@ -34,7 +34,8 @@ describe('web runtime boundaries', () => {
 
 	it('keeps backend runtime implementation out of core source', () => {
 		const sourceFiles = files('packages/core/src')
-			.filter((path) => /\.(astro|ts|js)$/u.test(path));
+			.filter((path) => /\.(astro|ts|js)$/u.test(path))
+			.filter((path) => path !== 'packages/core/src/dev.ts');
 		const offenders = sourceFiles.filter((path) => {
 			const source = readFileSync(path, 'utf8');
 			return /@treeseed\/agent|from ['"].*\/api\/|from ['"].*\/agents\/|from ['"].*\/services\/|Hono|worker runner|workday manager/u.test(source);

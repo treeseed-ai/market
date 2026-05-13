@@ -8,6 +8,7 @@ import {
 	resolveUserThemePreference,
 	saveUserThemePreference,
 	setAnonymousThemeCookies,
+	setUserThemeCookies,
 	TREESEED_COLOR_SCHEME_COOKIE,
 	TREESEED_THEME_MODE_COOKIE,
 } from '../../src/lib/auth/appearance';
@@ -182,6 +183,19 @@ describe('anonymous auth appearance', () => {
 			scheme: 'lichen',
 			mode: 'dark',
 		});
+	});
+
+	it('mirrors authenticated preferences into universal appearance cookies', async () => {
+		const db = new FakePreferenceDb();
+		const context = createContext('https://example.com/app/account', db);
+		await saveUserThemePreference(context as any, 'user-1', { colorScheme: 'tidepool', themeMode: 'dark' });
+
+		await expect(setUserThemeCookies(context as any, 'user-1')).resolves.toEqual({
+			scheme: 'tidepool',
+			mode: 'dark',
+		});
+		expect(context.set).toHaveBeenCalledWith(TREESEED_COLOR_SCHEME_COOKIE, 'tidepool', expect.any(Object));
+		expect(context.set).toHaveBeenCalledWith(TREESEED_THEME_MODE_COOKIE, 'dark', expect.any(Object));
 	});
 
 	it('renders the account appearance panel wiring', () => {

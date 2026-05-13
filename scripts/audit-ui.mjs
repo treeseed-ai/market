@@ -24,6 +24,7 @@ const defaultRoots = [
 	'packages/core/src/styles/forms.css',
 	'packages/core/src/styles/theme.css',
 	'packages/core/src/styles/ui.css',
+	'packages/core/src/utils/color-schemes',
 ];
 
 const scanRoots = args.length > 0 ? args : defaultRoots;
@@ -39,6 +40,9 @@ const rawColorAllowlist = new Set([
 	'src/config.yaml',
 	'src/lib/auth/welcome-email.ts',
 ]);
+const rawColorAllowlistPrefixes = [
+	'packages/core/src/utils/color-schemes/',
+];
 
 const inlineStyleAllowlist = new Set([
 	'packages/core/src/components/ui/theme/ThemePreviewSwatch.astro',
@@ -74,7 +78,7 @@ for (const absolute of files) {
 	if (retiredTokenPattern.test(contents)) {
 		failures.push(`${path}: contains retired --site-* or --kc-* token`);
 	}
-	if (!rawColorAllowlist.has(path) && rawColorPattern.test(contents)) {
+	if (!rawColorAllowlist.has(path) && !rawColorAllowlistPrefixes.some((prefix) => path.startsWith(prefix)) && rawColorPattern.test(contents)) {
 		failures.push(`${path}: contains raw color literal`);
 	}
 	if (!inlineStyleAllowlist.has(path) && inlineStylePattern.test(contents)) {

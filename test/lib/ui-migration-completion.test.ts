@@ -83,6 +83,62 @@ describe('UI migration completion', () => {
 		}
 	});
 
+	it('routes standalone and docs chrome through shared shell components', () => {
+		const mainLayout = source('packages/core/src/layouts/MainLayout.astro');
+		expect(mainLayout).toContain('PublicShell');
+		expect(source('packages/core/src/components/ui/shell/PublicShell.astro')).toContain('PublicFooter');
+		expect(mainLayout).not.toContain('<header');
+		expect(mainLayout).not.toContain('<footer');
+
+		const docsHeader = source('packages/core/src/components/docs/Header.astro');
+		expect(docsHeader).toContain('ts-shell-brand');
+		expect(docsHeader).toContain('BookFontControls');
+		expect(docsHeader).toContain('DownloadBook');
+
+		const docsFooter = source('packages/core/src/components/docs/Footer.astro');
+		expect(docsFooter).toContain('PublicFooter');
+		expect(docsFooter).toContain('EditLink');
+		expect(docsFooter).toContain('Pagination');
+	});
+
+	it('keeps browser appearance cookies as the universal static-page theme source', () => {
+		const themeScript = source('packages/core/src/components/ui/theme/ThemeScript.astro');
+		expect(themeScript.indexOf('readCookie(schemeKey)')).toBeLessThan(themeScript.indexOf('readStored(schemeKey)'));
+		expect(themeScript.indexOf('readCookie(modeKey)')).toBeLessThan(themeScript.indexOf('readStored(modeKey)'));
+		expect(themeScript).toContain('window.sessionStorage.setItem(name, value)');
+		expect(themeScript).toContain('window.localStorage.setItem(name, value)');
+		expect(themeScript).toContain('document.cookie = `${name}=');
+
+		for (const path of [
+			'src/pages/auth/sign-in.astro',
+			'src/pages/auth/verified.ts',
+			'src/pages/auth/callback/[provider].ts',
+			'src/pages/auth/username.astro',
+			'src/layouts/TreeseedAppLayout.astro',
+			'src/layouts/TreeseedPublicLayout.astro',
+		]) {
+			expect(source(path), path).toMatch(/set(?:User|CurrentUser|Anonymous)ThemeCookies/u);
+		}
+	});
+
+	it('keeps book routes resilient to published-runtime fallback content', () => {
+		const route = source('packages/core/src/pages/books/[slug].astro');
+		expect(route).toContain("candidate.id === slug || candidate.data.slug === slug");
+		expect(route).toContain('publishedBook?.entry ?? localBook');
+		expect(route).toContain('publishedBook?.html ? <PublishedContentBody');
+	});
+
+	it('keeps color schemes in independently registered source files', () => {
+		for (const scheme of ['fern', 'lichen', 'cedar', 'tidepool']) {
+			expect(existsSync(resolve(process.cwd(), `packages/core/src/utils/color-schemes/${scheme}.ts`))).toBe(true);
+		}
+		const registry = source('packages/core/src/utils/color-schemes/index.ts');
+		expect(registry).toContain('BUILT_IN_COLOR_SCHEMES');
+		const theme = source('packages/core/src/utils/theme.ts');
+		expect(theme).toContain("from './color-schemes/index.ts'");
+		expect(theme).not.toContain('const BUILT_IN_SCHEMES: Record<TreeseedColorSchemeId, TreeseedSchemeTokens> = {');
+	});
+
 	it('uses TreeSeed and descriptive SDK names instead of old product naming', () => {
 		expect(existsSync(resolve(process.cwd(), 'src/layouts/TreeseedAppLayout.astro'))).toBe(true);
 		expect(existsSync(resolve(process.cwd(), 'src/layouts/TreeseedPublicLayout.astro'))).toBe(true);

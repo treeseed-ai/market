@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { finalizeCurrentBetterAuthSession, normalizeReturnTo } from '../../lib/auth/flow';
 import { sendWelcomeEmail } from '../../lib/auth/welcome-email';
+import { setCurrentUserThemeCookies } from '../../lib/auth/appearance';
 
 export const prerender = false;
 
@@ -25,6 +26,7 @@ export const GET: APIRoute = async (context) => {
 		if (!principal) {
 			return context.redirect(`/auth/sign-in?verified=1&returnTo=${encodeURIComponent(returnTo)}`, 302);
 		}
+		await setCurrentUserThemeCookies(context).catch(() => null);
 		const response = context.redirect(returnTo, 302);
 		for (const cookie of context.cookies.headers()) {
 			response.headers.append('set-cookie', cookie);

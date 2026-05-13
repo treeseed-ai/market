@@ -5,6 +5,7 @@ import '../../../../packages/core/src/styles/ui.css';
 import '../../../../packages/core/src/styles/forms.css';
 import '../../../styles/auth.css';
 import ThemeScript from '../../../../packages/core/src/components/ui/theme/ThemeScript.astro';
+import DevWatchReload from '../../../../packages/core/src/components/DevWatchReload.astro';
 import type { ThemePreference } from '../../../../packages/core/src/utils/theme.ts';
 
 interface Props {
@@ -29,5 +30,6 @@ const { title, description = 'TreeSeed account access.', appearance } = Astro.pr
 		<main class="auth-shell">
 			<slot />
 		</main>
+		<DevWatchReload />
 	</body>
 </html>

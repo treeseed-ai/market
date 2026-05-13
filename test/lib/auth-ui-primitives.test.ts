@@ -23,6 +23,8 @@ describe('auth and account UI primitive conversion', () => {
 			expect(contents, path).toContain('AuthShell');
 			expect(contents, path).toContain('AuthCard');
 		}
+
+		expect(source('src/components/app/auth/AuthShell.astro')).toContain('DevWatchReload');
 	});
 
 	it('keeps register and account appearance wiring intact', () => {
