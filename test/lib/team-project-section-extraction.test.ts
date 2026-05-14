@@ -21,6 +21,7 @@ const projectComponents = [
 	'ProjectDirectView',
 	'ProjectWorkstreamsView',
 	'ProjectAgentsView',
+	'ProjectCapacityView',
 	'ProjectReleasesView',
 	'ProjectShareView',
 	'ProjectSettingsView',
@@ -59,6 +60,7 @@ describe('team and project section extraction', () => {
 	it('preserves host and capacity behavior hooks after extraction', () => {
 		const hosts = source('src/components/app/team/TeamHostsView.astro');
 		const capacity = source('src/components/app/team/TeamCapacityView.astro');
+		const projectCapacity = source('src/components/app/project/ProjectCapacityView.astro');
 		const script = source('src/components/app/team/TeamHostCapacityScript.astro');
 
 		for (const marker of [
@@ -76,8 +78,34 @@ describe('team and project section extraction', () => {
 			'data-capacity-grant-form',
 			'data-capacity-key-reset',
 			'id="capacity-page-data"',
+			'Reservations',
+			'active reservation',
+			'budget blocked',
+			'runnable',
 		]) {
 			expect(capacity).toContain(marker);
+		}
+		for (const marker of [
+			'data-project-capacity-root',
+			'Capacity readiness',
+			'Budgeted work',
+			'Provider pressure',
+			'Routing lanes',
+			'Project grants',
+			'Active and recent capacity',
+			'Recent decisions',
+			'Estimate profiles',
+			'Recent actuals',
+			'Capacity decisions',
+			'Checkpointed work',
+			'Budget and policy boundaries',
+			'data-project-capacity-task-form',
+			'data-project-capacity-route-preview',
+			'data-project-capacity-approval-form',
+			'/v1/projects/${encodeURIComponent(capacityData.projectId)}/agent-tasks',
+			'/v1/approval-requests/${encodeURIComponent(approvalId)}/decide',
+		]) {
+			expect(projectCapacity).toContain(marker);
 		}
 		for (const marker of [
 			'/v1/teams/${encodeURIComponent(teamId)}/hosts',

@@ -3,7 +3,7 @@
 | Operations tool contract                                                                     | `cd packages/sdk && npm test` plus `cd packages/agent && npm run test:unit` |     |
 | Operations lifecycle in handlers                                                             | `cd packages/agent && npm run test:unit && npm run test:smoke`              | --- |
 | title: TreeSeed Agent Research, Knowledge Generation, and Codex Provider Implementation Plan |                                                                             |     |
-| status: implementation-complete; stabilization/verification pending                          |                                                                             |     |
+| status: implementation-complete; verification harnesses and UI operations implemented         |                                                                             |     |
 | created: 2026-05-13                                                                          |                                                                             |     |
 | scope:                                                                                       |                                                                             |     |
 
@@ -2526,10 +2526,11 @@ Implemented coverage includes:
 
 * SDK declarative context query contracts, operation-as-agent-tool contracts, provider metadata, and Codex-related environment metadata.
 * Agent context processing, package-owned research/knowledge/optimizer handlers, workday orchestration, runtime readiness, operation adapters, Codex provider readiness/execution, worktree-scoped docs mutation, knowledge promotion, human-gated release approval, artifact APIs, operation observability, reports, and local E2E verification harnesses.
+* Capacity scheduling runtime from `docs/agent-budget.md`: classify, estimate, route, reserve, execute, reconcile, learn, checkpoint or continue, and preserve idle capacity when no useful admitted work remains.
 * Core integrated dev surface support for `--surface all`.
-* Market API delegation and Project Agents supervision UI for generated artifacts, approvals, Codex readiness, workday state, reports, operation grants/events, staging state, and release-readiness state.
+* Market API delegation, Project Agents supervision UI for runtime/artifacts/approvals, and Project Capacity UI for provider readiness, grants, lane pressure, routing decisions, reservations, learned estimates, usage actuals, checkpointed interruptions, approval-required work, and manual budgeted task submission through admission.
 
-The intended completion gate is now verification and review organization: package-local `verify:local` checks, targeted Market Agents tests, `git diff --check`, review of tracked files, and human approval before any production release.
+The intended completion gate is now verification and review organization: package-local `verify:local` checks, targeted Market Agents tests, the capacity scheduling E2E harness, `git diff --check`, review of tracked files, and human approval before any production release.
 
 ---
 

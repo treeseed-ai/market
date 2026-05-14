@@ -2460,10 +2460,51 @@ export function createMarketApiApp(options = {}) {
 					repositoryMutation: definition.repositoryMutation === true,
 					production: environment === 'prod',
 					priorityClass: typeof body.priorityClass === 'string' ? body.priorityClass : definition.priorityClass,
+					executionProfiles: Array.isArray(body.executionProfiles)
+						? body.executionProfiles.filter((entry) => typeof entry === 'string')
+						: typeof body.executionProfileId === 'string'
+							? [body.executionProfileId]
+							: undefined,
+					estimateProfiles: plan.estimateProfiles,
+					minimumQualityWeight: Number.isFinite(Number(body.minimumQualityWeight)) ? Number(body.minimumQualityWeight) : null,
+					requiredContextTokens: Number.isFinite(Number(body.requiredContextTokens)) ? Number(body.requiredContextTokens) : null,
+					estimatedContextTokens: Number.isFinite(Number(body.estimatedContextTokens ?? body.contextTokens)) ? Number(body.estimatedContextTokens ?? body.contextTokens) : null,
+					attentionWeight: Number.isFinite(Number(body.attentionWeight)) ? Number(body.attentionWeight) : null,
+					coordinationWeight: Number.isFinite(Number(body.coordinationWeight)) ? Number(body.coordinationWeight) : null,
+					minimumAttentionAvailable: Number.isFinite(Number(body.minimumAttentionAvailable)) ? Number(body.minimumAttentionAvailable) : null,
+					attentionPolicy: {
+						maxAttentionLoad: Number.isFinite(Number(body.maxAttentionLoad)) ? Number(body.maxAttentionLoad) : null,
+						reserveAttentionPercent: Number.isFinite(Number(body.reserveAttentionPercent)) ? Number(body.reserveAttentionPercent) : null,
+						maxContextTokens: Number.isFinite(Number(body.maxContextTokens)) ? Number(body.maxContextTokens) : null,
+						maxContextSaturationPercent: Number.isFinite(Number(body.maxContextSaturationPercent)) ? Number(body.maxContextSaturationPercent) : null,
+						coordinationOverheadFactor: Number.isFinite(Number(body.coordinationOverheadFactor)) ? Number(body.coordinationOverheadFactor) : null,
+					},
+					utilityValue: Number.isFinite(Number(body.utilityValue)) ? Number(body.utilityValue) : null,
+					maintenanceValue: Number.isFinite(Number(body.maintenanceValue)) ? Number(body.maintenanceValue) : null,
+					deadlineAt: typeof body.deadlineAt === 'string' ? body.deadlineAt : null,
+					successProbability: Number.isFinite(Number(body.successProbability)) ? Number(body.successProbability) : null,
+					trustRequirement: Number.isFinite(Number(body.trustRequirement)) ? Number(body.trustRequirement) : null,
+					cooperativeRouting: body.cooperativeRouting === true,
+					predictiveReservePolicy: body.predictiveReservePolicy && typeof body.predictiveReservePolicy === 'object'
+						? body.predictiveReservePolicy
+						: null,
+					hybridExecutionPlan: body.hybridExecutionPlan && typeof body.hybridExecutionPlan === 'object'
+						? body.hybridExecutionPlan
+						: null,
+					preferredExecutionProfiles: Array.isArray(body.preferredExecutionProfiles)
+						? body.preferredExecutionProfiles.filter((entry) => typeof entry === 'string')
+						: undefined,
+					disallowedExecutionProfiles: Array.isArray(body.disallowedExecutionProfiles)
+						? body.disallowedExecutionProfiles.filter((entry) => typeof entry === 'string')
+						: undefined,
 					source: 'market_agent_task',
 					metadata: {
 						requestedByType: c.get('actorType') === 'service' ? 'service' : 'user',
 						requestedById: typeof access.principal.id === 'string' ? access.principal.id : null,
+						cooperativeRouting: body.cooperativeRouting === true,
+						hybridExecutionPlan: body.hybridExecutionPlan && typeof body.hybridExecutionPlan === 'object'
+							? body.hybridExecutionPlan
+							: null,
 					},
 				});
 				if (!route.ok) {
@@ -2490,10 +2531,11 @@ export function createMarketApiApp(options = {}) {
 					projectId: access.details.project.id,
 					estimatePhase: 'pre_enqueue',
 					taskSignature: signature,
-					confidence: estimate.confidence,
-					estimatedCreditsP50: estimate.estimatedCreditsP50,
-					estimatedCreditsP90: estimate.estimatedCreditsP90,
-					reservedCredits: estimate.reservedCredits,
+					executionProfileId: route.estimate.executionProfileId,
+					confidence: route.estimate.confidence,
+					estimatedCreditsP50: route.estimate.estimatedCreditsP50,
+					estimatedCreditsP90: route.estimate.estimatedCreditsP90,
+					reservedCredits: route.estimate.reservedCredits,
 					features: body.features && typeof body.features === 'object' ? body.features : {},
 				});
 				const reservation = await store.createCapacityReservation({
@@ -5149,7 +5191,12 @@ export function createMarketApiApp(options = {}) {
 						projectId: job.projectId,
 						taskId: job.id,
 						workDayId: reservation.workDayId,
-						taskSignature: job.operation,
+						taskSignature: typeof body.usageActual?.taskSignature === 'string' ? body.usageActual.taskSignature : job.operation,
+						executionProfileId: typeof body.usageActual?.executionProfileId === 'string'
+							? body.usageActual.executionProfileId
+							: typeof capacity.executionProfileId === 'string'
+								? capacity.executionProfileId
+								: 'standard-code-model',
 						capacityProviderId: auth.provider.id,
 						laneId: capacity.laneId ?? reservation.laneId,
 						actualCredits,
@@ -5337,6 +5384,7 @@ export function createMarketApiApp(options = {}) {
 						projectId: c.req.param('projectId'),
 						taskId: body.usageActual.taskId ?? body.taskId ?? null,
 						workDayId: body.usageActual.workDayId ?? body.workDayId ?? null,
+						executionProfileId: body.usageActual.executionProfileId ?? body.executionProfileId ?? body.metadata?.executionProfileId ?? null,
 						capacityProviderId: body.usageActual.capacityProviderId ?? body.capacityProviderId,
 						laneId: body.usageActual.laneId ?? body.laneId ?? null,
 					});

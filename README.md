@@ -43,6 +43,15 @@ Cloudflare site + D1 + Queue
       (manager / worker / cron)
 ```
 
+## Capacity Provider Operations
+
+The market UI includes two capacity operations surfaces:
+
+- Team Capacity configures provider infrastructure, security codes, lanes, pooled grants, and project grants.
+- Project Capacity is the dense project console for provider readiness, lane pressure, active reservations, routing decisions, learned estimate profiles, usage actuals, approval-required work, checkpointed interruptions, and manual budgeted work submission through the admitted `/v1/projects/:projectId/agent-tasks` path.
+
+The project UI manages work through capacity providers. Provider infrastructure remains team-scoped, and the UI does not expose force-run actions that bypass capacity admission.
+
 ## Architecture
 
 This workspace has two layers:

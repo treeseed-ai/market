@@ -97,7 +97,7 @@ Important existing structures:
 
 The architecture direction is already strongly aligned with the target model.
 
-The remaining work is primarily:
+The implementation now covers the primary runtime responsibilities:
 
 * runtime orchestration
 * estimation policy
@@ -974,9 +974,16 @@ Responsibilities:
 
 # Recommended Phased Implementation
 
+Implementation status:
+
+* Phase 1 through Phase 5 are implemented in the SDK, agent runtime, and market control-plane surfaces.
+* Post-phase roadmap items are implemented as metadata-driven capacity extensions without additional schema migrations.
+* Comprehensive capacity scheduling E2E coverage now verifies classification, admission, routing, estimate learning, bounded planning, interruption recovery, backfill/idling, attention/utility metadata, and hybrid escalation behavior.
+* Market UI operator surfaces now include team-level provider/grant administration and a project-level Capacity console for readiness, pressure, routing decisions, active reservations, learned estimates, usage actuals, approvals, checkpointed interruptions, and manual budgeted work submission through admission.
+
 # Phase 1 — Runtime Classification
 
-Implement:
+Implemented:
 
 * task signatures
 * runtime estimate lookup
@@ -989,7 +996,7 @@ This is the highest leverage step.
 
 # Phase 2 — Estimate Learning
 
-Implement:
+Implemented:
 
 * rolling p50/p90 updates
 * confidence scoring
@@ -1000,7 +1007,7 @@ Implement:
 
 # Phase 3 — Planning Tasks
 
-Implement:
+Implemented:
 
 * bounded planning agents
 * DAG proposal outputs
@@ -1011,7 +1018,7 @@ Implement:
 
 # Phase 4 — Multi-Provider Routing
 
-Implement:
+Implemented:
 
 * provider arbitration
 * lane congestion awareness
@@ -1022,12 +1029,50 @@ Implement:
 
 # Phase 5 — Attention Scheduling
 
-Implement:
+Implemented:
 
 * attention load modeling
 * context saturation tracking
 * coordination overhead accounting
 * cooperative balancing
+
+---
+
+# Completion Verification
+
+Capacity scheduling completion is verified by deterministic SDK, agent, market, and E2E checks.
+
+Primary checks:
+
+```bash
+cd packages/sdk && npm run test -- --run test/utils/capacity.test.ts
+cd packages/agent && npm run test:unit
+cd packages/agent && npm run test:capacity-scheduling-e2e
+cd packages/agent && npm run test:local-e2e-verification
+npm run test:unit
+cd packages/sdk && npm run verify:local
+cd packages/agent && npm run verify:local
+npm run verify:local
+```
+
+The capacity scheduling E2E harness proves:
+
+* activation/root tasks are classified before executable queueing;
+* admissions record estimates, route candidates, reservations, and capacity envelopes;
+* learned `taskSignature + executionProfileId` profiles override static defaults;
+* planning tasks remain non-mutating and progressively materialize children through admission;
+* budget-blocked/deferred work is not queued;
+* worker usage records completed cost separately from interrupted partial work;
+* checkpoint/continuation events prevent dirty ambiguous failure states;
+* backfill admits useful work by utility and idles when no useful work remains;
+* attention, context, utility, predictive reserve, cooperative routing, and hybrid phase metadata survive into route and usage records.
+* the project Capacity UI exposes provider/lane pressure, reservations, learned profiles, approval and continuation states, and submits manual work through `/v1/projects/:projectId/agent-tasks` without bypassing admission.
+
+Implemented behavior:
+
+* routing candidates carry attention estimates and attention/context pressure
+* work policy metadata can bound attention load and context saturation
+* task reservations, routing decisions, worker usage, and workday summaries preserve attention telemetry
 
 ---
 
@@ -1394,9 +1439,9 @@ Closure responsibilities:
 
 ---
 
-# Future Directions
+# Post-Phase Roadmap — Implemented
 
-Future backfill scheduling may include:
+Backfill scheduling now includes:
 
 ## Utility Scoring
 
@@ -1407,6 +1452,8 @@ expected utility per credit
 ```
 
 for backlog prioritization.
+
+Implemented through route utility estimates, utility-per-credit ranking, and worker usage telemetry.
 
 ---
 
@@ -1421,6 +1468,8 @@ Allow:
 
 to compete for unused capacity.
 
+Implemented as cooperative provider/lane/grant arbitration using existing market capacity plan metadata.
+
 ---
 
 ## Predictive Reserve Allocation
@@ -1433,6 +1482,8 @@ Predict:
 * deployment windows
 
 to dynamically adjust reserve buffers.
+
+Implemented through predictive reserve policy metadata that preserves budget for likely future work.
 
 ---
 
@@ -2462,9 +2513,9 @@ Execution admitted
 
 ---
 
-# Future Directions
+# Post-Phase Routing Roadmap — Implemented
 
-Future routing may include:
+Routing now includes:
 
 ## Utility-Aware Optimization
 
@@ -2475,6 +2526,8 @@ expected useful work per credit
 ```
 
 for each execution profile.
+
+Implemented through utility-aware route scores and persisted routing decision snapshots.
 
 ---
 
@@ -2489,6 +2542,8 @@ review on cheap verifier
 human escalation only on uncertainty
 ```
 
+Implemented as normalized phase-aware metadata; each phase remains subject to normal admission.
+
 ---
 
 ## Cooperative Market Routing
@@ -2500,6 +2555,8 @@ Allow providers to compete dynamically based on:
 * quality
 * availability
 * trust level
+
+Implemented through cooperative route signals in capacity plans and route candidate score metadata.
 
 ---
 
@@ -2518,6 +2575,14 @@ This is particularly important for:
 * subscription-backed providers
 * human-attached execution
 * long-context planning work
+
+Implemented in Phase 5 and included in route candidate scoring.
+
+---
+
+# Post-Roadmap Ideas
+
+Further work may add real-money provider markets, contributor bidding, and full multi-agent hybrid workflow engines. These are intentionally outside the completed capacity scheduling roadmap.
 
 ---
 
