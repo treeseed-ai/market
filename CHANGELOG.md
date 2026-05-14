@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.12] - 2026-05-14
+
+### Infrastructure
+
+- release: sync package staging heads (8a0498f98604)
+
+### Tests
+
+- build(deps): sync integrated package updates (954fbf36df2a)
+
+### Dependencies
+
+- Release @treeseed/market 0.5.12.
+- Release package @treeseed/agent: 0.8.13.
+- Release package @treeseed/cli: 0.8.13.
+- Release package @treeseed/core: 0.8.13.
+- Release package @treeseed/sdk: 0.8.13.
+
 ## [0.5.11] - 2026-05-14
 
 ### Added
