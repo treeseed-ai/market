@@ -2,7 +2,12 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { createSiteBetterAuth } from '../../src/lib/auth/better-auth';
-import { getSiteAuthConfig, normalizeBetterAuthBaseUrl, normalizeSiteBaseUrl } from '../../src/lib/auth/config';
+import {
+	getSiteAuthConfig,
+	localAuthCanonicalRedirectUrl,
+	normalizeBetterAuthBaseUrl,
+	normalizeSiteBaseUrl,
+} from '../../src/lib/auth/config';
 import { evaluatePasswordStrength, passwordMeetsPolicy, passwordPolicyMessage } from '../../src/lib/auth/password-policy';
 
 async function withEnv<T>(values: Record<string, string | undefined>, action: () => T | Promise<T>) {
@@ -141,6 +146,23 @@ describe('market auth password policy', () => {
 			expect(config.siteBaseUrl).toBe('https://treeseed-market-staging-479e4625.treeseed.ai');
 			expect(config.betterAuthBaseUrl).toBe('https://treeseed-market-staging-479e4625.treeseed.ai/api/auth');
 		});
+	});
+
+	it('canonicalizes alternate local auth hosts to the configured dev origin', () => {
+		expect(localAuthCanonicalRedirectUrl(
+			new URL('http://localhost:4321/app/account?tab=sessions'),
+			'http://127.0.0.1:4321',
+		)?.toString()).toBe('http://127.0.0.1:4321/app/account?tab=sessions');
+
+		expect(localAuthCanonicalRedirectUrl(
+			new URL('http://127.0.0.1:4321/app/account'),
+			'http://127.0.0.1:4321',
+		)).toBeNull();
+
+		expect(localAuthCanonicalRedirectUrl(
+			new URL('https://treeseed.ai/app/account'),
+			'https://treeseed.ai',
+		)).toBeNull();
 	});
 
 	it('routes mounted BetterAuth email sign-up requests when configured with an origin URL', async () => {

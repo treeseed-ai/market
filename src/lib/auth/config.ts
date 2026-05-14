@@ -11,7 +11,7 @@ const DEFAULT_LOCAL_AUTH_EMAIL_FROM = 'Treeseed Market <auth@treeseed.local>';
 export const BETTER_AUTH_BASE_PATH = '/api/auth';
 const AUTH_MODES = new Set(['internal-first', 'internal-only', 'providers-only']);
 const INTERNAL_SIGNUP_MODES = new Set(['open', 'invite', 'admin']);
-const LOCAL_AUTH_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
+const LOCAL_AUTH_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']);
 
 type RuntimeEnv = CloudflareRuntime['env'];
 
@@ -92,6 +92,20 @@ export function normalizeBetterAuthBaseUrl(value: string, fallback = 'http://127
 	const pathname = url.pathname.replace(/\/+$/u, '');
 	url.pathname = pathname.endsWith(BETTER_AUTH_BASE_PATH) ? pathname : BETTER_AUTH_BASE_PATH;
 	return `${url.origin}${url.pathname}`;
+}
+
+export function localAuthCanonicalRedirectUrl(requestUrl: URL, configuredSiteBaseUrl: string) {
+	const canonical = normalizeUrl(configuredSiteBaseUrl, 'http://127.0.0.1:4321');
+	if (!isLocalUrl(requestUrl.href) || !isLocalUrl(canonical.href)) return null;
+	if (
+		requestUrl.protocol === canonical.protocol
+		&& requestUrl.hostname === canonical.hostname
+		&& requestUrl.port === canonical.port
+	) {
+		return null;
+	}
+	const redirectUrl = new URL(`${requestUrl.pathname}${requestUrl.search}`, canonical.origin);
+	return redirectUrl;
 }
 
 export function getSiteAuthConfig(context?: Pick<APIContext, 'locals'> & Partial<Pick<APIContext, 'url'>>) {
