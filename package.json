@@ -65,7 +65,7 @@
   },
   "dependencies": {
     "@react-email/render": "^2.0.8",
-    "@treeseed/agent": "^0.8.12-dev.staging.20260514T023432Z",
+    "@treeseed/agent": "^0.8.12-dev.staging.20260514T025603Z",
     "@treeseed/cli": "^0.8.12-dev.staging.20260514T023431Z",
     "@treeseed/core": "^0.8.12-dev.staging.20260514T023431Z",
     "@treeseed/sdk": "^0.8.12-dev.staging.20260514T023141Z",
