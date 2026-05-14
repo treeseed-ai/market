@@ -13,6 +13,19 @@ const {
 	capacityPageJson,
 } = Astro.props as any;
 const section = 'capacity';
+
+function numberOrZero(value: unknown) {
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function grantRunnableState(provider: any, grant: any) {
+	if (!grant) return 'missing allocation';
+	if (grant.state !== 'active') return grant.state ?? 'paused';
+	if ((provider.lanes ?? []).length === 0) return 'missing lane';
+	if (numberOrZero(grant.dailyCreditLimit) <= 0 && numberOrZero(grant.monthlyCreditLimit) <= 0) return 'budget blocked';
+	return 'runnable';
+}
 ---
 {section === 'capacity' ? (
 	<>
@@ -135,6 +148,10 @@ const section = 'capacity';
 			const processingHost = processingBinding ? processingHostsById.get(processingBinding.hostId) : null;
 			const teamGrant = provider.grants?.find((grant: any) => !grant.projectId && grant.grantScope === 'team');
 			const allocatedDailyCredits = provider.grants?.filter((grant: any) => grant.state === 'active').reduce((total: number, grant: any) => total + Number(grant.dailyCreditLimit ?? 0), 0) ?? 0;
+			const providerPressure = provider.metadata?.pressure ?? {};
+			const activeReservations = providerPressure.activeReservations ?? provider.metadata?.activeReservations ?? 0;
+			const activeAttentionLoad = providerPressure.activeAttentionLoad ?? provider.metadata?.activeAttentionLoad ?? 0;
+			const maxAttentionLoad = providerPressure.maxAttentionLoad ?? provider.metadata?.maxAttentionLoad ?? 'n/a';
 			return (
 				<article class="ts-card">
 				<div class="ts-panel__header">
@@ -144,17 +161,22 @@ const section = 'capacity';
 					</div>
 					<span class="ts-status-pill" data-tone={provider.status === 'active' ? 'success' : provider.status === 'degraded' || provider.status === 'credential_required' ? 'warning' : 'info'}>{provider.status.replaceAll('_', ' ')}</span>
 				</div>
-				<div class="ts-metric-strip" data-columns="5">
+				<div class="ts-metric-strip" data-columns="6">
 					<div class="ts-metric"><span class="ts-metric__label">Queue</span><span class="ts-metric__value">{lastHealth.queueDepth ?? 0}</span></div>
 					<div class="ts-metric"><span class="ts-metric__label">Active workers</span><span class="ts-metric__value">{lastHealth.activeWorkers ?? 0}</span></div>
+					<div class="ts-metric"><span class="ts-metric__label">Reservations</span><span class="ts-metric__value">{activeReservations}</span></div>
 					<div class="ts-metric"><span class="ts-metric__label">Max workers</span><span class="ts-metric__value">{provider.maxConcurrentWorkers}</span></div>
 					<div class="ts-metric"><span class="ts-metric__label">Daily limit</span><span class="ts-metric__value">{provider.dailyCreditBudget ?? 'N/A'}</span></div>
-					<div class="ts-metric"><span class="ts-metric__label">Allocated daily</span><span class="ts-metric__value">{allocatedDailyCredits}</span></div>
+					<div class="ts-metric"><span class="ts-metric__label">Attention</span><span class="ts-metric__value">{activeAttentionLoad} / {maxAttentionLoad}</span></div>
 				</div>
 				<div class="ts-card__meta">
-					{provider.lanes.length > 0 ? provider.lanes.map((lane: any) => (
-					<span>{lane.name}: {lane.scarcityLevel} · {lane.routingPolicy?.repositoryMutationAllowed ? 'repository work' : 'drafting/review'}</span>
-					)) : <span>No lanes configured</span>}
+					<span>{allocatedDailyCredits} daily credits allocated</span>
+					{provider.lanes.length > 0 ? provider.lanes.map((lane: any) => {
+					const lanePressure = lane.metadata?.pressure ?? {};
+					return (
+					<span>{lane.name}: {lane.scarcityLevel} · {lane.routingPolicy?.repositoryMutationAllowed ? 'repository work' : 'drafting/review'} · {lanePressure.activeReservations ?? 0} active reservation{Number(lanePressure.activeReservations ?? 0) === 1 ? '' : 's'}</span>
+					);
+					}) : <span>No lanes configured</span>}
 				</div>
 				<div class="ts-inline-actions">
 					<button class="ts-button-secondary" type="button" data-capacity-key-reset={provider.id}>Reset security code</button>
@@ -199,6 +221,7 @@ const section = 'capacity';
 					</form>
 					{teamProjects.map((project: any) => {
 					const projectGrant = provider.grants?.find((grant: any) => grant.projectId === project.id);
+					const projectGrantState = grantRunnableState(provider, projectGrant);
 					return (
 						<form class="ts-list-item ts-form-grid" data-capacity-grant-form>
 						<input type="hidden" name="grantId" value={projectGrant?.id ?? ''} />
@@ -207,7 +230,7 @@ const section = 'capacity';
 						<input type="hidden" name="grantScope" value="project" />
 						<div class="ts-field ts-field--full">
 							<strong>{project.name}</strong>
-							<span class="ts-field__help">Project helper capacity from this provider.</span>
+							<span class="ts-field__help">Project helper capacity from this provider · {projectGrantState}.</span>
 						</div>
 						<label class="ts-field">
 							<span class="ts-field__label">Lane</span>

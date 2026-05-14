@@ -1,0 +1,526 @@
+---
+import ActionList from '../../../../packages/core/src/components/ui/data/ActionList.astro';
+import DataTable from '../../../../packages/core/src/components/ui/data/DataTable.astro';
+import MetricGrid from '../../../../packages/core/src/components/ui/data/MetricGrid.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import StatusPill from '../../../../packages/core/src/components/ui/data/StatusPill.astro';
+
+const { capacity, capacitySummary, agentReadinessLabel, agentReadinessToneValue, agentReadinessReasons } = Astro.props as any;
+
+const projectCapacity = capacity ?? {};
+const summary = projectCapacity.summary ?? capacitySummary ?? {};
+const plan = projectCapacity.plan ?? {};
+const providers = Array.isArray(plan.providers) ? plan.providers : [];
+const lanes = Array.isArray(plan.lanes) ? plan.lanes : [];
+const grants = Array.isArray(plan.grants) ? plan.grants : [];
+const reservations = Array.isArray(projectCapacity.reservations) ? projectCapacity.reservations : Array.isArray(plan.activeReservations) ? plan.activeReservations : [];
+const routingDecisions = Array.isArray(projectCapacity.routingDecisions) ? projectCapacity.routingDecisions : [];
+const blockedRoutingDecisions = Array.isArray(projectCapacity.blockedRoutingDecisions) ? projectCapacity.blockedRoutingDecisions : [];
+const estimateProfiles = Array.isArray(projectCapacity.estimateProfiles) ? projectCapacity.estimateProfiles : Array.isArray(plan.estimateProfiles) ? plan.estimateProfiles : [];
+const usageActuals = Array.isArray(projectCapacity.usageActuals) ? projectCapacity.usageActuals : [];
+const pendingApprovalRequests = Array.isArray(projectCapacity.pendingApprovalRequests) ? projectCapacity.pendingApprovalRequests : [];
+const interruptionReservations = Array.isArray(projectCapacity.interruptionReservations) ? projectCapacity.interruptionReservations : [];
+const projectId = compact(projectCapacity.projectId ?? plan.projectId, '');
+const environment = compact(projectCapacity.environment ?? summary.environment, 'staging');
+const teamCapacityHref = `${Astro.url.pathname.split('/projects/')[0]}/capacity`;
+const readiness = compact(summary.readiness, 'waiting_for_provider');
+const readinessLabel = agentReadinessLabel ?? readiness.replaceAll('_', ' ');
+const readinessTone = agentReadinessToneValue ?? (readiness === 'ready' ? 'success' : readiness === 'needs_approval' ? 'danger' : 'warning');
+
+const taskPresets = [
+	{ signature: 'proposal.draft', label: 'Draft proposal', p50: 5, p90: 8, profile: 'standard-code-model', utility: 60, attention: 2 },
+	{ signature: 'review.verify', label: 'Verify review', p50: 3, p90: 5, profile: 'cheap-review-model', utility: 50, attention: 1 },
+	{ signature: 'planner.dag_proposal', label: 'Plan bounded DAG', p50: 4, p90: 8, profile: 'large-reasoning-model', utility: 70, attention: 4 },
+	{ signature: 'workflow.dispatch', label: 'Dispatch workflow', p50: 2, p90: 4, profile: 'local-runner', utility: 40, attention: 1 },
+];
+
+function compact(value: unknown, fallback = 'none') {
+	return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function numberValue(value: unknown, fallback = 0) {
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function percent(value: unknown) {
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? `${Math.round(parsed)}%` : 'n/a';
+}
+
+function pressureOf(entry: any) {
+	return entry?.metadata?.pressure ?? {};
+}
+
+function providerName(id: unknown) {
+	const provider = providers.find((entry: any) => entry.id === id);
+	return provider ? compact(provider.name, compact(provider.provider, String(id ?? 'provider'))) : compact(id, 'provider');
+}
+
+function laneName(id: unknown) {
+	const lane = lanes.find((entry: any) => entry.id === id);
+	return lane ? compact(lane.name, String(id ?? 'lane')) : compact(id, 'lane');
+}
+
+function grantState(grant: any) {
+	if (!grant) return 'missing';
+	if (grant.state !== 'active') return compact(grant.state, 'paused');
+	if (numberValue(grant.dailyCreditLimit, 0) <= 0 && numberValue(grant.monthlyCreditLimit, 0) <= 0) return 'no budget';
+	return 'runnable';
+}
+
+function metadataSummary(value: unknown) {
+	const record = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+	const checkpointId = compact(record.checkpointId, '');
+	const attention = record.attentionEstimate && typeof record.attentionEstimate === 'object'
+		? `attention ${numberValue((record.attentionEstimate as any).totalAttentionWeight, numberValue((record.attentionEstimate as any).attentionWeight, 0))}`
+		: '';
+	const route = compact(record.routingDecisionId, '');
+	return [checkpointId ? `checkpoint ${checkpointId}` : '', attention, route ? `route ${route}` : ''].filter(Boolean).join(' · ') || 'metadata recorded';
+}
+
+const providerRows = providers.map((provider: any) => {
+	const pressure = pressureOf(provider);
+	return {
+		provider: compact(provider.name, provider.id),
+		status: compact(provider.status),
+		active: numberValue(pressure.activeReservations, 0),
+		congestion: percent(numberValue(pressure.congestionRatio, 0) * 100),
+		attention: `${numberValue(pressure.activeAttentionLoad, 0)} / ${pressure.maxAttentionLoad ?? 'n/a'}`,
+		context: `${numberValue(pressure.activeContextTokens, 0)} / ${pressure.maxContextTokens ?? 'n/a'}`,
+		trust: percent(pressure.cooperative?.trustScore ?? provider.metadata?.trustScore),
+	};
+});
+
+const laneRows = lanes.map((lane: any) => {
+	const pressure = pressureOf(lane);
+	return {
+		lane: compact(lane.name, lane.id),
+		provider: providerName(lane.capacityProviderId),
+		scarcity: compact(lane.scarcityLevel),
+		active: numberValue(pressure.activeReservations, 0),
+		quota: percent(pressure.quotaRemainingPercent),
+		attention: `${numberValue(pressure.activeAttentionLoad, 0)} / ${pressure.maxAttentionLoad ?? 'n/a'}`,
+		context: `${numberValue(pressure.activeContextTokens, 0)} / ${pressure.maxContextTokens ?? 'n/a'}`,
+	};
+});
+
+const grantRows = grants.map((grant: any) => ({
+	provider: providerName(grant.capacityProviderId),
+	lane: grant.laneId ? laneName(grant.laneId) : 'Any lane',
+	state: grantState(grant),
+	daily: grant.dailyCreditLimit ?? 'pooled',
+	monthly: grant.monthlyCreditLimit ?? 'pooled',
+	overflow: compact(grant.overflowPolicy),
+}));
+
+const reservationRows = reservations.slice(0, 12).map((reservation: any) => ({
+	state: compact(reservation.state),
+	provider: providerName(reservation.capacityProviderId),
+	lane: laneName(reservation.laneId),
+	credits: `${numberValue(reservation.consumedCredits, 0)} / ${numberValue(reservation.reservedCredits, 0)}`,
+	task: compact(reservation.taskId, 'not attached'),
+	metadata: metadataSummary(reservation.metadata),
+}));
+
+const routingRows = routingDecisions.slice(0, 10).map((decision: any) => ({
+	decision: compact(decision.decision),
+	provider: providerName(decision.selectedProviderId),
+	lane: laneName(decision.selectedLaneId),
+	model: compact(decision.selectedModel, 'auto'),
+	reason: compact(decision.reason),
+	candidates: Array.isArray(decision.candidates) ? decision.candidates.length : 0,
+}));
+
+const profileRows = estimateProfiles.slice(0, 10).map((profile: any) => ({
+	signature: compact(profile.taskSignature),
+	profile: compact(profile.executionProfileId),
+	p50: profile.creditsP50 ?? 'n/a',
+	p90: profile.creditsP90 ?? 'n/a',
+	samples: `${numberValue(profile.completedSampleCount, 0)} complete / ${numberValue(profile.interruptedSampleCount, 0)} interrupted`,
+	confidence: percent(numberValue(profile.confidenceScore, 0) * 100),
+}));
+
+const usageRows = usageActuals.slice(0, 8).map((actual: any) => ({
+	signature: compact(actual.taskSignature),
+	profile: compact(actual.executionProfileId),
+	credits: actual.actualCredits ?? 0,
+	provider: providerName(actual.capacityProviderId),
+	task: compact(actual.taskId, 'not linked'),
+	metadata: metadataSummary(actual.metadata),
+}));
+
+const approvalItems = pendingApprovalRequests.slice(0, 8).map((request: any) => ({
+	title: compact(request.title, compact(request.kind, 'Capacity approval')),
+	description: `${compact(request.summary, 'No summary')} · ${compact(request.taskId, 'no task')}`,
+	meta: compact(request.severity, 'medium'),
+	tone: request.severity === 'high' ? 'danger' as const : 'warning' as const,
+}));
+
+const interruptionItems = interruptionReservations.slice(0, 8).map((reservation: any) => ({
+	title: `${compact(reservation.state)} · ${providerName(reservation.capacityProviderId)}`,
+	description: `${compact(reservation.taskId, 'no task')} · ${metadataSummary(reservation.metadata)}`,
+	meta: `${numberValue(reservation.consumedCredits, 0)} / ${numberValue(reservation.reservedCredits, 0)} credits`,
+	tone: 'warning' as const,
+}));
+
+const taskPageData = {
+	projectId,
+	environment,
+	taskPresets,
+	providers: providerRows,
+	lanes: laneRows,
+	grants: grantRows,
+	remainingCredits: summary.dailyRemainingCredits ?? plan.remaining?.dailyCredits ?? null,
+};
+---
+
+<div class="ts-section-grid" data-project-capacity-root>
+	<Panel eyebrow="Capacity readiness" title={readinessLabel} description={agentReadinessReasons || 'Provider grants, route pressure, and workday budget are summarized for this project.'}>
+		<StatusPill slot="actions" tone={readinessTone}>{readinessLabel}</StatusPill>
+		<MetricGrid min="8rem" metrics={[
+			{ label: 'Remaining today', value: summary.dailyRemainingCredits ?? plan.remaining?.dailyCredits ?? 0 },
+			{ label: 'Reserved', value: summary.dailyReservedCredits ?? 0 },
+			{ label: 'Used today', value: summary.dailyUsedCredits ?? 0 },
+			{ label: 'Providers', value: summary.activeProviderCount ?? providers.length },
+			{ label: 'Blocked', value: blockedRoutingDecisions.length, tone: blockedRoutingDecisions.length ? 'warning' : 'success' },
+		]} />
+		<div class="ts-inline-actions ts-stack-top">
+			<a class="ts-button-secondary" href={teamCapacityHref}>Edit team capacity</a>
+			<span class="ts-subtle">Provider infrastructure and allocations remain team-scoped.</span>
+		</div>
+	</Panel>
+
+	<Panel eyebrow="Budgeted work" title="Submit admitted task" description="Manual work requests reserve capacity through the same admission and routing path used by agents.">
+		<form class="ts-form-grid" data-project-capacity-task-form>
+			<label class="ts-field">
+				<span class="ts-field__label">Task preset</span>
+				<select class="ts-control" name="preset">
+					{taskPresets.map((preset) => <option value={preset.signature}>{preset.label}</option>)}
+				</select>
+			</label>
+			<label class="ts-field">
+				<span class="ts-field__label">Task signature</span>
+				<input class="ts-control" name="taskSignature" value={taskPresets[0].signature} required />
+			</label>
+			<label class="ts-field">
+				<span class="ts-field__label">Execution profile</span>
+				<select class="ts-control" name="executionProfileId">
+					{['local-runner', 'local-fast-model', 'small-code-model', 'standard-code-model', 'cheap-review-model', 'large-reasoning-model', 'human-review'].map((profile) => (
+						<option value={profile} selected={profile === taskPresets[0].profile}>{profile}</option>
+					))}
+				</select>
+			</label>
+			<label class="ts-field">
+				<span class="ts-field__label">P50 credits</span>
+				<input class="ts-control" name="estimatedCreditsP50" type="number" min="1" step="1" value={taskPresets[0].p50} required />
+			</label>
+			<label class="ts-field">
+				<span class="ts-field__label">P90 credits</span>
+				<input class="ts-control" name="estimatedCreditsP90" type="number" min="1" step="1" value={taskPresets[0].p90} required />
+			</label>
+			<label class="ts-field">
+				<span class="ts-field__label">Utility</span>
+				<input class="ts-control" name="utilityValue" type="number" min="0" step="1" value={taskPresets[0].utility} />
+			</label>
+			<label class="ts-field">
+				<span class="ts-field__label">Attention</span>
+				<input class="ts-control" name="attentionWeight" type="number" min="0" step="1" value={taskPresets[0].attention} />
+			</label>
+			<label class="ts-field">
+				<span class="ts-field__label">Context tokens</span>
+				<input class="ts-control" name="estimatedContextTokens" type="number" min="0" step="100" value="1000" />
+			</label>
+			<label class="ts-field ts-field--full">
+				<span class="ts-field__label">Deadline</span>
+				<input class="ts-control" name="deadlineAt" type="datetime-local" />
+			</label>
+			<div class="ts-field ts-field--full">
+				<span class="ts-field__label">Route preview</span>
+				<span class="ts-field__help" data-project-capacity-route-preview>Choose a preset to preview estimate and provider availability.</span>
+			</div>
+			<div class="ts-inline-actions">
+				<button class="ts-button" type="submit">Submit through admission</button>
+				<span class="ts-subtle" role="status" data-project-capacity-task-status></span>
+			</div>
+		</form>
+	</Panel>
+
+	<Panel eyebrow="Providers" title="Provider pressure">
+		<DataTable
+			columns={[
+				{ key: 'provider', label: 'Provider' },
+				{ key: 'status', label: 'Status' },
+				{ key: 'active', label: 'Active' },
+				{ key: 'congestion', label: 'Congestion' },
+				{ key: 'attention', label: 'Attention' },
+				{ key: 'context', label: 'Context' },
+				{ key: 'trust', label: 'Trust' },
+			]}
+			rows={providerRows}
+			emptyLabel="No capacity providers are allocated to this project."
+		/>
+	</Panel>
+
+	<Panel eyebrow="Lanes" title="Routing lanes">
+		<DataTable
+			columns={[
+				{ key: 'lane', label: 'Lane' },
+				{ key: 'provider', label: 'Provider' },
+				{ key: 'scarcity', label: 'Scarcity' },
+				{ key: 'active', label: 'Active' },
+				{ key: 'quota', label: 'Quota' },
+				{ key: 'attention', label: 'Attention' },
+				{ key: 'context', label: 'Context' },
+			]}
+			rows={laneRows}
+			emptyLabel="No provider lanes are available."
+		/>
+	</Panel>
+
+	<Panel eyebrow="Allocations" title="Project grants">
+		<DataTable
+			columns={[
+				{ key: 'provider', label: 'Provider' },
+				{ key: 'lane', label: 'Lane' },
+				{ key: 'state', label: 'Runnable' },
+				{ key: 'daily', label: 'Daily' },
+				{ key: 'monthly', label: 'Monthly' },
+				{ key: 'overflow', label: 'Overflow' },
+			]}
+			rows={grantRows}
+			emptyLabel="No project grants are configured yet."
+		/>
+	</Panel>
+
+	<Panel eyebrow="Reservations" title="Active and recent capacity">
+		<DataTable
+			columns={[
+				{ key: 'state', label: 'State' },
+				{ key: 'provider', label: 'Provider' },
+				{ key: 'lane', label: 'Lane' },
+				{ key: 'credits', label: 'Used / reserved' },
+				{ key: 'task', label: 'Task' },
+				{ key: 'metadata', label: 'Metadata' },
+			]}
+			rows={reservationRows}
+			emptyLabel="No reservations have been recorded."
+		/>
+	</Panel>
+
+	<Panel eyebrow="Routing" title="Recent decisions">
+		<DataTable
+			columns={[
+				{ key: 'decision', label: 'Decision' },
+				{ key: 'provider', label: 'Provider' },
+				{ key: 'lane', label: 'Lane' },
+				{ key: 'model', label: 'Profile' },
+				{ key: 'reason', label: 'Reason' },
+				{ key: 'candidates', label: 'Candidates' },
+			]}
+			rows={routingRows}
+			emptyLabel="No routing decisions have been recorded."
+		/>
+	</Panel>
+
+	<Panel eyebrow="Learning" title="Estimate profiles">
+		<DataTable
+			columns={[
+				{ key: 'signature', label: 'Signature' },
+				{ key: 'profile', label: 'Profile' },
+				{ key: 'p50', label: 'P50' },
+				{ key: 'p90', label: 'P90' },
+				{ key: 'samples', label: 'Samples' },
+				{ key: 'confidence', label: 'Confidence' },
+			]}
+			rows={profileRows}
+			emptyLabel="No learned estimate profiles have been recorded."
+		/>
+	</Panel>
+
+	<Panel eyebrow="Usage" title="Recent actuals">
+		<DataTable
+			columns={[
+				{ key: 'signature', label: 'Signature' },
+				{ key: 'profile', label: 'Profile' },
+				{ key: 'credits', label: 'Credits' },
+				{ key: 'provider', label: 'Provider' },
+				{ key: 'task', label: 'Task' },
+				{ key: 'metadata', label: 'Metadata' },
+			]}
+			rows={usageRows}
+			emptyLabel="No usage actuals have been recorded."
+		/>
+	</Panel>
+
+	<Panel eyebrow="Approvals" title="Capacity decisions">
+		<ActionList items={approvalItems}>
+			<p>No capacity approvals are pending.</p>
+		</ActionList>
+		{pendingApprovalRequests.length ? (
+			<div class="ts-list ts-stack-top">
+				{pendingApprovalRequests.slice(0, 4).map((request: any) => (
+					<form class="ts-list-item ts-form-grid" data-project-capacity-approval-form data-approval-id={request.id}>
+						<div class="ts-field ts-field--full">
+							<strong>{compact(request.title, request.kind)}</strong>
+							<span class="ts-field__help">{compact(request.summary, 'No summary')}</span>
+						</div>
+						<label class="ts-field">
+							<span class="ts-field__label">Decision</span>
+							<select class="ts-control" name="state">
+								<option value="approved">Approve</option>
+								<option value="rejected">Reject</option>
+							</select>
+						</label>
+						<label class="ts-field">
+							<span class="ts-field__label">Option</span>
+							<select class="ts-control" name="optionId">
+								{(Array.isArray(request.options) && request.options.length ? request.options : [{ id: 'approve', label: 'Approve' }]).map((option: any) => (
+									<option value={compact(option.id, 'approve')}>{compact(option.label, compact(option.id, 'Approve'))}</option>
+								))}
+							</select>
+						</label>
+						<label class="ts-field ts-field--full">
+							<span class="ts-field__label">Note</span>
+							<input class="ts-control" name="note" />
+						</label>
+						<div class="ts-inline-actions">
+							<button class="ts-button-secondary" type="submit">Record decision</button>
+							<span class="ts-subtle" role="status" data-project-capacity-approval-status></span>
+						</div>
+					</form>
+				))}
+			</div>
+		) : null}
+	</Panel>
+
+	<Panel eyebrow="Interruptions" title="Checkpointed work">
+		<ActionList items={interruptionItems}>
+			<p>No checkpointed or overrun work is waiting for continuation.</p>
+		</ActionList>
+	</Panel>
+
+	<Panel eyebrow="Blocked work" title="Budget and policy boundaries">
+		<ActionList items={blockedRoutingDecisions.slice(0, 8).map((decision: any) => ({
+			title: compact(decision.reason, compact(decision.decision, 'Blocked route')),
+			description: `${providerName(decision.selectedProviderId)} · ${laneName(decision.selectedLaneId)} · ${Array.isArray(decision.candidates) ? decision.candidates.length : 0} candidate(s)`,
+			meta: compact(decision.createdAt, 'recorded'),
+			tone: 'warning' as const,
+		}))}>
+			<p>No budget-blocked or approval-required routing decisions have been recorded.</p>
+		</ActionList>
+	</Panel>
+</div>
+
+<script is:inline type="application/json" id="project-capacity-page-data" set:html={JSON.stringify(taskPageData).replace(/</gu, '\\u003c')}></script>
+<script>
+	const capacityDataElement = document.getElementById('project-capacity-page-data');
+	const capacityData = capacityDataElement?.textContent ? JSON.parse(capacityDataElement.textContent) : {};
+	const taskForm = document.querySelector('[data-project-capacity-task-form]') as HTMLFormElement | null;
+	const taskStatus = document.querySelector('[data-project-capacity-task-status]');
+	const routePreview = document.querySelector('[data-project-capacity-route-preview]');
+
+	function formNumber(formData: FormData, key: string) {
+		const parsed = Number(formData.get(key));
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+
+	function selectedPreset(signature: string) {
+		return (capacityData.taskPresets ?? []).find((preset: any) => preset.signature === signature) ?? (capacityData.taskPresets ?? [])[0] ?? null;
+	}
+
+	function updateTaskPreview() {
+		if (!taskForm || !routePreview) return;
+		const formData = new FormData(taskForm);
+		const signature = String(formData.get('taskSignature') ?? '');
+		const p90 = formNumber(formData, 'estimatedCreditsP90') ?? 0;
+		const profile = String(formData.get('executionProfileId') ?? 'auto');
+		const remaining = capacityData.remainingCredits;
+		const laneCount = Array.isArray(capacityData.lanes) ? capacityData.lanes.length : 0;
+		const grantCount = Array.isArray(capacityData.grants) ? capacityData.grants.length : 0;
+		const budgetText = Number.isFinite(Number(remaining)) ? `${remaining} credits remaining` : 'pooled credits';
+		routePreview.textContent = `${signature || 'Task'} · ${profile} · reserves about ${p90} credits · ${budgetText} · ${laneCount} lane(s), ${grantCount} grant(s) available`;
+	}
+
+	const presetControl = taskForm?.elements.namedItem('preset') as HTMLSelectElement | null;
+	presetControl?.addEventListener('change', (event: Event) => {
+		if (!taskForm) return;
+		const preset = selectedPreset((event.target as HTMLSelectElement).value);
+		if (!preset) return;
+		(taskForm.elements.namedItem('taskSignature') as HTMLInputElement).value = preset.signature;
+		(taskForm.elements.namedItem('executionProfileId') as HTMLSelectElement).value = preset.profile;
+		(taskForm.elements.namedItem('estimatedCreditsP50') as HTMLInputElement).value = String(preset.p50);
+		(taskForm.elements.namedItem('estimatedCreditsP90') as HTMLInputElement).value = String(preset.p90);
+		(taskForm.elements.namedItem('utilityValue') as HTMLInputElement).value = String(preset.utility);
+		(taskForm.elements.namedItem('attentionWeight') as HTMLInputElement).value = String(preset.attention);
+		updateTaskPreview();
+	});
+
+	for (const control of taskForm?.querySelectorAll('input, select') ?? []) {
+		control.addEventListener('input', updateTaskPreview);
+		control.addEventListener('change', updateTaskPreview);
+	}
+	updateTaskPreview();
+
+	taskForm?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		if (!capacityData.projectId) return;
+		const formData = new FormData(taskForm);
+		if (taskStatus) taskStatus.textContent = 'Submitting through admission...';
+		try {
+			const response = await fetch(`/v1/projects/${encodeURIComponent(capacityData.projectId)}/agent-tasks`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					environment: capacityData.environment ?? 'staging',
+					taskSignature: String(formData.get('taskSignature') ?? '').trim(),
+					executionProfileId: String(formData.get('executionProfileId') ?? '').trim(),
+					estimatedCreditsP50: formNumber(formData, 'estimatedCreditsP50'),
+					estimatedCreditsP90: formNumber(formData, 'estimatedCreditsP90'),
+					utilityValue: formNumber(formData, 'utilityValue'),
+					attentionWeight: formNumber(formData, 'attentionWeight'),
+					estimatedContextTokens: formNumber(formData, 'estimatedContextTokens'),
+					deadlineAt: String(formData.get('deadlineAt') ?? '').trim() || null,
+					cooperativeRouting: true,
+				}),
+			});
+			const payload = await response.json().catch(() => null);
+			if (!response.ok || payload?.ok === false) {
+				throw new Error(payload?.error ?? `Admission failed with ${response.status}`);
+			}
+			const reservationId = payload?.payload?.reservation?.id ?? 'reserved';
+			if (taskStatus) taskStatus.textContent = `Admitted and reserved: ${reservationId}. Refresh to inspect route details.`;
+		} catch (error) {
+			if (taskStatus) taskStatus.textContent = error instanceof Error ? error.message : String(error);
+		}
+	});
+
+	for (const form of document.querySelectorAll('[data-project-capacity-approval-form]')) {
+		form.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			const approvalId = (form as HTMLElement).dataset.approvalId;
+			const status = form.querySelector('[data-project-capacity-approval-status]');
+			if (!approvalId) return;
+			const formData = new FormData(form as HTMLFormElement);
+			if (status) status.textContent = 'Recording decision...';
+			try {
+				const response = await fetch(`/v1/approval-requests/${encodeURIComponent(approvalId)}/decide`, {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({
+						state: String(formData.get('state') ?? 'approved'),
+						optionId: String(formData.get('optionId') ?? ''),
+						note: String(formData.get('note') ?? ''),
+					}),
+				});
+				const payload = await response.json().catch(() => null);
+				if (!response.ok || payload?.ok === false) {
+					throw new Error(payload?.error ?? `Approval failed with ${response.status}`);
+				}
+				if (status) status.textContent = 'Decision recorded. Refresh to update the queue.';
+			} catch (error) {
+				if (status) status.textContent = error instanceof Error ? error.message : String(error);
+			}
+		});
+	}
+</script>

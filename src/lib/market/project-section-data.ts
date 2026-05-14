@@ -3,6 +3,7 @@ export const projectSectionTitles = {
 	direct: 'Direct',
 	workstreams: 'Workstreams',
 	agents: 'Agents',
+	capacity: 'Capacity',
 	releases: 'Releases',
 	share: 'Share',
 	settings: 'Settings',
@@ -25,16 +26,19 @@ const agentReadinessTone = {
 };
 
 export async function loadProjectSectionData(context: any) {
-	const [summary, direct, workstreams, agents, releases, share] = context.project && context.store
+	const [summary, direct, workstreams, agents, capacity, releases, share] = context.project && context.store
 		? await Promise.all([
 			context.store.getProjectSummary(context.project.id, context.principal),
 			context.store.getProjectDirectSummary(context.project.id, context.principal),
 			context.store.getProjectWorkstreamsSummary(context.project.id, context.principal),
 			context.store.getProjectAgentsSummary(context.project.id, context.principal),
+			typeof context.store.getProjectCapacityOperations === 'function'
+				? context.store.getProjectCapacityOperations(context.project.id, 'staging')
+				: null,
 			context.store.getProjectReleasesSummary(context.project.id, context.principal),
 			context.store.getProjectShareSummary(context.project.id, context.principal),
 		])
-		: [null, null, null, null, null, null];
+		: [null, null, null, null, null, null, null];
 	const capacitySummary = context.project && context.store
 		? await context.store.getProjectCapacitySummary(context.project.id, 'staging')
 		: null;
@@ -48,6 +52,7 @@ export async function loadProjectSectionData(context: any) {
 		direct,
 		workstreams,
 		agents,
+		capacity,
 		releases,
 		share,
 		capacitySummary,

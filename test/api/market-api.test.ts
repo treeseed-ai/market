@@ -2747,6 +2747,22 @@ runtimeDescribe('market api', () => {
 		}));
 		expect(plan.payload.providers[0]).toMatchObject({ id: provider.id, provider: 'openrouter' });
 		expect(plan.payload.lanes[0]).toMatchObject({ id: lane.id, businessModel: 'token_metered' });
+		expect(plan.payload.providers[0].metadata.pressure).toMatchObject({
+			activeReservations: 0,
+			congestionRatio: 0,
+			activeAttentionLoad: 0,
+			activeContextTokens: 0,
+			cooperative: expect.objectContaining({
+				spilloverEligible: false,
+			}),
+		});
+		expect(plan.payload.lanes[0].metadata.pressure).toMatchObject({
+			activeReservations: 0,
+			congestionRatio: 0,
+			activeAttentionLoad: 0,
+			activeContextTokens: 0,
+			cooperative: expect.any(Object),
+		});
 		expect(plan.payload.remaining.dailyCredits).toBe(120);
 	});
 
@@ -3012,6 +3028,18 @@ runtimeDescribe('market api', () => {
 				taskKind: 'proposal.draft',
 				estimatedCreditsP50: 5,
 				estimatedCreditsP90: 8,
+				utilityValue: 75,
+				maintenanceValue: 5,
+				successProbability: 0.9,
+				cooperativeRouting: true,
+				predictiveReservePolicy: { enabled: true, baseReservePercent: 5 },
+				hybridExecutionPlan: {
+					planId: 'market-hybrid-1',
+					phases: [
+						{ kind: 'planning', executionProfileId: 'large-reasoning-model', mutationAllowed: false },
+						{ kind: 'review', executionProfileId: 'cheap-review-model', mutationAllowed: false },
+					],
+				},
 			}),
 		});
 		expect(taskResponse.status).toBe(201);
@@ -3024,6 +3052,11 @@ runtimeDescribe('market api', () => {
 			providerId: launch.provider.id,
 			reservationId: taskPayload.reservation.id,
 			reservedCredits: 8,
+		});
+		expect(taskPayload.reservation.metadata).toMatchObject({
+			utilityEstimate: expect.objectContaining({ successProbability: 0.9 }),
+			reservePrediction: expect.objectContaining({ reservePercent: 5 }),
+			hybridExecutionPlan: expect.objectContaining({ planId: 'market-hybrid-1' }),
 		});
 
 		const heartbeat = await app.request('/v1/processing/heartbeat', {
@@ -3048,17 +3081,42 @@ runtimeDescribe('market api', () => {
 				'content-type': 'application/json',
 				authorization: `Bearer ${launch.plaintextKey}`,
 			},
-			body: JSON.stringify({
-				actualCredits: 3,
-				output: { summary: 'Drafted proposal.' },
-			}),
-		});
+				body: JSON.stringify({
+					actualCredits: 3,
+					usageActual: {
+						taskSignature: 'proposal.draft',
+						executionProfileId: 'standard-code-model',
+						filesChanged: 1,
+					},
+					output: { summary: 'Drafted proposal.' },
+				}),
+			});
 		expect(completeResponse.status).toBe(200);
 		const completed = (await json(completeResponse)).payload;
-		expect(completed.settlement).toMatchObject({
-			consumedCredits: 3,
-			releasedCredits: 5,
-		});
+			expect(completed.settlement).toMatchObject({
+				consumedCredits: 3,
+				releasedCredits: 5,
+			});
+			expect(completed.usageActual).toMatchObject({
+				taskSignature: 'proposal.draft',
+				executionProfileId: 'standard-code-model',
+				actualCredits: 3,
+			});
+
+			const learnedPlan = await json(await app.request(`/v1/projects/${project.id}/capacity-plan?environment=staging`, {
+				headers: {
+					authorization: `Bearer ${token}`,
+				},
+			}));
+			expect(learnedPlan.payload.estimateProfiles).toEqual(expect.arrayContaining([
+				expect.objectContaining({
+					taskSignature: 'proposal.draft',
+					executionProfileId: 'standard-code-model',
+					completedSampleCount: 1,
+					creditsP50: 3,
+					creditsP90: 3,
+				}),
+			]));
 
 		const afterSummary = await json(await app.request(`/v1/projects/${project.id}/capacity`, {
 			headers: { authorization: `Bearer ${token}` },

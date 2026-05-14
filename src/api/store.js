@@ -76,6 +76,141 @@ function sumNumbers(values) {
 	return values.reduce((total, value) => total + (Number.isFinite(Number(value)) ? Number(value) : 0), 0);
 }
 
+const defaultExecutionProfileId = 'standard-code-model';
+
+function executionProfileId(value) {
+	return typeof value === 'string' && value.trim() ? value.trim() : defaultExecutionProfileId;
+}
+
+function finiteMetric(value) {
+	if (Number.isFinite(Number(value))) return Number(value);
+	return null;
+}
+
+function pressureNumber(primary = {}, secondary = {}, key) {
+	const primaryValue = finiteMetric(primary[key]);
+	if (primaryValue !== null) return primaryValue;
+	const secondaryValue = finiteMetric(secondary[key]);
+	if (secondaryValue !== null) return secondaryValue;
+	const primaryPressure = primary.pressure && typeof primary.pressure === 'object' ? primary.pressure : {};
+	const secondaryPressure = secondary.pressure && typeof secondary.pressure === 'object' ? secondary.pressure : {};
+	return finiteMetric(primaryPressure[key]) ?? finiteMetric(secondaryPressure[key]);
+}
+
+function pressureBoolean(primary = {}, secondary = {}, key) {
+	const values = [
+		primary[key],
+		secondary[key],
+		primary.pressure && typeof primary.pressure === 'object' ? primary.pressure[key] : undefined,
+		secondary.pressure && typeof secondary.pressure === 'object' ? secondary.pressure[key] : undefined,
+	];
+	return values.some((value) => value === true || value === 'true');
+}
+
+function pressureLimit(lane, provider, ...keys) {
+	for (const key of keys) {
+		const value = finiteMetric(lane.hardLimits?.[key])
+			?? finiteMetric(lane.routingPolicy?.[key])
+			?? finiteMetric(provider.capacityModel?.[key])
+			?? finiteMetric(provider.metadata?.[key]);
+		if (value !== null && value >= 0) return value;
+	}
+	return null;
+}
+
+function capacityPressure(provider, lane, reservations) {
+	const scopedReservations = reservations.filter((reservation) =>
+		reservation.capacityProviderId === provider.id
+		&& (!lane || reservation.laneId === lane.id)
+		&& ['reserved', 'consuming'].includes(reservation.state)
+	);
+	const activeReservations = scopedReservations.length;
+	const maxActiveReservations = lane
+		? pressureLimit(lane, provider, 'maxActiveReservations', 'maxConcurrentTasks', 'maxConcurrentWorkers') ?? (provider.maxConcurrentWorkers > 0 ? provider.maxConcurrentWorkers : null)
+		: (provider.maxConcurrentWorkers > 0 ? provider.maxConcurrentWorkers : null);
+	const laneMetadata = lane?.metadata ?? {};
+	const providerMetadata = provider.metadata ?? {};
+	const activeAttentionLoad = scopedReservations.reduce((total, reservation) => {
+		const metadata = reservation.metadata ?? {};
+		const estimate = metadata.attentionEstimate && typeof metadata.attentionEstimate === 'object' ? metadata.attentionEstimate : {};
+		return total + Math.max(0, finiteMetric(metadata.totalAttentionWeight) ?? finiteMetric(metadata.attentionWeight) ?? finiteMetric(estimate.totalAttentionWeight) ?? finiteMetric(estimate.attentionWeight) ?? 0);
+	}, 0);
+	const maxAttentionLoad = lane
+		? pressureLimit(lane, provider, 'maxAttentionLoad')
+		: finiteMetric(provider.capacityModel?.maxAttentionLoad) ?? finiteMetric(provider.metadata?.maxAttentionLoad);
+	const activeContextTokens = scopedReservations.reduce((total, reservation) => {
+		const metadata = reservation.metadata ?? {};
+		const estimate = metadata.attentionEstimate && typeof metadata.attentionEstimate === 'object' ? metadata.attentionEstimate : {};
+		return total + Math.max(0, finiteMetric(metadata.estimatedContextTokens) ?? finiteMetric(metadata.contextTokens) ?? finiteMetric(estimate.estimatedContextTokens) ?? finiteMetric(estimate.requiredContextTokens) ?? 0);
+	}, 0);
+	const maxContextTokens = lane
+		? pressureLimit(lane, provider, 'maxContextTokens')
+		: finiteMetric(provider.capacityModel?.maxContextTokens) ?? finiteMetric(provider.metadata?.maxContextTokens);
+	return {
+		activeReservations,
+		maxActiveReservations,
+		congestionRatio: maxActiveReservations && maxActiveReservations > 0 ? activeReservations / maxActiveReservations : 0,
+		quotaRemainingPercent: pressureNumber(laneMetadata, providerMetadata, 'quotaRemainingPercent'),
+		sessionRemainingMinutes: pressureNumber(laneMetadata, providerMetadata, 'sessionRemainingMinutes'),
+		subscriptionSaturationPercent: pressureNumber(laneMetadata, providerMetadata, 'subscriptionSaturationPercent'),
+		providerUnavailable: pressureBoolean(laneMetadata, providerMetadata, 'providerUnavailable'),
+		activeAttentionLoad,
+		maxAttentionLoad,
+		attentionSaturationPercent: maxAttentionLoad && maxAttentionLoad > 0 ? (activeAttentionLoad / maxAttentionLoad) * 100 : null,
+		activeContextTokens,
+		maxContextTokens,
+		contextSaturationPercent: maxContextTokens && maxContextTokens > 0 ? (activeContextTokens / maxContextTokens) * 100 : null,
+		cooperative: {
+			priceHint: finiteMetric(laneMetadata.priceHint) ?? finiteMetric(providerMetadata.priceHint) ?? null,
+			latencyHint: finiteMetric(laneMetadata.latencyHint) ?? finiteMetric(providerMetadata.latencyHint) ?? null,
+			trustScore: finiteMetric(laneMetadata.trustScore) ?? finiteMetric(providerMetadata.trustScore) ?? null,
+			availabilityScore: finiteMetric(laneMetadata.availabilityScore) ?? finiteMetric(providerMetadata.availabilityScore) ?? null,
+			successProbability: finiteMetric(laneMetadata.successProbability) ?? finiteMetric(providerMetadata.successProbability) ?? null,
+			spilloverEligible: laneMetadata.spilloverEligible === true || providerMetadata.spilloverEligible === true,
+			utilityAcceptancePolicy: laneMetadata.utilityAcceptancePolicy ?? providerMetadata.utilityAcceptancePolicy ?? null,
+		},
+	};
+}
+
+function sortedMetrics(values) {
+	return values
+		.map(finiteMetric)
+		.filter((value) => value !== null && value >= 0)
+		.sort((left, right) => left - right);
+}
+
+function percentile(values, target) {
+	const sorted = sortedMetrics(values);
+	if (sorted.length === 0) return null;
+	const index = Math.ceil((Math.min(100, Math.max(0, target)) / 100) * sorted.length) - 1;
+	return sorted[Math.max(0, Math.min(sorted.length - 1, index))] ?? null;
+}
+
+function variance(values) {
+	const sorted = sortedMetrics(values);
+	if (sorted.length <= 1) return 0;
+	const mean = sorted.reduce((total, value) => total + value, 0) / sorted.length;
+	return sorted.reduce((total, value) => total + ((value - mean) ** 2), 0) / sorted.length;
+}
+
+function interruptedActual(actual) {
+	const metadata = actual.metadata ?? {};
+	return metadata.interrupted === true || metadata.partial === true || metadata.interrupted === 'true' || metadata.partial === 'true';
+}
+
+function confidenceScore({ sampleCount, creditsVariance, creditsP50, lastSampleAt }) {
+	const count = Math.max(0, Number(sampleCount ?? 0));
+	const sampleScore = Math.min(1, count / 20);
+	const p50 = Math.max(1, Number(creditsP50 ?? 1));
+	const spreadScore = 1 / (1 + (Math.sqrt(Math.max(0, Number(creditsVariance ?? 0))) / p50));
+	let ageScore = 1;
+	if (lastSampleAt) {
+		const ageDays = Math.max(0, (Date.now() - new Date(lastSampleAt).valueOf()) / 86_400_000);
+		ageScore = ageDays > 90 ? 0.35 : ageDays > 30 ? 0.7 : 1;
+	}
+	return Math.max(0, Math.min(1, sampleScore * spreadScore * ageScore));
+}
+
 function principalIsAdmin(principal) {
 	return Boolean(
 		principal
@@ -516,6 +651,7 @@ function serializeTaskEstimate(row) {
 		projectId: row.project_id,
 		estimatePhase: row.estimate_phase,
 		taskSignature: row.task_signature,
+		executionProfileId: executionProfileId(row.execution_profile_id),
 		confidence: row.confidence,
 		estimatedCreditsP50: Number(row.estimated_credits_p50 ?? 0),
 		estimatedCreditsP90: Number(row.estimated_credits_p90 ?? 0),
@@ -539,6 +675,7 @@ function serializeTaskUsageActual(row) {
 		workDayId: row.work_day_id,
 		projectId: row.project_id,
 		taskSignature: row.task_signature,
+		executionProfileId: executionProfileId(row.execution_profile_id),
 		capacityProviderId: row.capacity_provider_id,
 		laneId: row.lane_id,
 		businessModel: row.business_model,
@@ -565,7 +702,10 @@ function serializeTaskEstimateProfile(row) {
 	if (!row) return null;
 	return {
 		taskSignature: row.task_signature,
+		executionProfileId: executionProfileId(row.execution_profile_id),
 		sampleCount: Number(row.sample_count ?? 0),
+		completedSampleCount: Number(row.completed_sample_count ?? row.sample_count ?? 0),
+		interruptedSampleCount: Number(row.interrupted_sample_count ?? 0),
 		inputTokensP50: row.input_tokens_p50 == null ? null : Number(row.input_tokens_p50),
 		inputTokensP90: row.input_tokens_p90 == null ? null : Number(row.input_tokens_p90),
 		outputTokensP50: row.output_tokens_p50 == null ? null : Number(row.output_tokens_p50),
@@ -576,6 +716,12 @@ function serializeTaskEstimateProfile(row) {
 		filesChangedP90: row.files_changed_p90 == null ? null : Number(row.files_changed_p90),
 		creditsP50: row.credits_p50 == null ? null : Number(row.credits_p50),
 		creditsP90: row.credits_p90 == null ? null : Number(row.credits_p90),
+		creditsVariance: row.credits_variance == null ? null : Number(row.credits_variance),
+		confidenceScore: row.confidence_score == null ? null : Number(row.confidence_score),
+		outlierCount: Number(row.outlier_count ?? 0),
+		partialCredits: row.partial_credits == null ? null : Number(row.partial_credits),
+		firstSampleAt: row.first_sample_at,
+		lastSampleAt: row.last_sample_at,
 		updatedAt: row.updated_at,
 	};
 }
@@ -1428,6 +1574,7 @@ export class MarketControlPlaneStore {
 				.then(() => this.ensureWorkdayManagerSchema())
 				.then(() => this.ensureProjectCapabilityGrantSchema())
 				.then(() => this.ensureHubLaunchEventSchema())
+				.then(() => this.ensureCapacityEstimateLearningSchema())
 				.then(() => this.seedTeamRoles());
 		}
 		return this.initializationPromise;
@@ -1558,6 +1705,93 @@ export class MarketControlPlaneStore {
 		await addColumn('started_at', 'TEXT');
 		await addColumn('finished_at', 'TEXT');
 		await addColumn('error_json', 'TEXT');
+	}
+
+	async ensureCapacityEstimateLearningSchema() {
+		const estimateColumns = await this.tableColumns('task_estimates');
+		if (estimateColumns.size > 0 && !estimateColumns.has('execution_profile_id')) {
+			await this.run(`ALTER TABLE task_estimates ADD COLUMN execution_profile_id TEXT NOT NULL DEFAULT 'standard-code-model'`);
+		}
+		const actualColumns = await this.tableColumns('task_usage_actuals');
+		if (actualColumns.size > 0 && !actualColumns.has('execution_profile_id')) {
+			await this.run(`ALTER TABLE task_usage_actuals ADD COLUMN execution_profile_id TEXT NOT NULL DEFAULT 'standard-code-model'`);
+		}
+
+		let profileColumns = await this.tableColumns('task_estimate_profiles');
+		if (profileColumns.size > 0 && !profileColumns.has('execution_profile_id')) {
+			await this.run(`ALTER TABLE task_estimate_profiles RENAME TO task_estimate_profiles_legacy_learning`);
+			await this.createCapacityEstimateProfileTable();
+			await this.run(
+				`INSERT OR REPLACE INTO task_estimate_profiles (
+					task_signature, execution_profile_id, sample_count, completed_sample_count, interrupted_sample_count,
+					input_tokens_p50, input_tokens_p90, output_tokens_p50, output_tokens_p90,
+					quota_minutes_p50, quota_minutes_p90, files_changed_p50, files_changed_p90,
+					credits_p50, credits_p90, credits_variance, confidence_score, outlier_count,
+					partial_credits, first_sample_at, last_sample_at, updated_at
+				)
+				SELECT
+					task_signature, 'standard-code-model', sample_count, sample_count, 0,
+					input_tokens_p50, input_tokens_p90, output_tokens_p50, output_tokens_p90,
+					quota_minutes_p50, quota_minutes_p90, files_changed_p50, files_changed_p90,
+					credits_p50, credits_p90, NULL,
+					CASE WHEN sample_count >= 20 THEN 1.0 WHEN sample_count > 0 THEN sample_count / 20.0 ELSE 0 END,
+					0, NULL, updated_at, updated_at, updated_at
+				FROM task_estimate_profiles_legacy_learning`,
+			);
+			await this.run(`DROP TABLE task_estimate_profiles_legacy_learning`);
+			profileColumns = await this.tableColumns('task_estimate_profiles');
+		} else if (profileColumns.size === 0) {
+			await this.createCapacityEstimateProfileTable();
+			profileColumns = await this.tableColumns('task_estimate_profiles');
+		}
+
+		const addProfileColumn = async (name, definition) => {
+			if (!profileColumns.has(name)) {
+				await this.run(`ALTER TABLE task_estimate_profiles ADD COLUMN ${name} ${definition}`);
+				profileColumns.add(name);
+			}
+		};
+		await addProfileColumn('completed_sample_count', 'INTEGER NOT NULL DEFAULT 0');
+		await addProfileColumn('interrupted_sample_count', 'INTEGER NOT NULL DEFAULT 0');
+		await addProfileColumn('credits_variance', 'REAL');
+		await addProfileColumn('confidence_score', 'REAL');
+		await addProfileColumn('outlier_count', 'INTEGER NOT NULL DEFAULT 0');
+		await addProfileColumn('partial_credits', 'REAL');
+		await addProfileColumn('first_sample_at', 'TEXT');
+		await addProfileColumn('last_sample_at', 'TEXT');
+
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_task_estimates_project_signature_profile ON task_estimates(project_id, task_signature, execution_profile_id, created_at DESC)`);
+		await this.run(`CREATE INDEX IF NOT EXISTS idx_task_usage_actuals_project_signature_profile ON task_usage_actuals(project_id, task_signature, execution_profile_id, created_at DESC)`);
+	}
+
+	async createCapacityEstimateProfileTable() {
+		await this.run(
+			`CREATE TABLE IF NOT EXISTS task_estimate_profiles (
+				task_signature TEXT NOT NULL,
+				execution_profile_id TEXT NOT NULL DEFAULT 'standard-code-model',
+				sample_count INTEGER NOT NULL DEFAULT 0,
+				completed_sample_count INTEGER NOT NULL DEFAULT 0,
+				interrupted_sample_count INTEGER NOT NULL DEFAULT 0,
+				input_tokens_p50 INTEGER,
+				input_tokens_p90 INTEGER,
+				output_tokens_p50 INTEGER,
+				output_tokens_p90 INTEGER,
+				quota_minutes_p50 REAL,
+				quota_minutes_p90 REAL,
+				files_changed_p50 REAL,
+				files_changed_p90 REAL,
+				credits_p50 REAL,
+				credits_p90 REAL,
+				credits_variance REAL,
+				confidence_score REAL,
+				outlier_count INTEGER NOT NULL DEFAULT 0,
+				partial_credits REAL,
+				first_sample_at TEXT,
+				last_sample_at TEXT,
+				updated_at TEXT NOT NULL,
+				PRIMARY KEY (task_signature, execution_profile_id)
+			)`,
+		);
 	}
 
 	async ensureWebSessionSchema() {
@@ -3251,6 +3485,17 @@ export class MarketControlPlaneStore {
 		return rows.map(serializeCapacityReservation);
 	}
 
+	async listCapacityRoutingDecisionsForProject(projectId, limit = 50) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM capacity_routing_decisions
+			 WHERE project_id = ?
+			 ORDER BY created_at DESC LIMIT ?`,
+			[projectId, Math.max(1, Math.min(200, Number(limit) || 50))],
+		);
+		return rows.map(serializeCapacityRoutingDecision);
+	}
+
 	async recordCapacityUsage(input) {
 		await this.ensureInitialized();
 		const timestamp = isoNow();
@@ -3386,12 +3631,12 @@ export class MarketControlPlaneStore {
 		const id = input.id ?? randomUUID();
 		await this.run(
 			`INSERT INTO task_estimates (
-				id, task_id, work_day_id, project_id, estimate_phase, task_signature, confidence,
+				id, task_id, work_day_id, project_id, estimate_phase, task_signature, execution_profile_id, confidence,
 				estimated_credits_p50, estimated_credits_p90, reserved_credits,
 				estimated_input_tokens_p50, estimated_input_tokens_p90, estimated_output_tokens_p50,
 				estimated_output_tokens_p90, estimated_quota_minutes_p50, estimated_quota_minutes_p90,
 				features_json, created_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[
 				id,
 				input.taskId ?? null,
@@ -3399,6 +3644,7 @@ export class MarketControlPlaneStore {
 				input.projectId,
 				input.estimatePhase,
 				input.taskSignature,
+				executionProfileId(input.executionProfileId),
 				input.confidence,
 				Number(input.estimatedCreditsP50 ?? 0),
 				Number(input.estimatedCreditsP90 ?? 0),
@@ -3422,17 +3668,18 @@ export class MarketControlPlaneStore {
 		const id = input.id ?? randomUUID();
 		await this.run(
 			`INSERT INTO task_usage_actuals (
-				id, task_id, work_day_id, project_id, task_signature, capacity_provider_id, lane_id,
+				id, task_id, work_day_id, project_id, task_signature, execution_profile_id, capacity_provider_id, lane_id,
 				business_model, model_name, input_tokens, output_tokens, cached_input_tokens, quota_minutes,
 				wall_minutes, files_opened, files_changed, diff_lines_added, diff_lines_removed,
 				test_runs, retry_count, actual_credits, actual_usd, metadata_json, created_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[
 				id,
 				input.taskId ?? null,
 				input.workDayId ?? null,
 				input.projectId,
 				input.taskSignature,
+				executionProfileId(input.executionProfileId),
 				input.capacityProviderId ?? null,
 				input.laneId ?? null,
 				input.businessModel ?? 'credit',
@@ -3454,52 +3701,68 @@ export class MarketControlPlaneStore {
 				timestamp,
 			],
 		);
-		await this.upsertTaskEstimateProfileFromActual(input.taskSignature, {
-			inputTokens: input.inputTokens,
-			outputTokens: input.outputTokens,
-			quotaMinutes: input.quotaMinutes,
-			filesChanged: input.filesChanged,
-			actualCredits: input.actualCredits,
-		});
+		await this.upsertTaskEstimateProfileFromActual(input.taskSignature, executionProfileId(input.executionProfileId));
 		return serializeTaskUsageActual(await this.first(`SELECT * FROM task_usage_actuals WHERE id = ? LIMIT 1`, [id]));
 	}
 
-	async upsertTaskEstimateProfileFromActual(taskSignature, actual) {
+	async upsertTaskEstimateProfileFromActual(taskSignature, profileId = defaultExecutionProfileId) {
 		const timestamp = isoNow();
-		const existing = await this.first(`SELECT * FROM task_estimate_profiles WHERE task_signature = ? LIMIT 1`, [taskSignature]);
-		const sampleCount = Number(existing?.sample_count ?? 0);
-		const nextCount = sampleCount + 1;
-		const blend = (oldValue, nextValue) => {
-			if (nextValue === null || nextValue === undefined || !Number.isFinite(Number(nextValue))) {
-				return oldValue ?? null;
-			}
-			if (oldValue === null || oldValue === undefined) {
-				return Number(nextValue);
-			}
-			return ((Number(oldValue) * sampleCount) + Number(nextValue)) / nextCount;
-		};
+		const actuals = (await this.all(
+			`SELECT * FROM task_usage_actuals
+			 WHERE task_signature = ? AND COALESCE(execution_profile_id, ?) = ?
+			 ORDER BY created_at DESC LIMIT 200`,
+			[taskSignature, defaultExecutionProfileId, executionProfileId(profileId)],
+		)).map(serializeTaskUsageActual);
+		const completed = actuals.filter((actual) => !interruptedActual(actual));
+		const interrupted = actuals.filter(interruptedActual);
+		const creditsP50 = percentile(completed.map((actual) => actual.actualCredits), 50);
+		const creditsP90 = percentile(completed.map((actual) => actual.actualCredits), 90);
+		const creditsVariance = variance(completed.map((actual) => actual.actualCredits));
+		const outlierLimit = creditsP90 == null ? null : Math.max(creditsP90 * 1.5, (creditsP50 ?? creditsP90) + Math.sqrt(creditsVariance));
+		const sampleDates = actuals.map((actual) => actual.createdAt).filter(Boolean).sort();
+		const partialCredits = interrupted.reduce((total, actual) => total + Number(actual.actualCredits ?? 0), 0);
 		await this.run(
 			`INSERT OR REPLACE INTO task_estimate_profiles (
-				task_signature, sample_count, input_tokens_p50, input_tokens_p90, output_tokens_p50, output_tokens_p90,
-				quota_minutes_p50, quota_minutes_p90, files_changed_p50, files_changed_p90, credits_p50, credits_p90, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				task_signature, execution_profile_id, sample_count, completed_sample_count, interrupted_sample_count,
+				input_tokens_p50, input_tokens_p90, output_tokens_p50, output_tokens_p90,
+				quota_minutes_p50, quota_minutes_p90, files_changed_p50, files_changed_p90,
+				credits_p50, credits_p90, credits_variance, confidence_score, outlier_count, partial_credits,
+				first_sample_at, last_sample_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[
 				taskSignature,
-				nextCount,
-				blend(existing?.input_tokens_p50, actual.inputTokens),
-				Math.max(blend(existing?.input_tokens_p90, actual.inputTokens) ?? 0, Number(actual.inputTokens ?? 0)) || null,
-				blend(existing?.output_tokens_p50, actual.outputTokens),
-				Math.max(blend(existing?.output_tokens_p90, actual.outputTokens) ?? 0, Number(actual.outputTokens ?? 0)) || null,
-				blend(existing?.quota_minutes_p50, actual.quotaMinutes),
-				Math.max(blend(existing?.quota_minutes_p90, actual.quotaMinutes) ?? 0, Number(actual.quotaMinutes ?? 0)) || null,
-				blend(existing?.files_changed_p50, actual.filesChanged),
-				Math.max(blend(existing?.files_changed_p90, actual.filesChanged) ?? 0, Number(actual.filesChanged ?? 0)) || null,
-				blend(existing?.credits_p50, actual.actualCredits),
-				Math.max(blend(existing?.credits_p90, actual.actualCredits) ?? 0, Number(actual.actualCredits ?? 0)) || null,
+				executionProfileId(profileId),
+				actuals.length,
+				completed.length,
+				interrupted.length,
+				percentile(completed.map((actual) => actual.inputTokens), 50),
+				percentile(completed.map((actual) => actual.inputTokens), 90),
+				percentile(completed.map((actual) => actual.outputTokens), 50),
+				percentile(completed.map((actual) => actual.outputTokens), 90),
+				percentile(completed.map((actual) => actual.quotaMinutes), 50),
+				percentile(completed.map((actual) => actual.quotaMinutes), 90),
+				percentile(completed.map((actual) => actual.filesChanged), 50),
+				percentile(completed.map((actual) => actual.filesChanged), 90),
+				creditsP50,
+				creditsP90,
+				creditsVariance,
+				confidenceScore({
+					sampleCount: completed.length,
+					creditsVariance,
+					creditsP50,
+					lastSampleAt: sampleDates.at(-1) ?? null,
+				}),
+				outlierLimit == null ? 0 : completed.filter((actual) => Number(actual.actualCredits ?? 0) > outlierLimit).length,
+				partialCredits || null,
+				sampleDates[0] ?? null,
+				sampleDates.at(-1) ?? null,
 				timestamp,
 			],
 		);
-		return serializeTaskEstimateProfile(await this.first(`SELECT * FROM task_estimate_profiles WHERE task_signature = ? LIMIT 1`, [taskSignature]));
+		return serializeTaskEstimateProfile(await this.first(
+			`SELECT * FROM task_estimate_profiles WHERE task_signature = ? AND execution_profile_id = ? LIMIT 1`,
+			[taskSignature, executionProfileId(profileId)],
+		));
 	}
 
 	async listTaskEstimateProfiles(limit = 100) {
@@ -3509,6 +3772,17 @@ export class MarketControlPlaneStore {
 			[Math.max(1, Math.min(500, Number(limit) || 100))],
 		);
 		return rows.map(serializeTaskEstimateProfile);
+	}
+
+	async listTaskUsageActualsForProject(projectId, limit = 50) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM task_usage_actuals
+			 WHERE project_id = ?
+			 ORDER BY created_at DESC LIMIT ?`,
+			[projectId, Math.max(1, Math.min(200, Number(limit) || 50))],
+		);
+		return rows.map(serializeTaskUsageActual);
 	}
 
 	async createApprovalRequest(input) {
@@ -3550,6 +3824,17 @@ export class MarketControlPlaneStore {
 		return serializeApprovalRequest(await this.first(`SELECT * FROM approval_requests WHERE id = ? LIMIT 1`, [id]));
 	}
 
+	async listApprovalRequestsForProject(projectId, limit = 50) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM approval_requests
+			 WHERE project_id = ?
+			 ORDER BY created_at DESC LIMIT ?`,
+			[projectId, Math.max(1, Math.min(200, Number(limit) || 50))],
+		);
+		return rows.map(serializeApprovalRequest);
+	}
+
 	async decideApprovalRequest(id, input) {
 		await this.ensureInitialized();
 		const existing = await this.getApprovalRequest(id);
@@ -3579,20 +3864,37 @@ export class MarketControlPlaneStore {
 		if (!project) return null;
 		const grants = await this.listCapacityGrants(project.teamId, { projectId });
 		const providerIds = [...new Set(grants.map((grant) => grant.capacityProviderId))];
-		const providers = providerIds.length
+		const rawProviders = providerIds.length
 			? (await this.all(
 				`SELECT * FROM capacity_providers WHERE id IN (${providerIds.map(() => '?').join(',')}) ORDER BY created_at ASC`,
 				providerIds,
 			)).map(serializeCapacityProvider)
 			: [];
-		const lanes = providerIds.length
+		const rawLanes = providerIds.length
 			? (await this.all(
 				`SELECT * FROM capacity_provider_lanes WHERE capacity_provider_id IN (${providerIds.map(() => '?').join(',')}) ORDER BY created_at ASC`,
 				providerIds,
 			)).map(serializeCapacityProviderLane)
 			: [];
 		const activeReservations = (await this.listCapacityReservationsForProject(projectId))
-			.filter((reservation) => ['reserved', 'consumed'].includes(reservation.state));
+			.filter((reservation) => ['reserved', 'consuming', 'consumed'].includes(reservation.state));
+		const providers = rawProviders.map((provider) => ({
+			...provider,
+			metadata: {
+				...(provider.metadata ?? {}),
+				pressure: capacityPressure(provider, null, activeReservations),
+			},
+		}));
+		const lanes = rawLanes.map((lane) => {
+			const provider = rawProviders.find((entry) => entry.id === lane.capacityProviderId) ?? {};
+			return {
+				...lane,
+				metadata: {
+					...(lane.metadata ?? {}),
+					pressure: capacityPressure(provider, lane, activeReservations),
+				},
+			};
+		});
 		const profiles = await this.listTaskEstimateProfiles(100);
 		const dailyCredits = grants.reduce((total, grant) => total + Number(grant.dailyCreditLimit ?? 0), 0);
 		const weeklyCredits = grants.reduce((total, grant) => total + Number(grant.weeklyCreditLimit ?? 0), 0);
@@ -3618,6 +3920,54 @@ export class MarketControlPlaneStore {
 				weeklyQuotaMinutes: weeklyQuotaMinutes || null,
 				dailyUsd: dailyUsd || null,
 			},
+		};
+	}
+
+	async getProjectCapacityOperations(projectId, environment = 'staging') {
+		await this.ensureInitialized();
+		const [
+			plan,
+			summary,
+			reservations,
+			ledgerEntries,
+			routingDecisions,
+			usageActuals,
+			approvalRequests,
+		] = await Promise.all([
+			this.getProjectCapacityPlan(projectId, environment),
+			this.getProjectCapacitySummary(projectId, environment),
+			this.listCapacityReservationsForProject(projectId),
+			this.listCapacityLedgerEntries(projectId),
+			this.listCapacityRoutingDecisionsForProject(projectId, 50),
+			this.listTaskUsageActualsForProject(projectId, 50),
+			this.listApprovalRequestsForProject(projectId, 50),
+		]);
+		const blockedRoutingDecisions = routingDecisions.filter((decision) =>
+			decision.decision === 'blocked'
+			|| decision.decision === 'approval_required'
+			|| String(decision.reason ?? '').includes('budget')
+			|| String(decision.reason ?? '').includes('approval')
+		);
+		const interruptionReservations = reservations.filter((reservation) =>
+			reservation.state === 'overran_pending_approval'
+			|| reservation.state === 'continuation_required'
+			|| reservation.metadata?.interrupted === true
+			|| reservation.metadata?.checkpointId
+		);
+		return {
+			projectId,
+			environment,
+			summary,
+			plan,
+			reservations: reservations.slice(0, 50),
+			ledgerEntries: ledgerEntries.slice(0, 50),
+			routingDecisions,
+			blockedRoutingDecisions,
+			usageActuals,
+			estimateProfiles: plan?.estimateProfiles ?? [],
+			approvalRequests,
+			pendingApprovalRequests: approvalRequests.filter((request) => request.state === 'pending'),
+			interruptionReservations,
 		};
 	}
 
