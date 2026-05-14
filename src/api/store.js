@@ -9,6 +9,7 @@ function fileUrlPath(url) {
 }
 
 const migrationPaths = [
+	'../../migrations/0006_agent_control_plane.sql',
 	'../../migrations/0007_site_web_sessions.sql',
 	'../../migrations/0008_market_control_plane.sql',
 	'../../migrations/0009_team_content_catalog.sql',
