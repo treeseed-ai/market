@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.5.11] - 2026-05-14
+
+### Added
+
+- feat(capacity): implement capacity scheduling and estimation learning (d6a58268c178)
+
+### Changed
+
+- Adding a temporary agent-budget specification. (62c3cf654558)
+
+### Infrastructure
+
+- release: sync package staging heads (a5788deed981)
+
+### Tests
+
+- build(deps): sync integrated package updates (1f26ee9427b5)
+
+### Dependencies
+
+- Release @treeseed/market 0.5.11.
+- Release package @treeseed/agent: 0.8.12.
+- Release package @treeseed/cli: 0.8.12.
+- Release package @treeseed/core: 0.8.12.
+- Release package @treeseed/sdk: 0.8.12.
+
 ## [0.5.10] - 2026-05-13
 
 ### Added
