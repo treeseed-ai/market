@@ -35,6 +35,14 @@ describe('web runtime boundaries', () => {
 		expect(offenders).toEqual([]);
 	});
 
+	it('keeps device login approval same-origin outside local development', () => {
+		const source = readFileSync('src/pages/auth/device/approve.astro', 'utf8');
+		expect(source).toContain("formAction: '/v1/auth/device/approve'");
+		expect(source).toContain('serverUrls: [`${Astro.url.origin}/v1/auth/device/approve`]');
+		expect(source).toContain("return 'http://127.0.0.1:3000';");
+		expect(source).not.toContain("apiApprovalBaseUrl ? `${apiApprovalBaseUrl}/auth/device/approve`");
+	});
+
 	it('keeps backend runtime implementation out of core source', () => {
 		const sourceFiles = files('packages/core/src')
 			.filter((path) => /\.(astro|ts|js)$/u.test(path))

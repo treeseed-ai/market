@@ -79,14 +79,35 @@ function normalizeBaseUrl(baseUrl) {
 	return String(baseUrl ?? '').trim().replace(/\/+$/u, '');
 }
 
+function isLoopbackUrl(value) {
+	try {
+		const url = new URL(value);
+		return url.hostname === '127.0.0.1' || url.hostname === 'localhost';
+	} catch {
+		return false;
+	}
+}
+
 function resolveAuthApprovalBaseUrl(config) {
-	const candidate = config.authApprovalBaseUrl
-		?? config.siteUrl
-		?? process.env.TREESEED_SITE_URL
-		?? process.env.BETTER_AUTH_URL
-		?? config.baseUrl;
+	const baseUrl = normalizeBaseUrl(config.baseUrl);
+	const configured = normalizeBaseUrl(config.authApprovalBaseUrl ?? config.siteUrl ?? '');
+	const remoteApi = baseUrl && !isLoopbackUrl(baseUrl);
+	if (configured) {
+		if (remoteApi && isLoopbackUrl(configured)) {
+			throw new Error(`Refusing loopback device approval URL "${configured}" for remote API "${baseUrl}".`);
+		}
+		return configured;
+	}
+	const environment = normalizeBaseUrl(process.env.TREESEED_SITE_URL ?? process.env.BETTER_AUTH_URL ?? '');
+	if (remoteApi && environment && isLoopbackUrl(environment)) {
+		throw new Error(`Refusing loopback device approval URL "${environment}" for remote API "${baseUrl}".`);
+	}
+	const candidate = environment || baseUrl;
 	const normalized = normalizeBaseUrl(candidate);
-	return normalized || normalizeBaseUrl(config.baseUrl);
+	if (normalized === 'https://api.treeseed.ai') {
+		return 'https://treeseed.ai';
+	}
+	return normalized || baseUrl;
 }
 
 function findById(items, id) {
