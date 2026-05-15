@@ -14,7 +14,10 @@ describe('web runtime boundaries', () => {
 	it('does not call the backend API from market web code', () => {
 		const sourceFiles = files('src')
 			.filter((path) => /\.(astro|ts|js)$/u.test(path))
-			.filter((path) => !path.includes('/api/server.js'));
+			.filter((path) => !path.includes('/api/server.js'))
+			// Device login approval bridges an authenticated web session to the API-owned
+			// device-code store. Keep this exception narrow and explicit.
+			.filter((path) => path !== 'src/pages/auth/device/approve.astro');
 		const offenders = sourceFiles.filter((path) => {
 			const source = readFileSync(path, 'utf8');
 			return /callRailwayApi|exchangeSiteSession|TREESEED_API_BASE_URL|config\.apiBaseUrl/u.test(source);

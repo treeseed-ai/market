@@ -1,0 +1,127 @@
+---
+import AuthShell from '../../../components/app/auth/AuthShell.astro';
+import AuthCard from '../../../components/app/auth/AuthCard.astro';
+import Field from '../../../../packages/core/src/components/ui/forms/Field.astro';
+import TextInput from '../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
+import FormActions from '../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import { createCoreAuthProvider } from '../../../lib/auth/flow';
+import { resolveAuthenticatedThemePreference, resolveAnonymousThemePreference } from '../../../lib/auth/appearance';
+
+export const prerender = false;
+
+const principal = Astro.locals.auth?.principal;
+
+if (!principal) {
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(`${Astro.url.pathname}${Astro.url.search}`)}`, 302);
+}
+
+const activePrincipal = principal;
+const appearance = await resolveAuthenticatedThemePreference(Astro).catch(() => resolveAnonymousThemePreference(Astro));
+let userCode = String(Astro.url.searchParams.get('user_code') ?? '').trim().toUpperCase();
+let error = '';
+let notice = Astro.url.searchParams.get('approved') === '1' ? 'CLI login approved. You can return to your terminal.' : '';
+let approved = Astro.url.searchParams.get('approved') === '1';
+
+function runtimeApiBaseUrl() {
+	const env = (Astro.locals.runtime?.env ?? {}) as Record<string, unknown>;
+	const value = env.TREESEED_API_BASE_URL ?? env.TREESEED_MARKET_API_BASE_URL;
+	if (typeof value === 'string' && value.trim()) {
+		return value.trim().replace(/\/+$/u, '');
+	}
+	if (Astro.url.hostname === '127.0.0.1' || Astro.url.hostname === 'localhost') {
+		return 'http://127.0.0.1:3000';
+	}
+	return '';
+}
+
+async function approveThroughApi() {
+	const baseUrl = runtimeApiBaseUrl();
+	if (!baseUrl) return false;
+	const payload = {
+		userCode,
+		principalId: activePrincipal.id,
+		displayName: activePrincipal.displayName ?? activePrincipal.id,
+		metadata: activePrincipal.metadata ?? {},
+	};
+	const errors: string[] = [];
+	for (const pathname of ['/auth/device/approve', '/v1/auth/device/approve']) {
+		const response = await fetch(`${baseUrl}${pathname}`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(payload),
+		});
+		if (response.ok) return true;
+		const body = await response.json().catch(() => null);
+		const message = typeof body?.error === 'string'
+			? body.error
+			: `Device login approval failed with status ${response.status}.`;
+		if (response.status !== 404) {
+			errors.push(message);
+		}
+	}
+	throw new Error(errors[0] ?? 'Device login approval endpoint was not found.');
+}
+
+const apiApprovalBaseUrl = runtimeApiBaseUrl();
+const directApprovalAction = apiApprovalBaseUrl ? `${apiApprovalBaseUrl}/auth/device/approve` : '/auth/device/approve';
+const approvalRedirectTo = `${Astro.url.origin}/auth/device/approve?approved=1`;
+const principalMetadata = JSON.stringify(activePrincipal.metadata ?? {});
+
+if (Astro.request.method === 'POST') {
+	const form = await Astro.request.formData();
+	userCode = String(form.get('userCode') ?? '').trim().toUpperCase();
+	if (!userCode) {
+		error = 'Enter the CLI login code to approve this session.';
+	} else {
+		try {
+			const approvedByApi = await approveThroughApi();
+			if (!approvedByApi) {
+				await createCoreAuthProvider(Astro).approveDeviceFlow({
+					userCode,
+					principalId: activePrincipal.id,
+					displayName: activePrincipal.displayName ?? activePrincipal.id,
+					metadata: activePrincipal.metadata ?? {},
+				});
+			}
+			approved = true;
+			notice = 'CLI login approved. You can return to your terminal.';
+		} catch (approvalError) {
+			error = approvalError instanceof Error
+				? approvalError.message
+				: 'CLI login approval failed.';
+		}
+	}
+}
+---
+
+<AuthShell title="Approve CLI Login | TreeSeed" description="Approve a TreeSeed CLI device login." appearance={appearance}>
+	<AuthCard
+		title={approved ? 'CLI login approved' : 'Approve CLI login'}
+		description={approved
+			? 'The terminal session can now finish signing in.'
+			: 'Confirm the code shown by the TreeSeed CLI to connect this account.'}
+		error={error}
+		notice={notice}
+		appearance={appearance}
+	>
+		{approved ? (
+			<p class="auth-card__footer">
+				You may close this tab.
+			</p>
+		) : (
+			<form class="auth-form" method="POST" action={directApprovalAction}>
+				<input type="hidden" name="principalId" value={activePrincipal.id} />
+				<input type="hidden" name="displayName" value={activePrincipal.displayName ?? activePrincipal.id} />
+				<input type="hidden" name="metadata" value={principalMetadata} />
+				<input type="hidden" name="redirectTo" value={approvalRedirectTo} />
+				<Field label="CLI login code" name="userCode" required>
+					<TextInput name="userCode" type="text" value={userCode} autocomplete="one-time-code" required />
+				</Field>
+				<FormActions>
+					<Button type="submit">Approve login</Button>
+				</FormActions>
+			</form>
+		)}
+	</AuthCard>
+</AuthShell>

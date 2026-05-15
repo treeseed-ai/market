@@ -79,6 +79,16 @@ function normalizeBaseUrl(baseUrl) {
 	return String(baseUrl ?? '').trim().replace(/\/+$/u, '');
 }
 
+function resolveAuthApprovalBaseUrl(config) {
+	const candidate = config.authApprovalBaseUrl
+		?? config.siteUrl
+		?? process.env.TREESEED_SITE_URL
+		?? process.env.BETTER_AUTH_URL
+		?? config.baseUrl;
+	const normalized = normalizeBaseUrl(candidate);
+	return normalized || normalizeBaseUrl(config.baseUrl);
+}
+
 function findById(items, id) {
 	const key = String(id ?? '');
 	return Array.isArray(items)
@@ -1543,12 +1553,16 @@ function selectDispatchTarget(runtime, projectDetails, capability, preferredMode
 
 function defaultConfig(overrides = {}) {
 	const resolved = resolveApiConfig();
-	return {
+	const config = {
 		...resolved,
 		projectId: overrides.projectId ?? resolved.projectId ?? 'treeseed-market',
 		repoRoot: overrides.repoRoot ?? resolved.repoRoot ?? process.cwd(),
 		...overrides,
 	};
+	if (overrides.authApprovalBaseUrl == null && typeof overrides.siteUrl === 'string' && overrides.siteUrl.trim()) {
+		config.authApprovalBaseUrl = overrides.siteUrl.trim();
+	}
+	return config;
 }
 
 export function createMarketApiExtension(options = {}) {
@@ -1570,7 +1584,11 @@ export function createMarketApiApp(options = {}) {
 	}, db);
 	const configuredAuthProviderId = config.providers?.auth ?? 'd1';
 	const authProviderId = configuredAuthProviderId === 'd1' ? 'market-d1' : configuredAuthProviderId;
-	const marketAuthProvider = new D1AuthProvider(config, { db });
+	const authConfig = {
+		...config,
+		baseUrl: resolveAuthApprovalBaseUrl(config),
+	};
+	const marketAuthProvider = new D1AuthProvider(authConfig, { db });
 	const sharedSdk = options.sdk ?? AgentSdk.createLocal({
 		repoRoot: config.repoRoot,
 		databaseName: config.d1DatabaseName ?? `${config.projectId}-market`,
@@ -1581,7 +1599,13 @@ export function createMarketApiApp(options = {}) {
 			...(options.runtimeProviders ?? {}),
 			auth: {
 				...(options.runtimeProviders?.auth ?? {}),
-				[authProviderId]: ({ config: runtimeConfig }) => new D1AuthProvider(runtimeConfig, { db }),
+				[authProviderId]: ({ config: runtimeConfig }) => new D1AuthProvider({
+					...runtimeConfig,
+					baseUrl: resolveAuthApprovalBaseUrl({
+						...config,
+						...runtimeConfig,
+					}),
+				}, { db }),
 			},
 		}
 		: {
@@ -1662,6 +1686,21 @@ export function createMarketApiApp(options = {}) {
 				const body = await c.req.json().catch(() => ({}));
 				const response = await marketAuthProvider.pollDeviceFlow({ deviceCode: String(body.deviceCode ?? '') });
 				return c.json(response, { status: response.ok ? 200 : response.status === 'expired' ? 410 : 400 });
+			});
+
+			app.post('/v1/auth/device/approve', async (c) => {
+				const body = await c.req.json().catch(() => ({}));
+				try {
+					return c.json(await marketAuthProvider.approveDeviceFlow({
+						userCode: String(body.userCode ?? ''),
+						principalId: String(body.principalId ?? ''),
+						displayName: typeof body.displayName === 'string' ? body.displayName : undefined,
+						metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : undefined,
+						scopes: Array.isArray(body.scopes) ? body.scopes.map(String) : undefined,
+					}));
+				} catch (error) {
+					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
+				}
 			});
 
 			app.post('/v1/auth/token/refresh', async (c) => {
@@ -1806,6 +1845,7 @@ export function createMarketApiApp(options = {}) {
 					manifestRef: typeof body.manifestRef === 'string' ? body.manifestRef : undefined,
 					approvalRequestId: typeof body.approvalRequestId === 'string' ? body.approvalRequestId : undefined,
 					store,
+					localOnly: planned.plan.environments.length === 1 && planned.plan.environments[0] === 'local',
 					actor: {
 						...seedActor(c),
 						principal: access.principal,

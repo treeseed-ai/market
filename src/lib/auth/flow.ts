@@ -49,7 +49,7 @@ export function providerSignInPath(context: Pick<APIContext, 'locals' | 'url'>, 
 	return `/api/auth/sign-in/social?provider=${encodeURIComponent(provider)}&callbackURL=${encodeURIComponent(callbackURL)}`;
 }
 
-function createCoreAuthProvider(context: Pick<APIContext, 'locals' | 'url'>) {
+export function createCoreAuthProvider(context: Pick<APIContext, 'locals' | 'url'>) {
 	const db = context.locals.runtime?.env?.SITE_DATA_DB;
 	if (!db) {
 		throw new Error('SITE_DATA_DB is required to finalize authentication in the web runtime.');
