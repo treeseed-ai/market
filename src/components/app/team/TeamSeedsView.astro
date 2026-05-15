@@ -1,0 +1,350 @@
+---
+import DataTable from '../../../../packages/core/src/components/ui/data/DataTable.astro';
+import MetricGrid from '../../../../packages/core/src/components/ui/data/MetricGrid.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+
+const {
+	teamHandle,
+	seedPage = {},
+	context = {},
+} = Astro.props as any;
+
+const seedNames = Array.isArray(seedPage.seedNames) && seedPage.seedNames.length ? seedPage.seedNames : ['treeseed'];
+const selectedSeed = seedPage.selectedSeed ?? 'treeseed';
+const selectedEnvironments = seedPage.selectedEnvironments ?? 'staging';
+const plan = seedPage.plan ?? null;
+const summary = plan?.summary ?? { create: 0, update: 0, unchanged: 0, skip: 0, delete: 0, error: 0 };
+const actions = Array.isArray(plan?.actions) ? plan.actions : [];
+const diagnostics = Array.isArray(seedPage.diagnostics) ? seedPage.diagnostics : [];
+const runs = Array.isArray(seedPage.runs) ? seedPage.runs : [];
+const approvals = Array.isArray(seedPage.approvals) ? seedPage.approvals : [];
+const approvedApprovals = approvals.filter((approval: any) => approval.state === 'approved');
+const teamId = context?.team?.id ?? seedPage.teamId ?? '';
+
+function compact(value: unknown, fallback = '') {
+	return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function joinList(value: unknown) {
+	return Array.isArray(value) ? value.map(String).filter(Boolean).join(', ') : compact(value, 'none');
+}
+
+function countValue(value: unknown) {
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function actionLabel(action: any) {
+	return `${compact(action.kind, 'resource')} ${compact(action.key, compact(action.payload?.slug, compact(action.payload?.name, 'unknown')))}`;
+}
+
+const metricItems = [
+	{ label: 'Create', value: countValue(summary.create), tone: countValue(summary.create) ? 'success' as const : 'default' as const },
+	{ label: 'Update', value: countValue(summary.update), tone: countValue(summary.update) ? 'warning' as const : 'default' as const },
+	{ label: 'Unchanged', value: countValue(summary.unchanged), tone: 'default' as const },
+	{ label: 'Skipped', value: countValue(summary.skip), tone: 'info' as const },
+	{ label: 'Errors', value: countValue(summary.error), tone: countValue(summary.error) ? 'danger' as const : 'default' as const },
+];
+
+const actionRows = actions.map((action: any) => ({
+	action: compact(action.action, 'unknown'),
+	resource: actionLabel(action),
+	environments: joinList(action.environments),
+	current: action.existing?.id ? compact(action.existing.id, 'existing') : action.action === 'skip' ? 'filtered out' : 'not found',
+}));
+
+const runRows = runs.map((run: any) => ({
+	state: compact(run.state, 'unknown'),
+	mode: compact(run.mode, 'plan'),
+	seed: compact(run.seedName, 'seed'),
+	environments: joinList(run.environments),
+	actor: [compact(run.actorType, ''), compact(run.actorId, '')].filter(Boolean).join(':') || 'unknown',
+	created: compact(run.createdAt, ''),
+	completed: compact(run.completedAt, ''),
+}));
+
+const diagnosticRows = diagnostics.map((diagnostic: any) => ({
+	severity: compact(diagnostic.severity, 'warning'),
+	code: compact(diagnostic.code, 'seed.diagnostic'),
+	message: compact(diagnostic.message, ''),
+	path: compact(diagnostic.path, ''),
+}));
+
+const pageData = JSON.stringify({
+	teamHandle,
+	teamId,
+	selectedSeed,
+	selectedEnvironments,
+}).replace(/</gu, '\\u003c');
+---
+
+<div class="ts-section-grid" data-team-seeds-root>
+	<Panel eyebrow="Environment seeds" title="Seed plans and governed applies" description="Named manifests reconcile teams, projects, repository mappings, capacity, grants, and work policies through the market control plane. Agents may validate, plan, and request approval; production apply stays human-approved.">
+		<form class="ts-form-grid" method="get" data-seed-selection-form>
+			<label class="ts-field">
+				<span class="ts-field__label">Seed manifest</span>
+				<select class="ts-control" name="seed">
+					{seedNames.map((seedName: string) => (
+						<option value={seedName} selected={seedName === selectedSeed}>{seedName}</option>
+					))}
+				</select>
+			</label>
+			<label class="ts-field">
+				<span class="ts-field__label">Environments</span>
+				<select class="ts-control" name="environments">
+					{['local', 'staging', 'prod', 'local,staging', 'staging,prod'].map((environment) => (
+						<option value={environment} selected={environment === selectedEnvironments}>{environment}</option>
+					))}
+				</select>
+			</label>
+			<div class="ts-inline-actions">
+				<button class="ts-button-secondary" type="submit">Preview</button>
+			</div>
+		</form>
+	</Panel>
+
+	<Panel eyebrow="Current plan" title={`${selectedSeed} · ${selectedEnvironments}`}>
+		<MetricGrid metrics={metricItems} min="8rem" />
+		<div class="ts-inline-actions ts-stack-top">
+			<form data-seed-operation-form data-seed-mode="plan" data-seed-environments={selectedEnvironments}>
+				<button class="ts-button-secondary" type="submit">Record plan</button>
+			</form>
+			<form data-seed-operation-form data-seed-mode="apply" data-seed-environments="staging">
+				<button class="ts-button-secondary" type="submit">Apply staging</button>
+			</form>
+			<form data-seed-operation-form data-seed-mode="apply" data-seed-environments="prod">
+				<select class="ts-control" name="approvalRequestId" aria-label="Production approval request">
+					<option value="">Request approval</option>
+					{approvedApprovals.map((approval: any) => (
+						<option value={approval.id}>{compact(approval.title, approval.id)}</option>
+					))}
+				</select>
+				<button class="ts-button" type="submit">Apply production with approval</button>
+			</form>
+		</div>
+		<span class="ts-subtle" role="status" data-seed-operation-status></span>
+	</Panel>
+
+	<Panel eyebrow="Plan actions" title="Reconciliation preview">
+		<DataTable
+			columns={[
+				{ key: 'action', label: 'Action' },
+				{ key: 'resource', label: 'Resource' },
+				{ key: 'environments', label: 'Environments' },
+				{ key: 'current', label: 'Current state' },
+			]}
+			rows={actionRows}
+			emptyLabel="No seed actions are selected."
+		/>
+	</Panel>
+
+	<Panel eyebrow="Diagnostics" title="Validation and planning messages">
+		{diagnosticRows.length > 0 ? (
+			<DataTable
+				columns={[
+					{ key: 'severity', label: 'Severity' },
+					{ key: 'code', label: 'Code' },
+					{ key: 'message', label: 'Message' },
+					{ key: 'path', label: 'Path' },
+				]}
+				rows={diagnosticRows}
+			/>
+		) : <EmptyState title="No diagnostics" description="The selected seed manifest planned without validation messages." />}
+	</Panel>
+
+	<Panel eyebrow="Export" title="Productized seed bundle">
+		<form class="ts-form-grid" data-seed-export-form>
+			<label class="ts-field">
+				<span class="ts-field__label">Seed name</span>
+				<input class="ts-control" name="name" value={selectedSeed} />
+			</label>
+			<label class="ts-field">
+				<span class="ts-field__label">Environments</span>
+				<select class="ts-control" name="environments">
+					{['local', 'staging', 'prod', 'local,staging,prod'].map((environment) => (
+						<option value={environment} selected={environment === selectedEnvironments}>{environment}</option>
+					))}
+				</select>
+			</label>
+			<label class="ts-checkbox">
+				<input type="checkbox" name="includePrivate" />
+				<span>Include private products</span>
+			</label>
+			<label class="ts-checkbox">
+				<input type="checkbox" name="includeArtifacts" checked />
+				<span>Include artifact references</span>
+			</label>
+			<div class="ts-inline-actions">
+				<button class="ts-button-secondary" type="submit">Export seed</button>
+				<span class="ts-subtle" role="status" data-seed-export-status></span>
+			</div>
+			<label class="ts-field ts-field--full">
+				<span class="ts-field__label">YAML</span>
+				<textarea class="ts-control ts-textarea" rows="12" readonly data-seed-export-output></textarea>
+			</label>
+		</form>
+	</Panel>
+
+	<Panel eyebrow="Production approvals" title="Human approval queue">
+		{approvals.length > 0 ? (
+			<div class="ts-list">
+				{approvals.map((approval: any) => (
+					<article class="ts-list-item" id={`approval-${approval.id}`}>
+						<div class="ts-panel__header">
+							<div>
+								<strong>{compact(approval.title, 'Seed approval')}</strong><br />
+								<span class="ts-subtle">{compact(approval.summary, 'No summary')} · {compact(approval.state, 'pending')}</span>
+							</div>
+							<span class="ts-status-pill" data-tone={approval.state === 'approved' ? 'success' : approval.state === 'rejected' ? 'danger' : 'warning'}>{compact(approval.state, 'pending')}</span>
+						</div>
+						<form class="ts-form-grid ts-stack-top" data-seed-approval-form data-approval-id={approval.id}>
+							<label class="ts-field">
+								<span class="ts-field__label">Decision</span>
+								<select class="ts-control" name="state" disabled={approval.state !== 'pending'}>
+									<option value="approved">Approve</option>
+									<option value="rejected">Reject</option>
+								</select>
+							</label>
+							<label class="ts-field">
+								<span class="ts-field__label">Option</span>
+								<select class="ts-control" name="optionId" disabled={approval.state !== 'pending'}>
+									{(Array.isArray(approval.options) && approval.options.length ? approval.options : [{ id: 'approve', label: 'Approve' }]).map((option: any) => (
+										<option value={compact(option.id, 'approve')}>{compact(option.label, compact(option.id, 'Approve'))}</option>
+									))}
+								</select>
+							</label>
+							<label class="ts-field ts-field--full">
+								<span class="ts-field__label">Note</span>
+								<input class="ts-control" name="note" placeholder="Optional decision note" disabled={approval.state !== 'pending'} />
+							</label>
+							<div class="ts-inline-actions">
+								<button class="ts-button-secondary" type="submit" disabled={approval.state !== 'pending'}>Record decision</button>
+								<span class="ts-subtle" role="status" data-seed-approval-status></span>
+							</div>
+						</form>
+					</article>
+				))}
+			</div>
+		) : <EmptyState title="No production seed approvals" description="Production apply requests for this team will appear here." />}
+	</Panel>
+
+	<Panel eyebrow="Seed runs" title="Recent plan and apply history">
+		<DataTable
+			columns={[
+				{ key: 'state', label: 'State' },
+				{ key: 'mode', label: 'Mode' },
+				{ key: 'seed', label: 'Seed' },
+				{ key: 'environments', label: 'Environments' },
+				{ key: 'actor', label: 'Actor' },
+				{ key: 'created', label: 'Created' },
+				{ key: 'completed', label: 'Completed' },
+			]}
+			rows={runRows}
+			emptyLabel="No seed runs have been recorded for this team."
+		/>
+	</Panel>
+</div>
+
+<script is:inline type="application/json" id="team-seeds-page-data" set:html={pageData}></script>
+<script>
+	const seedDataElement = document.getElementById('team-seeds-page-data');
+	const seedPageData = seedDataElement?.textContent ? JSON.parse(seedDataElement.textContent) : {};
+	const seedStatus = document.querySelector('[data-seed-operation-status]');
+
+	function setSeedStatus(message: string) {
+		if (seedStatus) seedStatus.textContent = message;
+	}
+
+	async function requestJson(url: string, options: RequestInit = {}) {
+		const response = await fetch(url, {
+			...options,
+			headers: {
+				'content-type': 'application/json',
+				...(options?.headers ?? {}),
+			},
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			throw new Error(payload?.error ?? payload?.message ?? `Request failed with ${response.status}`);
+		}
+		return payload;
+	}
+
+	for (const form of document.querySelectorAll<HTMLFormElement>('[data-seed-operation-form]')) {
+		form.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			const element = form;
+			const mode = element.getAttribute('data-seed-mode') || 'plan';
+			const environments = element.getAttribute('data-seed-environments') || seedPageData.selectedEnvironments || 'staging';
+			const formData = new FormData(element);
+			const approvalRequestId = String(formData.get('approvalRequestId') ?? '').trim();
+			setSeedStatus(mode === 'apply' ? 'Applying seed...' : 'Recording seed plan...');
+			try {
+				const payload = await requestJson(`/v1/seeds/${encodeURIComponent(seedPageData.selectedSeed || 'treeseed')}/${mode}`, {
+					method: 'POST',
+					body: JSON.stringify({
+						environments,
+						approvalRequestId: approvalRequestId || undefined,
+					}),
+				});
+				const runId = payload?.run?.id ? ` Run ${payload.run.id}.` : '';
+				const approvalId = payload?.result?.approvalRequest?.id ? ` Approval ${payload.result.approvalRequest.id}.` : '';
+				setSeedStatus(`${mode === 'apply' ? 'Apply' : 'Plan'} recorded.${runId}${approvalId} Refresh to update this view.`);
+			} catch (error) {
+				setSeedStatus(error instanceof Error ? error.message : String(error));
+			}
+		});
+	}
+
+	const exportForm = document.querySelector<HTMLFormElement>('[data-seed-export-form]');
+	if (exportForm) {
+		exportForm.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			const status = exportForm.querySelector('[data-seed-export-status]');
+			const output = exportForm.querySelector<HTMLTextAreaElement>('[data-seed-export-output]');
+			const formData = new FormData(exportForm);
+			if (status) status.textContent = 'Exporting seed...';
+			try {
+				const payload = await requestJson(`/v1/teams/${encodeURIComponent(seedPageData.teamId || '')}/seeds/export`, {
+					method: 'POST',
+					body: JSON.stringify({
+						name: String(formData.get('name') ?? seedPageData.selectedSeed ?? 'treeseed'),
+						environments: String(formData.get('environments') ?? seedPageData.selectedEnvironments ?? 'staging'),
+						includePrivate: formData.get('includePrivate') === 'on',
+						includeArtifacts: formData.get('includeArtifacts') === 'on',
+					}),
+				});
+				if (output) output.value = payload.yaml || '';
+				if (status) status.textContent = 'Seed export ready.';
+			} catch (error) {
+				if (status) status.textContent = error instanceof Error ? error.message : String(error);
+			}
+		});
+	}
+
+	for (const form of document.querySelectorAll<HTMLFormElement>('[data-seed-approval-form]')) {
+		form.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			const element = form;
+			const approvalId = element.getAttribute('data-approval-id');
+			const status = element.querySelector('[data-seed-approval-status]');
+			if (!approvalId) return;
+			const formData = new FormData(element);
+			if (status) status.textContent = 'Recording decision...';
+			try {
+				await requestJson(`/v1/approval-requests/${encodeURIComponent(approvalId)}/decide`, {
+					method: 'POST',
+					body: JSON.stringify({
+						state: String(formData.get('state') ?? 'approved'),
+						optionId: String(formData.get('optionId') ?? ''),
+						note: String(formData.get('note') ?? ''),
+					}),
+				});
+				if (status) status.textContent = 'Decision recorded. Refresh to update this view.';
+			} catch (error) {
+				if (status) status.textContent = error instanceof Error ? error.message : String(error);
+			}
+		});
+	}
+</script>

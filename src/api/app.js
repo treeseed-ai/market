@@ -21,6 +21,7 @@ import {
 	resolveApiD1Database,
 } from '@treeseed/agent/api';
 import { MarketControlPlaneStore } from './store.js';
+import { applySeedWithStore, exportSeedWithStore, planSeedWithStore } from '../lib/market/seeds/apply.js';
 import {
 	listTreeseedManagedHostsFromConfig,
 	managedCloudflareConfigMissing,
@@ -583,6 +584,18 @@ function principalHasPermission(principal, permission) {
 	);
 }
 
+function principalIsSeedAdmin(principal) {
+	return Boolean(
+		principal
+		&& (
+			principal.permissions?.includes?.('*:*:*')
+			|| principal.permissions?.includes?.('seeds:apply:global')
+			|| principal.roles?.includes?.('platform_admin')
+			|| principal.roles?.includes?.('market_admin')
+		),
+	);
+}
+
 function isTeamApiPrincipal(principal) {
 	return Boolean(principal?.roles?.includes?.('team_api_key'));
 }
@@ -859,6 +872,59 @@ async function requireProjectAccess(c, store, projectId, permission = null) {
 		principal: access.principal,
 		details,
 	};
+}
+
+function normalizeSeedEnvironments(value) {
+	if (Array.isArray(value)) {
+		return value.map((entry) => String(entry ?? '').trim()).filter(Boolean).join(',');
+	}
+	return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function seedActor(c) {
+	const principal = c.get('principal');
+	return {
+		actorType: c.get('actorType') === 'service' ? 'service' : c.get('actorType') === 'project' ? 'project' : 'user',
+		principal,
+	};
+}
+
+function seedExistingTeamIds(plan) {
+	return [...new Set(plan.actions
+		.filter((action) => action.kind === 'team' && action.existing?.id)
+		.map((action) => action.existing.id))];
+}
+
+function seedCreatesMissingTeams(plan) {
+	return plan.actions.some((action) => action.kind === 'team' && action.action === 'create');
+}
+
+async function requireSeedPlanAccess(c, store, plan) {
+	const auth = await ensurePrincipal(c);
+	if (auth.response) return auth;
+	for (const teamId of seedExistingTeamIds(plan)) {
+		if (!(await store.principalCanAccessTeam(auth.principal, teamId))) {
+			return { response: jsonError(c, 403, 'Permission denied.', { teamId }) };
+		}
+	}
+	return auth;
+}
+
+async function requireSeedApplyAccess(c, store, plan) {
+	const auth = await requireSeedPlanAccess(c, store, plan);
+	if (auth.response) return auth;
+	for (const teamId of seedExistingTeamIds(plan)) {
+		const canManage = isTeamApiPrincipal(auth.principal)
+			? principalHasPermission(auth.principal, 'teams:manage:team')
+			: await store.principalCanManageTeam(auth.principal, teamId);
+		if (!canManage) {
+			return { response: jsonError(c, 403, 'Permission denied.', { permission: 'teams:manage:team', teamId }) };
+		}
+	}
+	if (seedCreatesMissingTeams(plan) && !principalIsSeedAdmin(auth.principal)) {
+		return { response: jsonError(c, 403, 'Permission denied.', { permission: 'seeds:apply:global' }) };
+	}
+	return auth;
 }
 
 async function requireProjectRunner(c, store, projectId) {
@@ -1645,6 +1711,121 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
+			app.get('/v1/seeds/runs', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const limit = Number(c.req.query('limit') ?? 50);
+				return c.json({ ok: true, payload: await store.listSeedRuns(limit) });
+			});
+
+			app.get('/v1/seeds/runs/:runId', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const run = await store.getSeedRun(c.req.param('runId'));
+				if (!run) return jsonError(c, 404, 'Unknown seed run.');
+				return c.json({ ok: true, payload: run });
+			});
+
+			app.post('/v1/seeds/:name/plan', async (c) => {
+				const body = await c.req.json().catch(() => ({}));
+				const planned = await planSeedWithStore({
+					projectRoot: config.repoRoot,
+					seedName: c.req.param('name'),
+					environments: normalizeSeedEnvironments(body.environments),
+					manifestRef: typeof body.manifestRef === 'string' ? body.manifestRef : undefined,
+					mode: 'plan',
+					store,
+					actor: seedActor(c),
+				});
+				if (!planned.plan) {
+					return c.json({
+						ok: false,
+						seed: c.req.param('name'),
+						mode: 'plan',
+						environments: [],
+						summary: null,
+						actions: [],
+						diagnostics: planned.diagnostics,
+					}, { status: 400 });
+				}
+				const access = await requireSeedPlanAccess(c, store, planned.plan);
+				if (access.response) return access.response;
+				const run = await store.createSeedRun({
+					seedName: planned.plan.seed,
+					seedVersion: planned.plan.version,
+					environments: planned.plan.environments,
+					mode: 'plan',
+					state: 'completed',
+					actorType: seedActor(c).actorType,
+					actorId: access.principal.id,
+					manifestHash: planned['manifestHash'],
+					plan: planned.plan,
+					result: { actionCount: planned.plan.summary.create + planned.plan.summary.update },
+					completedAt: new Date().toISOString(),
+				});
+				return c.json({
+					ok: true,
+					seed: planned.plan.seed,
+					mode: 'plan',
+					environments: planned.plan.environments,
+					summary: planned.plan.summary,
+					actions: planned.plan.actions,
+					diagnostics: planned.plan.diagnostics,
+					run,
+				});
+			});
+
+			app.post('/v1/seeds/:name/apply', async (c) => {
+				const body = await c.req.json().catch(() => ({}));
+				const planned = await planSeedWithStore({
+					projectRoot: config.repoRoot,
+					seedName: c.req.param('name'),
+					environments: normalizeSeedEnvironments(body.environments),
+					manifestRef: typeof body.manifestRef === 'string' ? body.manifestRef : undefined,
+					mode: 'apply',
+					store,
+					actor: seedActor(c),
+				});
+				if (!planned.plan) {
+					return c.json({
+						ok: false,
+						seed: c.req.param('name'),
+						mode: 'apply',
+						environments: [],
+						summary: null,
+						actions: [],
+						diagnostics: planned.diagnostics,
+					}, { status: 400 });
+				}
+				const access = await requireSeedApplyAccess(c, store, planned.plan);
+				if (access.response) return access.response;
+				const applied = await applySeedWithStore({
+					projectRoot: config.repoRoot,
+					seedName: c.req.param('name'),
+					environments: normalizeSeedEnvironments(body.environments),
+					manifestRef: typeof body.manifestRef === 'string' ? body.manifestRef : undefined,
+					approvalRequestId: typeof body.approvalRequestId === 'string' ? body.approvalRequestId : undefined,
+					store,
+					actor: {
+						...seedActor(c),
+						principal: access.principal,
+					},
+				});
+				const blocked = applied.result?.blocked === true;
+				return c.json({
+					ok: !blocked,
+					seed: applied.plan.seed,
+					mode: 'apply',
+					environments: applied.plan.environments,
+					summary: applied.plan.summary,
+					actions: applied.plan.actions,
+					diagnostics: applied.plan.diagnostics,
+					run: applied.run,
+					result: applied.result,
+					...(blocked ? { error: applied.result.reason } : {}),
+				}, { status: blocked ? 409 : 200 });
+			});
+
 			app.post('/v1/team-invites/:token/accept', async (c) => {
 				const auth = await ensurePrincipal(c);
 				if (auth.response) return auth.response;
@@ -1667,6 +1848,17 @@ export function createMarketApiApp(options = {}) {
 				return c.json({
 					ok: true,
 					payload: await store.listTeamInboxItems(c.req.param('teamId'), access.principal),
+				});
+			});
+
+			app.get('/v1/teams/:teamId/approval-requests', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const limit = Number(c.req.query('limit') ?? 50);
+				const kind = c.req.query('kind');
+				return c.json({
+					ok: true,
+					payload: await store.listApprovalRequestsForTeam(c.req.param('teamId'), { kind, limit }),
 				});
 			});
 
@@ -1695,6 +1887,23 @@ export function createMarketApiApp(options = {}) {
 					ok: true,
 					payload: await store.listTeamProducts(c.req.param('teamId'), access.principal),
 				});
+			});
+
+			app.post('/v1/teams/:teamId/seeds/export', async (c) => {
+				const body = await c.req.json().catch(() => ({}));
+				const includePrivate = body.includePrivate === true;
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), includePrivate ? 'teams:manage:team' : 'projects:read:team');
+				if (access.response) return access.response;
+				const result = await exportSeedWithStore({
+					store,
+					teamId: c.req.param('teamId'),
+					name: typeof body.name === 'string' && body.name.trim() ? body.name.trim() : 'exported',
+					environments: normalizeSeedEnvironments(body.environments),
+					includePrivate,
+					includeArtifacts: body.includeArtifacts === true,
+					principal: access.principal,
+				});
+				return c.json(result, result.ok ? 200 : 400);
 			});
 
 			app.post('/v1/teams', async (c) => {

@@ -37,6 +37,7 @@ const migrationPaths = [
 	'../../migrations/0020_hub_launch_spine.sql',
 	'../../migrations/0021_capacity_provider_api_keys.sql',
 	'../../migrations/0022_user_preferences.sql',
+	'../../migrations/0024_seed_runs.sql',
 ];
 
 let cachedMigrationSql = null;
@@ -771,6 +772,27 @@ function serializeApprovalRequest(row) {
 	};
 }
 
+function serializeSeedRun(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		seedName: row.seed_name,
+		seedVersion: Number(row.seed_version ?? 1),
+		environments: parseJson(row.environments_json, []),
+		mode: row.mode,
+		state: row.state,
+		actorType: row.actor_type,
+		actorId: row.actor_id,
+		manifestHash: row.manifest_hash,
+		plan: parseJson(row.plan_json, null),
+		result: parseJson(row.result_json, null),
+		error: parseJson(row.error_json, null),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+		completedAt: row.completed_at,
+	};
+}
+
 function serializeRuntimeWorkDay(row) {
 	if (!row) return null;
 	return {
@@ -1003,6 +1025,7 @@ function serializeRepositoryHost(row) {
 		encryptedPayload: parseJson(row.encrypted_payload_json, null),
 		allowedProjectKinds: parseJson(row.allowed_project_kinds_json, []),
 		status: row.status,
+		metadata: parseJson(row.metadata_json, {}),
 		createdById: row.created_by_id,
 		updatedById: row.updated_by_id,
 		createdAt: row.created_at,
@@ -1680,6 +1703,7 @@ export class MarketControlPlaneStore {
 				.then(() => this.ensureWorkdayManagerSchema())
 				.then(() => this.ensureProjectCapabilityGrantSchema())
 				.then(() => this.ensureHubLaunchEventSchema())
+				.then(() => this.ensureRepositoryHostMetadataSchema())
 				.then(() => this.ensureCapacityEstimateLearningSchema())
 				.then(() => this.seedTeamRoles());
 		}
@@ -1811,6 +1835,13 @@ export class MarketControlPlaneStore {
 		await addColumn('started_at', 'TEXT');
 		await addColumn('finished_at', 'TEXT');
 		await addColumn('error_json', 'TEXT');
+	}
+
+	async ensureRepositoryHostMetadataSchema() {
+		const columns = await this.tableColumns('repository_hosts');
+		if (columns.size > 0 && !columns.has('metadata_json')) {
+			await this.run(`ALTER TABLE repository_hosts ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'`);
+		}
 	}
 
 	async ensureCapacityEstimateLearningSchema() {
@@ -2555,6 +2586,7 @@ export class MarketControlPlaneStore {
 			encryptedPayload ? JSON.stringify(encryptedPayload) : null,
 			JSON.stringify(Array.isArray(input.allowedProjectKinds) ? input.allowedProjectKinds.map(String) : ['knowledge_hub']),
 			typeof input.status === 'string' ? input.status : 'active',
+			JSON.stringify(input.metadata && typeof input.metadata === 'object' ? input.metadata : {}),
 			typeof input.createdById === 'string' ? input.createdById : null,
 			typeof input.updatedById === 'string' ? input.updatedById : typeof input.createdById === 'string' ? input.createdById : null,
 		];
@@ -2564,7 +2596,7 @@ export class MarketControlPlaneStore {
 				 SET team_id = ?, provider = ?, ownership = ?, name = ?, account_label = ?, organization_or_owner = ?,
 				     default_visibility = ?, software_repository_name_template = ?, content_repository_name_template = ?,
 				     branch_policy_json = ?, workflow_policy_json = ?, encrypted_payload_json = ?, allowed_project_kinds_json = ?,
-				     status = ?, created_by_id = COALESCE(created_by_id, ?), updated_by_id = ?, updated_at = ?
+				     status = ?, metadata_json = ?, created_by_id = COALESCE(created_by_id, ?), updated_by_id = ?, updated_at = ?
 				 WHERE id = ?`,
 				[...values, timestamp, id],
 			);
@@ -2573,8 +2605,8 @@ export class MarketControlPlaneStore {
 				`INSERT INTO repository_hosts (
 					id, team_id, provider, ownership, name, account_label, organization_or_owner, default_visibility,
 					software_repository_name_template, content_repository_name_template, branch_policy_json, workflow_policy_json,
-					encrypted_payload_json, allowed_project_kinds_json, status, created_by_id, updated_by_id, created_at, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					encrypted_payload_json, allowed_project_kinds_json, status, metadata_json, created_by_id, updated_by_id, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				[id, ...values, timestamp, timestamp],
 			);
 		}
@@ -3941,6 +3973,26 @@ export class MarketControlPlaneStore {
 		return rows.map(serializeApprovalRequest);
 	}
 
+	async listApprovalRequestsForTeam(teamId, options = {}) {
+		await this.ensureInitialized();
+		const limit = Math.max(1, Math.min(200, Number(options.limit) || 50));
+		const kind = typeof options.kind === 'string' && options.kind.trim() ? options.kind.trim() : null;
+		const rows = kind
+			? await this.all(
+				`SELECT * FROM approval_requests
+				 WHERE team_id = ? AND kind = ?
+				 ORDER BY created_at DESC LIMIT ?`,
+				[teamId, kind, limit],
+			)
+			: await this.all(
+				`SELECT * FROM approval_requests
+				 WHERE team_id = ?
+				 ORDER BY created_at DESC LIMIT ?`,
+				[teamId, limit],
+			);
+		return rows.map(serializeApprovalRequest);
+	}
+
 	async decideApprovalRequest(id, input) {
 		await this.ensureInitialized();
 		const existing = await this.getApprovalRequest(id);
@@ -3962,6 +4014,71 @@ export class MarketControlPlaneStore {
 			],
 		);
 		return this.getApprovalRequest(id);
+	}
+
+	async createSeedRun(input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO seed_runs (
+				id, seed_name, seed_version, environments_json, mode, state, actor_type, actor_id,
+				manifest_hash, plan_json, result_json, error_json, created_at, updated_at, completed_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				input.seedName,
+				Number(input.seedVersion ?? input.version ?? 1),
+				JSON.stringify(input.environments ?? []),
+				input.mode ?? 'plan',
+				input.state ?? 'running',
+				input.actorType ?? null,
+				input.actorId ?? null,
+				input.manifestHash ?? '',
+				JSON.stringify(input.plan ?? null),
+				input.result === undefined ? null : JSON.stringify(input.result),
+				input.error === undefined ? null : JSON.stringify(input.error),
+				timestamp,
+				timestamp,
+				input.completedAt ?? null,
+			],
+		);
+		return this.getSeedRun(id);
+	}
+
+	async updateSeedRun(id, input) {
+		await this.ensureInitialized();
+		const existing = await this.getSeedRun(id);
+		if (!existing) return null;
+		const timestamp = isoNow();
+		await this.run(
+			`UPDATE seed_runs
+			 SET state = ?, result_json = ?, error_json = ?, updated_at = ?, completed_at = ?
+			 WHERE id = ?`,
+			[
+				input.state ?? existing.state,
+				input.result === undefined ? JSON.stringify(existing.result ?? null) : JSON.stringify(input.result),
+				input.error === undefined ? JSON.stringify(existing.error ?? null) : JSON.stringify(input.error),
+				timestamp,
+				input.completedAt ?? (['completed', 'failed', 'blocked', 'partial'].includes(input.state) ? timestamp : existing.completedAt),
+				id,
+			],
+		);
+		return this.getSeedRun(id);
+	}
+
+	async getSeedRun(id) {
+		await this.ensureInitialized();
+		return serializeSeedRun(await this.first(`SELECT * FROM seed_runs WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async listSeedRuns(limit = 50) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM seed_runs ORDER BY created_at DESC LIMIT ?`,
+			[Math.max(1, Math.min(200, Number(limit) || 50))],
+		);
+		return rows.map(serializeSeedRun);
 	}
 
 	async getProjectCapacityPlan(projectId, environment = 'staging') {

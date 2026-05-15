@@ -13,6 +13,7 @@ const teamComponents = [
 	'TeamProductsView',
 	'TeamHostsView',
 	'TeamCapacityView',
+	'TeamSeedsView',
 	'TeamSettingsView',
 ];
 
@@ -188,5 +189,40 @@ describe('team and project section extraction', () => {
 		expect(teamInbox).toContain('#approval-');
 		expect(teamInbox).toContain('#artifact-');
 		expect(agents).not.toContain('inspect-only');
+	});
+
+	it('exposes the team seed operations surface', () => {
+		const layout = source('src/layouts/TreeseedAppLayout.astro');
+		const teamRoute = source('src/pages/app/teams/[teamSlug]/[section].astro');
+		const sectionData = source('src/lib/market/team-section-data.ts');
+		const seeds = source('src/components/app/team/TeamSeedsView.astro');
+
+		expect(layout).toContain('Seeds');
+		expect(layout).toContain('${baseTeamPath}/seeds');
+		expect(teamRoute).toContain('TeamSeedsView');
+		expect(sectionData).toContain('loadSeedSectionData');
+		expect(sectionData).toContain('planSeedWithStore');
+		expect(sectionData).toContain('listApprovalRequestsForTeam');
+		expect(sectionData).toContain('listSeedRuns');
+
+		for (const marker of [
+			'data-team-seeds-root',
+			'Seed plans and governed applies',
+			'Record plan',
+			'Apply staging',
+			'Apply production with approval',
+			'Plan actions',
+			'Productized seed bundle',
+			'data-seed-export-form',
+			'data-seed-export-output',
+			'Production approvals',
+			'Seed runs',
+			'team-seeds-page-data',
+			"/v1/seeds/${encodeURIComponent(seedPageData.selectedSeed || 'treeseed')}/${mode}",
+			'/v1/teams/${encodeURIComponent(seedPageData.teamId || \'\')}/seeds/export',
+			'/v1/approval-requests/${encodeURIComponent(approvalId)}/decide',
+		]) {
+			expect(seeds).toContain(marker);
+		}
 	});
 });

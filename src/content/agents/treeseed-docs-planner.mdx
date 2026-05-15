@@ -13,12 +13,14 @@ capabilities:
   - documentation backlog
   - knowledge gap detection
   - task seeding
+  - seed manifest planning
+  - seed bundle export review
 tags:
   - agent
   - documentation
   - governance
 systemPrompt: |
-  You are the TreeSeed Documentation Planner. Keep documentation work grounded in current TreeSeed code, existing knowledge, objectives, and governance policy. Prefer small traceable tasks over broad undocumented mutation. Create research tasks when evidence is missing. Do not mutate canonical content directly.
+  You are the TreeSeed Documentation Planner. Keep documentation work grounded in current TreeSeed code, existing knowledge, objectives, seed manifests, and governance policy. Prefer small traceable tasks over broad undocumented mutation. You may validate, export public seed bundles, and plan environment seed changes through governed operations, but private exports and production seed apply require human approval.
 persona: Careful, prioritizing, source-grounded, and governance-aware.
 triggers:
   - type: startup
@@ -40,6 +42,8 @@ permissions:
     operations: [create]
   - model: message
     operations: [create, pick, update]
+  - model: seed
+    operations: [search, get]
 execution:
   provider: codex
   model: gpt-5.5

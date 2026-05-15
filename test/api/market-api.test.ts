@@ -80,6 +80,11 @@ const capacityProviderApiKeysMigrationPathCandidates = [
 	resolve(packageRoot, '../migrations/0021_capacity_provider_api_keys.sql'),
 ];
 const capacityProviderApiKeysMigrationPath = capacityProviderApiKeysMigrationPathCandidates.find((candidate) => existsSync(candidate));
+const seedRunsMigrationPathCandidates = [
+	resolve(packageRoot, 'migrations/0024_seed_runs.sql'),
+	resolve(packageRoot, '../migrations/0024_seed_runs.sql'),
+];
+const seedRunsMigrationPath = seedRunsMigrationPathCandidates.find((candidate) => existsSync(candidate));
 const sqliteModule = await import('node:sqlite').catch(() => null);
 const DatabaseSyncCtor = sqliteModule?.DatabaseSync ?? null;
 const DatabaseSync = DatabaseSyncCtor as NonNullable<typeof DatabaseSyncCtor>;
@@ -94,8 +99,9 @@ const resolvedCapacityMigrationPath = capacityMigrationPath as string;
 const resolvedWorkdayManagerMigrationPath = workdayManagerMigrationPath as string;
 const resolvedHubLaunchSpineMigrationPath = hubLaunchSpineMigrationPath as string;
 const resolvedCapacityProviderApiKeysMigrationPath = capacityProviderApiKeysMigrationPath as string;
+const resolvedSeedRunsMigrationPath = seedRunsMigrationPath as string;
 
-if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !reportingMigrationPath || !webHostsMigrationPath || !capacityMigrationPath || !workdayManagerMigrationPath || !hubLaunchSpineMigrationPath || !capacityProviderApiKeysMigrationPath) {
+if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !reportingMigrationPath || !webHostsMigrationPath || !capacityMigrationPath || !workdayManagerMigrationPath || !hubLaunchSpineMigrationPath || !capacityProviderApiKeysMigrationPath || !seedRunsMigrationPath) {
 	throw new Error('Unable to resolve required market migration fixtures.');
 }
 
@@ -169,6 +175,7 @@ class TestD1Database implements D1DatabaseLike {
 		this.db.exec(readFileSync(resolvedWorkdayManagerMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedHubLaunchSpineMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedCapacityProviderApiKeysMigrationPath, 'utf8'));
+		this.db.exec(readFileSync(resolvedSeedRunsMigrationPath, 'utf8'));
 	}
 
 	prepare(query: string) {
@@ -3611,5 +3618,194 @@ runtimeDescribe('market api', () => {
 			body: JSON.stringify({ queueDepth: 0 }),
 		});
 		expect(oldHeartbeat.status).toBe(401);
+	});
+
+	it('plans and applies staging seeds with audit records, then reports unchanged', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+
+		const unauthenticated = await app.request('/v1/seeds/treeseed/plan', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ environments: ['staging'] }),
+		});
+		expect(unauthenticated.status).toBe(401);
+
+		const teamResponse = await app.request('/v1/teams', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ slug: 'treeseed', name: 'TreeSeed' }),
+		});
+		expect(teamResponse.status).toBe(200);
+		const team = (await json(teamResponse)).payload;
+
+		const planResponse = await app.request('/v1/seeds/treeseed/plan', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ environments: ['staging'] }),
+		});
+		expect(planResponse.status).toBe(200);
+		const plan = await json(planResponse);
+		expect(plan.ok).toBe(true);
+		expect(plan.summary).toMatchObject({ create: 13, update: 1, unchanged: 0, skip: 11 });
+		expect(plan.run).toMatchObject({ state: 'completed', mode: 'plan', seedName: 'treeseed' });
+
+		const firstApplyResponse = await app.request('/v1/seeds/treeseed/apply', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ environments: ['staging'] }),
+		});
+		expect(firstApplyResponse.status).toBe(200);
+		const firstApply = await json(firstApplyResponse);
+		expect(firstApply.ok).toBe(true);
+		expect(firstApply.summary).toMatchObject({ create: 13, update: 1, unchanged: 0, skip: 11 });
+		expect(firstApply.run).toMatchObject({ state: 'completed', mode: 'apply', seedName: 'treeseed' });
+		expect(firstApply.result.actionCount).toBe(14);
+
+		const runs = await json(await app.request('/v1/seeds/runs', {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(runs.payload).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				seedName: 'treeseed',
+				mode: 'apply',
+				state: 'completed',
+			}),
+		]));
+
+		const secondApplyResponse = await app.request('/v1/seeds/treeseed/apply', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ environments: ['staging'] }),
+		});
+		expect(secondApplyResponse.status).toBe(200);
+		const secondApply = await json(secondApplyResponse);
+		expect(secondApply.summary).toMatchObject({ create: 0, update: 0, unchanged: 14, skip: 11 });
+		expect(secondApply.result.actionCount).toBe(0);
+
+		const exportResponse = await app.request(`/v1/teams/${team.id}/seeds/export`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ name: 'treeseed', environments: ['staging'], includeArtifacts: true }),
+		});
+		expect(exportResponse.status).toBe(200);
+		const exported = await json(exportResponse);
+		expect(exported.ok).toBe(true);
+		expect(exported.yaml).toContain('repositoryHosts:');
+		expect(exported.yaml).toContain('products:');
+		expect(exported.yaml).toContain('catalogArtifacts:');
+		expect(exported.yaml).not.toMatch(/encryptedPayload|BEGIN PRIVATE KEY|ghp_/u);
+	});
+
+	it('gates production seed apply on matching approved requests', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const teamResponse = await app.request('/v1/teams', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ slug: 'treeseed', name: 'TreeSeed' }),
+		});
+		const team = (await json(teamResponse)).payload;
+		await app.request('/v1/seeds/treeseed/apply', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ environments: ['staging'] }),
+		});
+
+		const blockedResponse = await app.request('/v1/seeds/treeseed/apply', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ environments: ['prod'] }),
+		});
+		expect(blockedResponse.status).toBe(409);
+		const blocked = await json(blockedResponse);
+		expect(blocked.ok).toBe(false);
+		expect(blocked.result.blocked).toBe(true);
+		expect(blocked.result.approvalRequest).toMatchObject({
+			kind: 'seed_production_apply',
+			state: 'pending',
+		});
+
+		const teamApprovals = await json(await app.request(`/v1/teams/${team.id}/approval-requests?kind=seed_production_apply`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(teamApprovals.payload).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				id: blocked.result.approvalRequest.id,
+				kind: 'seed_production_apply',
+				state: 'pending',
+			}),
+		]));
+
+		const inbox = await json(await app.request(`/v1/teams/${team.id}/inbox`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(inbox.payload).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				href: `/app/teams/treeseed/seeds#approval-${blocked.result.approvalRequest.id}`,
+				metadata: expect.objectContaining({
+					approvalId: blocked.result.approvalRequest.id,
+					approvalKind: 'seed_production_apply',
+				}),
+			}),
+		]));
+
+		const staleResponse = await app.request('/v1/seeds/treeseed/apply', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ environments: ['prod'], approvalRequestId: blocked.result.approvalRequest.id }),
+		});
+		expect(staleResponse.status).toBe(409);
+
+		const decided = await app.request(`/v1/approval-requests/${blocked.result.approvalRequest.id}/decide`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ state: 'approved' }),
+		});
+		expect(decided.status).toBe(200);
+
+		const appliedResponse = await app.request('/v1/seeds/treeseed/apply', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ environments: ['prod'], approvalRequestId: blocked.result.approvalRequest.id }),
+		});
+		expect(appliedResponse.status).toBe(200);
+		const applied = await json(appliedResponse);
+		expect(applied.ok).toBe(true);
+		expect(applied.summary.create).toBeGreaterThan(0);
+		expect(applied.run).toMatchObject({ state: 'completed', mode: 'apply' });
 	});
 });
