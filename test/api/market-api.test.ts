@@ -206,6 +206,7 @@ function createTestApp(options: MarketApiTestOptions = {}) {
 			repoRoot: packageRoot,
 			authSecret: 'test-secret',
 			baseUrl: 'https://market.example.com',
+			siteUrl: 'https://market.example.com',
 			issuer: 'https://market.example.com',
 			projectId: 'treeseed-market',
 			projectApiKey: 'market-project-key',
@@ -2813,6 +2814,23 @@ runtimeDescribe('market api', () => {
 			sha256: 'abc123',
 			downloadUrl: 'https://cdn.example.com/downloadable-starter.tar',
 		});
+	});
+
+	it('uses the configured production web approval URL for the central API', async () => {
+		const app = createTestApp({
+			config: {
+				baseUrl: 'https://api.treeseed.ai',
+				siteUrl: 'https://treeseed.ai',
+			},
+		});
+		const started = await json(await app.request('/v1/auth/device/start', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ clientName: 'treeseed-cli', scopes: ['auth:me', 'market'] }),
+		}));
+
+		expect(started.verificationUri).toBe('https://treeseed.ai/auth/device/approve');
+		expect(started.verificationUriComplete).toBe(`https://treeseed.ai/auth/device/approve?user_code=${encodeURIComponent(started.userCode)}`);
 	});
 
 	it('signs editorial preview links for team-scoped overlays', async () => {

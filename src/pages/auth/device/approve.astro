@@ -26,18 +26,33 @@ let approved = Astro.url.searchParams.get('approved') === '1';
 function runtimeApiBaseUrl() {
 	const env = (Astro.locals.runtime?.env ?? {}) as Record<string, unknown>;
 	const value = env.TREESEED_API_BASE_URL ?? env.TREESEED_MARKET_API_BASE_URL;
-	if (typeof value === 'string' && value.trim()) {
-		return value.trim().replace(/\/+$/u, '');
-	}
 	if (Astro.url.hostname === '127.0.0.1' || Astro.url.hostname === 'localhost') {
+		if (typeof value === 'string' && value.trim()) {
+			return value.trim().replace(/\/+$/u, '');
+		}
 		return 'http://127.0.0.1:3000';
 	}
 	return '';
 }
 
+function approvalEndpoints() {
+	const localApiBaseUrl = runtimeApiBaseUrl();
+	if (localApiBaseUrl) {
+		return {
+			formAction: `${localApiBaseUrl}/auth/device/approve`,
+			serverUrls: [
+				`${localApiBaseUrl}/auth/device/approve`,
+				`${localApiBaseUrl}/v1/auth/device/approve`,
+			],
+		};
+	}
+	return {
+		formAction: '/v1/auth/device/approve',
+		serverUrls: [`${Astro.url.origin}/v1/auth/device/approve`],
+	};
+}
+
 async function approveThroughApi() {
-	const baseUrl = runtimeApiBaseUrl();
-	if (!baseUrl) return false;
 	const payload = {
 		userCode,
 		principalId: activePrincipal.id,
@@ -45,8 +60,8 @@ async function approveThroughApi() {
 		metadata: activePrincipal.metadata ?? {},
 	};
 	const errors: string[] = [];
-	for (const pathname of ['/auth/device/approve', '/v1/auth/device/approve']) {
-		const response = await fetch(`${baseUrl}${pathname}`, {
+	for (const url of approvalEndpoints().serverUrls) {
+		const response = await fetch(url, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify(payload),
@@ -63,8 +78,7 @@ async function approveThroughApi() {
 	throw new Error(errors[0] ?? 'Device login approval endpoint was not found.');
 }
 
-const apiApprovalBaseUrl = runtimeApiBaseUrl();
-const directApprovalAction = apiApprovalBaseUrl ? `${apiApprovalBaseUrl}/auth/device/approve` : '/auth/device/approve';
+const directApprovalAction = approvalEndpoints().formAction;
 const approvalRedirectTo = `${Astro.url.origin}/auth/device/approve?approved=1`;
 const principalMetadata = JSON.stringify(activePrincipal.metadata ?? {});
 
