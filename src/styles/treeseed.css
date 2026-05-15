@@ -997,6 +997,64 @@ input[data-team-name-state='error'] {
 	color: var(--ts-color-danger-text);
 }
 
+.ts-governance-detail-list {
+	display: grid;
+	gap: 0.65rem;
+	margin-top: 0.9rem;
+}
+
+.ts-governance-detail {
+	padding: 0.75rem 0.85rem;
+	border: 1px solid var(--ts-color-border);
+	border-radius: var(--ts-radius-md);
+	background: var(--ts-color-surface-muted);
+}
+
+.ts-governance-detail summary {
+	cursor: pointer;
+	font-weight: 700;
+	line-height: 1.35;
+}
+
+.ts-governance-detail[open] summary {
+	margin-bottom: 0.65rem;
+}
+
+.ts-governance-links,
+.ts-agent-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0.5rem 0 0.75rem;
+}
+
+.ts-governance-links a {
+	font-size: 0.84rem;
+	font-weight: 700;
+	color: var(--ts-color-link);
+}
+
+.ts-governance-pre {
+	max-height: 18rem;
+	overflow: auto;
+	margin: 0.75rem 0 0;
+	padding: 0.75rem;
+	border: 1px solid var(--ts-color-border);
+	border-radius: var(--ts-radius-sm);
+	background: var(--ts-color-surface);
+	color: var(--ts-color-text);
+	font-size: 0.82rem;
+	line-height: 1.45;
+	white-space: pre-wrap;
+}
+
+.ts-governance-note {
+	margin: 0.65rem 0 0;
+	color: var(--ts-color-text-muted);
+	font-size: 0.85rem;
+	line-height: 1.45;
+}
+
 .ts-host-usage {
 	margin-top: 0.85rem;
 	padding: 0.75rem 0.85rem;

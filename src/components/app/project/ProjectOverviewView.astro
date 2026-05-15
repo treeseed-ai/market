@@ -5,7 +5,10 @@ import MetricGrid from '../../../../packages/core/src/components/ui/data/MetricG
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import StatusPill from '../../../../packages/core/src/components/ui/data/StatusPill.astro';
 
-const { summary } = Astro.props as any;
+const { summary, agents } = Astro.props as any;
+const docsAutomation = agents?.docsAutomation ?? {};
+const activeWorkday = docsAutomation.activeWorkdayId ?? agents?.currentWorkday?.id ?? agents?.currentWorkday?.workDayId ?? null;
+const latestReport = docsAutomation.latestReport ?? agents?.runtimeReports?.[0] ?? agents?.workdaySummaries?.[0] ?? null;
 ---
 
 <>
@@ -40,6 +43,19 @@ const { summary } = Astro.props as any;
 			<ActionList items={(summary?.recentActivity ?? []).map((item: any) => ({ title: item.title, description: `${item.status} - ${item.timestamp}${item.summary ? ` - ${item.summary}` : ''}`, tone: 'info' }))} />
 		</Panel>
 	</div>
+	<Panel class="ts-stack-top" eyebrow="Docs automation" title={activeWorkday ? 'Governed workday active' : 'No active docs workday'} description="Current documentation agent activity, approvals, verification, and reports from the project agents runtime.">
+		<MetricGrid min="8rem" metrics={[
+			{ label: 'Generated drafts', value: docsAutomation.knowledgeDraftCount ?? agents?.knowledgeDrafts?.length ?? 0 },
+			{ label: 'Pending approvals', value: docsAutomation.pendingApprovalCount ?? agents?.approvals?.length ?? 0, tone: (docsAutomation.pendingApprovalCount ?? agents?.approvals?.length ?? 0) ? 'warning' : 'success' },
+			{ label: 'Verification issues', value: docsAutomation.verificationFailureCount ?? 0, tone: (docsAutomation.verificationFailureCount ?? 0) ? 'danger' : 'success' },
+			{ label: 'Repair tasks', value: docsAutomation.repairTaskCount ?? agents?.operationLifecycle?.repairTasks?.length ?? 0, tone: (docsAutomation.repairTaskCount ?? agents?.operationLifecycle?.repairTasks?.length ?? 0) ? 'warning' : 'success' },
+		]} />
+		<KeyValueList items={[
+			{ key: 'Active workday', value: activeWorkday ?? 'No active workday reported' },
+			{ key: 'Latest report', value: latestReport ? `${latestReport.kind ?? 'workday report'} · ${latestReport.createdAt ?? latestReport.created_at ?? 'recorded'}` : 'No report recorded yet' },
+			{ key: 'Review surface', value: 'Open Project Agents for drafts, source maps, approvals, mutations, and task events.' },
+		]} />
+	</Panel>
 	<div class="ts-section-grid ts-stack-top">
 		<Panel eyebrow="Repositories" title="Software and content">
 			<ActionList items={(summary?.repositories ?? []).map((repository: any) => ({ title: repository.role, description: `${repository.owner}/${repository.name} - ${repository.status}` }))} />

@@ -1,3 +1,6 @@
+import { existsSync, readdirSync } from 'node:fs';
+import { basename, resolve } from 'node:path';
+import { planSeedWithStore } from './seeds/apply.js';
 import { listTreeseedManagedHostsFromConfig } from './managed-hosts.js';
 
 export const teamSectionTitles = {
@@ -7,6 +10,7 @@ export const teamSectionTitles = {
 	products: 'Team Products',
 	hosts: 'Hosts',
 	capacity: 'Processing Capacity',
+	seeds: 'Environment Seeds',
 	settings: 'Team Settings',
 };
 
@@ -15,7 +19,128 @@ export function hostTypeFor(host: any) {
 	return host?.metadata?.hostType === 'processing' || host?.metadata?.hostType === 'agent' || host?.provider === 'railway' ? 'processing' : 'web';
 }
 
-export async function loadTeamSectionData(context: any, locals: App.Locals) {
+function runtimeEnvValue(locals: App.Locals, name: string) {
+	const runtimeValue = (locals as any)?.runtime?.env?.[name];
+	if (typeof runtimeValue === 'string' && runtimeValue.trim()) return runtimeValue.trim();
+	const processValue = typeof process !== 'undefined' ? process.env?.[name] : undefined;
+	return typeof processValue === 'string' && processValue.trim() ? processValue.trim() : '';
+}
+
+function isLocalRuntime(locals: App.Locals) {
+	return runtimeEnvValue(locals, 'TREESEED_ENVIRONMENT') === 'local'
+		|| runtimeEnvValue(locals, 'TREESEED_LOCAL_DEV_MODE') === 'cloudflare';
+}
+
+function projectRootFor(locals: App.Locals) {
+	const repoRoot = (locals as any)?.runtime?.resolved?.config?.repoRoot;
+	return typeof repoRoot === 'string' && repoRoot.trim() ? repoRoot : process.cwd();
+}
+
+function discoverSeedNames(projectRoot: string) {
+	const seedsDir = resolve(projectRoot, 'seeds');
+	if (!existsSync(seedsDir)) return ['treeseed'];
+	const names = readdirSync(seedsDir)
+		.filter((entry) => entry.endsWith('.yaml') || entry.endsWith('.yml'))
+		.map((entry) => basename(entry).replace(/\.ya?ml$/u, ''))
+		.filter((entry) => /^[a-zA-Z0-9_-]+$/u.test(entry));
+	return [...new Set(names.length ? names : ['treeseed'])].sort((left, right) => {
+		if (left === 'treeseed') return -1;
+		if (right === 'treeseed') return 1;
+		return left.localeCompare(right);
+	});
+}
+
+function selectedSeedEnvironment(url: URL | undefined, locals: App.Locals) {
+	const requested = url?.searchParams.get('environments') ?? url?.searchParams.get('environment') ?? '';
+	if (requested.trim()) return requested;
+	return isLocalRuntime(locals) ? 'local' : 'staging';
+}
+
+function selectedSeedName(url: URL | undefined, seedNames: string[]) {
+	const requested = url?.searchParams.get('seed') ?? '';
+	return seedNames.includes(requested) ? requested : seedNames.includes('treeseed') ? 'treeseed' : seedNames[0] ?? 'treeseed';
+}
+
+function seedRunTouchesTeam(run: any, team: any) {
+	const actions = Array.isArray(run?.plan?.actions) ? run.plan.actions : [];
+	const handles = new Set([team?.id, team?.name, team?.slug].filter(Boolean).map(String));
+	return actions.some((action: any) => (
+		action.kind === 'team'
+		&& (
+			handles.has(String(action.existing?.id ?? ''))
+			|| handles.has(String(action.payload?.slug ?? ''))
+			|| handles.has(String(action.payload?.name ?? ''))
+		)
+	));
+}
+
+async function loadSeedSectionData(context: any, locals: App.Locals, url?: URL) {
+	if (!context.team || !context.store) {
+		return {
+			seedPage: {
+				teamId: context.team?.id ?? null,
+				seedNames: ['treeseed'],
+				selectedSeed: 'treeseed',
+				selectedEnvironments: 'local',
+				plan: null,
+				diagnostics: [],
+				runs: [],
+				approvals: [],
+				error: 'Team store is unavailable.',
+			},
+		};
+	}
+	const projectRoot = projectRootFor(locals);
+	const seedNames = discoverSeedNames(projectRoot);
+	const selectedSeed = selectedSeedName(url, seedNames);
+	const selectedEnvironments = selectedSeedEnvironment(url, locals);
+	const planned: any = await planSeedWithStore({
+		projectRoot,
+		seedName: selectedSeed,
+		environments: selectedEnvironments,
+		mode: 'plan',
+		store: context.store,
+		actor: {
+			actorType: 'user',
+			principal: context.principal,
+		},
+	}).catch((error: unknown) => ({
+		plan: null,
+		diagnostics: [{
+			severity: 'error',
+			code: 'seed.plan_failed',
+			message: error instanceof Error ? error.message : String(error),
+			path: 'seed',
+		}],
+		manifestHash: null,
+	}));
+	const [runs, approvals] = await Promise.all([
+		typeof context.store.listSeedRuns === 'function' ? context.store.listSeedRuns(100) : [],
+		typeof context.store.listApprovalRequestsForTeam === 'function'
+			? context.store.listApprovalRequestsForTeam(context.team.id, { kind: 'seed_production_apply', limit: 50 })
+			: [],
+	]);
+	return {
+		seedPage: {
+			teamId: context.team.id,
+			seedNames,
+			selectedSeed,
+			selectedEnvironments,
+			plan: planned.plan,
+			diagnostics: planned.plan?.diagnostics ?? planned.diagnostics ?? [],
+			manifestHash: planned.manifestHash ?? null,
+			runs: runs.filter((run: any) => seedRunTouchesTeam(run, context.team)).slice(0, 20),
+			approvals,
+			error: null,
+		},
+	};
+}
+
+export async function loadTeamSectionData(context: any, locals: App.Locals, options: { section?: string; url?: URL } = {}) {
+	if (options.section === 'seeds') {
+		return loadSeedSectionData(context, locals, options.url);
+	}
+
 	const [teamHome, inbox, members, products, webHosts, repositoryHosts, teamProjects, capacityProviders, capacityGrants] = context.team && context.store
 		? await Promise.all([
 			context.store.getTeamHomeSummary(context.team.id, context.principal),

@@ -13,6 +13,7 @@ const teamComponents = [
 	'TeamProductsView',
 	'TeamHostsView',
 	'TeamCapacityView',
+	'TeamSeedsView',
 	'TeamSettingsView',
 ];
 
@@ -144,27 +145,84 @@ describe('team and project section extraction', () => {
 			'Runtime readiness',
 			'Current workday',
 			'Codex provider',
-			'Generated knowledge',
-			'Pending approvals',
+			'Workday Timeline',
+			'Generated Knowledge Review',
+			'Approval Detail',
+			'Mutation Diff Viewer',
 			'Workday report timeline',
+			'workday-report-timeline',
 			'generatedArtifacts',
+			'knowledgeDrafts',
+			'optimizationReports',
+			'docs_mutation_result',
+			'source_map',
 			'codexReadiness',
 			'runtimeReports',
-			'approve_as_book_content',
-			'request_more_research',
+			'approve',
+			'request_changes',
+			'defer',
 			'reject',
 			'approve_release',
 			'reject_release',
 			'Release approvals',
-			'Grants and event log',
+			'Grants and task event log',
 			'Snapshots, repair, and release',
 			'operationGrants',
 			'operationEvents',
 			'operationLifecycle',
+			'verificationStatus',
+			'approval-',
+			'artifact-',
+			'agent-',
+			'task-',
 			'Production release still requires a separate human release approval',
 		]) {
 			expect(agents).toContain(marker);
 		}
+		const projectOverview = source('src/components/app/project/ProjectOverviewView.astro');
+		expect(projectOverview).toContain('Docs automation');
+		expect(projectOverview).toContain('pendingApprovalCount');
+		const projectWorkstreams = source('src/components/app/project/ProjectWorkstreamsView.astro');
+		expect(projectWorkstreams).toContain('Documentation governance activity');
+		expect(projectWorkstreams).toContain('./agents#approval-');
+		const teamInbox = source('src/components/app/team/TeamInboxView.astro');
+		expect(teamInbox).toContain('#approval-');
+		expect(teamInbox).toContain('#artifact-');
 		expect(agents).not.toContain('inspect-only');
+	});
+
+	it('exposes the team seed operations surface', () => {
+		const layout = source('src/layouts/TreeseedAppLayout.astro');
+		const teamRoute = source('src/pages/app/teams/[teamSlug]/[section].astro');
+		const sectionData = source('src/lib/market/team-section-data.ts');
+		const seeds = source('src/components/app/team/TeamSeedsView.astro');
+
+		expect(layout).toContain('Seeds');
+		expect(layout).toContain('${baseTeamPath}/seeds');
+		expect(teamRoute).toContain('TeamSeedsView');
+		expect(sectionData).toContain('loadSeedSectionData');
+		expect(sectionData).toContain('planSeedWithStore');
+		expect(sectionData).toContain('listApprovalRequestsForTeam');
+		expect(sectionData).toContain('listSeedRuns');
+
+		for (const marker of [
+			'data-team-seeds-root',
+			'Seed plans and governed applies',
+			'Record plan',
+			'Apply staging',
+			'Apply production with approval',
+			'Plan actions',
+			'Productized seed bundle',
+			'data-seed-export-form',
+			'data-seed-export-output',
+			'Production approvals',
+			'Seed runs',
+			'team-seeds-page-data',
+			"/v1/seeds/${encodeURIComponent(seedPageData.selectedSeed || 'treeseed')}/${mode}",
+			'/v1/teams/${encodeURIComponent(seedPageData.teamId || \'\')}/seeds/export',
+			'/v1/approval-requests/${encodeURIComponent(approvalId)}/decide',
+		]) {
+			expect(seeds).toContain(marker);
+		}
 	});
 });

@@ -3,7 +3,49 @@ import ActionList from '../../../../packages/core/src/components/ui/data/ActionL
 import Badge from '../../../../packages/core/src/components/ui/data/Badge.astro';
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 
-const { workstreams } = Astro.props as any;
+const { workstreams, agents } = Astro.props as any;
+const operationEvents = Array.isArray(agents?.operationEvents) ? agents.operationEvents : [];
+const generatedArtifacts = Array.isArray(agents?.generatedArtifacts) ? agents.generatedArtifacts : [];
+const approvals = Array.isArray(agents?.approvals) ? agents.approvals : [];
+const currentWorkday = agents?.currentWorkday ?? null;
+
+function compact(value: unknown, fallback = 'none') {
+	return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function anchorPart(value: unknown) {
+	return compact(value, 'item').replace(/[^a-zA-Z0-9_-]+/g, '-');
+}
+
+const workdayTimeline = [
+	currentWorkday ? {
+		title: 'Workday opened',
+		description: `${compact(currentWorkday.id ?? currentWorkday.workDayId, 'workday')} - ${compact(currentWorkday.updatedAt ?? currentWorkday.updated_at, 'No update timestamp')}`,
+		meta: compact(currentWorkday.state ?? currentWorkday.status, 'active'),
+		tone: 'info' as const,
+	} : null,
+	...generatedArtifacts.slice(0, 5).map((artifact: any) => ({
+		title: `Generated ${compact(artifact.artifactKind, 'artifact').replaceAll('_', ' ')}`,
+		description: `${compact(artifact.title, compact(artifact.draftId, compact(artifact.id, 'artifact')))} - ${compact(artifact.taskId, 'task not linked')}`,
+		href: `./agents#artifact-${anchorPart(artifact.id ?? artifact.taskId)}`,
+		meta: compact(artifact.taskState, compact(artifact.recommendation, 'artifact')),
+		tone: artifact.artifactKind === 'docs_mutation_result' && artifact.verificationStatus === 'failed' ? 'danger' as const : 'info' as const,
+	})),
+	...approvals.slice(0, 5).map((approval: any) => ({
+		title: compact(approval.title, 'Approval requested'),
+		description: `${compact(approval.targetPath, 'No target path')} - ${compact(approval.summary, compact(approval.recommendation, 'waiting'))}`,
+		href: `./agents#approval-${anchorPart(approval.id)}`,
+		meta: compact(approval.state, 'pending'),
+		tone: compact(approval.state, 'pending') === 'pending' ? 'warning' as const : 'info' as const,
+	})),
+	...operationEvents.slice(0, 8).map((event: any) => ({
+		title: compact(event.operation, 'operation'),
+		description: `${compact(event.status, 'event')} - ${Array.isArray(event.changedPaths) ? event.changedPaths.length : 0} changed path(s)`,
+		href: event.taskId ? `./agents#task-${anchorPart(event.taskId)}` : './agents',
+		meta: compact(event.taskId, 'task'),
+		tone: compact(event.status, '') === 'failed' ? 'danger' as const : 'info' as const,
+	})),
+].filter(Boolean).slice(0, 16);
 ---
 
 <div class="ts-section-grid">
@@ -13,5 +55,10 @@ const { workstreams } = Astro.props as any;
 	</Panel>
 	<Panel eyebrow="Recent workflow jobs" title="Operational activity">
 		<ActionList items={(workstreams?.recentJobs ?? []).map((job: any) => ({ title: `${job.namespace}:${job.operation}`, description: `${job.status} - ${job.updatedAt}`, tone: job.status === 'failed' ? 'danger' : 'info' }))} />
+	</Panel>
+	<Panel eyebrow="Workday Timeline" title="Documentation governance activity">
+		<ActionList items={workdayTimeline as any}>
+			<p>No documentation automation events have been reported yet.</p>
+		</ActionList>
 	</Panel>
 </div>

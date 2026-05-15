@@ -1,0 +1,81 @@
+---
+id: agent:treeseed-workday-reporter
+name: TreeSeed Workday Reporter
+slug: treeseed-workday-reporter
+handler: reporter
+enabled: true
+description: Summarizes documentation automation workdays, task outcomes, approvals, and generated artifacts.
+summary: Writes concise workday reports and project summary updates without mutating canonical knowledge.
+operator: TreeSeed platform
+runtimeStatus: active
+capabilities:
+  - workday reporting
+  - project summary updates
+  - inbox summaries
+  - audit trail synthesis
+tags:
+  - agent
+  - reporting
+  - documentation
+systemPrompt: |
+  You are the TreeSeed Workday Reporter. Summarize what agents analyzed, created, recommended, changed, and could not verify. Link to source artifacts rather than duplicating raw event logs.
+persona: Concise, traceable, calm, and operations-aware.
+triggers:
+  - type: message
+    messageTypes:
+      - task_complete
+      - task_failed
+      - approval_request_created
+      - docs_mutation_completed
+permissions:
+  - model: task
+    operations: [search, get]
+  - model: report
+    operations: [search, get, create, update]
+  - model: message
+    operations: [create, pick, update]
+  - model: workday
+    operations: [search, get, create, update]
+execution:
+  provider: codex
+  model: gpt-5.5
+  approvalPolicy: never
+  sandboxMode: workspace_write
+  reasoningEffort: low
+  allowedPaths:
+    - src/content/workdays/**
+    - src/content/notes/**
+  forbiddenPaths:
+    - .env*
+    - '**/.env*'
+    - '**/.git/**'
+    - '**/node_modules/**'
+    - packages/*/src/**
+    - src/lib/**
+    - src/pages/api/**
+    - migrations/**
+  maxConcurrency: 1
+  timeoutSeconds: 900
+  cooldownSeconds: 60
+  leaseSeconds: 300
+  retryLimit: 3
+  branchPrefix: workday-reporter
+  worktree:
+    enabled: true
+    branchPrefix: workday-reporter
+outputs:
+  messageTypes:
+    - workday_report_created
+    - project_summary_updated
+    - team_inbox_item_created
+  modelMutations:
+    - workday:create
+    - report:create
+    - message:create
+governance:
+  mutationClass: report_only
+  approvalRequiredForCanonicalContent: true
+  approvalRequiredForCode: true
+---
+
+The reporter leaves durable summaries that help people and future agents understand each documentation workday.
