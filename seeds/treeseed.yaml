@@ -191,6 +191,7 @@ resources:
       provider: capacity-provider:treeseed/production
       team: team:treeseed
       project: project:treeseed/market
+      environment: prod
       grantScope: project
       dailyCreditLimit: 2500
       monthlyCreditLimit: 25000
@@ -202,6 +203,7 @@ resources:
       provider: capacity-provider:treeseed/production
       team: team:treeseed
       project: project:treeseed/market
+      environment: staging
       grantScope: project
       dailyCreditLimit: 2500
       monthlyCreditLimit: 25000
@@ -213,6 +215,7 @@ resources:
       provider: capacity-provider:treeseed/production
       team: team:treeseed
       project: project:treeseed/sdk
+      environment: prod
       grantScope: project
       dailyCreditLimit: 1000
       monthlyCreditLimit: 10000
@@ -224,6 +227,7 @@ resources:
       provider: capacity-provider:treeseed/production
       team: team:treeseed
       project: project:treeseed/core
+      environment: prod
       grantScope: project
       dailyCreditLimit: 1000
       monthlyCreditLimit: 10000
@@ -235,6 +239,7 @@ resources:
       provider: capacity-provider:treeseed/production
       team: team:treeseed
       project: project:treeseed/cli
+      environment: prod
       grantScope: project
       dailyCreditLimit: 500
       monthlyCreditLimit: 5000
@@ -246,6 +251,7 @@ resources:
       provider: capacity-provider:treeseed/production
       team: team:treeseed
       project: project:treeseed/agent
+      environment: prod
       grantScope: project
       dailyCreditLimit: 1000
       monthlyCreditLimit: 10000
