@@ -95,14 +95,15 @@ describe('local seed apply', () => {
 					manifestHash: first.result.manifestHash,
 				},
 			});
-			expect(first.result.capacityProviderKeys.created).toHaveLength(1);
-			expect(first.result.capacityProviderKeys.created[0]).toMatchObject({
+			const firstResult = first.result as any;
+			expect(firstResult.capacityProviderKeys.created).toHaveLength(1);
+			expect(firstResult.capacityProviderKeys.created[0]).toMatchObject({
 				providerId: provider!.id,
 				providerKey: 'capacity-provider:treeseed/local-dev',
 				providerName: 'treeseed-local-dev',
 			});
-			expect(first.result.capacityProviderKeys.created[0].keyPrefix).toBe(first.result.capacityProviderKeys.created[0].plaintextKey.slice(0, 16));
-			expect(first.result.capacityProviderKeys.created[0].plaintextKey).toMatch(/^tsp_/);
+			expect(firstResult.capacityProviderKeys.created[0].keyPrefix).toBe(firstResult.capacityProviderKeys.created[0].plaintextKey.slice(0, 16));
+			expect(firstResult.capacityProviderKeys.created[0].plaintextKey).toMatch(/^tsp_/);
 			const providerKeys = await store.listCapacityProviderApiKeys(team!.id, provider!.id);
 			expect(providerKeys).toHaveLength(1);
 			expect(providerKeys[0]).not.toHaveProperty('plaintextKey');
@@ -198,9 +199,10 @@ describe('local seed apply', () => {
 				unchanged: 15,
 				skip: 11,
 			});
-			expect(second.result.capacityProviderKeys.created).toHaveLength(0);
-			expect(second.result.capacityProviderKeys.existing).toHaveLength(1);
-			expect(second.result.capacityProviderKeys.existing[0]).not.toHaveProperty('plaintextKey');
+			const secondResult = second.result as any;
+			expect(secondResult.capacityProviderKeys.created).toHaveLength(0);
+			expect(secondResult.capacityProviderKeys.existing).toHaveLength(1);
+			expect(secondResult.capacityProviderKeys.existing[0]).not.toHaveProperty('plaintextKey');
 		} finally {
 			db.close();
 		}
