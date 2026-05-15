@@ -1,0 +1,67 @@
+---
+id: agent:treeseed-knowledge-generator
+name: TreeSeed Knowledge Generator
+slug: treeseed-knowledge-generator
+handler: knowledge-generator
+enabled: true
+description: Converts source-grounded research notes into structured TreeSeed knowledge drafts.
+summary: Creates reviewable draft artifacts with source maps and pending-review state, without promoting canonical knowledge.
+operator: TreeSeed platform
+runtimeStatus: active
+capabilities:
+  - knowledge drafting
+  - source-map writing
+  - documentation structure
+  - uncertainty labeling
+tags:
+  - agent
+  - documentation
+  - knowledge
+systemPrompt: |
+  You are the TreeSeed Knowledge Generator. Convert approved research notes into clear draft knowledge articles. Include source maps, related questions, review state, and uncertainty. Do not promote canonical content directly or claim unsupported implementation facts.
+persona: Clear, structured, source-grounded, and careful with claims.
+triggers:
+  - type: message
+    messageTypes:
+      - research_completed
+      - research_note_created
+permissions:
+  - model: note
+    operations: [search, get]
+  - model: question
+    operations: [search, get]
+  - model: objective
+    operations: [search, get]
+  - model: knowledge
+    operations: [search, get]
+  - model: message
+    operations: [create, pick, update]
+execution:
+  provider: codex
+  model: gpt-5.5
+  approvalPolicy: never
+  sandboxMode: read_only
+  reasoningEffort: medium
+  maxConcurrency: 1
+  timeoutSeconds: 900
+  cooldownSeconds: 60
+  leaseSeconds: 300
+  retryLimit: 3
+  branchPrefix: docs-generator
+  worktree:
+    enabled: false
+outputs:
+  messageTypes:
+    - knowledge_draft_created
+    - draft_requires_context
+    - task_failed
+  modelMutations:
+    - message:create
+governance:
+  mutationClass: draft_only
+  approvalRequiredForCanonicalContent: true
+  approvalRequiredForCode: true
+  requireSourceMap: true
+---
+
+The generator turns implementation research into draft knowledge that can be reviewed before promotion.

@@ -8,6 +8,21 @@ function fileUrlPath(url) {
 	return decodeURIComponent(url.pathname);
 }
 
+function safeStoragePathSegment(value) {
+	return String(value ?? '')
+		.split('/')
+		.map((part) => part.trim())
+		.filter((part) => part && part !== '.' && part !== '..')
+		.join('/');
+}
+
+function artifactStorageRoot(config) {
+	const path = getNodeBuiltin('path');
+	if (!path) return null;
+	const root = String(config.agentArtifactStorageRoot ?? config.repoRoot ?? process.cwd()).trim();
+	return path.resolve(root, '.treeseed/generated/hosted-artifacts');
+}
+
 const migrationPaths = [
 	'../../migrations/0006_agent_control_plane.sql',
 	'../../migrations/0007_site_web_sessions.sql',
@@ -756,6 +771,74 @@ function serializeApprovalRequest(row) {
 	};
 }
 
+function serializeRuntimeWorkDay(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		state: row.state,
+		capacityBudget: Number(row.capacity_budget ?? 0),
+		capacityUsed: Number(row.capacity_used ?? 0),
+		graphVersion: row.graph_version,
+		summaryJson: row.summary_json,
+		startedAt: row.started_at,
+		endedAt: row.ended_at,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeRuntimeTask(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		workDayId: row.work_day_id,
+		agentId: row.agent_id,
+		type: row.type,
+		state: row.state,
+		priority: Number(row.priority ?? 0),
+		idempotencyKey: row.idempotency_key,
+		payloadJson: row.payload_json,
+		payloadHash: row.payload_hash,
+		attemptCount: Number(row.attempt_count ?? 0),
+		maxAttempts: Number(row.max_attempts ?? 3),
+		claimedBy: row.claimed_by,
+		leaseExpiresAt: row.lease_expires_at,
+		availableAt: row.available_at,
+		lastErrorCode: row.last_error_code,
+		lastErrorMessage: row.last_error_message,
+		graphVersion: row.graph_version,
+		parentTaskId: row.parent_task_id,
+		createdAt: row.created_at,
+		startedAt: row.started_at,
+		completedAt: row.completed_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeRuntimeTaskEvent(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		taskId: row.task_id,
+		seq: Number(row.seq ?? 0),
+		kind: row.kind,
+		dataJson: row.data_json,
+		createdAt: row.created_at,
+	};
+}
+
+function serializeRuntimeTaskOutput(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		taskId: row.task_id,
+		outputJson: row.output_json,
+		outputRef: row.output_ref,
+		createdAt: row.created_at,
+	};
+}
+
 function serializeTeamInvite(row) {
 	if (!row) return null;
 	return {
@@ -1417,6 +1500,23 @@ function serializeWorkdayRequest(row) {
 	};
 }
 
+function serializeWorkdayManagerLease(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		projectId: row.project_id,
+		environment: row.environment,
+		workDayId: row.work_day_id,
+		managerId: row.manager_id,
+		state: row.state,
+		heartbeatAt: row.heartbeat_at,
+		expiresAt: row.expires_at,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
 function serializeWorkerRunner(row) {
 	if (!row) return null;
 	return {
@@ -1551,6 +1651,11 @@ export class MarketControlPlaneStore {
 		this.config = config;
 		this.db = db;
 		this.initializationPromise = null;
+		this.artifactBucket = null;
+	}
+
+	setArtifactBucket(bucket) {
+		this.artifactBucket = bucket && typeof bucket === 'object' ? bucket : null;
 	}
 
 	async run(query, params = []) {
@@ -5373,6 +5478,456 @@ export class MarketControlPlaneStore {
 		return rows.map(serializeProjectWorkdaySummary);
 	}
 
+	async startRuntimeWorkDay(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		const existing = await this.first(`SELECT * FROM work_days WHERE id = ? LIMIT 1`, [id]);
+		if (existing) return serializeRuntimeWorkDay(existing);
+		await this.run(
+			`INSERT INTO work_days (
+				id, project_id, state, capacity_budget, capacity_used, graph_version, summary_json, started_at, ended_at, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				projectId,
+				input.state ?? 'active',
+				Number(input.capacityBudget ?? 0),
+				Number(input.capacityUsed ?? 0),
+				input.graphVersion ?? null,
+				JSON.stringify(input.summary ?? {}),
+				input.startedAt ?? timestamp,
+				input.endedAt ?? null,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeRuntimeWorkDay(await this.first(`SELECT * FROM work_days WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async closeRuntimeWorkDay(projectId, workDayId, input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const existing = await this.first(`SELECT * FROM work_days WHERE id = ? AND project_id = ? LIMIT 1`, [workDayId, projectId]);
+		if (!existing) return null;
+		await this.run(
+			`UPDATE work_days SET state = ?, summary_json = ?, ended_at = ?, updated_at = ? WHERE id = ? AND project_id = ?`,
+			[
+				input.state ?? 'completed',
+				JSON.stringify(input.summary ?? parseJson(existing.summary_json, {})),
+				input.endedAt ?? timestamp,
+				timestamp,
+				workDayId,
+				projectId,
+			],
+		);
+		return serializeRuntimeWorkDay(await this.first(`SELECT * FROM work_days WHERE id = ? AND project_id = ? LIMIT 1`, [workDayId, projectId]));
+	}
+
+	async listRuntimeWorkDays(projectId, input = {}) {
+		await this.ensureInitialized();
+		const limit = Math.max(1, Math.min(1000, Number(input.limit ?? 10)));
+		const rows = input.state
+			? await this.all(
+				`SELECT * FROM work_days WHERE project_id = ? AND state = ? ORDER BY updated_at DESC LIMIT ?`,
+				[projectId, input.state, limit],
+			)
+			: await this.all(
+				`SELECT * FROM work_days WHERE project_id = ? ORDER BY updated_at DESC LIMIT ?`,
+				[projectId, limit],
+			);
+		return rows.map(serializeRuntimeWorkDay);
+	}
+
+	async createRuntimeTask(projectId, input) {
+		await this.ensureInitialized();
+		const workDay = await this.first(`SELECT * FROM work_days WHERE id = ? AND project_id = ? LIMIT 1`, [input.workDayId, projectId]);
+		if (!workDay) return null;
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT OR IGNORE INTO tasks (
+				id, work_day_id, agent_id, type, state, priority, idempotency_key, payload_json, payload_hash,
+				attempt_count, max_attempts, claimed_by, lease_expires_at, available_at, last_error_code, last_error_message,
+				graph_version, parent_task_id, created_at, started_at, completed_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, NULL, NULL, ?, NULL, NULL, ?, ?, ?, NULL, NULL, ?)`,
+			[
+				id,
+				input.workDayId,
+				input.agentId,
+				input.type,
+				input.state ?? 'pending',
+				Number(input.priority ?? 0),
+				input.idempotencyKey,
+				JSON.stringify(input.payload ?? {}),
+				input.payloadHash ?? null,
+				Number(input.maxAttempts ?? 3),
+				input.availableAt ?? timestamp,
+				input.graphVersion ?? null,
+				input.parentTaskId ?? null,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeRuntimeTask(await this.first(
+			`SELECT tasks.* FROM tasks JOIN work_days ON work_days.id = tasks.work_day_id WHERE work_days.project_id = ? AND (tasks.id = ? OR tasks.idempotency_key = ?) LIMIT 1`,
+			[projectId, id, input.idempotencyKey],
+		));
+	}
+
+	async listRuntimeTasks(projectId, input = {}) {
+		await this.ensureInitialized();
+		const clauses = ['work_days.project_id = ?'];
+		const params = [projectId];
+		if (input.workDayId) {
+			clauses.push('tasks.work_day_id = ?');
+			params.push(input.workDayId);
+		}
+		if (input.agentId) {
+			clauses.push('tasks.agent_id = ?');
+			params.push(input.agentId);
+		}
+		if (input.state) {
+			const states = Array.isArray(input.state) ? input.state : String(input.state).split(',').filter(Boolean);
+			clauses.push(`tasks.state IN (${states.map(() => '?').join(', ')})`);
+			params.push(...states);
+		}
+		const limit = Math.max(1, Math.min(1000, Number(input.limit ?? 50)));
+		params.push(limit);
+		const rows = await this.all(
+			`SELECT tasks.* FROM tasks JOIN work_days ON work_days.id = tasks.work_day_id WHERE ${clauses.join(' AND ')} ORDER BY tasks.priority DESC, tasks.available_at ASC LIMIT ?`,
+			params,
+		);
+		return rows.map(serializeRuntimeTask);
+	}
+
+	async claimRuntimeTask(projectId, taskId, input) {
+		await this.ensureInitialized();
+		const existing = await this.first(
+			`SELECT tasks.* FROM tasks JOIN work_days ON work_days.id = tasks.work_day_id WHERE work_days.project_id = ? AND tasks.id = ? LIMIT 1`,
+			[projectId, taskId],
+		);
+		if (!existing) return null;
+		const timestamp = isoNow();
+		const leaseExpiresAt = new Date(Date.now() + Number(input.leaseSeconds ?? 300) * 1000).toISOString();
+		await this.run(
+			`UPDATE tasks SET state = 'claimed', claimed_by = ?, lease_expires_at = ?, attempt_count = attempt_count + 1, started_at = COALESCE(started_at, ?), updated_at = ? WHERE id = ?`,
+			[input.workerId, leaseExpiresAt, timestamp, timestamp, taskId],
+		);
+		return serializeRuntimeTask(await this.first(`SELECT * FROM tasks WHERE id = ? LIMIT 1`, [taskId]));
+	}
+
+	async recordRuntimeTaskProgress(projectId, taskId, input) {
+		await this.ensureInitialized();
+		const existing = await this.first(
+			`SELECT tasks.* FROM tasks JOIN work_days ON work_days.id = tasks.work_day_id WHERE work_days.project_id = ? AND tasks.id = ? LIMIT 1`,
+			[projectId, taskId],
+		);
+		if (!existing) return null;
+		const payload = {
+			...parseJson(existing.payload_json, {}),
+			...(input.patch ?? {}),
+		};
+		await this.run(
+			`UPDATE tasks SET state = ?, claimed_by = COALESCE(?, claimed_by), payload_json = ?, updated_at = ? WHERE id = ?`,
+			[input.state ?? existing.state, input.workerId ?? null, JSON.stringify(payload), isoNow(), taskId],
+		);
+		if (input.appendEvent?.kind) {
+			await this.appendRuntimeTaskEvent(projectId, taskId, {
+				kind: input.appendEvent.kind,
+				data: input.appendEvent.data ?? {},
+				actor: input.actor,
+			});
+		}
+		return serializeRuntimeTask(await this.first(`SELECT * FROM tasks WHERE id = ? LIMIT 1`, [taskId]));
+	}
+
+	async completeRuntimeTask(projectId, taskId, input) {
+		await this.ensureInitialized();
+		const existing = await this.first(
+			`SELECT tasks.* FROM tasks JOIN work_days ON work_days.id = tasks.work_day_id WHERE work_days.project_id = ? AND tasks.id = ? LIMIT 1`,
+			[projectId, taskId],
+		);
+		if (!existing) return null;
+		const timestamp = isoNow();
+		await this.run(
+			`UPDATE tasks SET state = 'completed', completed_at = ?, lease_expires_at = NULL, updated_at = ? WHERE id = ?`,
+			[timestamp, timestamp, taskId],
+		);
+		if (input.output) {
+			await this.run(
+				`INSERT INTO task_outputs (id, task_id, output_json, output_ref, created_at) VALUES (?, ?, ?, ?, ?)`,
+				[randomUUID(), taskId, JSON.stringify(input.output), input.outputRef ?? null, timestamp],
+			);
+		}
+		if (input.summary) {
+			await this.appendRuntimeTaskEvent(projectId, taskId, {
+				kind: 'completed',
+				data: input.summary,
+				actor: input.actor,
+			});
+		}
+		return serializeRuntimeTask(await this.first(`SELECT * FROM tasks WHERE id = ? LIMIT 1`, [taskId]));
+	}
+
+	async storeRunnerTaskOutputArtifact(projectId, input) {
+		await this.ensureInitialized();
+		const project = await this.getProject(projectId);
+		if (!project) return null;
+		const timestamp = isoNow();
+		const contentType = typeof input.contentType === 'string' && input.contentType.trim()
+			? input.contentType.trim()
+			: 'application/json';
+		const buffer = input.contentBase64
+			? Buffer.from(String(input.contentBase64), 'base64')
+			: Buffer.from(typeof input.content === 'string' ? input.content : JSON.stringify(input.content ?? {}));
+		const sha256 = createHash('sha256').update(buffer).digest('hex');
+		if (input.sha256 && String(input.sha256) !== sha256) {
+			const error = new Error('Artifact body checksum does not match sha256.');
+			error.code = 'artifact_checksum_mismatch';
+			throw error;
+		}
+		const objectKey = safeStoragePathSegment(
+			input.objectKey
+			?? `agent-artifacts/${projectId}/${timestamp.slice(0, 10)}/${randomUUID()}.json`,
+		);
+		if (!objectKey) {
+			const error = new Error('objectKey is required.');
+			error.code = 'artifact_object_key_required';
+			throw error;
+		}
+		let storageMode = 'local_r2_emulation';
+		if (this.artifactBucket && typeof this.artifactBucket.put === 'function') {
+			await this.artifactBucket.put(objectKey, buffer, {
+				httpMetadata: { contentType },
+				customMetadata: { sha256, projectId, teamId: project.teamId },
+			});
+			storageMode = 'cloudflare_r2';
+		} else {
+			const fs = getNodeBuiltin('fs');
+			const path = getNodeBuiltin('path');
+			if (!fs || !path) {
+				const error = new Error('Artifact body storage is not available in this runtime.');
+				error.code = 'artifact_storage_unavailable';
+				throw error;
+			}
+			const root = artifactStorageRoot(this.config);
+			const filePath = path.resolve(root, projectId, objectKey);
+			const projectRoot = path.resolve(root, projectId);
+			if (!filePath.startsWith(projectRoot + path.sep) && filePath !== projectRoot) {
+				const error = new Error('Artifact objectKey escapes the project storage root.');
+				error.code = 'artifact_object_key_forbidden';
+				throw error;
+			}
+			await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+			await fs.promises.writeFile(filePath, buffer);
+		}
+		return {
+			artifactStorage: 'r2',
+			storageMode,
+			outputRef: `r2:${objectKey}`,
+			objectKey,
+			contentType,
+			sizeBytes: buffer.byteLength,
+			sha256,
+			teamId: project.teamId,
+			projectId,
+			createdAt: timestamp,
+		};
+	}
+
+	async resolveRuntimeTaskOutput(row, projectId) {
+		const serialized = serializeRuntimeTaskOutput(row);
+		if (!serialized?.outputRef) return serialized;
+		if (!String(serialized.outputRef).startsWith('r2:')) {
+			return serialized;
+		}
+		const objectKey = safeStoragePathSegment(String(serialized.outputRef).slice(3));
+		if (this.artifactBucket && typeof this.artifactBucket.get === 'function') {
+			try {
+				const object = await this.artifactBucket.get(objectKey);
+				if (!object) throw new Error(`Artifact object ${objectKey} was not found.`);
+				const content = typeof object.text === 'function'
+					? await object.text()
+					: typeof object.arrayBuffer === 'function'
+						? Buffer.from(await object.arrayBuffer()).toString('utf8')
+						: '';
+				const parsed = parseJson(content, null);
+				if (parsed && typeof parsed === 'object') {
+					return {
+						...serialized,
+						outputJson: JSON.stringify({
+							...parsed,
+							outputRef: serialized.outputRef,
+							outputMetadata: serialized.output,
+						}),
+						output: {
+							...parsed,
+							outputRef: serialized.outputRef,
+							outputMetadata: serialized.output,
+						},
+					};
+				}
+				return {
+					...serialized,
+					outputJson: JSON.stringify({ outputRef: serialized.outputRef, content }),
+					output: { outputRef: serialized.outputRef, content },
+				};
+			} catch (error) {
+				return {
+					...serialized,
+					outputJson: JSON.stringify({
+						outputRef: serialized.outputRef,
+						outputResolutionError: error instanceof Error ? error.message : String(error),
+					}),
+					output: {
+						outputRef: serialized.outputRef,
+						outputResolutionError: error instanceof Error ? error.message : String(error),
+					},
+				};
+			}
+		}
+		const fs = getNodeBuiltin('fs');
+		const path = getNodeBuiltin('path');
+		if (!fs || !path) {
+			return serialized;
+		}
+		const root = artifactStorageRoot(this.config);
+		const filePath = path.resolve(root, projectId, objectKey);
+		const projectRoot = path.resolve(root, projectId);
+		if (!filePath.startsWith(projectRoot + path.sep) && filePath !== projectRoot) {
+			return {
+				...serialized,
+				output: {
+					...serialized.output,
+					outputResolutionError: 'artifact_object_key_forbidden',
+				},
+			};
+		}
+		try {
+			const content = await fs.promises.readFile(filePath, 'utf8');
+			const parsed = parseJson(content, null);
+			if (parsed && typeof parsed === 'object') {
+				return {
+					...serialized,
+					outputJson: JSON.stringify({
+						...parsed,
+						outputRef: serialized.outputRef,
+						outputMetadata: serialized.output,
+					}),
+					output: {
+						...parsed,
+						outputRef: serialized.outputRef,
+						outputMetadata: serialized.output,
+					},
+				};
+			}
+			return {
+				...serialized,
+				outputJson: JSON.stringify({
+					...serialized.output,
+					outputRef: serialized.outputRef,
+					content,
+				}),
+				output: {
+					...serialized.output,
+					outputRef: serialized.outputRef,
+					content,
+				},
+			};
+		} catch (error) {
+			return {
+				...serialized,
+				outputJson: JSON.stringify({
+					...serialized.output,
+					outputRef: serialized.outputRef,
+					outputResolutionError: error instanceof Error ? error.message : String(error),
+				}),
+				output: {
+					...serialized.output,
+					outputRef: serialized.outputRef,
+					outputResolutionError: error instanceof Error ? error.message : String(error),
+				},
+			};
+		}
+	}
+
+	async failRuntimeTask(projectId, taskId, input) {
+		await this.ensureInitialized();
+		const existing = await this.first(
+			`SELECT tasks.* FROM tasks JOIN work_days ON work_days.id = tasks.work_day_id WHERE work_days.project_id = ? AND tasks.id = ? LIMIT 1`,
+			[projectId, taskId],
+		);
+		if (!existing) return null;
+		await this.run(
+			`UPDATE tasks SET state = ?, available_at = ?, last_error_code = ?, last_error_message = ?, lease_expires_at = NULL, updated_at = ? WHERE id = ?`,
+			[
+				input.retryable ? 'pending' : 'failed',
+				input.nextVisibleAt ?? existing.available_at,
+				input.errorCode ?? null,
+				input.errorMessage,
+				isoNow(),
+				taskId,
+			],
+		);
+		await this.appendRuntimeTaskEvent(projectId, taskId, {
+			kind: input.retryable ? 'retry_scheduled' : 'failed',
+			data: { errorCode: input.errorCode ?? null, errorMessage: input.errorMessage },
+			actor: input.actor,
+		});
+		return serializeRuntimeTask(await this.first(`SELECT * FROM tasks WHERE id = ? LIMIT 1`, [taskId]));
+	}
+
+	async appendRuntimeTaskEvent(projectId, taskId, input) {
+		await this.ensureInitialized();
+		const existing = await this.first(
+			`SELECT tasks.id FROM tasks JOIN work_days ON work_days.id = tasks.work_day_id WHERE work_days.project_id = ? AND tasks.id = ? LIMIT 1`,
+			[projectId, taskId],
+		);
+		if (!existing) return null;
+		const row = await this.first(`SELECT COALESCE(MAX(seq), 0) AS max_seq FROM task_events WHERE task_id = ?`, [taskId]);
+		const seq = Number(row?.max_seq ?? 0) + 1;
+		const id = randomUUID();
+		await this.run(
+			`INSERT INTO task_events (id, task_id, seq, kind, data_json, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			[id, taskId, seq, input.kind, JSON.stringify({ ...(input.data ?? {}), actor: input.actor }), isoNow()],
+		);
+		return serializeRuntimeTaskEvent(await this.first(`SELECT * FROM task_events WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async listRuntimeTaskEvents(projectId, taskId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT task_events.* FROM task_events JOIN tasks ON tasks.id = task_events.task_id JOIN work_days ON work_days.id = tasks.work_day_id WHERE work_days.project_id = ? AND tasks.id = ? ORDER BY task_events.seq ASC`,
+			[projectId, taskId],
+		);
+		return rows.map(serializeRuntimeTaskEvent);
+	}
+
+	async listRuntimeTaskOutputs(projectId, taskId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT task_outputs.* FROM task_outputs JOIN tasks ON tasks.id = task_outputs.task_id JOIN work_days ON work_days.id = tasks.work_day_id WHERE work_days.project_id = ? AND tasks.id = ? ORDER BY task_outputs.created_at ASC`,
+			[projectId, taskId],
+		);
+		return Promise.all(rows.map((row) => this.resolveRuntimeTaskOutput(row, projectId)));
+	}
+
+	async getRuntimeManagerContext(projectId, taskId) {
+		await this.ensureInitialized();
+		const task = serializeRuntimeTask(await this.first(
+			`SELECT tasks.* FROM tasks JOIN work_days ON work_days.id = tasks.work_day_id WHERE work_days.project_id = ? AND tasks.id = ? LIMIT 1`,
+			[projectId, taskId],
+		));
+		const workDay = task ? serializeRuntimeWorkDay(await this.first(`SELECT * FROM work_days WHERE id = ? LIMIT 1`, [task.workDayId])) : null;
+		return {
+			task,
+			workDay,
+			agent: null,
+			graph: workDay?.graphVersion ? { graphVersion: workDay.graphVersion } : null,
+		};
+	}
+
 	async getProjectWorkPolicy(projectId, environment) {
 		await this.ensureInitialized();
 		return serializeWorkPolicy(await this.first(
@@ -5459,6 +6014,67 @@ export class MarketControlPlaneStore {
 				[projectId, environment],
 			);
 		return rows.map(serializeWorkdayRequest);
+	}
+
+	async claimWorkdayManagerLease(projectId, input) {
+		await this.ensureInitialized();
+		const timestamp = input.now ?? isoNow();
+		const nowMs = Date.parse(timestamp);
+		const ttlSeconds = Number(input.ttlSeconds ?? 60);
+		const staleAfterSeconds = Number(input.staleAfterSeconds ?? ttlSeconds);
+		const existing = await this.first(
+			`SELECT * FROM workday_manager_leases WHERE project_id = ? AND environment = ? AND state = 'active' ORDER BY heartbeat_at DESC LIMIT 1`,
+			[projectId, input.environment],
+		);
+		if (existing && existing.manager_id !== input.managerId) {
+			const heartbeatMs = Date.parse(existing.heartbeat_at);
+			if (Number.isFinite(heartbeatMs) && Number.isFinite(nowMs) && nowMs - heartbeatMs <= staleAfterSeconds * 1000) {
+				return null;
+			}
+		}
+		const id = existing?.id ?? input.id ?? randomUUID();
+		await this.run(
+			`INSERT OR REPLACE INTO workday_manager_leases (
+				id, project_id, environment, work_day_id, manager_id, state, heartbeat_at, expires_at, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?,
+				COALESCE((SELECT created_at FROM workday_manager_leases WHERE id = ?), ?),
+				?
+			)`,
+			[
+				id,
+				projectId,
+				input.environment,
+				input.workDayId ?? existing?.work_day_id ?? null,
+				input.managerId,
+				timestamp,
+				new Date(Date.parse(timestamp) + ttlSeconds * 1000).toISOString(),
+				JSON.stringify(input.metadata ?? parseJson(existing?.metadata_json, {})),
+				id,
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeWorkdayManagerLease(await this.first(`SELECT * FROM workday_manager_leases WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async releaseWorkdayManagerLease(projectId, input) {
+		await this.ensureInitialized();
+		const existing = await this.first(
+			`SELECT * FROM workday_manager_leases WHERE id = ? AND project_id = ? LIMIT 1`,
+			[input.id, projectId],
+		);
+		if (!existing || existing.manager_id !== input.managerId) return null;
+		await this.run(`UPDATE workday_manager_leases SET state = 'released', updated_at = ? WHERE id = ?`, [isoNow(), input.id]);
+		return serializeWorkdayManagerLease(await this.first(`SELECT * FROM workday_manager_leases WHERE id = ? LIMIT 1`, [input.id]));
+	}
+
+	async listWorkdayManagerLeases(projectId, environment) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM workday_manager_leases WHERE project_id = ? AND environment = ? ORDER BY heartbeat_at DESC LIMIT 10`,
+			[projectId, environment],
+		);
+		return rows.map(serializeWorkdayManagerLease);
 	}
 
 	async recordWorkerRunner(projectId, input) {
@@ -5927,11 +6543,12 @@ export class MarketControlPlaneStore {
 			return null;
 		}
 
-		const [runtimeSummary, jobs, activity, products] = await Promise.all([
+		const [runtimeSummary, jobs, activity, products, summarySnapshot] = await Promise.all([
 			this.requestProjectRuntime(projectId, principal, '/v1/project/summary'),
 			this.listRecentJobsForProject(projectId, 12),
 			this.listProjectActivity(projectId, 12),
 			this.listCatalogArtifactVersions(projectId),
+			this.getProjectSummarySnapshot(projectId),
 		]);
 		const latestProdDeployment = details.deployments
 			.filter((deployment) => deployment.environment === 'prod')
@@ -5980,6 +6597,8 @@ export class MarketControlPlaneStore {
 			capabilityGrants: details.capabilityGrants,
 			latestLaunch: details.latestLaunch,
 			latestLaunchEvents: details.latestLaunchEvents,
+			summarySnapshot,
+			docsAutomation: summarySnapshot?.summary?.docsAutomation ?? null,
 			agentPools: details.agentPools,
 			latestProdDeployment: summarizeDeploymentStatus(latestProdDeployment),
 			latestStagingDeployment: summarizeDeploymentStatus(latestStagingDeployment),
@@ -6075,6 +6694,9 @@ export class MarketControlPlaneStore {
 			codexReadiness,
 			currentWorkday,
 			runtimeReportsPayload,
+			researchNotePayload,
+			knowledgeDraftPayload,
+			optimizationReportPayload,
 			workdaySummaries,
 		] = await Promise.all([
 			this.requestProjectRuntime(projectId, principal, '/v1/agents/status'),
@@ -6086,6 +6708,9 @@ export class MarketControlPlaneStore {
 			this.requestProjectRuntime(projectId, principal, '/v1/providers/codex/readiness'),
 			this.requestProjectRuntime(projectId, principal, '/v1/workdays/current'),
 			this.requestProjectRuntime(projectId, principal, '/v1/workdays/reports'),
+			this.requestProjectRuntime(projectId, principal, '/v1/research-notes'),
+			this.requestProjectRuntime(projectId, principal, '/v1/knowledge-drafts'),
+			this.requestProjectRuntime(projectId, principal, '/v1/optimization-reports'),
 			this.all(
 				`SELECT * FROM project_workday_summaries WHERE project_id = ? ORDER BY created_at DESC LIMIT 6`,
 				[projectId],
@@ -6106,12 +6731,56 @@ export class MarketControlPlaneStore {
 			codexUsage: [],
 		};
 		const runtimeReports = Array.isArray(runtimeReportsPayload?.items) ? runtimeReportsPayload.items : [];
+		const researchNotes = Array.isArray(researchNotePayload?.items) ? researchNotePayload.items : [];
+		const knowledgeDrafts = Array.isArray(knowledgeDraftPayload?.items) ? knowledgeDraftPayload.items : [];
+		const optimizationReports = Array.isArray(optimizationReportPayload?.items) ? optimizationReportPayload.items : [];
+		const taskHealth = artifactPayload?.taskHealth && typeof artifactPayload.taskHealth === 'object' ? artifactPayload.taskHealth : {
+			activeTasks: [],
+			staleTasks: [],
+			recoveredTaskCount: 0,
+			failedStaleTaskCount: 0,
+			retryBackoffPolicy: { baseSeconds: 15, maxSeconds: 300 },
+		};
+		const workerRunners = Array.isArray(artifactPayload?.workerRunners) ? artifactPayload.workerRunners : [];
+		const managerLease = artifactPayload?.managerLease && typeof artifactPayload.managerLease === 'object' ? artifactPayload.managerLease : null;
+		const docsMutationArtifacts = generatedArtifacts.filter((artifact) => artifact?.artifactKind === 'docs_mutation_result');
+		const pendingApprovals = approvals.filter((approval) => ['pending', 'waiting_for_approval', 'human_approval_pending'].includes(String(approval?.state ?? 'pending')));
+		const verificationFailures = [
+			...docsMutationArtifacts.filter((artifact) => String(artifact?.verificationStatus ?? '').toLowerCase() === 'failed'),
+			...(Array.isArray(operationLifecycle.mergeFailures) ? operationLifecycle.mergeFailures : []),
+			...(Array.isArray(operationLifecycle.repairTasks) ? operationLifecycle.repairTasks : []),
+		];
+		const docsAutomation = {
+			activeWorkdayId: currentWorkday?.id ?? currentWorkday?.workDayId ?? null,
+			activeWorkdayState: currentWorkday?.state ?? currentWorkday?.status ?? null,
+			generatedArtifactCount: generatedArtifacts.length,
+			researchNoteCount: researchNotes.length,
+			knowledgeDraftCount: knowledgeDrafts.length,
+			optimizationReportCount: optimizationReports.length,
+			pendingApprovalCount: pendingApprovals.length,
+			docsMutationCount: docsMutationArtifacts.length,
+			verificationFailureCount: verificationFailures.length,
+			repairTaskCount: Array.isArray(operationLifecycle.repairTasks) ? operationLifecycle.repairTasks.length : 0,
+			staleTaskCount: Array.isArray(taskHealth.staleTasks) ? taskHealth.staleTasks.length : 0,
+			recoveredTaskCount: Number(taskHealth.recoveredTaskCount ?? 0),
+			failedStaleTaskCount: Number(taskHealth.failedStaleTaskCount ?? 0),
+			workerRunnerCount: workerRunners.length,
+			activeWorkerRunnerCount: workerRunners.filter((runner) => ['active', 'idle', 'waking'].includes(String(runner?.state ?? ''))).length,
+			queuePolicy: {
+				maxQueuedTasks: details.agentPools?.[0]?.maxQueuedTasks ?? null,
+				maxQueuedCredits: details.agentPools?.[0]?.maxQueuedCredits ?? null,
+			},
+			latestReport: runtimeReports[0] ?? workdaySummaries[0] ?? null,
+		};
 		const runtimeWarnings = [
 			...(Array.isArray(artifactPayload?.warnings) ? artifactPayload.warnings : artifactPayload ? [] : [runtimeUnavailableWarning]),
 			...(Array.isArray(approvalPayload?.warnings) ? approvalPayload.warnings : []),
 			...(Array.isArray(operationGrantPayload?.warnings) ? operationGrantPayload.warnings : []),
 			...(Array.isArray(operationEventPayload?.warnings) ? operationEventPayload.warnings : []),
 			...(Array.isArray(runtimeReportsPayload?.warnings) ? runtimeReportsPayload.warnings : []),
+			...(Array.isArray(researchNotePayload?.warnings) ? researchNotePayload.warnings : []),
+			...(Array.isArray(knowledgeDraftPayload?.warnings) ? knowledgeDraftPayload.warnings : []),
+			...(Array.isArray(optimizationReportPayload?.warnings) ? optimizationReportPayload.warnings : []),
 			...(Array.isArray(codexReadiness?.warnings) ? codexReadiness.warnings : []),
 			...(Array.isArray(codexReadiness?.blockingIssues) ? codexReadiness.blockingIssues : []),
 		].filter(Boolean);
@@ -6121,10 +6790,17 @@ export class MarketControlPlaneStore {
 			agents: Array.isArray(statusPayload?.agents) ? statusPayload.agents : [],
 			messages: Array.isArray(messagePayload) ? messagePayload : [],
 			generatedArtifacts,
+			researchNotes,
+			knowledgeDrafts,
+			optimizationReports,
 			approvals,
 			operationGrants,
 			operationEvents,
 			operationLifecycle,
+			taskHealth,
+			workerRunners,
+			managerLease,
+			docsAutomation,
 			codexReadiness: codexReadiness ?? {
 				ok: false,
 				providerSelected: false,

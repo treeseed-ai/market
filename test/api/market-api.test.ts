@@ -950,12 +950,93 @@ runtimeDescribe('market api', () => {
 					},
 				}), { status: 200, headers: { 'content-type': 'application/json' } });
 			}
+			if (url === 'https://project.example.com/v1/agent-artifacts/knowledge%3Aruntime') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						projectId: 'hosted-project',
+						artifact: {
+							id: 'knowledge:runtime',
+							artifactKind: 'knowledge_draft',
+							title: 'Runtime',
+						},
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/agent-artifacts/knowledge%3Aruntime/source-map') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						projectId: 'hosted-project',
+						artifactId: 'knowledge:runtime',
+						sourceMap: [{ path: 'packages/agent/src/services/manager.ts', evidence: 'direct' }],
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/agent-artifacts/knowledge%3Aruntime/diff') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						projectId: 'hosted-project',
+						artifactId: 'knowledge:runtime',
+						changedPaths: ['src/content/knowledge/architecture/runtime/runtime.mdx'],
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
 			if (url === 'https://project.example.com/v1/approvals') {
 				return new Response(JSON.stringify({
 					ok: true,
 					payload: {
 						projectId: 'hosted-project',
 						items: [{ id: 'promotion:runtime', taskId: 'task-promote' }],
+						warnings: [],
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/approvals/promotion%3Aruntime') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						projectId: 'hosted-project',
+						approval: { id: 'promotion:runtime', state: 'pending' },
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/agents/status') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						projectId: 'hosted-project',
+						agents: [{ agentSlug: 'treeseed-docs-planner', handler: 'planner', status: 'idle' }],
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/research-notes') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						projectId: 'hosted-project',
+						items: [{ taskId: 'task-research', researchNote: { id: 'research:runtime' } }],
+						warnings: [],
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/knowledge-drafts') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						projectId: 'hosted-project',
+						items: [{ taskId: 'task-draft', knowledgeDraft: { id: 'knowledge:runtime', title: 'Runtime' } }],
+						warnings: [],
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url === 'https://project.example.com/v1/optimization-reports') {
+				return new Response(JSON.stringify({
+					ok: true,
+					payload: {
+						projectId: 'hosted-project',
+						items: [{ taskId: 'task-optimize', optimizationReport: { id: 'optimization:runtime', draftId: 'knowledge:runtime', totalScore: 29, recommendation: 'promote' } }],
 						warnings: [],
 					},
 				}), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -1086,8 +1167,20 @@ runtimeDescribe('market api', () => {
 		const artifacts = await json(await app.request(`/v1/projects/${project.id}/agent-artifacts`, { headers }));
 		expect(artifacts.payload.items).toEqual([expect.objectContaining({ id: 'knowledge:runtime' })]);
 
+		const artifactDetail = await json(await app.request(`/v1/projects/${project.id}/agent-artifacts/knowledge%3Aruntime`, { headers }));
+		expect(artifactDetail.payload.artifact).toMatchObject({ id: 'knowledge:runtime' });
+
+		const sourceMap = await json(await app.request(`/v1/projects/${project.id}/agent-artifacts/knowledge%3Aruntime/source-map`, { headers }));
+		expect(sourceMap.payload.sourceMap).toEqual([expect.objectContaining({ path: 'packages/agent/src/services/manager.ts' })]);
+
+		const artifactDiff = await json(await app.request(`/v1/projects/${project.id}/agent-artifacts/knowledge%3Aruntime/diff`, { headers }));
+		expect(artifactDiff.payload.changedPaths).toEqual(['src/content/knowledge/architecture/runtime/runtime.mdx']);
+
 		const approvals = await json(await app.request(`/v1/projects/${project.id}/approvals`, { headers }));
 		expect(approvals.payload.items).toEqual([expect.objectContaining({ id: 'promotion:runtime' })]);
+
+		const approvalDetail = await json(await app.request(`/v1/projects/${project.id}/approvals/promotion%3Aruntime`, { headers }));
+		expect(approvalDetail.payload.approval).toMatchObject({ id: 'promotion:runtime' });
 
 		const operationGrants = await json(await app.request(`/v1/projects/${project.id}/operations/grants`, { headers }));
 		expect(operationGrants.payload.items).toEqual([expect.objectContaining({ id: 'grant-stage-docs' })]);
@@ -1133,6 +1226,19 @@ runtimeDescribe('market api', () => {
 			reason: 'Reviewed in Agents page.',
 		});
 
+		const delegatedAliasDecision = await json(await app.request(`/v1/projects/${project.id}/approvals/promotion%3Aruntime/decision`, {
+			method: 'POST',
+			headers: {
+				...headers,
+				'content-type': 'application/json',
+			},
+			body: JSON.stringify({ decision: 'approve', reason: 'Reviewed from the governance table.' }),
+		}));
+		expect(delegatedAliasDecision.payload).toMatchObject({
+			id: 'promotion:runtime',
+			decision: 'approve',
+		});
+
 		const invalidDecision = await app.request(`/v1/projects/${project.id}/approvals/promotion%3Aruntime/decision`, {
 			method: 'POST',
 			headers: {
@@ -1142,7 +1248,7 @@ runtimeDescribe('market api', () => {
 			body: JSON.stringify({ decision: 'publish_release' }),
 		});
 		expect(invalidDecision.status).toBe(400);
-		expect(fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/v1/approvals/promotion%3Aruntime/decision'))).toHaveLength(1);
+		expect(fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/v1/approvals/promotion%3Aruntime/decision'))).toHaveLength(2);
 
 		const readiness = await json(await app.request(`/v1/projects/${project.id}/providers/codex/readiness`, { headers }));
 		expect(readiness.payload).toMatchObject({ providerSelected: true, subscriptionPlan: 'pro' });
@@ -1150,7 +1256,11 @@ runtimeDescribe('market api', () => {
 		const agents = await json(await app.request(`/v1/projects/${project.id}/agents`, { headers }));
 		expect(agents.payload).toMatchObject({
 			projectId: 'hosted-project',
+			agents: [expect.objectContaining({ agentSlug: 'treeseed-docs-planner' })],
 			generatedArtifacts: [expect.objectContaining({ id: 'knowledge:runtime', totalScore: 29 })],
+			researchNotes: [expect.objectContaining({ taskId: 'task-research' })],
+			knowledgeDrafts: [expect.objectContaining({ taskId: 'task-draft' })],
+			optimizationReports: [expect.objectContaining({ taskId: 'task-optimize' })],
 			approvals: [expect.objectContaining({ id: 'promotion:runtime' })],
 			operationGrants: [expect.objectContaining({ id: 'grant-stage-docs' })],
 			operationEvents: [expect.objectContaining({ operation: 'stage' })],
@@ -1161,7 +1271,16 @@ runtimeDescribe('market api', () => {
 			codexReadiness: expect.objectContaining({ providerSelected: true, subscriptionPlan: 'pro' }),
 			currentWorkday: expect.objectContaining({ id: 'workday-1', state: 'active' }),
 			runtimeReports: [expect.objectContaining({ id: 'report-1' })],
+			docsAutomation: expect.objectContaining({
+				researchNoteCount: 1,
+				knowledgeDraftCount: 1,
+				optimizationReportCount: 1,
+				generatedArtifactCount: 1,
+			}),
 		});
+
+		const agentDetail = await json(await app.request(`/v1/projects/${project.id}/agents/treeseed-docs-planner`, { headers }));
+		expect(agentDetail.payload.agent).toMatchObject({ agentSlug: 'treeseed-docs-planner', handler: 'planner' });
 
 		const disconnectedProjectResponse = await json(await app.request(`/v1/teams/${project.teamId}/projects`, {
 			method: 'POST',
@@ -1891,6 +2010,25 @@ runtimeDescribe('market api', () => {
 				summary: {
 					totalTasks: 3,
 					usedTaskCredits: 4,
+					generatedAt: '2026-04-15T17:01:00.000Z',
+					docsAutomation: {
+						researchNoteCount: 1,
+						knowledgeDraftCount: 1,
+						optimizationReportCount: 1,
+						docsMutationCount: 1,
+						pendingApprovalCount: 0,
+						verificationFailureCount: 0,
+					},
+					contentSnapshot: {
+						relativePath: 'src/content/workdays/2026-04-15-workday-1.mdx',
+						slug: 'workdays/2026-04-15/workday-1/report',
+						reportVersion: '20260415T170100Z-test',
+						title: 'TreeSeed Documentation Automation Workday - 2026-04-15',
+						status: 'completed',
+					},
+				},
+				metadata: {
+					reportId: 'report:workday-1',
 				},
 			}),
 		}));
@@ -1899,6 +2037,7 @@ runtimeDescribe('market api', () => {
 			environment: 'staging',
 			workDayId: 'workday-1',
 			kind: 'workday_summary',
+			state: 'completed',
 		});
 
 		const decisions = await json(await app.request(`/v1/projects/${project.id}/agent-pools/${decision.payload.poolId}/scale-decisions`, {
@@ -1922,8 +2061,339 @@ runtimeDescribe('market api', () => {
 			expect.objectContaining({
 				workDayId: 'workday-1',
 				kind: 'workday_summary',
+				summary: expect.objectContaining({
+					docsAutomation: expect.objectContaining({ docsMutationCount: 1 }),
+					contentSnapshot: expect.objectContaining({ relativePath: 'src/content/workdays/2026-04-15-workday-1.mdx' }),
+				}),
 			}),
 		]));
+
+		const projectSummary = await json(await app.request(`/v1/projects/${project.id}/summary`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(projectSummary.payload).toMatchObject({
+			docsAutomation: {
+				latestWorkdayReport: expect.objectContaining({
+					workDayId: 'workday-1',
+					reportId: 'report:workday-1',
+					generatedArtifactCount: 4,
+					pendingApprovalCount: 0,
+					verificationFailureCount: 0,
+				}),
+			},
+		});
+
+		const inbox = await json(await app.request(`/v1/teams/${team.id}/inbox`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(inbox.payload).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				kind: 'workday_summary',
+				state: 'completed',
+				href: expect.stringContaining('/agents#workday-report-timeline'),
+				metadata: expect.objectContaining({
+					workDayId: 'workday-1',
+					reportId: 'report:workday-1',
+					generatedArtifactCount: 4,
+				}),
+			}),
+		]));
+	});
+
+	it('allows project runners to drive hosted workday task lifecycle and manager leases', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { team, project } = await createTeamAndProject(app, token, {
+			id: 'hosted-runtime-project',
+			slug: 'hosted-runtime-project',
+			name: 'Hosted Runtime Project',
+		});
+		const provider = await json(await app.request(`/v1/teams/${team.id}/capacity-providers`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				id: 'hosted-runtime-provider',
+				name: 'Hosted Runtime Capacity',
+				provider: 'treeseed',
+				kind: 'team_owned',
+				billingScope: 'team',
+			}),
+		}));
+		const connection = await json(await app.request(`/v1/projects/${project.id}/connection`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				mode: 'hosted',
+				executionOwner: 'project_runner',
+				rotateRunnerToken: true,
+			}),
+		}));
+		const runnerToken = connection.payload.runnerToken as string;
+
+		const unauthenticated = await app.request(`/v1/projects/${project.id}/runner/tasks`);
+		expect(unauthenticated.status).toBe(401);
+
+		const workday = await json(await app.request(`/v1/projects/${project.id}/runner/workdays/start`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				id: 'hosted-workday-1',
+				capacityBudget: 25,
+				summary: { runtimeMode: 'hosted' },
+			}),
+		}));
+		expect(workday.payload).toMatchObject({
+			id: 'hosted-workday-1',
+			projectId: project.id,
+			state: 'active',
+		});
+
+		const lease = await json(await app.request(`/v1/projects/${project.id}/runner/manager-leases/claim`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				environment: 'staging',
+				workDayId: 'hosted-workday-1',
+				managerId: 'manager-hosted',
+				ttlSeconds: 60,
+				now: '2026-05-14T12:00:00.000Z',
+				metadata: { runtimeMode: 'hosted' },
+			}),
+		}));
+		expect(lease.payload).toMatchObject({
+			managerId: 'manager-hosted',
+			state: 'active',
+		});
+
+		const task = await json(await app.request(`/v1/projects/${project.id}/runner/tasks`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				workDayId: 'hosted-workday-1',
+				agentId: 'system',
+				type: 'refresh_project_graph',
+				idempotencyKey: 'hosted-workday-1:refresh_project_graph',
+				payload: { projectId: project.id },
+				actor: 'manager',
+			}),
+		}));
+		expect(task.payload).toMatchObject({
+			workDayId: 'hosted-workday-1',
+			type: 'refresh_project_graph',
+			state: 'pending',
+		});
+
+		const claimed = await json(await app.request(`/v1/projects/${project.id}/runner/tasks/${task.payload.id}/claim`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				workerId: 'worker-hosted',
+				leaseSeconds: 300,
+				actor: 'worker',
+			}),
+		}));
+		expect(claimed.payload).toMatchObject({
+			state: 'claimed',
+			claimedBy: 'worker-hosted',
+		});
+
+		await json(await app.request(`/v1/projects/${project.id}/runner/tasks/${task.payload.id}/events`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				kind: 'worker_started',
+				data: { workerId: 'worker-hosted' },
+				actor: 'worker',
+			}),
+		}));
+		const artifactBody = {
+			artifactKind: 'codebase_inventory',
+			codebaseInventory: {
+				kind: 'codebase_inventory',
+				generatedAt: '2026-05-14T12:00:00.000Z',
+				packages: [],
+				modules: [],
+				knowledgeGaps: [],
+			},
+			generatedArtifacts: [{
+				artifactKind: 'codebase_inventory',
+				id: 'inventory-1',
+				title: 'Hosted inventory',
+				taskId: task.payload.id,
+				sourceRefs: ['packages/agent/src/index.ts'],
+			}],
+			summary: {
+				status: 'completed',
+				summary: 'Hosted inventory completed.',
+			},
+		};
+		const artifactUpload = await json(await app.request(`/v1/projects/${project.id}/runner/artifacts`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				objectKey: 'agent-artifacts/hosted-workday-1/inventory.json',
+				content: JSON.stringify(artifactBody),
+				contentType: 'application/json',
+			}),
+		}));
+		expect(artifactUpload.payload).toMatchObject({
+			artifactStorage: 'r2',
+			outputRef: 'r2:agent-artifacts/hosted-workday-1/inventory.json',
+		});
+		const completed = await json(await app.request(`/v1/projects/${project.id}/runner/tasks/${task.payload.id}/complete`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				output: {
+					artifactKind: 'codebase_inventory',
+					artifactStorage: 'r2',
+					outputRef: artifactUpload.payload.outputRef,
+					objectKey: artifactUpload.payload.objectKey,
+					sizeBytes: artifactUpload.payload.sizeBytes,
+					sha256: artifactUpload.payload.sha256,
+				},
+				outputRef: artifactUpload.payload.outputRef,
+				summary: { status: 'done' },
+				actor: 'worker',
+			}),
+		}));
+		expect(completed.payload).toMatchObject({ state: 'completed' });
+
+		const outputs = await json(await app.request(`/v1/projects/${project.id}/runner/tasks/${task.payload.id}/outputs`, {
+			headers: { authorization: `Bearer ${runnerToken}` },
+		}));
+		expect(outputs.payload).toEqual([
+			expect.objectContaining({
+				taskId: task.payload.id,
+				outputRef: 'r2:agent-artifacts/hosted-workday-1/inventory.json',
+				outputJson: expect.stringContaining('Hosted inventory completed'),
+			}),
+		]);
+
+		const publicWorkdays = await json(await app.request(`/v1/projects/${project.id}/workdays`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(Array.isArray(publicWorkdays.payload)).toBe(true);
+
+		const publicWorkdayDetail = await json(await app.request(`/v1/projects/${project.id}/workdays/hosted-workday-1`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(publicWorkdayDetail.payload).toMatchObject({ id: 'hosted-workday-1' });
+
+		const publicTasks = await json(await app.request(`/v1/projects/${project.id}/tasks`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(publicTasks.payload).toEqual([expect.objectContaining({ id: task.payload.id })]);
+
+		const publicTask = await json(await app.request(`/v1/projects/${project.id}/tasks/${task.payload.id}`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(publicTask.payload).toMatchObject({ id: task.payload.id });
+
+		const publicTaskEvents = await json(await app.request(`/v1/projects/${project.id}/tasks/${task.payload.id}/events`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(publicTaskEvents.payload).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'worker_started' })]));
+
+		const publicArtifacts = await json(await app.request(`/v1/projects/${project.id}/agent-artifacts`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(publicArtifacts.payload.items).toEqual([expect.objectContaining({ id: 'inventory-1', artifactKind: 'codebase_inventory' })]);
+
+		const publicArtifactDetail = await json(await app.request(`/v1/projects/${project.id}/agent-artifacts/inventory-1`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(publicArtifactDetail.payload.artifact).toMatchObject({ id: 'inventory-1' });
+
+		const publicArtifactDiff = await json(await app.request(`/v1/projects/${project.id}/agent-artifacts/inventory-1/diff`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(publicArtifactDiff.payload).toMatchObject({ artifactId: 'inventory-1', changedPaths: [] });
+
+		const approval = await json(await app.request(`/v1/projects/${project.id}/runner/approval-requests`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				id: 'hosted-approval-1',
+				workDayId: 'hosted-workday-1',
+				taskId: task.payload.id,
+				kind: 'promote_knowledge_draft',
+				title: 'Promote hosted docs',
+				summary: 'Hosted docs promotion needs approval.',
+				metadata: { runtimeMode: 'hosted' },
+			}),
+		}));
+		expect(approval.payload).toMatchObject({
+			id: 'hosted-approval-1',
+			projectId: project.id,
+			teamId: team.id,
+			state: 'pending',
+		});
+
+		const usage = await json(await app.request(`/v1/projects/${project.id}/runner/capacity/usage`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${runnerToken}`,
+			},
+			body: JSON.stringify({
+				capacityProviderId: provider.payload.id,
+				workDayId: 'hosted-workday-1',
+				taskId: task.payload.id,
+				phase: 'consume',
+				credits: 2,
+				source: 'hosted_agent_runtime',
+			}),
+		}));
+		expect(usage.payload.entry).toMatchObject({
+			capacityProviderId: provider.payload.id,
+			projectId: project.id,
+			credits: 2,
+		});
+
+		const listed = await json(await app.request(`/v1/projects/${project.id}/runner/tasks?workDayId=hosted-workday-1`, {
+			headers: { authorization: `Bearer ${runnerToken}` },
+		}));
+		expect(listed.payload).toEqual([
+			expect.objectContaining({
+				id: task.payload.id,
+				state: 'completed',
+			}),
+		]);
 	});
 
 	it('stores hosted project work policies, priority snapshots, and task-credit ledger entries', async () => {

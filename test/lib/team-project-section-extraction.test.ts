@@ -144,27 +144,49 @@ describe('team and project section extraction', () => {
 			'Runtime readiness',
 			'Current workday',
 			'Codex provider',
-			'Generated knowledge',
-			'Pending approvals',
+			'Workday Timeline',
+			'Generated Knowledge Review',
+			'Approval Detail',
+			'Mutation Diff Viewer',
 			'Workday report timeline',
+			'workday-report-timeline',
 			'generatedArtifacts',
+			'knowledgeDrafts',
+			'optimizationReports',
+			'docs_mutation_result',
+			'source_map',
 			'codexReadiness',
 			'runtimeReports',
-			'approve_as_book_content',
-			'request_more_research',
+			'approve',
+			'request_changes',
+			'defer',
 			'reject',
 			'approve_release',
 			'reject_release',
 			'Release approvals',
-			'Grants and event log',
+			'Grants and task event log',
 			'Snapshots, repair, and release',
 			'operationGrants',
 			'operationEvents',
 			'operationLifecycle',
+			'verificationStatus',
+			'approval-',
+			'artifact-',
+			'agent-',
+			'task-',
 			'Production release still requires a separate human release approval',
 		]) {
 			expect(agents).toContain(marker);
 		}
+		const projectOverview = source('src/components/app/project/ProjectOverviewView.astro');
+		expect(projectOverview).toContain('Docs automation');
+		expect(projectOverview).toContain('pendingApprovalCount');
+		const projectWorkstreams = source('src/components/app/project/ProjectWorkstreamsView.astro');
+		expect(projectWorkstreams).toContain('Documentation governance activity');
+		expect(projectWorkstreams).toContain('./agents#approval-');
+		const teamInbox = source('src/components/app/team/TeamInboxView.astro');
+		expect(teamInbox).toContain('#approval-');
+		expect(teamInbox).toContain('#artifact-');
 		expect(agents).not.toContain('inspect-only');
 	});
 });
