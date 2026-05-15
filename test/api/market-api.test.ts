@@ -2693,6 +2693,7 @@ runtimeDescribe('market api', () => {
 		const app = createTestApp({
 			config: {
 				baseUrl: 'https://market.example.com',
+				siteUrl: 'https://app.market.example.com',
 			},
 		});
 		const started = await json(await app.request('/v1/auth/device/start', {
@@ -2700,7 +2701,9 @@ runtimeDescribe('market api', () => {
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ clientName: 'treeseed-cli', scopes: ['auth:me', 'market'] }),
 		}));
-		await app.request('/auth/device/approve', {
+		expect(started.verificationUri).toBe('https://app.market.example.com/auth/device/approve');
+		expect(started.verificationUriComplete).toBe(`https://app.market.example.com/auth/device/approve?user_code=${encodeURIComponent(started.userCode)}`);
+		await app.request('/v1/auth/device/approve', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({

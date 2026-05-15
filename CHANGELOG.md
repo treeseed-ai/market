@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.14] - 2026-05-15
+
+### Added
+
+- feat(api): implement device flow approval redirection and improved body (46e8cc4b892a)
+- feat(config): record repository changes (c42b16f3ae69)
+
+### Infrastructure
+
+- release: sync package staging heads (a946d953ba91)
+
+### Dependencies
+
+- Release @treeseed/market 0.5.14.
+- Release package @treeseed/agent: 0.8.15.
+- Release package @treeseed/cli: 0.8.15.
+- Release package @treeseed/core: 0.8.15.
+- Release package @treeseed/sdk: 0.8.15.
+
 ## [0.5.13] - 2026-05-15
 
 ### Fixed

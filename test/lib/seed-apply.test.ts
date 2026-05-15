@@ -1,16 +1,34 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { NodeSqliteD1Database } from '@treeseed/sdk/db/node-sqlite';
 import { MarketControlPlaneStore } from '../../src/api/store.js';
 import { applyLocalSeedFromCli, exportSeedWithStore } from '../../src/lib/market/seeds/apply.js';
+import { applyLocalSeedViaApiFromCli } from '../../src/lib/market/seeds/local-api.js';
 import { loadTeamSectionData } from '../../src/lib/market/team-section-data.js';
+import { createAccessToken } from '../../packages/agent/src/api/auth/tokens.ts';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 const tempDirs: string[] = [];
+
+function localUserAccessToken(userId = 'user-local', email = 'adrian.webb@knowledge.coop') {
+	return createAccessToken({
+		sub: userId,
+		displayName: 'Adrian Webb',
+		scopes: ['auth:me', 'market'],
+		roles: ['platform_admin'],
+		permissions: ['*:*:*'],
+		metadata: { email },
+		iat: Math.floor(Date.now() / 1000),
+		exp: Math.floor(Date.now() / 1000) + 3600,
+		iss: 'http://127.0.0.1:3000',
+		jti: `test-${userId}`,
+		tokenType: 'access',
+	}, 'test-auth-secret');
+}
 
 function createStore() {
 	const dir = mkdtempSync(resolve(tmpdir(), 'treeseed-seed-apply-'));
@@ -34,6 +52,83 @@ afterEach(() => {
 });
 
 describe('local seed apply', () => {
+	it('targets the generated local Miniflare D1 database and attaches the local owner', async () => {
+		const tempRoot = mkdtempSync(resolve(tmpdir(), 'treeseed-local-seed-root-'));
+		tempDirs.push(tempRoot);
+		mkdirSync(resolve(tempRoot, 'seeds'), { recursive: true });
+		copyFileSync(resolve(projectRoot, 'seeds', 'treeseed.yaml'), resolve(tempRoot, 'seeds', 'treeseed.yaml'));
+		const localEnvRoot = resolve(tempRoot, '.treeseed', 'generated', 'environments', 'local');
+		const miniflareRoot = resolve(localEnvRoot, '.wrangler', 'state', 'v3', 'd1', 'miniflare-D1DatabaseObject');
+		mkdirSync(miniflareRoot, { recursive: true });
+		writeFileSync(resolve(localEnvRoot, 'wrangler.toml'), 'name = "treeseed-local-test"\n');
+		const sqlitePath = join(miniflareRoot, 'local-ui.sqlite');
+
+		const setupDb = new NodeSqliteD1Database(sqlitePath);
+		const setupStore = new MarketControlPlaneStore({
+			repoRoot: tempRoot,
+			projectId: 'treeseed-market-test',
+			authSecret: 'test-auth-secret',
+			assertionSecret: 'test-assertion-secret',
+			serviceId: 'web',
+			serviceSecret: 'test-service-secret',
+		}, setupDb);
+		try {
+			await setupStore.ensureInitialized();
+			await setupStore.run(
+				`INSERT INTO users (id, email, display_name, status, metadata_json, created_at, updated_at)
+				 VALUES (?, ?, ?, 'active', '{}', ?, ?)`,
+				['user-local', 'adrian.webb@knowledge.coop', 'Adrian Webb', '2026-05-15T00:00:00.000Z', '2026-05-15T00:00:00.000Z'],
+			);
+		} finally {
+			setupDb.close();
+		}
+
+		const applied = await applyLocalSeedViaApiFromCli({
+			projectRoot: tempRoot,
+			seedName: 'treeseed',
+			environments: 'local',
+			accessToken: localUserAccessToken(),
+			env: {
+				TREESEED_API_AUTH_SECRET: 'test-auth-secret',
+				TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST: 'adrian.webb@knowledge.coop',
+			},
+		} as any);
+
+		expect(applied.plan.summary).toMatchObject({
+			create: 15,
+			update: 0,
+			unchanged: 0,
+			skip: 11,
+		});
+		expect((applied.result as any).localTeamMemberships).toEqual([
+			expect.objectContaining({
+				userId: 'user-local',
+				email: 'adrian.webb@knowledge.coop',
+				role: 'team_owner',
+			}),
+		]);
+
+		const verifyDb = new NodeSqliteD1Database(sqlitePath);
+		const verifyStore = new MarketControlPlaneStore({
+			repoRoot: tempRoot,
+			projectId: 'treeseed-market-test',
+			authSecret: 'test-auth-secret',
+			assertionSecret: 'test-assertion-secret',
+			serviceId: 'web',
+			serviceSecret: 'test-service-secret',
+		}, verifyDb);
+		try {
+			const team = await verifyStore.getTeamBySlug('treeseed');
+			expect(team?.id).toBeTruthy();
+			const teamContext = await verifyStore.resolvePrincipalTeamContext(team!.id, { id: 'user-local', roles: [] });
+			expect(teamContext?.roles).toContain('team_owner');
+			const projects = await verifyStore.listTeamProjects(team!.id);
+			expect(projects.map((project: any) => project.slug).sort()).toEqual(['agent', 'cli', 'core', 'market', 'sdk']);
+		} finally {
+			verifyDb.close();
+		}
+	});
+
 	it('creates the TreeSeed local portfolio and reports unchanged on repeat apply', async () => {
 		const { db, store } = createStore();
 		try {
