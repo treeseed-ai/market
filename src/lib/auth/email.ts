@@ -221,7 +221,7 @@ async function sendWithNodeSockets(message: AuthEmailMessage, smtp: SmtpConfig, 
 }
 
 function logConsoleFallback(message: AuthEmailMessage) {
-	console.warn(`[auth-email] ${message.subject} for ${message.to}\n${message.text}`);
+	console.info(`[auth-email] ${message.subject} for ${message.to}\n${message.text}`);
 }
 
 function errorMessage(error: unknown) {
@@ -231,6 +231,10 @@ function errorMessage(error: unknown) {
 function isLocalAuthUrl(value: string) {
 	const hostname = new URL(value).hostname;
 	return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+}
+
+function isLocalSmtpHost(value: string) {
+	return value === 'localhost' || value === '127.0.0.1' || value === '0.0.0.0';
 }
 
 export function canDeliverAuthEmail(context: Pick<APIContext, 'locals'> | undefined) {
@@ -257,6 +261,17 @@ export async function sendAuthEmail(context: Pick<APIContext, 'locals'> | undefi
 
 	assertSmtpConfigured(smtp);
 
+	if (isLocalAuthUrl(config.betterAuthBaseUrl) && isLocalSmtpHost(smtp.host)) {
+		try {
+			await sendWithNodeSockets(message, smtp, config.siteBaseUrl);
+			return;
+		} catch (nodeError) {
+			console.info(`[auth-email] Local SMTP unavailable (${errorMessage(nodeError)}); using console fallback.`);
+			logConsoleFallback(message);
+			return;
+		}
+	}
+
 	try {
 		await sendWithCloudflareSockets(message, smtp, config.siteBaseUrl);
 		return;
@@ -269,7 +284,7 @@ export async function sendAuthEmail(context: Pick<APIContext, 'locals'> | undefi
 			return;
 		} catch (nodeError) {
 			if (isLocalAuthUrl(config.betterAuthBaseUrl)) {
-				console.warn('[auth-email] SMTP delivery failed; using console fallback.', { cloudflareError, nodeError });
+				console.info(`[auth-email] SMTP delivery failed (${errorMessage(cloudflareError)}; ${errorMessage(nodeError)}); using console fallback.`);
 				logConsoleFallback(message);
 				return;
 			}
