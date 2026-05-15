@@ -45,7 +45,7 @@ describe('local seed apply', () => {
 			});
 
 			expect(first.plan.summary).toMatchObject({
-				create: 14,
+				create: 15,
 				update: 0,
 				unchanged: 0,
 				skip: 11,
@@ -70,9 +70,9 @@ describe('local seed apply', () => {
 			expect(repositories[0]).toMatchObject({
 				role: 'primary',
 				provider: 'github',
-				owner: 'treeseed-ai',
+				owner: 'knowledge-coop',
 				name: 'market',
-				url: 'https://github.com/treeseed-ai/market.git',
+				url: 'https://github.com/knowledge-coop/market.git',
 				defaultBranch: 'main',
 			});
 			expect(repositories[0].metadata?.seed).toMatchObject({
@@ -95,6 +95,21 @@ describe('local seed apply', () => {
 					manifestHash: first.result.manifestHash,
 				},
 			});
+			expect(first.result.capacityProviderKeys.created).toHaveLength(1);
+			expect(first.result.capacityProviderKeys.created[0]).toMatchObject({
+				providerId: provider!.id,
+				providerKey: 'capacity-provider:treeseed/local-dev',
+				providerName: 'treeseed-local-dev',
+			});
+			expect(first.result.capacityProviderKeys.created[0].keyPrefix).toBe(first.result.capacityProviderKeys.created[0].plaintextKey.slice(0, 16));
+			expect(first.result.capacityProviderKeys.created[0].plaintextKey).toMatch(/^tsp_/);
+			const providerKeys = await store.listCapacityProviderApiKeys(team!.id, provider!.id);
+			expect(providerKeys).toHaveLength(1);
+			expect(providerKeys[0]).not.toHaveProperty('plaintextKey');
+			expect(providerKeys[0].scopes).toEqual(expect.arrayContaining([
+				'provider:heartbeat',
+				'provider:registration:complete',
+			]));
 
 			const lanes = await store.listCapacityProviderLanes(team!.id, provider!.id);
 			expect(lanes.map((lane: any) => lane.name).sort()).toEqual(['local-codex', 'local-worker']);
@@ -180,9 +195,12 @@ describe('local seed apply', () => {
 			expect(second.plan.summary).toMatchObject({
 				create: 0,
 				update: 0,
-				unchanged: 14,
+				unchanged: 15,
 				skip: 11,
 			});
+			expect(second.result.capacityProviderKeys.created).toHaveLength(0);
+			expect(second.result.capacityProviderKeys.existing).toHaveLength(1);
+			expect(second.result.capacityProviderKeys.existing[0]).not.toHaveProperty('plaintextKey');
 		} finally {
 			db.close();
 		}
@@ -225,7 +243,7 @@ describe('local seed apply', () => {
 			expect(data.seedPage.selectedSeed).toBe('treeseed');
 			expect(data.seedPage.selectedEnvironments).toBe('local');
 			expect(data.seedPage.plan.summary).toMatchObject({
-				create: 13,
+				create: 14,
 				update: 1,
 				unchanged: 0,
 				skip: 11,

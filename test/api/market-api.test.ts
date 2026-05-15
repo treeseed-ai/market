@@ -3653,7 +3653,7 @@ runtimeDescribe('market api', () => {
 		expect(planResponse.status).toBe(200);
 		const plan = await json(planResponse);
 		expect(plan.ok).toBe(true);
-		expect(plan.summary).toMatchObject({ create: 13, update: 1, unchanged: 0, skip: 11 });
+		expect(plan.summary).toMatchObject({ create: 14, update: 1, unchanged: 0, skip: 11 });
 		expect(plan.run).toMatchObject({ state: 'completed', mode: 'plan', seedName: 'treeseed' });
 
 		const firstApplyResponse = await app.request('/v1/seeds/treeseed/apply', {
@@ -3667,13 +3667,29 @@ runtimeDescribe('market api', () => {
 		expect(firstApplyResponse.status).toBe(200);
 		const firstApply = await json(firstApplyResponse);
 		expect(firstApply.ok).toBe(true);
-		expect(firstApply.summary).toMatchObject({ create: 13, update: 1, unchanged: 0, skip: 11 });
+		expect(firstApply.summary).toMatchObject({ create: 14, update: 1, unchanged: 0, skip: 11 });
 		expect(firstApply.run).toMatchObject({ state: 'completed', mode: 'apply', seedName: 'treeseed' });
-		expect(firstApply.result.actionCount).toBe(14);
+		expect(firstApply.result.actionCount).toBe(15);
+		expect(firstApply.result.capacityProviderKeys.created).toHaveLength(1);
+		const providerSecurityCode = firstApply.result.capacityProviderKeys.created[0].plaintextKey;
+		expect(providerSecurityCode).toMatch(/^tsp_/);
+		const registrationResponse = await app.request('/v1/processing/register', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${providerSecurityCode}`,
+			},
+			body: JSON.stringify({ queueDepth: 0, activeWorkers: 0 }),
+		});
+		expect(registrationResponse.status).toBe(200);
+		const registration = await json(registrationResponse);
+		expect(registration.payload.provider.id).toBe(firstApply.result.capacityProviderKeys.created[0].providerId);
+		expect(registration.payload.lanes.length).toBeGreaterThan(0);
 
 		const runs = await json(await app.request('/v1/seeds/runs', {
 			headers: { authorization: `Bearer ${token}` },
 		}));
+		expect(JSON.stringify(runs)).not.toContain(providerSecurityCode);
 		expect(runs.payload).toEqual(expect.arrayContaining([
 			expect.objectContaining({
 				seedName: 'treeseed',
@@ -3692,8 +3708,11 @@ runtimeDescribe('market api', () => {
 		});
 		expect(secondApplyResponse.status).toBe(200);
 		const secondApply = await json(secondApplyResponse);
-		expect(secondApply.summary).toMatchObject({ create: 0, update: 0, unchanged: 14, skip: 11 });
+		expect(secondApply.summary).toMatchObject({ create: 0, update: 0, unchanged: 15, skip: 11 });
 		expect(secondApply.result.actionCount).toBe(0);
+		expect(secondApply.result.capacityProviderKeys.created).toHaveLength(0);
+		expect(secondApply.result.capacityProviderKeys.existing).toHaveLength(1);
+		expect(secondApply.result.capacityProviderKeys.existing[0]).not.toHaveProperty('plaintextKey');
 
 		const exportResponse = await app.request(`/v1/teams/${team.id}/seeds/export`, {
 			method: 'POST',

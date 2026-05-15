@@ -303,6 +303,7 @@ function providerCurrentPayload(action, provider) {
 		maxConcurrentWorkdays: provider.maxConcurrentWorkdays ?? null,
 		maxConcurrentWorkers: provider.maxConcurrentWorkers ?? null,
 		capacityModel: emptyObjectAsNull(provider.capacityModel),
+		registration: action.payload.registration ?? null,
 		metadata: action.payload.metadata,
 	};
 }
@@ -859,6 +860,67 @@ async function createProductionApproval({ store, plan, manifestHash, actor }) {
 	return { ok: true, approvalRequest: request };
 }
 
+function registrationApiKeyPolicy(action) {
+	const apiKey = action.payload?.registration?.apiKey;
+	if (!apiKey || typeof apiKey !== 'object' || apiKey.createIfMissing !== true) return null;
+	return apiKey;
+}
+
+function publicProviderKeyRecord(action, providerId, key, extra = {}) {
+	return {
+		providerId,
+		providerKey: action.key,
+		providerName: action.payload.name,
+		keyId: key?.id ?? null,
+		keyPrefix: key?.keyPrefix ?? null,
+		...extra,
+	};
+}
+
+async function ensureCapacityProviderApiKeys({ plan, store, ids, actor }) {
+	const result = { created: [], existing: [] };
+	if (typeof store.listCapacityProviderApiKeys !== 'function' || typeof store.createCapacityProviderApiKey !== 'function') {
+		return result;
+	}
+	for (const action of selectedActions(plan)) {
+		if (action.kind !== 'capacityProvider') continue;
+		const apiKey = registrationApiKeyPolicy(action);
+		if (!apiKey) continue;
+		const teamId = ids.teams.get(action.payload.teamKey);
+		const providerId = ids.providers.get(action.key);
+		if (!teamId || !providerId) continue;
+		const activeKey = (await store.listCapacityProviderApiKeys(teamId, providerId))
+			.find((key) => key.status === 'active' && !key.revokedAt) ?? null;
+		if (activeKey) {
+			result.existing.push(publicProviderKeyRecord(action, providerId, activeKey));
+			continue;
+		}
+		const created = await store.createCapacityProviderApiKey(teamId, providerId, {
+			name: typeof apiKey.name === 'string' && apiKey.name.trim() ? apiKey.name.trim() : 'Seed provider security code',
+			scopes: Array.isArray(apiKey.scopes) && apiKey.scopes.length > 0 ? apiKey.scopes.map(String) : undefined,
+			expiresAt: typeof apiKey.expiresAt === 'string' && apiKey.expiresAt.trim() ? apiKey.expiresAt.trim() : null,
+			createdById: actorId(actor),
+		});
+		if (created?.key) {
+			result.created.push(publicProviderKeyRecord(action, providerId, created.key, {
+				plaintextKey: created.plaintextKey,
+			}));
+		}
+	}
+	return result;
+}
+
+function redactSeedApplyResult(result) {
+	if (!result?.capacityProviderKeys) return result;
+	return {
+		...result,
+		capacityProviderKeys: {
+			...result.capacityProviderKeys,
+			created: (result.capacityProviderKeys.created ?? []).map(({ plaintextKey: _plaintextKey, ...entry }) => entry),
+		},
+	};
+}
+
 export async function planSeedWithStore(input) {
 	if (!manifestRefIsAllowed(input.seedName, input.manifestRef)) {
 		return {
@@ -968,14 +1030,21 @@ export async function applySeedWithStore(input) {
 		}
 		await applyAction({ action, store, ids, manifestHash, appliedAt, plan: planned.plan });
 	}
+	const capacityProviderKeys = await ensureCapacityProviderApiKeys({
+		plan: planned.plan,
+		store,
+		ids,
+		actor: input.actor,
+	});
 	const result = {
 		appliedAt,
 		manifestHash,
 		actionCount: mutationActions(planned.plan).length,
+		capacityProviderKeys,
 	};
 	run = await updateSeedRunIfAvailable(store, run?.id, {
 		state: 'completed',
-		result,
+		result: redactSeedApplyResult(result),
 	}) ?? run;
 	return {
 		plan: planned.plan,

@@ -28,9 +28,9 @@ resources:
       repository:
         role: primary
         provider: github
-        owner: treeseed-ai
+        owner: knowledge-coop
         name: market
-        gitUrl: https://github.com/treeseed-ai/market.git
+        gitUrl: https://github.com/knowledge-coop/market.git
         defaultBranch: main
         checkoutPath: .
 
@@ -110,6 +110,17 @@ resources:
       dailyCreditBudget: 10000
       maxConcurrentWorkdays: 2
       maxConcurrentWorkers: 4
+      registration:
+        apiKey:
+          createIfMissing: true
+          name: TreeSeed local provider security code
+          scopes:
+            - provider:heartbeat
+            - provider:tasks:claim
+            - provider:tasks:update
+            - provider:usage:report
+            - provider:lanes:read
+            - provider:registration:complete
       lanes:
         - key: lane:treeseed/local-dev/codex
           name: local-codex
@@ -137,6 +148,17 @@ resources:
       dailyCreditBudget: 5000
       maxConcurrentWorkdays: 2
       maxConcurrentWorkers: 8
+      registration:
+        apiKey:
+          createIfMissing: true
+          name: TreeSeed production provider security code
+          scopes:
+            - provider:heartbeat
+            - provider:tasks:claim
+            - provider:tasks:update
+            - provider:usage:report
+            - provider:lanes:read
+            - provider:registration:complete
       lanes:
         - key: lane:treeseed/production/codex
           name: codex-production
@@ -271,6 +293,19 @@ resources:
       maxQueuedCredits: 5000
 
   repositoryHosts:
+    - key: repository-host:treeseed/market-github
+      team: team:treeseed
+      provider: github
+      name: knowledge-coop
+      ownership: treeseed_managed
+      accountLabel: Knowledge Coop GitHub organization
+      organizationOrOwner: knowledge-coop
+      defaultVisibility: public
+      softwareRepositoryNameTemplate: "{project}"
+      contentRepositoryNameTemplate: "{project}-content"
+      allowedProjectKinds: [market_app, package, knowledge_hub]
+      status: active
+
     - key: repository-host:treeseed/github
       team: team:treeseed
       provider: github
@@ -300,9 +335,9 @@ resources:
       searchText: TreeSeed market control plane starter template
       metadata:
         provider: github
-        owner: treeseed-ai
+        owner: knowledge-coop
         repository: market
-        gitUrl: https://github.com/treeseed-ai/market.git
+        gitUrl: https://github.com/knowledge-coop/market.git
 
   catalogArtifacts:
     - key: catalog-artifact:treeseed/market-template/1.0.0
@@ -313,8 +348,8 @@ resources:
       manifestKey: seeds/treeseed.yaml
       metadata:
         provider: github
-        owner: treeseed-ai
+        owner: knowledge-coop
         repository: market
-        gitUrl: https://github.com/treeseed-ai/market.git
+        gitUrl: https://github.com/knowledge-coop/market.git
 
   agentPools: []
