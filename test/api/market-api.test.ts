@@ -3688,7 +3688,7 @@ runtimeDescribe('market api', () => {
 		expect(planResponse.status).toBe(200);
 		const plan = await json(planResponse);
 		expect(plan.ok).toBe(true);
-		expect(plan.summary).toMatchObject({ create: 14, update: 1, unchanged: 0, skip: 11 });
+		expect(plan.summary).toMatchObject({ create: 9, update: 1, unchanged: 0, skip: 7 });
 		expect(plan.run).toMatchObject({ state: 'completed', mode: 'plan', seedName: 'treeseed' });
 
 		const firstApplyResponse = await app.request('/v1/seeds/treeseed/apply', {
@@ -3702,9 +3702,9 @@ runtimeDescribe('market api', () => {
 		expect(firstApplyResponse.status).toBe(200);
 		const firstApply = await json(firstApplyResponse);
 		expect(firstApply.ok).toBe(true);
-		expect(firstApply.summary).toMatchObject({ create: 14, update: 1, unchanged: 0, skip: 11 });
+		expect(firstApply.summary).toMatchObject({ create: 9, update: 1, unchanged: 0, skip: 7 });
 		expect(firstApply.run).toMatchObject({ state: 'completed', mode: 'apply', seedName: 'treeseed' });
-		expect(firstApply.result.actionCount).toBe(15);
+		expect(firstApply.result.actionCount).toBe(10);
 		expect(firstApply.result.capacityProviderKeys.created).toHaveLength(1);
 		const providerSecurityCode = firstApply.result.capacityProviderKeys.created[0].plaintextKey;
 		expect(providerSecurityCode).toMatch(/^tsp_/);
@@ -3743,7 +3743,7 @@ runtimeDescribe('market api', () => {
 		});
 		expect(secondApplyResponse.status).toBe(200);
 		const secondApply = await json(secondApplyResponse);
-		expect(secondApply.summary).toMatchObject({ create: 0, update: 0, unchanged: 15, skip: 11 });
+		expect(secondApply.summary).toMatchObject({ create: 0, update: 0, unchanged: 10, skip: 7 });
 		expect(secondApply.result.actionCount).toBe(0);
 		expect(secondApply.result.capacityProviderKeys.created).toHaveLength(0);
 		expect(secondApply.result.capacityProviderKeys.existing).toHaveLength(1);

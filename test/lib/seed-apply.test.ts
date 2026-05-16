@@ -95,10 +95,10 @@ describe('local seed apply', () => {
 		} as any);
 
 		expect(applied.plan.summary).toMatchObject({
-			create: 15,
+			create: 10,
 			update: 0,
 			unchanged: 0,
-			skip: 11,
+			skip: 7,
 		});
 		expect((applied.result as any).localTeamMemberships).toEqual([
 			expect.objectContaining({
@@ -123,7 +123,7 @@ describe('local seed apply', () => {
 			const teamContext = await verifyStore.resolvePrincipalTeamContext(team!.id, { id: 'user-local', roles: [] });
 			expect(teamContext?.roles).toContain('team_owner');
 			const projects = await verifyStore.listTeamProjects(team!.id);
-			expect(projects.map((project: any) => project.slug).sort()).toEqual(['agent', 'cli', 'core', 'market', 'sdk']);
+			expect(projects.map((project: any) => project.slug).sort()).toEqual(['market']);
 		} finally {
 			verifyDb.close();
 		}
@@ -140,10 +140,10 @@ describe('local seed apply', () => {
 			});
 
 			expect(first.plan.summary).toMatchObject({
-				create: 15,
+				create: 10,
 				update: 0,
 				unchanged: 0,
-				skip: 11,
+				skip: 7,
 			});
 
 			const team = await store.getTeamBySlug('treeseed');
@@ -237,11 +237,11 @@ describe('local seed apply', () => {
 				expect.objectContaining({
 					provider: 'github',
 					ownership: 'treeseed_managed',
-					name: 'treeseed-ai',
-					organizationOrOwner: 'treeseed-ai',
+					name: 'knowledge-coop',
+					organizationOrOwner: 'knowledge-coop',
 					metadata: expect.objectContaining({
 						seed: expect.objectContaining({
-							resourceKey: 'repository-host:treeseed/github',
+							resourceKey: 'repository-host:treeseed/market-github',
 							manifestHash: first.result.manifestHash,
 						}),
 					}),
@@ -291,8 +291,8 @@ describe('local seed apply', () => {
 			expect(second.plan.summary).toMatchObject({
 				create: 0,
 				update: 0,
-				unchanged: 15,
-				skip: 11,
+				unchanged: 10,
+				skip: 7,
 			});
 			const secondResult = second.result as any;
 			expect(secondResult.capacityProviderKeys.created).toHaveLength(0);
@@ -340,10 +340,10 @@ describe('local seed apply', () => {
 			expect(data.seedPage.selectedSeed).toBe('treeseed');
 			expect(data.seedPage.selectedEnvironments).toBe('local');
 			expect(data.seedPage.plan.summary).toMatchObject({
-				create: 14,
+				create: 9,
 				update: 1,
 				unchanged: 0,
-				skip: 11,
+				skip: 7,
 			});
 			expect(await store.listSeedRuns()).toHaveLength(0);
 		} finally {
