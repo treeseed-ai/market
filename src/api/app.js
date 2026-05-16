@@ -1709,6 +1709,13 @@ export function createMarketApiApp(options = {}) {
 				return c.json(response, { status: response.ok ? 200 : response.status === 'expired' ? 410 : 400 });
 			});
 
+			app.get('/v1/auth/device/approve', (c) => {
+				const target = new URL('/auth/device/approve', `${resolveAuthApprovalBaseUrl(config)}/`);
+				const userCode = c.req.query('user_code');
+				if (userCode) target.searchParams.set('user_code', userCode);
+				return c.redirect(target.toString(), 302);
+			});
+
 			app.post('/v1/auth/device/approve', async (c) => {
 				const body = await c.req.json().catch(() => ({}));
 				try {
