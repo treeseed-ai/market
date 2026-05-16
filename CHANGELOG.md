@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.18] - 2026-05-16
+
+### Added
+
+- feat(tests): record repository changes (06060ce61ec6)
+
+### Infrastructure
+
+- release: sync package staging heads (02bd9a15a9a6)
+
+### Dependencies
+
+- Release @treeseed/market 0.5.18.
+- Release package @treeseed/agent: 0.8.19.
+- Release package @treeseed/cli: 0.8.19.
+- Release package @treeseed/core: 0.8.19.
+- Release package @treeseed/sdk: 0.8.19.
+
 ## [0.5.17] - 2026-05-16
 
 ### Added
