@@ -59,6 +59,13 @@ async function approveThroughApi() {
 		displayName: activePrincipal.displayName ?? activePrincipal.id,
 		metadata: activePrincipal.metadata ?? {},
 	};
+	let runtimeError: unknown = null;
+	try {
+		await createCoreAuthProvider(Astro).approveDeviceFlow(payload);
+		return true;
+	} catch (error) {
+		runtimeError = error;
+	}
 	const errors: string[] = [];
 	for (const url of approvalEndpoints().serverUrls) {
 		const response = await fetch(url, {
@@ -75,6 +82,9 @@ async function approveThroughApi() {
 			errors.push(message);
 		}
 	}
+	if (runtimeError instanceof Error) {
+		throw runtimeError;
+	}
 	throw new Error(errors[0] ?? 'Device login approval endpoint was not found.');
 }
 
@@ -90,14 +100,7 @@ if (Astro.request.method === 'POST') {
 	} else {
 		try {
 			const approvedByApi = await approveThroughApi();
-			if (!approvedByApi) {
-				await createCoreAuthProvider(Astro).approveDeviceFlow({
-					userCode,
-					principalId: activePrincipal.id,
-					displayName: activePrincipal.displayName ?? activePrincipal.id,
-					metadata: activePrincipal.metadata ?? {},
-				});
-			}
+			if (!approvedByApi) throw new Error('Device login approval endpoint was not found.');
 			approved = true;
 			notice = 'CLI login approved. You can return to your terminal.';
 		} catch (approvalError) {
