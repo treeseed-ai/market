@@ -39,7 +39,7 @@ function approvalEndpoints() {
 	const localApiBaseUrl = runtimeApiBaseUrl();
 	if (localApiBaseUrl) {
 		return {
-			formAction: `${localApiBaseUrl}/auth/device/approve`,
+			formAction: `${Astro.url.pathname}${Astro.url.search}`,
 			serverUrls: [
 				`${localApiBaseUrl}/auth/device/approve`,
 				`${localApiBaseUrl}/v1/auth/device/approve`,
@@ -47,7 +47,7 @@ function approvalEndpoints() {
 		};
 	}
 	return {
-		formAction: '/v1/auth/device/approve',
+		formAction: `${Astro.url.pathname}${Astro.url.search}`,
 		serverUrls: [`${Astro.url.origin}/v1/auth/device/approve`],
 	};
 }

@@ -2833,6 +2833,20 @@ runtimeDescribe('market api', () => {
 		expect(started.verificationUriComplete).toBe(`https://treeseed.ai/auth/device/approve?user_code=${encodeURIComponent(started.userCode)}`);
 	});
 
+	it('redirects legacy v1 browser approval links to the web approval page', async () => {
+		const app = createTestApp({
+			config: {
+				baseUrl: 'https://api.treeseed.ai',
+				siteUrl: 'https://treeseed.ai',
+			},
+		});
+
+		const response = await app.request('/v1/auth/device/approve?user_code=ABCD-EFGH');
+
+		expect(response.status).toBe(302);
+		expect(response.headers.get('location')).toBe('https://treeseed.ai/auth/device/approve?user_code=ABCD-EFGH');
+	});
+
 	it('signs editorial preview links for team-scoped overlays', async () => {
 		const app = createTestApp({
 			config: {
