@@ -43,6 +43,12 @@ describe('web runtime boundaries', () => {
 		expect(source).not.toContain("apiApprovalBaseUrl ? `${apiApprovalBaseUrl}/auth/device/approve`");
 	});
 
+	it('redirects legacy v1 device approval browser links before auth checks', () => {
+		const source = readFileSync('src/pages/v1/[...all].ts', 'utf8');
+		expect(source).toContain("root === 'auth' && id === 'device' && third === 'approve'");
+		expect(source).toContain("new URL('/auth/device/approve', context.url.origin)");
+	});
+
 	it('keeps backend runtime implementation out of core source', () => {
 		const sourceFiles = files('packages/core/src')
 			.filter((path) => /\.(astro|ts|js)$/u.test(path))

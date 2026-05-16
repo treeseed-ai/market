@@ -211,6 +211,13 @@ export const ALL: APIRoute = async (context) => {
 	const parts = (context.params.all ?? '').split('/').filter(Boolean);
 	const [root, id, third, fourth, fifth] = parts;
 
+	if (method === 'GET' && root === 'auth' && id === 'device' && third === 'approve') {
+		const target = new URL('/auth/device/approve', context.url.origin);
+		const userCode = context.url.searchParams.get('user_code');
+		if (userCode) target.searchParams.set('user_code', userCode);
+		return Response.redirect(target.toString(), 302);
+	}
+
 	if (root === 'projects' && id && third === 'runner') {
 		const runnerAccess = await requireRunner(store, context.request, id);
 		if (runnerAccess.response) return runnerAccess.response;
