@@ -704,5 +704,3 @@ Exact next command I should approve or run
 ```
 
 Keep the focus on making TreeSeed dogfood its core promise: a knowledge coop where open knowledge and capabilities are continuously analyzed, remixed, governed, and improved by agents that remain accountable to human review and project policy.
-
-```
