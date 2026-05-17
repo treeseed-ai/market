@@ -20,7 +20,7 @@ import {
 	resolveApiConfig,
 	resolveApiD1Database,
 } from '@treeseed/agent/api';
-import { MarketControlPlaneStore } from './store.js';
+import { MarketControlPlaneStore, validateProjectSlug } from './store.js';
 import { applySeedWithStore, exportSeedWithStore, planSeedWithStore } from '../lib/market/seeds/apply.js';
 import {
 	listTreeseedManagedHostsFromConfig,
@@ -77,6 +77,15 @@ function bearerTokenFromRequest(request) {
 
 function normalizeBaseUrl(baseUrl) {
 	return String(baseUrl ?? '').trim().replace(/\/+$/u, '');
+}
+
+function optionalTrimmedString(value) {
+	return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function enumValue(value, allowed, fallback = null) {
+	const candidate = typeof value === 'string' ? value.trim() : '';
+	return allowed.includes(candidate) ? candidate : fallback;
 }
 
 function isLoopbackUrl(value) {
@@ -3550,6 +3559,46 @@ export function createMarketApiApp(options = {}) {
 				return c.json({ ok: true, payload: access.details });
 			});
 
+			app.put('/v1/projects/:projectId', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const slugResult = body.slug == null ? { ok: true, slug: access.details.project.slug } : validateProjectSlug(body.slug);
+				if (!slugResult.ok) return jsonError(c, 400, slugResult.message, { code: slugResult.code });
+				const name = String(body.name ?? access.details.project.name).trim();
+				if (!name) return jsonError(c, 400, 'Project name is required.', { code: 'missing_name' });
+				const existing = slugResult.slug === access.details.project.slug
+					? null
+					: await store.getProjectByTeamAndSlug(access.details.project.teamId, slugResult.slug);
+				if (existing && existing.id !== c.req.param('projectId')) {
+					return jsonError(c, 409, 'That project slug is already in use for this team.', { code: 'slug_taken' });
+				}
+				const updated = await store.updateProject(c.req.param('projectId'), {
+					slug: slugResult.slug,
+					name,
+					description: typeof body.description === 'string' ? body.description.trim() || null : access.details.project.description ?? null,
+					metadata: {
+						...(access.details.project.metadata ?? {}),
+						...(body.metadata && typeof body.metadata === 'object' ? body.metadata : {}),
+					},
+				});
+				return c.json({ ok: true, payload: await store.getProjectDetails(updated.id) });
+			});
+
+			app.get('/v1/projects/:projectId/deletion-blockers', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				return c.json({ ok: true, payload: await store.evaluateProjectDeletionBlockers(c.req.param('projectId')) });
+			});
+
+			app.delete('/v1/projects/:projectId', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const result = await store.deleteProject(c.req.param('projectId'), body.confirmation);
+				return c.json(result, result.ok ? 200 : 400);
+			});
+
 			app.get('/v1/projects/:projectId/access', async (c) => {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
 				if (access.response) return access.response;
@@ -4123,10 +4172,14 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
+				const mode = enumValue(body.mode, ['hosted', 'hybrid', 'self_hosted'], body.mode == null ? access.details.connection?.mode ?? 'self_hosted' : null);
+				if (!mode) return jsonError(c, 400, 'Invalid connection mode.');
+				const executionOwner = enumValue(body.executionOwner, ['project_api', 'project_runner'], body.executionOwner == null ? access.details.connection?.executionOwner ?? 'project_runner' : null);
+				if (!executionOwner) return jsonError(c, 400, 'Invalid execution owner.');
 				const result = await store.upsertProjectConnection(c.req.param('projectId'), {
-					mode: typeof body.mode === 'string' ? body.mode : access.details.connection?.mode ?? 'self_hosted',
-					projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
-					executionOwner: typeof body.executionOwner === 'string' ? body.executionOwner : 'project_runner',
+					mode,
+					projectApiBaseUrl: optionalTrimmedString(body.projectApiBaseUrl),
+					executionOwner,
 					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
 					rotateRunnerToken: body.rotateRunnerToken === true,
 				});
@@ -4152,19 +4205,21 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
-				if (!body.kind) {
-					return jsonError(c, 400, 'kind is required.');
-				}
+				const kind = enumValue(body.kind, ['hosted_project', 'self_hosted_project']);
+				if (!kind) return jsonError(c, 400, 'Invalid hosting kind.');
+				const registration = enumValue(body.registration, ['none', 'optional', 'required'], 'none');
+				const executionOwner = enumValue(body.executionOwner, ['project_api', 'project_runner'], null);
+				if (body.executionOwner != null && !executionOwner) return jsonError(c, 400, 'Invalid execution owner.');
 				const payload = await store.upsertProjectHosting(c.req.param('projectId'), {
-					kind: String(body.kind),
-					registration: typeof body.registration === 'string' ? body.registration : 'none',
-					marketBaseUrl: typeof body.marketBaseUrl === 'string' ? body.marketBaseUrl : null,
-					sourceRepoOwner: typeof body.sourceRepoOwner === 'string' ? body.sourceRepoOwner : null,
-					sourceRepoName: typeof body.sourceRepoName === 'string' ? body.sourceRepoName : null,
-					sourceRepoUrl: typeof body.sourceRepoUrl === 'string' ? body.sourceRepoUrl : null,
-					sourceRepoWorkflowPath: typeof body.sourceRepoWorkflowPath === 'string' ? body.sourceRepoWorkflowPath : null,
-					projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
-					executionOwner: typeof body.executionOwner === 'string' ? body.executionOwner : null,
+					kind,
+					registration,
+					marketBaseUrl: optionalTrimmedString(body.marketBaseUrl),
+					sourceRepoOwner: optionalTrimmedString(body.sourceRepoOwner),
+					sourceRepoName: optionalTrimmedString(body.sourceRepoName),
+					sourceRepoUrl: optionalTrimmedString(body.sourceRepoUrl),
+					sourceRepoWorkflowPath: optionalTrimmedString(body.sourceRepoWorkflowPath),
+					projectApiBaseUrl: optionalTrimmedString(body.projectApiBaseUrl),
+					executionOwner,
 					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
 				});
 				return c.json({ ok: true, payload });

@@ -333,6 +333,35 @@ export function teamDeletionConfirmationMatches(value, teamName) {
 	return String(value ?? '') === `${TEAM_DELETION_CONFIRMATION_PREFIX}${normalizeTeamName(teamName)}`;
 }
 
+export function projectDeletionConfirmationMatches(value, projectSlug) {
+	return String(value ?? '') === `${TEAM_DELETION_CONFIRMATION_PREFIX}${String(projectSlug ?? '').trim().toLowerCase()}`;
+}
+
+export function normalizeProjectSlug(value) {
+	return String(value ?? '').trim().toLowerCase();
+}
+
+export function validateProjectSlug(value) {
+	const slug = normalizeProjectSlug(value);
+	if (!slug) {
+		return { ok: false, code: 'missing', message: 'Project slug is required.' };
+	}
+	if (
+		slug.length > 80
+		|| !/^[a-z0-9-]+$/u.test(slug)
+		|| slug.startsWith('-')
+		|| slug.endsWith('-')
+		|| slug.includes('--')
+	) {
+		return {
+			ok: false,
+			code: 'format',
+			message: 'Project slugs can use 1-80 letters, numbers, or single hyphens, with no leading or trailing hyphen.',
+		};
+	}
+	return { ok: true, slug };
+}
+
 function normalizeBaseUrl(baseUrl) {
 	return String(baseUrl ?? '').trim().replace(/\/+$/u, '');
 }
@@ -4744,11 +4773,13 @@ export class MarketControlPlaneStore {
 				[teamId],
 			),
 		]);
+		const team = await this.getTeam(teamId);
+		const teamHandle = team?.name ?? team?.slug ?? teamId;
 		return [
-			...projects.map((row) => ({ code: 'project', id: row.id, label: row.name, href: `/app/teams/:team/projects/${row.slug}/overview` })),
+			...projects.map((row) => ({ code: 'project', id: row.id, label: row.name, href: `/app/teams/${teamHandle}/projects/${row.slug}/overview` })),
 			...catalogItems.map((row) => ({ code: 'catalog_item', id: row.id, label: row.title, href: `/market/${row.kind === 'knowledge_pack' ? 'knowledge-packs' : 'templates'}/${row.slug}` })),
 			...knowledgePacks.map((row) => ({ code: 'knowledge_pack', id: row.id, label: row.name, href: `/market/knowledge-packs/${row.slug}` })),
-			...jobs.map((row) => ({ code: 'active_job', id: row.id, label: `${row.project_name}: ${row.operation}`, href: `/app/teams/:team/projects/${row.project_slug}/overview` })),
+			...jobs.map((row) => ({ code: 'active_job', id: row.id, label: `${row.project_name}: ${row.operation}`, href: `/app/teams/${teamHandle}/projects/${row.project_slug}/overview` })),
 		];
 	}
 
@@ -4765,6 +4796,152 @@ export class MarketControlPlaneStore {
 		}
 		await this.run(`DELETE FROM teams WHERE id = ?`, [teamId]);
 		return { ok: true, team };
+	}
+
+	async evaluateProjectDeletionBlockers(projectId) {
+		await this.ensureInitialized();
+		const project = await this.getProject(projectId);
+		if (!project) return [{ code: 'missing', id: projectId, label: 'Project not found.' }];
+		const team = await this.getTeam(project.teamId);
+		const [jobs, workdays, requests, leases, runners, reservations, approvals] = await Promise.all([
+			this.all(
+				`SELECT id, namespace, operation, status FROM remote_jobs
+				 WHERE project_id = ? AND status IN ('pending', 'claimed', 'running', 'waiting_for_approval')
+				 ORDER BY created_at ASC LIMIT 20`,
+				[projectId],
+			),
+			this.all(
+				`SELECT id, state, started_at FROM work_days
+				 WHERE project_id = ? AND state IN ('active', 'running', 'open')
+				 ORDER BY updated_at DESC LIMIT 20`,
+				[projectId],
+			),
+			this.all(
+				`SELECT id, type, state, environment FROM workday_requests
+				 WHERE project_id = ? AND state IN ('pending', 'approved', 'running')
+				 ORDER BY created_at ASC LIMIT 20`,
+				[projectId],
+			),
+			this.all(
+				`SELECT id, manager_id, state, environment FROM workday_manager_leases
+				 WHERE project_id = ? AND state = 'active'
+				 ORDER BY heartbeat_at DESC LIMIT 20`,
+				[projectId],
+			),
+			this.all(
+				`SELECT id, runner_id, state, environment FROM worker_runners
+				 WHERE project_id = ? AND state IN ('active', 'starting', 'running')
+				 ORDER BY updated_at DESC LIMIT 20`,
+				[projectId],
+			),
+			this.all(
+				`SELECT id, state, reserved_credits, consumed_credits FROM capacity_reservations
+				 WHERE project_id = ? AND state IN ('reserved', 'consuming', 'overran_pending_approval')
+				 ORDER BY created_at DESC LIMIT 20`,
+				[projectId],
+			),
+			this.all(
+				`SELECT id, kind, state, title FROM approval_requests
+				 WHERE project_id = ? AND state = 'pending'
+				 ORDER BY created_at DESC LIMIT 20`,
+				[projectId],
+			),
+		]);
+		const teamHandle = team?.name ?? team?.slug ?? project.teamId;
+		const href = `/app/teams/${teamHandle}/projects/${project.slug}/overview`;
+		return [
+			...jobs.map((row) => ({ code: 'active_job', id: row.id, label: `${row.namespace}:${row.operation} ${row.status}`, href })),
+			...workdays.map((row) => ({ code: 'active_workday', id: row.id, label: `Workday ${row.id} ${row.state}`, href })),
+			...requests.map((row) => ({ code: 'workday_request', id: row.id, label: `${row.environment} ${row.type} ${row.state}`, href })),
+			...leases.map((row) => ({ code: 'manager_lease', id: row.id, label: `${row.environment} ${row.manager_id}`, href })),
+			...runners.map((row) => ({ code: 'worker_runner', id: row.id, label: `${row.environment} ${row.runner_id}`, href })),
+			...reservations.map((row) => ({ code: 'capacity_reservation', id: row.id, label: `${row.state} ${row.reserved_credits ?? 0} credits`, href })),
+			...approvals.map((row) => ({ code: 'pending_approval', id: row.id, label: row.title ?? row.kind, href })),
+		];
+	}
+
+	async deleteProject(projectId, confirmation) {
+		await this.ensureInitialized();
+		const project = await this.getProject(projectId);
+		if (!project) return { ok: false, code: 'missing', message: 'Project not found.' };
+		if (!projectDeletionConfirmationMatches(confirmation, project.slug)) {
+			return { ok: false, code: 'confirmation', message: `Type DELETE ${project.slug} to confirm.` };
+		}
+		const blockers = await this.evaluateProjectDeletionBlockers(projectId);
+		if (blockers.length > 0) {
+			return { ok: false, code: 'blocked', message: 'Project still has active work or pending decisions.', blockers };
+		}
+
+		await this.run(
+			`DELETE FROM task_outputs WHERE task_id IN (
+				SELECT tasks.id FROM tasks INNER JOIN work_days ON work_days.id = tasks.work_day_id WHERE work_days.project_id = ?
+			)`,
+			[projectId],
+		);
+		await this.run(
+			`DELETE FROM task_events WHERE task_id IN (
+				SELECT tasks.id FROM tasks INNER JOIN work_days ON work_days.id = tasks.work_day_id WHERE work_days.project_id = ?
+			)`,
+			[projectId],
+		);
+		await this.run(`DELETE FROM tasks WHERE work_day_id IN (SELECT id FROM work_days WHERE project_id = ?)`, [projectId]);
+		await this.run(`DELETE FROM graph_runs WHERE work_day_id IN (SELECT id FROM work_days WHERE project_id = ?)`, [projectId]);
+		await this.run(`DELETE FROM reports WHERE work_day_id IN (SELECT id FROM work_days WHERE project_id = ?)`, [projectId]);
+
+		const catalogItemIds = (await this.all(
+			`SELECT id FROM catalog_items WHERE team_id = ? AND (id = ? OR (kind = 'project' AND slug = ?))`,
+			[project.teamId, projectId, project.slug],
+		)).map((row) => row.id);
+		for (const itemId of catalogItemIds) {
+			await this.run(`DELETE FROM catalog_artifact_versions WHERE item_id = ?`, [itemId]);
+			await this.run(`DELETE FROM catalog_item_collaborators WHERE item_id = ?`, [itemId]);
+		}
+
+		for (const table of [
+			'team_inbox_items',
+			'provider_credential_sessions',
+			'capacity_routing_decisions',
+			'task_estimates',
+			'task_usage_actuals',
+			'capacity_ledger_entries',
+			'capacity_reservations',
+			'capacity_grants',
+			'approval_requests',
+			'agent_pool_scale_decisions',
+			'agent_pool_registrations',
+			'agent_pools',
+			'project_workday_summaries',
+			'workday_requests',
+			'workday_manager_leases',
+			'worker_runners',
+			'repository_claims',
+			'runner_scale_decisions',
+			'priority_overrides',
+			'priority_snapshots',
+			'task_credit_ledger',
+			'scale_decisions',
+			'work_policies',
+			'project_summary_snapshots',
+			'project_infrastructure_resources',
+			'project_deployments',
+			'project_environments',
+			'project_hosting',
+			'project_capability_grants',
+			'project_connections',
+			'entitlements',
+		]) {
+			await this.run(`DELETE FROM ${table} WHERE project_id = ?`, [projectId]);
+		}
+		await this.run(`DELETE FROM project_update_plans WHERE hub_id = ?`, [projectId]);
+		await this.run(`DELETE FROM hub_workspace_links WHERE hub_id = ?`, [projectId]);
+		await this.run(`DELETE FROM hub_content_sources WHERE hub_id = ?`, [projectId]);
+		await this.run(`DELETE FROM hub_repositories WHERE hub_id = ?`, [projectId]);
+		await this.run(`DELETE FROM catalog_items WHERE team_id = ? AND (id = ? OR (kind = 'project' AND slug = ?))`, [project.teamId, projectId, project.slug]);
+		await this.run(`DELETE FROM remote_job_events WHERE job_id IN (SELECT id FROM remote_jobs WHERE project_id = ?)`, [projectId]);
+		await this.run(`DELETE FROM remote_jobs WHERE project_id = ?`, [projectId]);
+		await this.run(`DELETE FROM work_days WHERE project_id = ?`, [projectId]);
+		await this.run(`DELETE FROM projects WHERE id = ?`, [projectId]);
+		return { ok: true, project };
 	}
 
 	async listProjectsForPrincipal(principal) {
@@ -4846,19 +5023,42 @@ export class MarketControlPlaneStore {
 		}
 		const timestamp = isoNow();
 		const metadata = input.metadata ?? parseJson(existing.metadata_json, {});
+		const nextSlug = input.slug ?? existing.slug;
+		const nextName = input.name ?? existing.name;
+		const nextDescription = input.description ?? existing.description ?? null;
 		await this.run(
 			`UPDATE projects
 			 SET slug = ?, name = ?, description = ?, metadata_json = ?, updated_at = ?
 			 WHERE id = ?`,
 			[
-				input.slug ?? existing.slug,
-				input.name ?? existing.name,
-				input.description ?? existing.description ?? null,
+				nextSlug,
+				nextName,
+				nextDescription,
 				JSON.stringify(metadata),
 				timestamp,
 				projectId,
 			],
 		);
+		const existingCatalogItem = await this.getCatalogItem(projectId);
+		if (existingCatalogItem) {
+			await this.upsertCatalogItem(existing.team_id, {
+				id: projectId,
+				kind: 'project',
+				slug: nextSlug,
+				title: nextName,
+				summary: nextDescription,
+				visibility: existingCatalogItem.visibility,
+				listingEnabled: existingCatalogItem.listingEnabled,
+				offerMode: existingCatalogItem.offerMode,
+				manifestKey: existingCatalogItem.manifestKey,
+				artifactKey: existingCatalogItem.artifactKey,
+				searchText: [nextName, nextDescription].filter(Boolean).join(' ').trim() || null,
+				metadata: {
+					...(existingCatalogItem.metadata ?? {}),
+					...metadata,
+				},
+			});
+		}
 		return this.getProject(projectId);
 	}
 

@@ -340,6 +340,140 @@ runtimeDescribe('market api', () => {
 		vi.restoreAllMocks();
 	});
 
+	it('deletes projects and project-owned records through the project API', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { team, project } = await createTeamAndProject(app, token, {
+			slug: 'delete-me',
+			name: 'Delete Me',
+			description: 'Temporary project',
+		});
+		const headers = {
+			'content-type': 'application/json',
+			authorization: `Bearer ${token}`,
+		};
+
+		const blockers = await json(await app.request(`/v1/projects/${project.id}/deletion-blockers`, { headers }));
+		expect(blockers.ok).toBe(true);
+		expect(blockers.payload).toEqual([]);
+
+		await app.request(`/v1/projects/${project.id}/work-policy`, {
+			method: 'PUT',
+			headers,
+			body: JSON.stringify({
+				environment: 'local',
+				enabled: true,
+				dailyCreditBudget: 100,
+			}),
+		});
+
+		const rejected = await json(await app.request(`/v1/projects/${project.id}`, {
+			method: 'DELETE',
+			headers,
+			body: JSON.stringify({ confirmation: 'DELETE wrong' }),
+		}));
+		expect(rejected.ok).toBe(false);
+		expect(rejected.code).toBe('confirmation');
+
+		const deleted = await json(await app.request(`/v1/projects/${project.id}`, {
+			method: 'DELETE',
+			headers,
+			body: JSON.stringify({ confirmation: 'DELETE delete-me' }),
+		}));
+		expect(deleted.ok).toBe(true);
+		expect(deleted.project.id).toBe(project.id);
+
+		const after = await app.request(`/v1/projects/${project.id}`, {
+			headers: { authorization: `Bearer ${token}` },
+		});
+		expect(after.status).toBe(404);
+		const projects = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(projects.payload.find((entry: { id: string }) => entry.id === project.id)).toBeUndefined();
+	});
+
+	it('updates project profile settings through the project API', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { team, project } = await createTeamAndProject(app, token, {
+			slug: 'settings-before',
+			name: 'Settings Before',
+			description: 'Before description',
+		});
+		const headers = {
+			'content-type': 'application/json',
+			authorization: `Bearer ${token}`,
+		};
+
+		const updated = await json(await app.request(`/v1/projects/${project.id}`, {
+			method: 'PUT',
+			headers,
+			body: JSON.stringify({
+				slug: 'settings-after',
+				name: 'Settings After',
+				description: 'After description',
+			}),
+		}));
+		expect(updated.ok).toBe(true);
+		expect(updated.payload.project.slug).toBe('settings-after');
+		expect(updated.payload.project.name).toBe('Settings After');
+
+		const listed = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(listed.payload.find((entry: { id: string }) => entry.id === project.id)?.slug).toBe('settings-after');
+
+		const duplicate = await json(await app.request(`/v1/teams/${team.id}/projects`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({ slug: 'taken-project', name: 'Taken Project' }),
+		}));
+		const rejected = await json(await app.request(`/v1/projects/${duplicate.payload.project.id}`, {
+			method: 'PUT',
+			headers,
+			body: JSON.stringify({
+				slug: 'settings-after',
+				name: 'Taken Project',
+			}),
+		}));
+		expect(rejected.ok).toBe(false);
+		expect(rejected.code).toBe('slug_taken');
+	});
+
+	it('blocks project deletion while active work is attached', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { project } = await createTeamAndProject(app, token, {
+			slug: 'busy-project',
+			name: 'Busy Project',
+		});
+		const headers = {
+			'content-type': 'application/json',
+			authorization: `Bearer ${token}`,
+		};
+
+		await app.request(`/v1/projects/${project.id}/workday-requests`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				environment: 'local',
+				type: 'one_off_run',
+				reason: 'block deletion',
+			}),
+		});
+		const blockers = await json(await app.request(`/v1/projects/${project.id}/deletion-blockers`, { headers }));
+		expect(blockers.payload.some((entry: { code: string }) => entry.code === 'workday_request')).toBe(true);
+
+		const deleted = await json(await app.request(`/v1/projects/${project.id}`, {
+			method: 'DELETE',
+			headers,
+			body: JSON.stringify({ confirmation: 'DELETE busy-project' }),
+		}));
+		expect(deleted.ok).toBe(false);
+		expect(deleted.code).toBe('blocked');
+	});
+
 	it('stores team Cloudflare web hosts as opaque encrypted payloads', async () => {
 		const app = createTestApp();
 		const token = await authorizeApp(app);
@@ -1706,6 +1840,48 @@ runtimeDescribe('market api', () => {
 			kind: 'hosted_project',
 			registration: 'optional',
 		});
+		const invalidHosting = await json(await app.request(`/v1/projects/${project.id}/hosting`, {
+			method: 'PUT',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				kind: 'mystery_host',
+			}),
+		}));
+		expect(invalidHosting.ok).toBe(false);
+		expect(invalidHosting.error).toBe('Invalid hosting kind.');
+		const advancedConnection = await json(await app.request(`/v1/projects/${project.id}/connection`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				mode: 'hybrid',
+				executionOwner: 'project_runner',
+				projectApiBaseUrl: '',
+			}),
+		}));
+		expect(advancedConnection.payload.connection).toMatchObject({
+			projectId: project.id,
+			mode: 'hybrid',
+			projectApiBaseUrl: null,
+			executionOwner: 'project_runner',
+		});
+		const invalidConnection = await json(await app.request(`/v1/projects/${project.id}/connection`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				mode: 'chaos',
+			}),
+		}));
+		expect(invalidConnection.ok).toBe(false);
+		expect(invalidConnection.error).toBe('Invalid connection mode.');
 
 		const environment = await json(await app.request(`/v1/projects/${project.id}/environments/staging`, {
 			method: 'PUT',

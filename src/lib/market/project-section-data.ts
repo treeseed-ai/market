@@ -25,7 +25,7 @@ const agentReadinessTone = {
 	needs_approval: 'danger',
 };
 
-export async function loadProjectSectionData(context: any) {
+export async function loadProjectSectionData(context: any, section = '') {
 	const [summary, direct, workstreams, agents, capacity, releases, share] = context.project && context.store
 		? await Promise.all([
 			context.store.getProjectSummary(context.project.id, context.principal),
@@ -42,6 +42,21 @@ export async function loadProjectSectionData(context: any) {
 	const capacitySummary = context.project && context.store
 		? await context.store.getProjectCapacitySummary(context.project.id, 'staging')
 		: null;
+	const settings = context.project && context.team && context.store
+		? {
+			project: context.project,
+			team: context.team,
+			deletionBlockers: section === 'settings' && typeof context.store.evaluateProjectDeletionBlockers === 'function'
+				? await context.store.evaluateProjectDeletionBlockers(context.project.id)
+				: [],
+			deleteConfirmation: `DELETE ${context.project.slug}`,
+		}
+		: {
+			project: context.project ?? null,
+			team: context.team ?? null,
+			deletionBlockers: [],
+			deleteConfirmation: '',
+		};
 	const agentReadiness = capacitySummary?.readiness ?? 'waiting_for_provider';
 	const agentReadinessLabel = (agentReadinessCopy as any)[agentReadiness] ?? 'Waiting for provider';
 	const agentReadinessToneValue = (agentReadinessTone as any)[agentReadiness] ?? 'warning';
@@ -55,6 +70,7 @@ export async function loadProjectSectionData(context: any) {
 		capacity,
 		releases,
 		share,
+		settings,
 		capacitySummary,
 		agentReadinessLabel,
 		agentReadinessToneValue,

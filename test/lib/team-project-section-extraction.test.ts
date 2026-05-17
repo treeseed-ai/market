@@ -225,4 +225,47 @@ describe('team and project section extraction', () => {
 			expect(seeds).toContain(marker);
 		}
 	});
+
+	it('exposes project deletion controls from project settings', () => {
+		const settings = source('src/components/app/project/ProjectSettingsView.astro');
+
+		for (const marker of [
+			'data-project-settings-form',
+			'data-project-settings-status',
+			'Save project settings',
+			"method: 'PUT'",
+			'Danger zone',
+			'Delete project',
+			'data-project-delete-form',
+			'data-project-delete-status',
+			'/v1/projects/${encodeURIComponent(projectId)}',
+			'/app/teams/${teamHandle}/home',
+			'DELETE ${project.slug}',
+			'Manager lease',
+			'A Workday Manager currently holds this project lock',
+			'Active workdays, pending jobs, reservations, and approvals block deletion',
+		]) {
+			expect(settings).toContain(marker);
+		}
+	});
+
+	it('exposes advanced project connection and hosting settings', () => {
+		const settings = source('src/components/app/project/ProjectSettingsView.astro');
+
+		for (const marker of [
+			'Advanced runtime',
+			'data-project-connection-form',
+			'data-project-hosting-form',
+			'Save connection',
+			'Save hosting',
+			'Rotate runner token',
+			'Project API base URL',
+			'Source workflow path',
+			'Seed ownership',
+			'/v1/projects/${encodeURIComponent(projectId)}/connection',
+			'/v1/projects/${encodeURIComponent(projectId)}/hosting',
+		]) {
+			expect(settings).toContain(marker);
+		}
+	});
 });

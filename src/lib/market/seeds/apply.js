@@ -101,15 +101,58 @@ export async function resolveLocalSeedPersistTo(projectRoot, env = process.env) 
 	return resolve(projectRoot, '.wrangler', 'state', 'v3', 'd1');
 }
 
+function parseTomlStringValue(value) {
+	const trimmed = String(value ?? '').trim();
+	if (!trimmed) return '';
+	if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+		try {
+			return JSON.parse(trimmed);
+		} catch {
+			return trimmed.slice(1, -1);
+		}
+	}
+	return trimmed;
+}
+
+export function readLocalGeneratedWranglerVars(projectRoot) {
+	const generatedWranglerConfig = resolve(projectRoot, '.treeseed', 'generated', 'environments', 'local', 'wrangler.toml');
+	if (!existsSync(generatedWranglerConfig)) {
+		return {};
+	}
+	const vars = {};
+	let inVars = false;
+	for (const rawLine of readFileSync(generatedWranglerConfig, 'utf8').split(/\r?\n/u)) {
+		const line = rawLine.trim();
+		if (!line || line.startsWith('#')) continue;
+		if (/^\[.+\]$/u.test(line)) {
+			inVars = line === '[vars]';
+			continue;
+		}
+		if (!inVars) continue;
+		const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/u);
+		if (!match) continue;
+		vars[match[1]] = parseTomlStringValue(match[2]);
+	}
+	return vars;
+}
+
+export function resolveLocalSeedEnv(projectRoot, env = process.env) {
+	return {
+		...readLocalGeneratedWranglerVars(projectRoot),
+		...env,
+	};
+}
+
 async function createLocalSeedStore(projectRoot, env = process.env) {
-	const db = new NodeSqliteD1Database(await resolveLocalSeedPersistTo(projectRoot, env));
+	const localEnv = resolveLocalSeedEnv(projectRoot, env);
+	const db = new NodeSqliteD1Database(await resolveLocalSeedPersistTo(projectRoot, localEnv));
 	return new MarketControlPlaneStore({
 		repoRoot: projectRoot,
-		projectId: env.TREESEED_PROJECT_ID ?? 'treeseed-market',
-		authSecret: env.TREESEED_AUTH_SECRET ?? env.TREESEED_BETTER_AUTH_SECRET ?? 'treeseed-local-seed-auth-secret',
-		assertionSecret: env.TREESEED_WEB_ASSERTION_SECRET ?? 'treeseed-local-seed-assertion-secret',
-		serviceId: env.TREESEED_WEB_SERVICE_ID ?? 'web',
-		serviceSecret: env.TREESEED_WEB_SERVICE_SECRET ?? 'treeseed-local-seed-service-secret',
+		projectId: localEnv.TREESEED_PROJECT_ID ?? 'treeseed-market',
+		authSecret: localEnv.TREESEED_AUTH_SECRET ?? localEnv.TREESEED_API_AUTH_SECRET ?? localEnv.TREESEED_BETTER_AUTH_SECRET ?? 'treeseed-local-seed-auth-secret',
+		assertionSecret: localEnv.TREESEED_WEB_ASSERTION_SECRET ?? localEnv.TREESEED_API_WEB_ASSERTION_SECRET ?? 'treeseed-local-seed-assertion-secret',
+		serviceId: localEnv.TREESEED_WEB_SERVICE_ID ?? localEnv.TREESEED_API_SERVICE_ID ?? 'web',
+		serviceSecret: localEnv.TREESEED_WEB_SERVICE_SECRET ?? localEnv.TREESEED_API_WEB_SERVICE_SECRET ?? localEnv.TREESEED_API_SERVICE_SECRET ?? 'treeseed-local-seed-service-secret',
 	}, db);
 }
 
@@ -406,6 +449,67 @@ function catalogArtifactCurrentPayload(action, artifact) {
 	};
 }
 
+async function ensureProjectSeedDependencies({ action, store, ids, manifestHash, appliedAt }) {
+	if (action.kind !== 'project') return [];
+	const projectId = ids.projects.get(action.key) ?? action.existing?.id;
+	const teamId = ids.teams.get(action.payload.teamKey);
+	const repository = action.payload.repository;
+	if (!projectId || !teamId || !repository) return [];
+	const repairs = [];
+	const metadata = mergeSeedMetadata(action.existing?.metadata, action.payload.metadata, action, manifestHash, appliedAt);
+	const repositories = await store.listHubRepositories(projectId);
+	const existingRepository = repositories.find((entry) => entry.role === repository.role);
+	if (!existingRepository) {
+		await store.upsertHubRepository(projectId, {
+			teamId,
+			role: repository.role,
+			provider: repository.provider,
+			owner: repository.owner,
+			name: repository.name,
+			url: repository.gitUrl,
+			defaultBranch: repository.defaultBranch ?? 'main',
+			currentBranch: repository.defaultBranch ?? 'main',
+			status: 'active',
+			submodulePath: repository.submodulePath ?? null,
+			metadata,
+		});
+		repairs.push({ kind: 'hubRepository', projectId, role: repository.role });
+	}
+	const hosting = await store.getProjectHosting(projectId);
+	const connection = await store.getProjectConnection(projectId);
+	if (!hosting) {
+		await store.upsertProjectHosting(projectId, {
+			kind: 'self_hosted_project',
+			registration: 'optional',
+			sourceRepoOwner: repository.owner,
+			sourceRepoName: repository.name,
+			sourceRepoUrl: repository.gitUrl,
+			sourceRepoWorkflowPath: '.github/workflows/deploy.yml',
+			executionOwner: 'project_runner',
+			metadata: {
+				...metadata,
+				source: 'seed',
+				seededConnection: true,
+			},
+		});
+		repairs.push({ kind: 'projectHosting', projectId });
+	} else if (!connection) {
+		await store.upsertProjectHosting(projectId, {
+			kind: hosting.kind,
+			registration: hosting.registration,
+			marketBaseUrl: hosting.marketBaseUrl,
+			sourceRepoOwner: hosting.sourceRepoOwner,
+			sourceRepoName: hosting.sourceRepoName,
+			sourceRepoUrl: hosting.sourceRepoUrl,
+			sourceRepoWorkflowPath: hosting.sourceRepoWorkflowPath,
+			executionOwner: hosting.metadata?.executionOwner ?? 'project_runner',
+			metadata: hosting.metadata,
+		});
+		repairs.push({ kind: 'projectConnection', projectId });
+	}
+	return repairs;
+}
+
 async function reconcilePlanWithStore(plan, store) {
 	const teamIds = new Map();
 	const repositoryHostIds = new Map();
@@ -582,20 +686,6 @@ async function applyAction({ action, store, ids, manifestHash, appliedAt, plan }
 				metadata: projectMetadata,
 			})).project;
 		ids.projects.set(action.key, project.id);
-		const repository = action.payload.repository;
-		await store.upsertHubRepository(project.id, {
-			teamId,
-			role: repository.role,
-			provider: repository.provider,
-			owner: repository.owner,
-			name: repository.name,
-			url: repository.gitUrl,
-			defaultBranch: repository.defaultBranch ?? 'main',
-			currentBranch: repository.defaultBranch ?? 'main',
-			status: 'active',
-			submodulePath: repository.submodulePath ?? null,
-			metadata: mergeSeedMetadata(null, metadata, action, manifestHash, appliedAt),
-		});
 		return project;
 	}
 	if (action.kind === 'hubRepository') {
@@ -1077,6 +1167,7 @@ export async function applySeedWithStore(input) {
 	}
 	const appliedAt = isoNow();
 	const ids = { teams: new Map(), repositoryHosts: new Map(), projects: new Map(), providers: new Map(), lanes: new Map(), products: new Map(), productTeams: new Map() };
+	const repairs = [];
 	for (const action of selectedActions(planned.plan)) {
 		if (action.existing?.id) {
 			if (action.kind === 'team') ids.teams.set(action.key, action.existing.id);
@@ -1090,6 +1181,7 @@ export async function applySeedWithStore(input) {
 			}
 		}
 		await applyAction({ action, store, ids, manifestHash, appliedAt, plan: planned.plan });
+		repairs.push(...await ensureProjectSeedDependencies({ action, store, ids, manifestHash, appliedAt }));
 	}
 	const capacityProviderKeys = await ensureCapacityProviderApiKeys({
 		plan: planned.plan,
@@ -1110,6 +1202,7 @@ export async function applySeedWithStore(input) {
 		appliedAt,
 		manifestHash,
 		actionCount: mutationActions(planned.plan).length,
+		repairs,
 		capacityProviderKeys,
 		localTeamMemberships,
 	};

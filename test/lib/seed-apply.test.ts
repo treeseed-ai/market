@@ -175,6 +175,24 @@ describe('local seed apply', () => {
 				manifestHash: first.result.manifestHash,
 			});
 
+			const projectDetails = await store.getProjectDetails(marketProject!.id);
+			expect(projectDetails?.hosting).toMatchObject({
+				kind: 'self_hosted_project',
+				registration: 'optional',
+				sourceRepoOwner: 'knowledge-coop',
+				sourceRepoName: 'market',
+				sourceRepoUrl: 'https://github.com/knowledge-coop/market.git',
+			});
+			expect(projectDetails?.hosting?.metadata?.seed).toMatchObject({
+				resourceKey: 'project:treeseed/market',
+				manifestHash: first.result.manifestHash,
+			});
+			expect(projectDetails?.connection).toMatchObject({
+				mode: 'hybrid',
+				executionOwner: 'project_runner',
+			});
+			expect((await store.getProjectSummary(marketProject!.id))?.health.state).not.toBe('setup_needed');
+
 			const providers = await store.listTeamCapacityProviders(team!.id);
 			const provider = providers.find((entry: any) => entry.name === 'treeseed-local-dev');
 			expect(provider).toMatchObject({
@@ -298,6 +316,98 @@ describe('local seed apply', () => {
 			expect(secondResult.capacityProviderKeys.created).toHaveLength(0);
 			expect(secondResult.capacityProviderKeys.existing).toHaveLength(1);
 			expect(secondResult.capacityProviderKeys.existing[0]).not.toHaveProperty('plaintextKey');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('repairs missing project hosting for an unchanged seeded project', async () => {
+		const { db, store } = createStore();
+		try {
+			await applyLocalSeedFromCli({
+				projectRoot,
+				seedName: 'treeseed',
+				environments: 'local',
+				store,
+			});
+			const team = await store.getTeamBySlug('treeseed');
+			const marketProject = await store.getProjectByTeamAndSlug(team!.id, 'market');
+			await store.run(`DELETE FROM project_connections WHERE project_id = ?`, [marketProject!.id]);
+			await store.run(`DELETE FROM project_hosting WHERE project_id = ?`, [marketProject!.id]);
+
+			const repaired = await applyLocalSeedFromCli({
+				projectRoot,
+				seedName: 'treeseed',
+				environments: 'local',
+				store,
+			});
+			expect(repaired.plan.summary).toMatchObject({
+				create: 0,
+				update: 0,
+				unchanged: 10,
+				skip: 7,
+			});
+			expect((repaired.result as any).repairs).toEqual([
+				expect.objectContaining({ kind: 'projectHosting', projectId: marketProject!.id }),
+			]);
+			const details = await store.getProjectDetails(marketProject!.id);
+			expect(details?.hosting).toMatchObject({
+				kind: 'self_hosted_project',
+				registration: 'optional',
+				sourceRepoOwner: 'knowledge-coop',
+				sourceRepoName: 'market',
+			});
+			expect(details?.connection).toMatchObject({
+				mode: 'hybrid',
+				executionOwner: 'project_runner',
+			});
+		} finally {
+			db.close();
+		}
+	});
+
+	it('does not overwrite existing project hosting during unchanged seed apply', async () => {
+		const { db, store } = createStore();
+		try {
+			await applyLocalSeedFromCli({
+				projectRoot,
+				seedName: 'treeseed',
+				environments: 'local',
+				store,
+			});
+			const team = await store.getTeamBySlug('treeseed');
+			const marketProject = await store.getProjectByTeamAndSlug(team!.id, 'market');
+			await store.upsertProjectHosting(marketProject!.id, {
+				kind: 'hosted_project',
+				registration: 'required',
+				marketBaseUrl: 'https://custom.example.com',
+				sourceRepoOwner: 'custom-owner',
+				sourceRepoName: 'custom-market',
+				sourceRepoUrl: 'https://github.com/custom-owner/custom-market.git',
+				sourceRepoWorkflowPath: '.github/workflows/custom.yml',
+				executionOwner: 'project_api',
+				metadata: { editedBy: 'test' },
+			});
+
+			const repeated = await applyLocalSeedFromCli({
+				projectRoot,
+				seedName: 'treeseed',
+				environments: 'local',
+				store,
+			});
+			expect((repeated.result as any).repairs).toEqual([]);
+			const details = await store.getProjectDetails(marketProject!.id);
+			expect(details?.hosting).toMatchObject({
+				kind: 'hosted_project',
+				registration: 'required',
+				marketBaseUrl: 'https://custom.example.com',
+				sourceRepoOwner: 'custom-owner',
+				sourceRepoName: 'custom-market',
+			});
+			expect(details?.connection).toMatchObject({
+				mode: 'hosted',
+				executionOwner: 'project_api',
+			});
 		} finally {
 			db.close();
 		}

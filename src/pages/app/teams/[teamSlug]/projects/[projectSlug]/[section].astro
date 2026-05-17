@@ -36,7 +36,7 @@ if (!context.team || !context.project || !context.store) {
 	Astro.response.status = 404;
 }
 
-const sectionData = await loadProjectSectionData(context);
+const sectionData = await loadProjectSectionData(context, section);
 const currentSectionTitle = (projectSectionTitles as Record<string, string>)[section] ?? 'Project';
 ---
 
