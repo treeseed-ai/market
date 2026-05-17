@@ -1,0 +1,35 @@
+---
+import KeyValueList from '../../../../../packages/core/src/components/ui/data/KeyValueList.astro';
+import Badge from '../../../../../packages/core/src/components/ui/data/Badge.astro';
+import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import GovernanceDecisionPanel from '../../../../components/app/operations/GovernanceDecisionPanel.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import { loadGovernanceApprovalViewModel } from '../../../../view-models/governance.vm.js';
+
+const approvalId = String(Astro.params.approvalId ?? '');
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+const vm = await loadGovernanceApprovalViewModel(Astro.locals, approvalId);
+if (!vm.detail) Astro.response.status = 404;
+const detail = vm.detail;
+---
+
+<TreeseedAppLayout title={detail?.approval.title ?? 'Decision not found'} description="Review and decide one request." currentPath="/app/work/objectives" teams={vm.context.teams} activeTeam={vm.context.activeTeam}>
+	{detail ? (
+		<section class="ts-control-page" aria-label="Decision">
+			<Panel eyebrow="Work" title={detail.approval.title} description={detail.approval.description}>
+				<Badge slot="actions" tone={detail.approval.tone ?? 'default'}>{detail.approval.state}</Badge>
+				<KeyValueList items={[
+					{ key: 'Severity', value: detail.approval.severity },
+					{ key: 'Kind', value: detail.approval.kind },
+					{ key: 'Project', value: detail.approval.projectName ?? 'Team' },
+					{ key: 'Requested', value: detail.approval.requestedAt ?? 'not recorded' },
+					{ key: 'Expires', value: detail.approval.expiresAt ?? 'not recorded' },
+				]} />
+			</Panel>
+			<GovernanceDecisionPanel approval={detail.approval} options={detail.decisionOptions} action={`/api/governance/${encodeURIComponent(detail.approval.approvalId)}/decision`} />
+		</section>
+	) : (
+		<EmptyState title="Decision not found" description="This decision is not available." actions={[{ label: 'Back to Decisions', href: '/app/work/decisions' }]} />
+	)}
+</TreeseedAppLayout>

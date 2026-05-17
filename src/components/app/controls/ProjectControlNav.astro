@@ -1,0 +1,22 @@
+---
+interface Props {
+	projectId: string;
+	current: 'settings' | 'hosts' | 'guidance' | 'decisions' | 'artifacts' | 'delete';
+}
+const { projectId, current } = Astro.props as Props;
+const encoded = encodeURIComponent(projectId);
+const items = [
+	{ key: 'settings', label: 'Settings', href: `/app/projects/${encoded}/settings` },
+	{ key: 'hosts', label: 'Hosts', href: `/app/projects/${encoded}/hosts` },
+	{ key: 'guidance', label: 'Guidance', href: `/app/projects/${encoded}/guidance` },
+	{ key: 'decisions', label: 'Decisions', href: `/app/projects/${encoded}/decisions` },
+	{ key: 'artifacts', label: 'Artifacts', href: `/app/projects/${encoded}/artifacts` },
+	{ key: 'delete', label: 'Delete', href: `/app/projects/${encoded}/delete` },
+];
+---
+
+<nav class="ts-tabs" aria-label="Project controls">
+	{items.map((item) => (
+		<a class="ts-tab" href={item.href} aria-current={item.key === current ? 'page' : undefined}>{item.label}</a>
+	))}
+</nav>

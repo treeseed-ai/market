@@ -96,54 +96,57 @@ The manager and worker should write real records: workdays, tasks, task events, 
 
 ## 20-Minute Demo Flow
 
-### 1. Mission Control
+### 1. Start, Team, and Hosts
 
 Open:
 
 ```text
 /app
+/app/teams
+/app/hosts
 ```
 
-Show the seeded operational context, current objective, active workdays, pending approvals, repository health, recent knowledge, decisions, and releases.
+Show the guided start page, seeded team controls, and host forms for repository, web, processing, email, and AI providers.
 
 Narration:
 
 ```text
-TreeSeed starts from an operational objective, not from a chat prompt.
+TreeSeed starts with the team and hosting context required to run real projects.
 ```
 
-### 2. Workdays
+### 2. Projects
 
 Open:
 
 ```text
-/app/workdays
+/app/projects
+/app/projects/new
 ```
 
-Then open the active workday.
-
-Show the objective, state, current phase, risk classification, budget, operational timeline, artifacts, repository context, governance, knowledge outputs, and capacity trace.
+Create or open a hosted project. Show one focused control at a time: settings, hosts, guidance, decisions, artifacts, or delete.
 
 Narration:
 
 ```text
-A workday is the durable record of coordinated work across research, execution, verification, governance, and knowledge.
+TreeSeed guides project development through explicit controls, not a dashboard maze.
 ```
 
-### 3. Governance
+### 3. Capacity and Work
 
 Open:
 
 ```text
-/app/governance
+/app/capacity
+/app/work/objectives
+/app/work/decisions
 ```
 
-Show pending approvals, escalations, review timeline, audit trail, policies, and capacity constraints. If a review item exists, open its detail page and show the deliberate decision surface.
+Show capacity providers and grants, then show objectives and the decision queue. If a review item exists, open it and record an approval or rejection.
 
 Narration:
 
 ```text
-Execution is supervised. Governance is part of the work record, not an afterthought.
+Project changes and publishing stay deliberate because decisions are explicit.
 ```
 
 ### 4. Knowledge
@@ -151,31 +154,16 @@ Execution is supervised. Governance is part of the work record, not an afterthou
 Open:
 
 ```text
-/app/knowledge
+/app/knowledge/artifacts
+/app/knowledge/publish
 ```
 
-Show reports, decisions, release notes, research summaries, implementation artifacts, imports, and their operational relationships.
+Show generated artifacts and the publish/package controls for templates and knowledge packs.
 
 Narration:
 
 ```text
 The output of work is institutional memory that remains connected to the workday, repositories, approvals, and releases that produced it.
-```
-
-### 5. Infrastructure
-
-Open:
-
-```text
-/app/infrastructure
-```
-
-Show seeded projects, repositories, deployments, capacity and budget state, workers, hosts, resources, seeds, policies, and diagnostics.
-
-Narration:
-
-```text
-Infrastructure exists for operators. It is visible and inspectable without becoming the primary user journey.
 ```
 
 ## Good Demo Data
@@ -248,4 +236,3 @@ End the walkthrough on:
 ```text
 Every workday improves organizational memory.
 ```
-

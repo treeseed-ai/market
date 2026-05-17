@@ -46,7 +46,7 @@ export const POST: APIRoute = async (context) => {
 		approvalId,
 	});
 	if (!detail) return json({ ok: false, error: 'Unknown approval request.' }, 404);
-	if (detail.approval.state !== 'pending') {
+	if (!['pending', 'waiting_for_approval', 'under_review', 'approval_required'].includes(String(detail.approval.state ?? '').toLowerCase())) {
 		return json({ ok: false, error: 'This approval request is not pending.', state: detail.approval.state }, 409);
 	}
 
@@ -70,5 +70,5 @@ export const POST: APIRoute = async (context) => {
 	if (wantsJson) {
 		return json({ ok: true, payload: decided });
 	}
-	return context.redirect(`/app/governance/${encodeURIComponent(detail.approval.approvalId)}`, 303);
+	return context.redirect(`/app/work/decisions/${encodeURIComponent(detail.approval.approvalId)}`, 303);
 };

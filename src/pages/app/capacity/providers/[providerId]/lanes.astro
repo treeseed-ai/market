@@ -1,0 +1,70 @@
+---
+import Button from '../../../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import Select from '../../../../../../packages/core/src/components/ui/forms/Select.astro';
+import TextInput from '../../../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import EmptyState from '../../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../../../components/app/controls/PlainTable.astro';
+import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../../../../view-models/shared.js';
+
+const providerId = String(Astro.params.providerId ?? '');
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+const team = context.activeTeam;
+const providers = team && context.store ? await context.store.listTeamCapacityProviders(team.id).catch(() => []) : [];
+const provider = providers.find((entry: any) => entry.id === providerId) ?? null;
+const lanes = provider && context.store ? await context.store.listCapacityProviderLanes(team.id, provider.id).catch(() => []) : [];
+if (!provider) Astro.response.status = 404;
+const rows = lanes.map((lane: any) => ({ name: `<strong>${esc(lane.name)}</strong><span>${esc(lane.modelFamily ?? lane.businessModel ?? '')}</span>`, unit: esc(lane.unit ?? 'credit'), scarcity: esc(lane.scarcityLevel ?? 'medium') }));
+---
+
+<TreeseedAppLayout title="Capacity lanes" description="Manage lanes for one provider." currentPath="/app/capacity" teams={context.teams} activeTeam={team}>
+	{provider ? (
+		<section class="ts-control-page" aria-label="Capacity lanes">
+			<Panel eyebrow="Capacity" title={`New lane for ${provider.name}`} description="Create one routing lane.">
+				<form id="lane-form" class="ts-form-stack">
+					<div class="ts-form-grid">
+						<Field label="Name" name="name" required><TextInput name="name" required /></Field>
+						<Field label="Business model" name="businessModel"><TextInput name="businessModel" value="custom" /></Field>
+						<Field label="Model family" name="modelFamily"><TextInput name="modelFamily" /></Field>
+						<Field label="Model class" name="modelClass"><TextInput name="modelClass" /></Field>
+						<Field label="Region policy" name="regionPolicy"><TextInput name="regionPolicy" /></Field>
+						<Field label="Unit" name="unit"><TextInput name="unit" value="treeseed_credit" /></Field>
+						<Field label="Scarcity" name="scarcityLevel"><Select name="scarcityLevel" options={[{ label: 'Low', value: 'low' }, { label: 'Medium', value: 'medium' }, { label: 'High', value: 'high' }]} /></Field>
+					</div>
+					<FormActions align="start"><Button type="submit">Create lane</Button><Button href="/app/capacity" variant="secondary">Back</Button><span class="ts-subtle" id="lane-status" role="status"></span></FormActions>
+				</form>
+			</Panel>
+			<Panel eyebrow="Capacity" title="Lanes" description="Existing lanes for this provider.">
+				<PlainTable columns={[{ key: 'name', label: 'Lane' }, { key: 'unit', label: 'Unit' }, { key: 'scarcity', label: 'Scarcity' }]} rows={rows} emptyTitle="No lanes yet" emptyDescription="Create the first lane above." />
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="Provider not found" description="This provider is not available." actions={[{ label: 'Back to Capacity', href: '/app/capacity' }]} />
+	)}
+</TreeseedAppLayout>
+
+<script is:inline define:vars={{ teamId: team?.id ?? '', providerId: provider?.id ?? '' }}>
+	const form = document.getElementById('lane-form');
+	const status = document.getElementById('lane-status');
+	form?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const data = new FormData(form);
+		if (status) status.textContent = 'Creating...';
+		const response = await fetch(`/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/lanes`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(Object.fromEntries(data.entries())),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			if (status) status.textContent = payload?.error ?? 'Lane could not be created.';
+			return;
+		}
+		window.location.href = `${window.location.pathname}?created=${Date.now()}`;
+	});
+</script>

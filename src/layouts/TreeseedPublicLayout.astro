@@ -35,7 +35,7 @@ const actions = isSignedIn
 	? [{ label: 'Open app', href: '/app/', variant: 'secondary' as const }]
 	: [
 		{ label: 'Sign in', href: '/auth/sign-in', variant: 'ghost' as const },
-		{ label: 'Launch your coop', href: '/auth/sign-in?returnTo=/app/launch', variant: 'primary' as const },
+		{ label: 'Open app', href: '/auth/sign-in?returnTo=/app/projects', variant: 'primary' as const },
 	];
 ---
 

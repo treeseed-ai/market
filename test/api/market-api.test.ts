@@ -2278,7 +2278,7 @@ runtimeDescribe('market api', () => {
 			expect.objectContaining({
 				kind: 'workday_summary',
 				state: 'completed',
-				href: expect.stringContaining('/app/workdays/workday-1#workday-report-timeline'),
+				href: expect.stringContaining('/app/projects/'),
 				metadata: expect.objectContaining({
 					workDayId: 'workday-1',
 					reportId: 'report:workday-1',
@@ -3996,7 +3996,7 @@ runtimeDescribe('market api', () => {
 		}));
 		expect(inbox.payload).toEqual(expect.arrayContaining([
 			expect.objectContaining({
-				href: `/app/governance#approval-${blocked.result.approvalRequest.id}`,
+				href: `/app/work/decisions#approval-${blocked.result.approvalRequest.id}`,
 				metadata: expect.objectContaining({
 					approvalId: blocked.result.approvalRequest.id,
 					approvalKind: 'seed_production_apply',

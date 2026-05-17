@@ -1,0 +1,60 @@
+---
+import Button from '../../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import Select from '../../../../../packages/core/src/components/ui/forms/Select.astro';
+import TextInput from '../../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import Textarea from '../../../../../packages/core/src/components/ui/forms/Textarea.astro';
+import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import { loadOperationalContext } from '../../../../view-models/shared.js';
+
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/work/objectives/new')}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+---
+
+<TreeseedAppLayout title="New objective" description="Create one project objective." currentPath="/app/work/objectives" teams={context.teams} activeTeam={context.activeTeam}>
+	{context.projects.length > 0 ? (
+		<section class="ts-control-page" aria-label="New objective">
+			<Panel eyebrow="Work" title="Create objective" description="This creates an update plan for one project.">
+				<form id="objective-form" class="ts-form-stack">
+					<Field label="Project" name="projectId" required><Select name="projectId" required options={context.projects.map((project: any) => ({ label: project.name ?? project.slug, value: project.id }))} /></Field>
+					<Field label="Title" name="title" required><TextInput name="title" required /></Field>
+					<Field label="Objective" name="objective" required><Textarea name="objective" rows={5} required /></Field>
+					<label class="ts-checkbox-row"><input type="checkbox" name="requiresDecision" checked /> <span>Require decision before execution</span></label>
+					<FormActions align="start"><Button type="submit">Create objective</Button><Button href="/app/work/objectives" variant="secondary">Cancel</Button><span class="ts-subtle" id="objective-status" role="status"></span></FormActions>
+				</form>
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="No projects" description="Create a project before creating objectives." actions={[{ label: 'New project', href: '/app/projects/new' }]} />
+	)}
+</TreeseedAppLayout>
+
+<script>
+	const form = document.getElementById('objective-form') as HTMLFormElement | null;
+	const status = document.getElementById('objective-status');
+	form?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const data = new FormData(form);
+		const projectId = String(data.get('projectId') ?? '');
+		if (status) status.textContent = 'Creating...';
+		const response = await fetch(`/v1/projects/${encodeURIComponent(projectId)}/update-plans`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				sourceKind: 'manual',
+				sourceRef: String(data.get('title') ?? '').trim(),
+				requiresDecision: data.get('requiresDecision') === 'on',
+				plan: { title: String(data.get('title') ?? '').trim(), objective: String(data.get('objective') ?? '').trim() },
+			}),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			if (status) status.textContent = payload?.error ?? 'Objective could not be created.';
+			return;
+		}
+		window.location.href = '/app/work/objectives';
+	});
+</script>

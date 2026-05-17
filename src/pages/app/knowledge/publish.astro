@@ -1,0 +1,53 @@
+---
+import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import Select from '../../../../packages/core/src/components/ui/forms/Select.astro';
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { loadOperationalContext } from '../../../view-models/shared.js';
+
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/knowledge/publish')}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+---
+
+<TreeseedAppLayout title="Publish" description="Package or publish one project's artifacts." currentPath="/app/knowledge/artifacts" teams={context.teams} activeTeam={context.activeTeam}>
+	{context.projects.length > 0 ? (
+		<section class="ts-control-page" aria-label="Publish">
+			<Panel eyebrow="Knowledge" title="Publish project artifacts" description="Choose one project and one action.">
+				<form id="publish-form" class="ts-form-stack">
+					<Field label="Project" name="projectId" required><Select name="projectId" required options={context.projects.map((project: any) => ({ label: project.name ?? project.slug, value: project.id }))} /></Field>
+					<Field label="Action" name="action" required><Select name="action" required options={[
+						{ label: 'Export bundle', value: 'share/export' },
+						{ label: 'Package template', value: 'share/package-template' },
+						{ label: 'Package knowledge pack', value: 'share/package-knowledge-pack' },
+						{ label: 'Publish', value: 'share/publish' },
+					]} /></Field>
+					<FormActions align="start"><Button type="submit">Submit action</Button><Button href="/app/knowledge/artifacts" variant="secondary">Cancel</Button><span class="ts-subtle" id="publish-status" role="status"></span></FormActions>
+				</form>
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="No projects" description="Create a project before publishing artifacts." actions={[{ label: 'New project', href: '/app/projects/new' }]} />
+	)}
+</TreeseedAppLayout>
+
+<script>
+	const form = document.getElementById('publish-form') as HTMLFormElement | null;
+	const status = document.getElementById('publish-status');
+	form?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const data = new FormData(form);
+		const projectId = String(data.get('projectId') ?? '');
+		const action = String(data.get('action') ?? '');
+		if (status) status.textContent = 'Submitting...';
+		const response = await fetch(`/v1/projects/${encodeURIComponent(projectId)}/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) });
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			if (status) status.textContent = payload?.error ?? 'Action failed.';
+			return;
+		}
+		if (status) status.textContent = 'Submitted.';
+	});
+</script>

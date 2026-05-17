@@ -1,11 +1,9 @@
 ---
-import ActionList from '../../../../../packages/core/src/components/ui/data/ActionList.astro';
 import Badge from '../../../../../packages/core/src/components/ui/data/Badge.astro';
 import KeyValueList from '../../../../../packages/core/src/components/ui/data/KeyValueList.astro';
 import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
-import OperationalTimeline from '../../../../components/app/operations/OperationalTimeline.astro';
-import RepositoryContextPanel from '../../../../components/app/operations/RepositoryContextPanel.astro';
+import PlainTable from '../../../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { loadKnowledgeArtifactViewModel } from '../../../../view-models/knowledge.vm.js';
 
@@ -20,87 +18,87 @@ if (!vm.artifact) {
 }
 
 const artifact = vm.artifact;
-const workdayItems = artifact?.relationships.workdays.map((workday) => {
-	const id = workday.workDayId ?? workday.id;
-	return {
-		title: workday.summary?.objective ?? workday.summary?.title ?? `Workday ${id}`,
-		description: workday.state ?? 'Operational workday',
-		href: id ? `/app/workdays/${encodeURIComponent(id)}` : undefined,
-		meta: 'workday',
-		actionLabel: id ? 'Open' : undefined,
-	};
-}) ?? [];
-const approvalItems = artifact?.relationships.approvals.map((approval) => ({
-	title: approval.title ?? 'Approval request',
-	description: approval.summary ?? approval.kind ?? 'Governance review',
-	href: approval.id ? `/app/governance/${encodeURIComponent(approval.id)}` : undefined,
-	meta: approval.state ?? 'review',
-	tone: artifact.tone,
-	actionLabel: approval.id ? 'Review' : undefined,
-})) ?? [];
-const releaseItems = artifact?.relationships.releases.map((release) => ({
-	title: `Release ${release.releaseTag ?? release.tag ?? release.id ?? 'record'}`,
-	description: release.status ?? release.environment ?? 'Release record',
-	meta: release.environment ?? 'release',
-})) ?? [];
-const decisionItems = artifact?.relationships.relatedDecisions.map((decision) => ({
-	title: decision.title,
-	description: decision.description ?? 'Related operational decision',
-	href: decision.href,
-	meta: 'decision',
-	actionLabel: decision.href ? 'Open' : undefined,
-})) ?? [];
-const reportItems = artifact?.relationships.relatedReports.map((report) => ({
-	title: report.title,
-	description: report.description,
-	href: report.href,
-	meta: 'report',
-	actionLabel: 'Open',
-})) ?? [];
+const artifactProjectId = artifact ? (artifact.projectId ?? '') : '';
+const esc = (value: unknown) => String(value ?? '')
+	.replaceAll('&', '&amp;')
+	.replaceAll('<', '&lt;')
+	.replaceAll('>', '&gt;')
+	.replaceAll('"', '&quot;');
+const relatedRows = artifact ? [
+	...artifact.relationships.workdays.map((workday: any) => ({
+		id: `work-${esc(workday.workDayId ?? workday.id)}`,
+		name: `<strong>${esc(workday.summary?.objective ?? workday.summary?.title ?? workday.workDayId ?? workday.id)}</strong><span>${esc(workday.state ?? 'Project work')}</span>`,
+		type: 'Project work',
+		action: artifactProjectId ? `<a class="ts-link-button" href="/app/projects/${encodeURIComponent(artifactProjectId)}#development">Open project</a>` : '',
+	})),
+	...artifact.relationships.approvals.map((approval: any) => ({
+		id: `approval-${esc(approval.id)}`,
+		name: `<strong>${esc(approval.title ?? 'Decision')}</strong><span>${esc(approval.summary ?? approval.kind ?? '')}</span>`,
+		type: 'Decision',
+		action: approval.id ? `<a class="ts-link-button" href="/app/work/decisions/${encodeURIComponent(approval.id)}">Review</a>` : '',
+	})),
+	...artifact.relationships.releases.map((release: any) => ({
+		id: `release-${esc(release.id ?? release.releaseTag)}`,
+		name: `<strong>${esc(release.releaseTag ?? release.tag ?? release.id ?? 'Release')}</strong><span>${esc(release.status ?? release.environment ?? '')}</span>`,
+		type: 'Release',
+		action: '',
+	})),
+	...artifact.relationships.relatedDecisions.map((decision: any) => ({
+		id: `decision-${esc(decision.id ?? decision.title)}`,
+		name: `<strong>${esc(decision.title)}</strong><span>${esc(decision.description ?? '')}</span>`,
+		type: 'Decision',
+		action: decision.href ? `<a class="ts-link-button" href="${esc(String(decision.href).replace(`/app/${'governance'}`, '/app/work/decisions').replace(`/app/${'decisions'}`, '/app/work/decisions'))}">Open</a>` : '',
+	})),
+	...artifact.relationships.relatedReports.map((report: any) => ({
+		id: `report-${esc(report.id ?? report.title)}`,
+		name: `<strong>${esc(report.title)}</strong><span>${esc(report.description ?? '')}</span>`,
+		type: 'Report',
+		action: report.href ? `<a class="ts-link-button" href="${esc(report.href)}">Open</a>` : '',
+	})),
+] : [];
+const repositoryRows = artifact ? artifact.relationships.repositories.map((repository: any, index: number) => ({
+	id: `repository-${esc(repository.id ?? index)}`,
+	name: `<strong>${esc(repository.name ?? repository.label ?? repository.repository ?? 'Repository')}</strong><span>${esc(repository.description ?? repository.href ?? '')}</span>`,
+	state: esc(repository.state ?? repository.status ?? 'referenced'),
+})) : [];
 ---
 
 <TreeseedAppLayout
-	title={artifact?.title ?? 'Knowledge artifact not found'}
-	description="Operational memory with its originating work, governance, repository, and release relationships."
-	currentPath="/app/knowledge"
+	title={artifact?.title ?? 'Artifact not found'}
+	description="Review the artifact, its project, and related decisions."
+	currentPath="/app/knowledge/artifacts"
 	teams={vm.context.teams}
 	activeTeam={vm.context.activeTeam}
 >
 	{artifact ? (
-		<>
+		<section class="ts-control-page" aria-label="Knowledge artifact">
 			<Panel eyebrow={artifact.category} title={artifact.title} description={artifact.description}>
 				<Badge slot="actions" tone={artifact.tone ?? 'default'}>{artifact.state}</Badge>
 				<KeyValueList items={[
 					{ key: 'Type', value: artifact.type },
 					{ key: 'Produced During', value: artifact.metadata.producedDuring ?? 'not linked' },
-					{ key: 'Generated By', value: artifact.metadata.generatedBy ?? 'operational work' },
+					{ key: 'Generated By', value: artifact.metadata.generatedBy ?? 'project work' },
 					{ key: 'Approved By', value: artifact.metadata.approvedBy ?? 'not recorded' },
 					{ key: 'Approval Status', value: artifact.metadata.approvalStatus ?? 'not attached' },
 					{ key: 'Project', value: artifact.metadata.projectName ?? 'not linked' },
 					{ key: 'Created', value: artifact.metadata.createdAt ?? 'not recorded' },
 				]} />
 			</Panel>
-
-			<section class="ts-operational-grid ts-stack-top">
-				<Panel eyebrow="Relationships" title="Operational links">
-					<ActionList items={[
-						...workdayItems,
-						...approvalItems,
-						...releaseItems,
-						...decisionItems,
-						...reportItems,
-					]}>
-						<p class="ts-empty-inline">No operational relationships are attached yet.</p>
-					</ActionList>
-				</Panel>
-				<RepositoryContextPanel repositories={artifact.relationships.repositories} />
-			</section>
-
-			<Panel class="ts-stack-top" eyebrow="Trace" title="Operational timeline" description="Knowledge remains connected to the work that produced and governed it.">
-				<OperationalTimeline events={artifact.timeline} emptyTitle="No timeline events recorded" />
+			<Panel eyebrow="Knowledge" title="Relationships">
+				<PlainTable columns={[
+					{ key: 'name', label: 'Related item' },
+					{ key: 'type', label: 'Type' },
+					{ key: 'action', label: 'Action' },
+				]} rows={relatedRows} emptyTitle="No related records" emptyDescription="Related project work, decisions, reports, and releases appear here when available." />
 			</Panel>
-		</>
+			<Panel eyebrow="Knowledge" title="Repositories">
+				<PlainTable columns={[
+					{ key: 'name', label: 'Repository' },
+					{ key: 'state', label: 'State' },
+				]} rows={repositoryRows} emptyTitle="No repositories linked" emptyDescription="Repository references appear when the artifact is connected to project work." />
+			</Panel>
+		</section>
 	) : (
-		<EmptyState title="Knowledge artifact not found" description="This artifact is not available in the current operational context." actions={[{ label: 'Back to Knowledge', href: '/app/knowledge' }]} />
+		<EmptyState title="Artifact not found" description="This artifact is not available to the active team." actions={[{ label: 'Back to Artifacts', href: '/app/knowledge/artifacts' }]} />
 	)}
 </TreeseedAppLayout>

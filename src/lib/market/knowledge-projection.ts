@@ -391,7 +391,7 @@ function approvalEvent(approval: any): KnowledgeTimelineEvent {
 		state: compact(approval?.state, 'pending'),
 		tone: toneForState(approval?.state ?? approval?.severity),
 		timestamp: approval?.decidedAt ?? approval?.updatedAt ?? approval?.createdAt,
-		href: `/app/governance/${encodeURIComponent(id)}`,
+		href: `/app/work/decisions/${encodeURIComponent(id)}`,
 		meta: describeState(approval?.severity, 'review'),
 	};
 }

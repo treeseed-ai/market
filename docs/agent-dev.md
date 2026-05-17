@@ -243,8 +243,8 @@ Core must not become the owner of generic agent runtime behavior.
 Owns:
 
 * integrated product web app;
-* operational Mission Control, Workdays, Governance, Knowledge, and Infrastructure views;
-* agent workday dashboards;
+* control app views for Start, Hosts, Projects, Capacity, Work, and Knowledge;
+* work objective and decision controls;
 * approval request UI;
 * generated knowledge/proposal UI;
 * control-plane composition;
@@ -1554,7 +1554,7 @@ GET  /v1/projects/:projectId/providers/codex/readiness
 
 ### 11.4 Web UI
 
-The TreeSeed app should expose Workday and Governance supervision surfaces with:
+The TreeSeed app should expose control surfaces for Work, Knowledge, and Capacity with:
 
 * operation grants by agent role;
 * recent operation events;
@@ -1577,7 +1577,7 @@ The TreeSeed app should expose Workday and Governance supervision surfaces with:
 Recommended sections:
 
 ```text
-Workday Detail
+Work
   - Runtime readiness
   - Operations grants
   - Operations event log
@@ -2087,7 +2087,7 @@ Goal: make humans able to supervise the loop from the web UI.
 
 Tasks:
 
-* Update Workday and Governance views.
+* Update Work, Knowledge, and Capacity views.
 * Add runtime readiness cards.
 * Add current workday panel.
 * Add active tasks table.
@@ -2282,7 +2282,7 @@ No code mutation in dogfood test.
 | Codex provider skeleton            | mocked SDK unit tests                                                                     |
 | Codex provider execution           | mocked SDK tests plus manual local readiness test                                         |
 | API surface                        | market API tests                                                                          |
-| Workday/Governance app surfaces    | UI/render tests and local manual inspection                                               |
+| Work/Knowledge/Capacity app surfaces | UI/render tests and local manual inspection                                             |
 | End-to-end local runtime           | `npm run dev -- --reset`, `npm run dev -- --surface services`, launch workday, inspect UI |
 
 ---
@@ -2498,7 +2498,7 @@ Fields:
 
 ### PR 11: Operational app UI
 
-* Add Workday and Governance supervision UI.
+* Add Work, Knowledge, and Capacity supervision UI.
 * Add Codex readiness card.
 * Add generated knowledge review table.
 
@@ -2528,7 +2528,7 @@ Implemented coverage includes:
 * Agent context processing, package-owned research/knowledge/optimizer handlers, workday orchestration, runtime readiness, operation adapters, Codex provider readiness/execution, worktree-scoped docs mutation, knowledge promotion, human-gated release approval, artifact APIs, operation observability, reports, and local E2E verification harnesses.
 * Capacity scheduling runtime from `docs/agent-budget.md`: classify, estimate, route, reserve, execute, reconcile, learn, checkpoint or continue, and preserve idle capacity when no useful admitted work remains.
 * Core integrated dev surface support for `--surface all`.
-* Market API delegation, Workday/Governance supervision UI for runtime/artifacts/approvals, and Infrastructure capacity UI for provider readiness, grants, lane pressure, routing decisions, reservations, learned estimates, usage actuals, checkpointed interruptions, approval-required work, and manual budgeted task submission through admission.
+* Market API delegation, Work/Knowledge supervision UI for runtime/artifacts/approvals, and Capacity UI for provider readiness, grants, lane pressure, routing decisions, reservations, learned estimates, usage actuals, checkpointed interruptions, approval-required work, and manual budgeted task submission through admission.
 
 The intended completion gate is now verification and review organization: package-local `verify:local` checks, targeted Market Agents tests, the capacity scheduling E2E harness, `git diff --check`, review of tracked files, and human approval before any production release.
 

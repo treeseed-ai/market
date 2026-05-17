@@ -120,7 +120,7 @@ describe('operational view models', () => {
 		const infrastructure = await loadInfrastructureViewModel({} as App.Locals);
 
 		expect(governance.pendingApprovals).toHaveLength(1);
-		expect(governance.reviewQueue.map((item) => item.href)).toContain('/app/governance/approval-1');
+		expect(governance.reviewQueue.map((item) => item.href)).toContain('/app/work/decisions/approval-1');
 		expect(governance.auditTrail.map((item) => item.title)).toContain('Approval Requested');
 		expect(governance.policies.map((item) => item.title)).toContain('Publish release');
 		expect(governance.capacityConstraints.map((item) => item.title)).toContain('Capacity approval required');

@@ -54,7 +54,7 @@ describe('governance projection', () => {
 
 		expect(projection.pendingApprovals).toHaveLength(1);
 		expect(projection.escalations[0]).toMatchObject({ approvalId: 'approval-1', severity: 'critical' });
-		expect(projection.reviewQueue[0].href).toBe('/app/governance/approval-1');
+		expect(projection.reviewQueue[0].href).toBe('/app/work/decisions/approval-1');
 		expect(projection.policies.map((item) => item.title)).toEqual(expect.arrayContaining(['Publish release', 'Ops Docs workday policy']));
 		expect(projection.policyViolations.map((item) => item.title)).toContain('Capacity approval required');
 		expect(projection.auditTrail.map((item) => item.title)).toContain('Approval Requested');

@@ -1,0 +1,103 @@
+---
+import Button from '../../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import Select from '../../../../../packages/core/src/components/ui/forms/Select.astro';
+import TextInput from '../../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import Textarea from '../../../../../packages/core/src/components/ui/forms/Textarea.astro';
+import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../../components/app/controls/PlainTable.astro';
+import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../../../view-models/shared.js';
+
+const projectParam = String(Astro.params.projectId ?? '');
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
+const [workdays, updatePlans] = project && context.store ? await Promise.all([
+	typeof context.store.listProjectWorkdaySummaries === 'function' ? context.store.listProjectWorkdaySummaries(project.id, null).catch(() => []) : [],
+	typeof context.store.listProjectUpdatePlans === 'function' ? context.store.listProjectUpdatePlans(project.id).catch(() => []) : [],
+]) : [[], []];
+if (!project) Astro.response.status = 404;
+const workRows = workdays.map((workday: any) => ({
+	id: `work-${esc(workday.workDayId ?? workday.id)}`,
+	name: `<strong>${esc(workday.summary?.objective ?? workday.summary?.title ?? workday.workDayId ?? workday.id)}</strong><span>${esc(workday.environment ?? 'project')}</span>`,
+	state: esc(workday.state ?? workday.status ?? 'recorded'),
+	updated: esc(workday.updatedAt ?? workday.createdAt ?? ''),
+}));
+const planRows = updatePlans.map((plan: any) => ({
+	id: `plan-${esc(plan.id)}`,
+	name: `<strong>${esc(plan.title ?? plan.plan?.title ?? plan.sourceRef ?? plan.id)}</strong><span>${esc(plan.plan?.objective ?? plan.summary ?? '')}</span>`,
+	state: esc(plan.state ?? plan.status ?? (plan.requiresDecision ? 'decision required' : 'queued')),
+}));
+---
+
+<TreeseedAppLayout title="Project guidance" description="Create one update plan or workday request." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+	{project ? (
+		<section class="ts-control-page" aria-label="Project guidance">
+			<ProjectControlNav projectId={project.id} current="guidance" />
+			<Panel eyebrow="Projects" title="Create update plan" description="Define one development objective for this project.">
+				<form id="update-plan-form" class="ts-form-stack">
+					<Field label="Plan title" name="title" required><TextInput name="title" required placeholder="Improve deployment docs" /></Field>
+					<Field label="Guidance" name="objective" required><Textarea name="objective" rows={5} required placeholder="Describe the change, result, and constraints." /></Field>
+					<label class="ts-checkbox-row"><input type="checkbox" name="requiresDecision" checked /> <span>Require a decision before execution</span></label>
+					<FormActions align="start"><Button type="submit">Create plan</Button><span class="ts-subtle" id="update-plan-status" role="status"></span></FormActions>
+				</form>
+			</Panel>
+			<Panel eyebrow="Projects" title="Request workday" description="Ask the manager and worker loop to pick up project work.">
+				<form id="workday-request-form" class="ts-form-stack">
+					<Field label="Environment" name="environment"><Select name="environment" options={[{ label: 'Local', value: 'local' }, { label: 'Staging', value: 'staging' }, { label: 'Production', value: 'prod' }]} /></Field>
+					<Field label="Reason" name="reason" required><Textarea name="reason" rows={5} required /></Field>
+					<FormActions align="start"><Button type="submit">Request workday</Button><span class="ts-subtle" id="workday-request-status" role="status"></span></FormActions>
+				</form>
+			</Panel>
+			<Panel eyebrow="Projects" title="Update plans" description="Plans created for this project.">
+				<PlainTable columns={[{ key: 'name', label: 'Plan' }, { key: 'state', label: 'State' }]} rows={planRows} emptyTitle="No update plans" emptyDescription="Create the first update plan above." />
+			</Panel>
+			<Panel eyebrow="Projects" title="Workdays" description="Workday records for this project.">
+				<PlainTable columns={[{ key: 'name', label: 'Workday' }, { key: 'state', label: 'State' }, { key: 'updated', label: 'Updated' }]} rows={workRows} emptyTitle="No workdays" emptyDescription="Request a workday above." />
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="Project not found" description="This project is not available." actions={[{ label: 'Back to Projects', href: '/app/projects' }]} />
+	)}
+</TreeseedAppLayout>
+
+<script is:inline define:vars={{ projectId: project?.id ?? '' }}>
+	async function submitJson(url, body) {
+		const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) throw new Error(payload?.error ?? 'Request failed.');
+		return payload.payload;
+	}
+	function setText(id, text) { const element = document.getElementById(id); if (element) element.textContent = text; }
+	const planForm = document.getElementById('update-plan-form');
+	const requestForm = document.getElementById('workday-request-form');
+	planForm?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const form = new FormData(planForm);
+		setText('update-plan-status', 'Creating...');
+		try {
+			await submitJson(`/v1/projects/${encodeURIComponent(projectId)}/update-plans`, {
+				sourceKind: 'manual',
+				sourceRef: String(form.get('title') ?? '').trim(),
+				requiresDecision: form.get('requiresDecision') === 'on',
+				plan: { title: String(form.get('title') ?? '').trim(), objective: String(form.get('objective') ?? '').trim() },
+			});
+			window.location.href = `${window.location.pathname}?updated=${Date.now()}`;
+		} catch (error) { setText('update-plan-status', error instanceof Error ? error.message : 'Plan could not be created.'); }
+	});
+	requestForm?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const form = new FormData(requestForm);
+		const reason = String(form.get('reason') ?? '').trim();
+		setText('workday-request-status', 'Requesting...');
+		try {
+			await submitJson(`/v1/projects/${encodeURIComponent(projectId)}/workday-requests`, { environment: String(form.get('environment') ?? 'local'), type: 'one_off_run', reason, payload: { reason } });
+			window.location.href = `${window.location.pathname}?requested=${Date.now()}`;
+		} catch (error) { setText('workday-request-status', error instanceof Error ? error.message : 'Workday could not be requested.'); }
+	});
+</script>

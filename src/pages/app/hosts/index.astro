@@ -1,0 +1,63 @@
+---
+import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../components/app/controls/PlainTable.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc, hostTypeFor } from '../../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../../view-models/shared.js';
+
+if (!Astro.locals.auth?.principal) {
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/hosts')}`);
+}
+
+const context = await loadOperationalContext(Astro.locals, Astro);
+const team = context.activeTeam;
+const [repositoryHosts, providerHosts] = team && context.store
+	? await Promise.all([
+			context.store.listRepositoryHosts(team.id, { includePlatform: false }).catch(() => []),
+			context.store.listTeamWebHosts(team.id).catch(() => []),
+		])
+	: [[], []];
+
+const rows = [
+	...repositoryHosts.map((host: any) => ({
+		id: `repository-${esc(host.id)}`,
+		name: `<strong>${esc(host.name)}</strong><span>${esc(host.organizationOrOwner ?? host.accountLabel ?? 'GitHub')}</span>`,
+		type: 'Repository',
+		provider: esc(host.provider ?? 'github'),
+		status: esc(host.status ?? 'active'),
+		actions: `<a class="ts-link-button" href="/app/hosts/repository/${encodeURIComponent(host.id)}/edit">Edit</a>`,
+	})),
+	...providerHosts.map((host: any) => {
+		const type = hostTypeFor(host);
+		return {
+			id: `${esc(type)}-${esc(host.id)}`,
+			name: `<strong>${esc(host.name)}</strong><span>${esc(host.accountLabel ?? host.provider ?? 'Provider')}</span>`,
+			type: esc(type),
+			provider: esc(host.provider ?? 'provider'),
+			status: esc(host.status ?? 'active'),
+			actions: `<a class="ts-link-button" href="/app/hosts/${encodeURIComponent(type)}/${encodeURIComponent(host.id)}/edit">Edit</a>`,
+		};
+	}),
+];
+---
+
+<TreeseedAppLayout title="Hosts" description="Manage repository, web, processing, email, and AI host configurations." currentPath={Astro.url.pathname} teams={context.teams} activeTeam={team}>
+	<section class="ts-control-page" aria-label="Hosts">
+		<Panel eyebrow="Hosts" title="Host configurations" description={team ? 'Create and maintain provider credentials for the active team.' : 'Create a team before adding hosts.'}>
+			<Button slot="actions" href="/app/hosts/new" size="sm">New host</Button>
+			{team ? (
+				<PlainTable columns={[
+					{ key: 'name', label: 'Host' },
+					{ key: 'type', label: 'Type' },
+					{ key: 'provider', label: 'Provider' },
+					{ key: 'status', label: 'Status' },
+					{ key: 'actions', label: 'Actions' },
+				]} rows={rows} emptyTitle="No hosts yet" emptyDescription="Add a host configuration or use managed defaults when creating a project." />
+			) : (
+				<EmptyState title="No team selected" description="Create or switch to a team first." actions={[{ label: 'Open Team', href: '/app/teams' }]} />
+			)}
+		</Panel>
+	</section>
+</TreeseedAppLayout>

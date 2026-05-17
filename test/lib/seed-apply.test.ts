@@ -447,7 +447,7 @@ describe('local seed apply', () => {
 						},
 					},
 				} as any,
-				url: new URL('https://market.example.com/app/governance'),
+				url: new URL('https://market.example.com/app/work/decisions'),
 			});
 
 			expect(seedPage.selectedSeed).toBe('treeseed');

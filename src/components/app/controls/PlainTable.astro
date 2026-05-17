@@ -1,0 +1,45 @@
+---
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+
+interface Column {
+	key: string;
+	label: string;
+}
+
+interface Props {
+	columns: Column[];
+	rows: Array<Record<string, any>>;
+	emptyTitle?: string;
+	emptyDescription?: string;
+}
+
+const {
+	columns,
+	rows,
+	emptyTitle = 'Nothing configured',
+	emptyDescription = 'Use the controls on this page to add the first record.',
+} = Astro.props as Props;
+---
+
+{rows.length > 0 ? (
+	<div class="ts-plain-table" role="region" aria-label="Records">
+		<table>
+			<thead>
+				<tr>
+					{columns.map((column) => <th scope="col">{column.label}</th>)}
+				</tr>
+			</thead>
+			<tbody>
+				{rows.map((row) => (
+					<tr id={row.id ? String(row.id) : undefined}>
+						{columns.map((column) => (
+							<td set:html={String(row[column.key] ?? '')}></td>
+						))}
+					</tr>
+				))}
+			</tbody>
+		</table>
+	</div>
+) : (
+	<EmptyState title={emptyTitle} description={emptyDescription} />
+)}

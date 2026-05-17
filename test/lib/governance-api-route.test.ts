@@ -88,7 +88,7 @@ describe('governance API routes', () => {
 		const list = await json(await listRoute.GET(context()));
 		const detail = await json(await detailRoute.GET(context('/api/governance/approval-1')));
 
-		expect(list.payload.pendingApprovals[0]).toMatchObject({ approvalId: 'approval-1', href: '/app/governance/approval-1' });
+		expect(list.payload.pendingApprovals[0]).toMatchObject({ approvalId: 'approval-1', href: '/app/work/decisions/approval-1' });
 		expect(detail.payload.approval).toMatchObject({ approvalId: 'approval-1', title: 'Publish operational report' });
 	});
 

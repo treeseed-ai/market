@@ -52,19 +52,19 @@ export function teamLabel(team: any | null): string {
 }
 
 export function projectHref(projectId: unknown): string {
-	return `/app/infrastructure${projectId ? `#project-${anchorPart(projectId)}` : ''}`;
+	return projectId ? `/app/projects/${encodeURIComponent(compact(projectId, 'project'))}` : '/app/projects';
 }
 
 export function workdayHref(workdayId: unknown): string {
-	return `/app/workdays/${encodeURIComponent(compact(workdayId, 'workday'))}`;
+	return `/app/work/objectives#work-${anchorPart(workdayId)}`;
 }
 
 export function approvalHref(approvalId: unknown): string {
-	return `/app/governance${approvalId ? `#approval-${anchorPart(approvalId)}` : ''}`;
+	return approvalId ? `/app/work/decisions/${encodeURIComponent(compact(approvalId, 'decision'))}` : '/app/work/decisions';
 }
 
 export function knowledgeHref(artifactId: unknown): string {
-	return artifactId ? `/app/knowledge/operations/${anchorPart(artifactId).toLowerCase()}` : '/app/knowledge';
+	return artifactId ? `/app/knowledge/operations/${anchorPart(artifactId).toLowerCase()}` : '/app/knowledge/artifacts';
 }
 
 export function anchorPart(value: unknown): string {
@@ -92,11 +92,25 @@ export function describeState(state: unknown, fallback = 'not recorded'): string
 	return compact(state, fallback).replaceAll('_', ' ');
 }
 
-export async function loadOperationalContext(locals: App.Locals): Promise<OperationalContext> {
+export async function loadOperationalContext(locals: App.Locals, astro?: any): Promise<OperationalContext> {
 	const store = resolveMarketStore(locals);
 	const principal = resolveMarketPrincipal(locals);
 	const teams = await loadAccessibleTeams(locals);
-	const activeTeam = teams[0] ?? null;
+	const requestedTeamId = compact(astro?.url?.searchParams?.get('teamId'), '');
+	const cookieTeamId = compact(astro?.cookies?.get?.('treeseed_active_team')?.value, '');
+	const activeTeam = teams.find((team: any) => team.id === requestedTeamId || team.slug === requestedTeamId)
+		?? teams.find((team: any) => team.id === cookieTeamId || team.slug === cookieTeamId)
+		?? teams[0]
+		?? null;
+	if (activeTeam && requestedTeamId && astro?.cookies?.set) {
+		astro.cookies.set('treeseed_active_team', activeTeam.id, {
+			path: '/app',
+			httpOnly: false,
+			sameSite: 'lax',
+			secure: astro.url?.protocol === 'https:',
+			maxAge: 60 * 60 * 24 * 365,
+		});
+	}
 	const projects = activeTeam && store ? await store.listTeamProjects(activeTeam.id).catch(() => []) : [];
 
 	return {

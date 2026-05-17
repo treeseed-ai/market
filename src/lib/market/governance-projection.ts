@@ -255,7 +255,7 @@ function approvalItem(bundle: GovernanceBundle, approval: any): GovernanceReview
 		timestamp: latestDate(approval?.createdAt, approval?.updatedAt, approval?.decidedAt),
 		requestedAt: latestDate(approval?.createdAt),
 		expiresAt: latestDate(approval?.expiresAt),
-		href: `/app/governance/${encodeURIComponent(id)}`,
+		href: `/app/work/decisions/${encodeURIComponent(id)}`,
 		meta: `${describeState(severity, 'moderate')} severity`,
 		governanceRefs: [id],
 		decisionOptions: decisionOptionsFor(approval),
@@ -275,7 +275,7 @@ function policyItemsForBundle(bundle: GovernanceBundle): GovernancePolicyItem[] 
 			phase: 'governance' as const,
 			state: grant.enabled === false ? 'paused' : 'active',
 			tone: grant.enabled === false ? 'warning' as const : 'success' as const,
-			href: '/app/governance',
+			href: bundle.project?.id ? `/app/projects/${encodeURIComponent(bundle.project.id)}/settings` : '/app/work/decisions',
 			meta: compact(bundle.project?.name, 'policy'),
 			projectId: compact(bundle.project?.id, '') || null,
 			projectName: compact(bundle.project?.name, ''),
@@ -291,7 +291,7 @@ function policyItemsForBundle(bundle: GovernanceBundle): GovernancePolicyItem[] 
 		phase: 'governance' as const,
 		state: workPolicy.enabled === false ? 'paused' : 'active',
 		tone: workPolicy.enabled === false ? 'warning' as const : 'success' as const,
-		href: '/app/governance',
+		href: bundle.project?.id ? `/app/projects/${encodeURIComponent(bundle.project.id)}/guidance` : '/app/work/decisions',
 		meta: compact(workPolicy.environment, 'staging'),
 		projectId: compact(bundle.project?.id, '') || null,
 		projectName: compact(bundle.project?.name, ''),
@@ -320,7 +320,7 @@ function capacityConstraintsForBundle(bundle: GovernanceBundle): GovernanceCapac
 		state: readiness,
 		tone: toneForState(readiness),
 		timestamp: null,
-		href: '/app/governance',
+		href: bundle.project?.id ? `/app/projects/${encodeURIComponent(bundle.project.id)}/guidance` : '/app/work/decisions',
 		meta: compact(bundle.project?.name, 'capacity'),
 		projectId: compact(bundle.project?.id, '') || null,
 		projectName: compact(bundle.project?.name, ''),
@@ -335,7 +335,7 @@ function capacityConstraintsForBundle(bundle: GovernanceBundle): GovernanceCapac
 		state: compact(decision.decision, 'blocked'),
 		tone: toneForState(decision.decision),
 		timestamp: latestDate(decision.createdAt),
-		href: decision.workDayId ? `/app/workdays/${encodeURIComponent(decision.workDayId)}` : '/app/governance',
+		href: bundle.project?.id ? `/app/projects/${encodeURIComponent(bundle.project.id)}/guidance` : '/app/work/decisions',
 		meta: compact(bundle.project?.name, 'capacity'),
 		governanceRefs: [],
 		projectId: compact(bundle.project?.id, '') || null,
@@ -351,7 +351,7 @@ function capacityConstraintsForBundle(bundle: GovernanceBundle): GovernanceCapac
 		state: compact(reservation.state, 'pending'),
 		tone: toneForState(reservation.state),
 		timestamp: latestDate(reservation.createdAt, reservation.updatedAt),
-		href: reservation.workDayId ? `/app/workdays/${encodeURIComponent(reservation.workDayId)}` : '/app/governance',
+		href: bundle.project?.id ? `/app/projects/${encodeURIComponent(bundle.project.id)}/guidance` : '/app/work/decisions',
 		meta: compact(bundle.project?.name, 'capacity'),
 		governanceRefs: [],
 		projectId: compact(bundle.project?.id, '') || null,
@@ -371,7 +371,10 @@ function activityEventsForBundle(bundle: GovernanceBundle): GovernanceEvent[] {
 		state: compact(entry?.status, 'recorded'),
 		tone: toneForState(entry?.status),
 		timestamp: latestDate(entry?.timestamp, entry?.createdAt),
-		href: compact(entry?.href, '/app/governance'),
+		href: compact(entry?.href, bundle.project?.id ? `/app/projects/${encodeURIComponent(bundle.project.id)}/settings` : '/app/work/decisions')
+			.replace(`/app/${'governance'}`, '/app/work/decisions')
+			.replace(`/app/${'decisions'}`, '/app/work/decisions')
+			.replace(`/app/${'workdays'}`, '/app/projects'),
 		meta: compact(bundle.project?.name, 'activity'),
 	}));
 	const inbox = safeArray(bundle.inboxItems).map((item: any) => ({
@@ -383,7 +386,7 @@ function activityEventsForBundle(bundle: GovernanceBundle): GovernanceEvent[] {
 		state: compact(item?.state, 'recorded'),
 		tone: toneForState(item?.state),
 		timestamp: latestDate(item?.createdAt, item?.updatedAt),
-		href: item?.itemKey ? `/app/governance/${encodeURIComponent(item.itemKey)}` : compact(item?.href, '/app/governance'),
+		href: item?.itemKey ? `/app/work/decisions/${encodeURIComponent(item.itemKey)}` : compact(item?.href, '/app/work/decisions').replace(`/app/${'governance'}`, '/app/work/decisions').replace(`/app/${'decisions'}`, '/app/work/decisions'),
 		meta: compact(item?.kind, 'inbox'),
 	}));
 	return [...activity, ...inbox];
@@ -399,7 +402,7 @@ function auditEventsForBundle(bundle: GovernanceBundle): GovernanceEvent[] {
 		state: 'recorded',
 		tone: 'muted' as const,
 		timestamp: latestDate(event.createdAt ?? event.created_at),
-		href: '/app/governance',
+		href: '/app/work/decisions',
 		meta: compact(event.actorType ?? event.actor_type, 'audit'),
 	}));
 }

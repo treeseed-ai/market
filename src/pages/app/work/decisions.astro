@@ -1,0 +1,25 @@
+---
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../components/app/controls/PlainTable.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
+import { loadGovernanceViewModel } from '../../../view-models/governance.vm.js';
+
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/work/decisions')}`);
+const vm = await loadGovernanceViewModel(Astro.locals);
+const rows = vm.reviewQueue.map((item: any) => ({
+	id: `decision-${esc(item.approvalId ?? item.id)}`,
+	name: `<strong>${esc(item.title)}</strong><span>${esc(item.description ?? item.projectName ?? '')}</span>`,
+	project: esc(item.projectName ?? 'Team'),
+	state: esc(item.state ?? 'pending'),
+	action: `<a class="ts-link-button" href="/app/work/decisions/${encodeURIComponent(item.approvalId ?? item.id)}">Open</a>`,
+}));
+---
+
+<TreeseedAppLayout title="Decisions" description="Approve or reject waiting decisions." currentPath="/app/work/objectives" teams={vm.context.teams} activeTeam={vm.context.activeTeam}>
+	<section class="ts-control-page" aria-label="Decisions">
+		<Panel eyebrow="Work" title="Decision queue" description="Open one decision to act on it.">
+			<PlainTable columns={[{ key: 'name', label: 'Decision' }, { key: 'project', label: 'Project' }, { key: 'state', label: 'State' }, { key: 'action', label: 'Action' }]} rows={rows} emptyTitle="No decisions waiting" emptyDescription="Decision requests appear when project work or publishing needs review." />
+		</Panel>
+	</section>
+</TreeseedAppLayout>

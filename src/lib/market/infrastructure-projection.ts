@@ -160,7 +160,7 @@ function projectItem(project: any): InfrastructureItem {
 		category: 'infrastructure',
 		state: compact(project?.status, 'active'),
 		tone: toneForState(project?.status ?? 'active'),
-		href: `/app/infrastructure#project-${anchorPart(project?.id ?? project?.slug)}`,
+		href: `/app/projects/${encodeURIComponent(anchorPart(project?.id ?? project?.slug))}/settings`,
 		meta: compact(project?.slug, 'project'),
 		projectId: compact(project?.id, '') || null,
 		projectName: compact(project?.name, compact(project?.slug, 'Project')),
@@ -178,7 +178,7 @@ function repositoryItems(bundle: InfrastructureBundle): InfrastructureItem[] {
 			category: 'infrastructure' as const,
 			state: compact(repository?.status, compact(repository?.state, 'connected')),
 			tone: toneForState(repository?.status ?? repository?.state ?? 'active'),
-			href: `/app/infrastructure/repositories#repository-${anchorPart(repository?.id ?? repositoryLabel(repository))}`,
+			href: '/app/hosts',
 			meta: compact(repository?.role, compact(repository?.provider, 'repository')),
 			projectId: compact(bundle.project?.id, '') || null,
 			projectName: projectName(bundle),
@@ -201,7 +201,7 @@ function deploymentItems(bundle: InfrastructureBundle): InfrastructureItem[] {
 			state: compact(deployment?.status, 'recorded'),
 			tone: toneForState(deployment?.status),
 			timestamp: latestDate(deployment?.finishedAt, deployment?.completedAt, deployment?.startedAt, deployment?.createdAt),
-			href: `/app/infrastructure/deployments#deployment-${anchorPart(deployment?.id ?? deployment?.releaseTag ?? deployment?.environment)}`,
+			href: bundle.project?.id ? `/app/projects/${encodeURIComponent(bundle.project.id)}/hosts` : '/app/projects',
 			meta: compact(deployment?.deploymentKind, compact(deployment?.environment, 'deployment')),
 			projectId: compact(bundle.project?.id, '') || null,
 			projectName: projectName(bundle),
@@ -216,7 +216,7 @@ function providerItem(provider: any): InfrastructureItem {
 		category: 'infrastructure',
 		state: compact(provider?.status, 'configured'),
 		tone: toneForState(provider?.status ?? 'active'),
-		href: `/app/infrastructure/capacity#provider-${anchorPart(provider?.id ?? provider?.name)}`,
+		href: provider?.id ? `/app/capacity/providers/${encodeURIComponent(provider.id)}/edit` : '/app/capacity',
 		meta: compact(provider?.provider, compact(provider?.kind, 'capacity')),
 		details: {
 			billingScope: compact(provider?.billingScope, 'team'),
@@ -233,7 +233,7 @@ function grantItem(grant: any): InfrastructureItem {
 		category: 'governance',
 		state: compact(grant?.state, 'active'),
 		tone: toneForState(grant?.state ?? 'active'),
-		href: `/app/infrastructure/capacity#grant-${anchorPart(grant?.id ?? grant?.projectId ?? grant?.grantScope)}`,
+		href: grant?.id ? `/app/capacity/grants/${encodeURIComponent(grant.id)}/edit` : '/app/capacity/grants',
 		meta: grant?.projectId ? 'project grant' : 'team grant',
 		projectId: compact(grant?.projectId, '') || null,
 	};
@@ -249,7 +249,7 @@ function providerDetailItems(detail: any): InfrastructureItem[] {
 			category: 'infrastructure' as const,
 			state: compact(host?.state, compact(host?.status, 'configured')),
 			tone: toneForState(host?.state ?? host?.status ?? 'active'),
-			href: `/app/infrastructure/hosts#host-${anchorPart(host?.hostId ?? host?.id)}`,
+			href: `/app#host-${anchorPart(host?.hostId ?? host?.id)}`,
 			meta: compact(host?.role, 'host'),
 		})),
 		...safeArray(detail.lanes).map((lane: any) => ({
@@ -259,7 +259,7 @@ function providerDetailItems(detail: any): InfrastructureItem[] {
 			category: 'infrastructure' as const,
 			state: compact(lane?.state, compact(lane?.status, 'available')),
 			tone: toneForState(lane?.state ?? lane?.status ?? 'active'),
-			href: `/app/infrastructure/capacity#provider-${anchorPart(providerId)}`,
+			href: `/app/capacity/providers/${encodeURIComponent(anchorPart(providerId))}/edit`,
 			meta: 'capacity lane',
 		})),
 		{
@@ -269,7 +269,7 @@ function providerDetailItems(detail: any): InfrastructureItem[] {
 			category: 'infrastructure',
 			state: safeArray(detail.apiKeys).length ? 'configured' : 'missing',
 			tone: safeArray(detail.apiKeys).length ? 'success' : 'warning',
-			href: `/app/infrastructure/capacity#provider-${anchorPart(providerId)}`,
+			href: `/app/capacity/providers/${encodeURIComponent(anchorPart(providerId))}/edit`,
 			meta: 'credentials',
 		},
 	];
@@ -287,7 +287,7 @@ function capacityOperationItems(bundle: InfrastructureBundle): InfrastructureIte
 			category: 'infrastructure' as const,
 			state: compact(summary.readiness, 'ready'),
 			tone: toneForState(summary.readiness),
-			href: `/app/infrastructure/capacity#project-${anchorPart(bundle.project?.id)}`,
+			href: bundle.project?.id ? `/app/projects/${encodeURIComponent(bundle.project.id)}/settings` : '/app/projects',
 			meta: 'readiness',
 			projectId: compact(bundle.project?.id, '') || null,
 			projectName: projectName(bundle),
@@ -300,7 +300,7 @@ function capacityOperationItems(bundle: InfrastructureBundle): InfrastructureIte
 			category: 'execution' as const,
 			state: compact(reservation?.state, 'reserved'),
 			tone: toneForState(reservation?.state ?? 'warning'),
-			href: `/app/infrastructure/capacity#project-${anchorPart(bundle.project?.id)}`,
+			href: bundle.project?.id ? `/app/projects/${encodeURIComponent(bundle.project.id)}/settings` : '/app/projects',
 			meta: 'reservation',
 			projectId: compact(bundle.project?.id, '') || null,
 			projectName: projectName(bundle),
@@ -316,7 +316,7 @@ function routingDecisionItem(bundle: InfrastructureBundle, decision: any): Infra
 		category: 'execution',
 		state: compact(decision?.decision, 'recorded'),
 		tone: toneForState(decision?.decision === 'selected' ? 'active' : decision?.decision),
-		href: `/app/infrastructure/capacity#routing-${anchorPart(decision?.id ?? decision?.taskId ?? decision?.workDayId)}`,
+		href: '/app/work/objectives',
 		meta: compact(decision?.environment, 'routing'),
 		timestamp: latestDate(decision?.createdAt, decision?.updatedAt),
 		projectId: compact(bundle.project?.id, '') || null,
@@ -332,7 +332,7 @@ function workerItems(bundle: InfrastructureBundle): InfrastructureItem[] {
 		category: 'execution' as const,
 		state: compact(runner?.state, 'unknown'),
 		tone: toneForState(runner?.state),
-		href: `/app/infrastructure/workers#worker-${anchorPart(runner?.id ?? runner?.runnerId ?? runner?.runnerServiceName)}`,
+		href: '/app/capacity',
 		meta: `${Number(runner?.activeLocalWorkers ?? 0)} / ${Number(runner?.maxLocalWorkers ?? 0)} workers`,
 		projectId: compact(bundle.project?.id, '') || null,
 		projectName: projectName(bundle),
@@ -344,7 +344,7 @@ function workerItems(bundle: InfrastructureBundle): InfrastructureItem[] {
 		category: 'execution' as const,
 		state: compact(task?.state, 'queued'),
 		tone: toneForState(task?.state),
-		href: task?.workDayId ? `/app/workdays/${encodeURIComponent(task.workDayId)}` : '/app/infrastructure/workers',
+		href: task?.workDayId ? `/app/projects/${encodeURIComponent(task.workDayId)}` : '/app/projects',
 		meta: describeState(task?.priority, 'task'),
 		timestamp: latestDate(task?.updatedAt, task?.createdAt),
 		projectId: compact(bundle.project?.id, '') || null,
@@ -362,7 +362,7 @@ function hostItem(host: any): InfrastructureItem {
 		category: 'infrastructure',
 		state: compact(host?.status, compact(host?.ownership, 'configured')),
 		tone: toneForState(host?.status ?? 'active'),
-		href: `/app/infrastructure/hosts#host-${anchorPart(id)}`,
+		href: `/app#host-${anchorPart(id)}`,
 		meta: compact(host?.provider, compact(host?.ownership, 'host')),
 	};
 }
@@ -376,7 +376,7 @@ function projectResourceItem(bundle: InfrastructureBundle, resource: any): Infra
 		category: 'infrastructure',
 		state: compact(resource?.status, 'configured'),
 		tone: toneForState(resource?.status ?? 'active'),
-		href: `/app/infrastructure/resources#resource-${anchorPart(id)}`,
+		href: `/app/knowledge/artifacts#resource-${anchorPart(id)}`,
 		meta: compact(resource?.provider, compact(resource?.resourceKind, 'resource')),
 		projectId: compact(bundle.project?.id, '') || null,
 		projectName: projectName(bundle),
@@ -392,7 +392,7 @@ function productItem(product: any): InfrastructureItem {
 		category: 'knowledge',
 		state: compact(product?.visibility, compact(product?.status, 'available')),
 		tone: toneForState(product?.visibility === 'public' ? 'active' : product?.status),
-		href: `/app/infrastructure/resources#resource-${anchorPart(id)}`,
+			href: `/app/knowledge/artifacts#resource-${anchorPart(id)}`,
 		meta: compact(product?.kind, 'resource'),
 	};
 }
@@ -406,7 +406,7 @@ function policyItems(bundle: InfrastructureBundle): InfrastructureItem[] {
 			category: 'governance' as const,
 			state: grant?.enabled === false ? 'paused' : 'active',
 			tone: grant?.enabled === false ? 'warning' as const : 'success' as const,
-			href: `/app/infrastructure/policies#policy-${anchorPart(grant?.id ?? grant?.operation)}`,
+			href: `/app/work/decisions#policy-${anchorPart(grant?.id ?? grant?.operation)}`,
 			meta: projectName(bundle),
 			projectId: compact(bundle.project?.id, '') || null,
 			projectName: projectName(bundle),
@@ -418,7 +418,7 @@ function policyItems(bundle: InfrastructureBundle): InfrastructureItem[] {
 			category: 'governance' as const,
 			state: bundle.capacityOperations.summary.workPolicy.enabled === false ? 'paused' : 'active',
 			tone: bundle.capacityOperations.summary.workPolicy.enabled === false ? 'warning' as const : 'success' as const,
-			href: `/app/infrastructure/policies#policy-work-${anchorPart(bundle.project?.id)}`,
+			href: `/app/work/decisions#policy-work-${anchorPart(bundle.project?.id)}`,
 			meta: compact(bundle.capacityOperations.summary.workPolicy.environment, 'staging'),
 			projectId: compact(bundle.project?.id, '') || null,
 			projectName: projectName(bundle),
@@ -436,7 +436,7 @@ function seedItems(seedState: any): InfrastructureItem[] {
 			category: 'infrastructure',
 			state: seedState.error ? 'blocked' : safeArray(seedState.diagnostics).some((diagnostic: any) => diagnostic.severity === 'error') ? 'needs_review' : 'planned',
 			tone: seedState.error ? 'danger' : safeArray(seedState.diagnostics).length ? 'warning' : 'success',
-			href: '/app/infrastructure/seeds#seed-plan',
+			href: '/app#seed-plan',
 			meta: compact(seedState.selectedEnvironments, 'environment'),
 		},
 		...safeArray(seedState.runs).map((run: any) => ({
@@ -447,7 +447,7 @@ function seedItems(seedState: any): InfrastructureItem[] {
 			state: compact(run?.status, compact(run?.state, 'recorded')),
 			tone: toneForState(run?.status ?? run?.state),
 			timestamp: latestDate(run?.updatedAt, run?.createdAt),
-			href: `/app/infrastructure/seeds#seed-run-${anchorPart(run?.id ?? run?.manifestHash)}`,
+			href: `/app#seed-run-${anchorPart(run?.id ?? run?.manifestHash)}`,
 			meta: 'seed run',
 		})),
 		...safeArray(seedState.approvals).map((approval: any) => ({
@@ -458,7 +458,7 @@ function seedItems(seedState: any): InfrastructureItem[] {
 			state: compact(approval?.state, 'pending'),
 			tone: toneForState(approval?.state ?? approval?.severity),
 			timestamp: latestDate(approval?.createdAt, approval?.updatedAt),
-			href: approval?.id ? `/app/governance/${encodeURIComponent(approval.id)}` : '/app/governance',
+			href: approval?.id ? `/app/work/decisions/${encodeURIComponent(approval.id)}` : '/app/work/decisions',
 			meta: describeState(approval?.severity, 'review'),
 		})),
 	];
@@ -473,7 +473,7 @@ function diagnosticsFromCapacity(teamCapacitySummary: any, bundles: Infrastructu
 			category: 'infrastructure' as const,
 			state: compact(teamCapacitySummary.readiness, 'review'),
 			tone: toneForState(teamCapacitySummary.readiness),
-			href: '/app/infrastructure/capacity',
+			href: '/app/projects',
 			meta: 'capacity',
 		}]
 		: [];
@@ -491,7 +491,7 @@ function diagnosticsFromDeployments(deployments: InfrastructureItem[]): Infrastr
 			...deployment,
 			id: `diagnostic-${deployment.id}`,
 			title: `${deployment.title} needs attention`,
-			href: '/app/infrastructure/deployments',
+			href: '/app/projects',
 		}));
 }
 
@@ -501,7 +501,7 @@ function diagnosticsFromHosts(hosts: InfrastructureItem[]): InfrastructureItem[]
 			...host,
 			id: `diagnostic-${host.id}`,
 			title: `${host.title} host issue`,
-			href: '/app/infrastructure/hosts',
+			href: '/app',
 		}));
 }
 
@@ -513,7 +513,7 @@ function diagnosticsFromSeeds(seedState: any): InfrastructureItem[] {
 		category: 'infrastructure',
 		state: compact(diagnostic?.severity, 'info'),
 		tone: diagnostic?.severity === 'error' ? 'danger' : diagnostic?.severity === 'warning' ? 'warning' : 'info',
-		href: '/app/infrastructure/seeds',
+		href: '/app',
 		meta: compact(diagnostic?.path, 'seed'),
 	}));
 }
@@ -528,7 +528,7 @@ function auditDiagnosticItem(event: any): InfrastructureItem {
 		state: compact(event?.eventType, 'recorded'),
 		tone: 'info',
 		timestamp: latestDate(event?.createdAt),
-		href: '/app/infrastructure/policies',
+		href: '/app/work/decisions',
 		meta: 'audit',
 	};
 }

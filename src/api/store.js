@@ -437,7 +437,7 @@ function serializeTeamWebHost(row) {
 	};
 }
 
-const SUPPORTED_TEAM_HOST_PROVIDERS = new Set(['cloudflare', 'railway', 'openai', 'github_copilot', 'openrouter', 'custom']);
+const SUPPORTED_TEAM_HOST_PROVIDERS = new Set(['cloudflare', 'railway', 'smtp', 'openai', 'github_copilot', 'openrouter', 'custom']);
 
 function isProcessingTeamHost(host) {
 	if (!host) return false;
@@ -3484,7 +3484,7 @@ export class MarketControlPlaneStore {
 			state: 'open',
 			title: 'Helper capacity connected',
 			summary: 'TreeSeed-managed helper capacity is connected and ready for approved project work.',
-			href: '/app/infrastructure#capacity',
+			href: '/app/capacity',
 			itemKey: `capacity-connected:${provider.id}`,
 			metadata: {
 				providerId: provider.id,
@@ -3603,7 +3603,7 @@ export class MarketControlPlaneStore {
 			state: 'open',
 			title: 'Helper capacity connected',
 			summary: `${provider.name} is connected to ${processingHost.name} and ready for provider registration.`,
-			href: '/app/infrastructure#capacity',
+			href: '/app/capacity',
 			itemKey: `capacity-connected:${provider.id}`,
 			metadata: {
 				providerId: provider.id,
@@ -4788,10 +4788,10 @@ export class MarketControlPlaneStore {
 			),
 		]);
 		return [
-			...projects.map((row) => ({ code: 'project', id: row.id, label: row.name, href: `/app/infrastructure#project-${row.id}` })),
-			...catalogItems.map((row) => ({ code: 'catalog_item', id: row.id, label: row.title, href: `/app/infrastructure#resources` })),
-			...knowledgePacks.map((row) => ({ code: 'knowledge_pack', id: row.id, label: row.name, href: `/app/knowledge/imports/${String(row.id).replace(/[^a-zA-Z0-9_-]+/gu, '-').toLowerCase()}` })),
-			...jobs.map((row) => ({ code: 'active_job', id: row.id, label: `${row.project_name}: ${row.operation}`, href: '/app/infrastructure#deployments' })),
+			...projects.map((row) => ({ code: 'project', id: row.id, label: row.name, href: `/app/projects/${row.id}/settings` })),
+			...catalogItems.map((row) => ({ code: 'catalog_item', id: row.id, label: row.title, href: '/app/knowledge/templates' })),
+			...knowledgePacks.map((row) => ({ code: 'knowledge_pack', id: row.id, label: row.name, href: '/app/knowledge/packs' })),
+			...jobs.map((row) => ({ code: 'active_job', id: row.id, label: `${row.project_name}: ${row.operation}`, href: '/app/work/objectives' })),
 		];
 	}
 
@@ -4858,15 +4858,15 @@ export class MarketControlPlaneStore {
 				[projectId],
 			),
 		]);
-		const href = `/app/infrastructure#project-${project.id}`;
+		const href = `/app/projects/${project.id}/settings`;
 		return [
-			...jobs.map((row) => ({ code: 'active_job', id: row.id, label: `${row.namespace}:${row.operation} ${row.status}`, href: '/app/infrastructure#deployments' })),
-			...workdays.map((row) => ({ code: 'active_workday', id: row.id, label: `Workday ${row.id} ${row.state}`, href: `/app/workdays/${row.id}` })),
-			...requests.map((row) => ({ code: 'workday_request', id: row.id, label: `${row.environment} ${row.type} ${row.state}`, href: '/app/workdays' })),
+			...jobs.map((row) => ({ code: 'active_job', id: row.id, label: `${row.namespace}:${row.operation} ${row.status}`, href: '/app/work/objectives' })),
+			...workdays.map((row) => ({ code: 'active_workday', id: row.id, label: `Workday ${row.id} ${row.state}`, href: `/app/work/objectives#work-${row.id}` })),
+			...requests.map((row) => ({ code: 'workday_request', id: row.id, label: `${row.environment} ${row.type} ${row.state}`, href: '/app/work/objectives' })),
 			...leases.map((row) => ({ code: 'manager_lease', id: row.id, label: `${row.environment} ${row.manager_id}`, href })),
 			...runners.map((row) => ({ code: 'worker_runner', id: row.id, label: `${row.environment} ${row.runner_id}`, href })),
-			...reservations.map((row) => ({ code: 'capacity_reservation', id: row.id, label: `${row.state} ${row.reserved_credits ?? 0} credits`, href: '/app/infrastructure#capacity' })),
-			...approvals.map((row) => ({ code: 'pending_approval', id: row.id, label: row.title ?? row.kind, href: `/app/governance#approval-${row.id}` })),
+			...reservations.map((row) => ({ code: 'capacity_reservation', id: row.id, label: `${row.state} ${row.reserved_credits ?? 0} credits`, href: '/app/capacity' })),
+			...approvals.map((row) => ({ code: 'pending_approval', id: row.id, label: row.title ?? row.kind, href: `/app/work/decisions#approval-${row.id}` })),
 		];
 	}
 
@@ -7312,7 +7312,7 @@ export class MarketControlPlaneStore {
 					state: 'action_required',
 					title: `${project.name}: ${failedJob.operation} failed`,
 					summary: `The latest ${failedJob.namespace}:${failedJob.operation} run failed and needs review.`,
-					href: `/app/infrastructure#project-${project.id}`,
+					href: `/app/projects/${project.id}/settings`,
 					createdAt: latestDate(failedJob.finishedAt, failedJob.updatedAt, failedJob.createdAt),
 				});
 			}
@@ -7327,7 +7327,7 @@ export class MarketControlPlaneStore {
 						state: 'waiting_for_approval',
 						title: `${project.name}: staging candidate ready`,
 						summary: 'A verified staging deployment is ready for human release review.',
-						href: '/app/governance',
+						href: '/app/work/decisions',
 						createdAt: latestDate(summary.latestStagingDeployment.finishedAt, summary.latestStagingDeployment.startedAt),
 					});
 				}
@@ -7341,7 +7341,7 @@ export class MarketControlPlaneStore {
 					state: 'informational',
 					title: `${project.name}: artifacts available`,
 					summary: 'Release artifacts exist for this project and can be packaged as operational resources.',
-					href: '/app/infrastructure#resources',
+					href: '/app/knowledge/artifacts',
 					createdAt: products[0].publishedAt,
 				});
 			}

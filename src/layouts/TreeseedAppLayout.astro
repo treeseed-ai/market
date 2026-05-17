@@ -21,26 +21,33 @@ interface Props {
 
 const {
 	title,
-	description = 'Coordinate objectives, workdays, governance, knowledge, and infrastructure from one operational control plane.',
+	description = 'Set up teams, hosts, projects, capacity, work, and knowledge.',
 	currentPath,
 	teams,
 	activeTeam = null,
 } = Astro.props as Props;
 
 const railItems = [
-	{ label: 'Mission Control', href: '/app/' },
-	{ label: 'Workdays', href: '/app/workdays' },
-	{ label: 'Governance', href: '/app/governance' },
-	{ label: 'Knowledge', href: '/app/knowledge' },
-	{ label: 'Infrastructure', href: '/app/infrastructure' },
+	{ label: 'Start', href: '/app/' },
+	{ label: 'Hosts', href: '/app/hosts' },
+	{ label: 'Projects', href: '/app/projects' },
+	{ label: 'Capacity', href: '/app/capacity' },
+	{ label: 'Work', href: '/app/work/objectives' },
+	{ label: 'Knowledge', href: '/app/knowledge/artifacts' },
 ];
 
 const appearance = await resolveAuthenticatedThemePreference(Astro);
 const quickActions = [
-	{ label: 'New objective', href: '/app/launch', variant: 'primary' as const },
+	activeTeam
+		? { label: 'New project', href: '/app/projects/new', variant: 'primary' as const }
+		: { label: 'New team', href: '/app/teams/new', variant: 'primary' as const },
 	{ label: 'Account', href: '/app/account', variant: 'secondary' as const },
 	{ label: 'Sign out', href: '/auth/sign-out', variant: 'secondary' as const },
 ];
+const teamOptions = teams.map((team) => ({
+	id: team.id,
+	label: team.displayName ?? team.name ?? team.slug ?? team.id,
+}));
 ---
 
 <AppShell
@@ -50,7 +57,7 @@ const quickActions = [
 	appearance={appearance}
 	brand={{
 		name: 'TreeSeed Platform',
-		tag: 'Governable AI Infrastructure for Organizational Continuity',
+		tag: 'Simple controls',
 		href: '/app/',
 		logoSrc: '/logo.svg',
 		logoAlt: '',
@@ -59,23 +66,35 @@ const quickActions = [
 	quickActions={quickActions}
 >
 	<div slot="railContext" class="ts-team-switcher">
-		<div class="ts-section__eyebrow">Operational context</div>
+		<div class="ts-section__eyebrow">Team</div>
 		{teams.length > 0 ? (
-			<div class="ts-team-selector">
-				<select aria-label="Active organization" onchange="if (this.value) window.location.href = this.value;">
-					{teams.map((team) => (
-						<option value="/app/infrastructure#teams" selected={activeTeam?.id === team.id}>
-							{team.displayName ?? team.name}
-						</option>
-					))}
-				</select>
-				<a class="ts-icon-button" href="/app/infrastructure#teams" title="Inspect organization" aria-label="Inspect organization">Open</a>
-			</div>
+			<form class="ts-team-selector" aria-label="Active team" data-team-switcher>
+				<label class="ts-field ts-team-selector__label">
+					<select class="ts-control" name="teamId" aria-label="Active team">
+						{teamOptions.map((team) => (
+							<option value={team.id} selected={team.id === activeTeam?.id}>{team.label}</option>
+						))}
+					</select>
+				</label>
+				<a class="ts-icon-button" href="/app/teams" title="Manage teams" aria-label="Manage teams">Manage</a>
+			</form>
 		) : (
-			<a class="ts-create-team-button" href="/app/infrastructure#teams">Open infrastructure</a>
+			<a class="ts-create-team-button" href="/app/teams/new">Create team</a>
 		)}
 	</div>
 	<SensitiveDataUnlock part="button" slot="headerAction" />
 	<slot />
 	<SensitiveDataUnlock part="modal" slot="sensitiveModal" />
 </AppShell>
+
+<script>
+	document.querySelectorAll('[data-team-switcher]').forEach((form) => {
+		const select = (form as HTMLFormElement).elements.namedItem('teamId') as HTMLSelectElement | null;
+		select?.addEventListener('change', () => {
+			const url = new URL(window.location.href);
+			url.searchParams.set('teamId', select.value);
+			document.cookie = `treeseed_active_team=${encodeURIComponent(select.value)}; path=/app; max-age=31536000; SameSite=Lax`;
+			window.location.href = url.toString();
+		});
+	});
+</script>

@@ -1,5 +1,32 @@
 # TreeSeed UX Migration Implementation Plan
 
+## Current Implementation Status
+
+The authenticated app has been simplified again after the operational-dashboard migration. The current product UI is now a controls-first flow:
+
+```text
+Start -> Hosts -> Projects -> Capacity -> Work -> Knowledge
+```
+
+Team creation, editing, deletion, membership, and switching are handled through the persistent sidebar team selector and `/app/teams`, not as a primary Start-page or sidebar step.
+
+The earlier Mission Control, Workdays, Governance, and Infrastructure app sections are retained below as historical migration context only. They are not the current routed app IA. The current routes are:
+
+```text
+/app
+/app/hosts
+/app/projects
+/app/projects/[projectId]/settings
+/app/capacity
+/app/work/objectives
+/app/work/decisions
+/app/work/questions
+/app/knowledge/artifacts
+/app/knowledge/[category]/[slug]
+```
+
+The current app should prioritize one-purpose controls for configuring hosts, launching hosted projects, managing capacity, guiding project work, recording decisions and questions, and publishing or packaging knowledge artifacts. It should not reintroduce dashboard-first routes, compatibility redirects, observability-style overview pages, duplicate team-management entry points, or JSON credential inputs.
+
 ## Purpose
 
 This document defines the implementation strategy for migrating TreeSeed from a fragmented feature-oriented interface into a cohesive operational coordination system aligned with the platform’s long-term positioning:
@@ -796,27 +823,31 @@ Those route families are deprecated as user-facing app navigation.
 
 ```text
 /app
-/app/workdays
-/app/governance
-/app/knowledge
-/app/infrastructure
+/app/hosts
+/app/projects
+/app/capacity
+/app/work/objectives
+/app/work/decisions
+/app/knowledge/artifacts
 ```
 
 ---
 
-## Workdays
+## Work
 
 ```text
-/app/workdays/[workdayId]
+/app/work/objectives
+/app/work/objectives/new
 ```
 
 ---
 
-## Governance
+## Decisions
 
 ```text
-/app/governance
-/app/governance/[approvalId]
+/app/work/decisions
+/app/work/decisions/[approvalId]
+/app/work/questions
 ```
 
 ---
@@ -829,13 +860,12 @@ Those route families are deprecated as user-facing app navigation.
 
 ---
 
-## Infrastructure
+## Hosts, Projects, And Capacity
 
 ```text
-/app/infrastructure/repositories
-/app/infrastructure/deployments
-/app/infrastructure/capacity
-/app/infrastructure/workers
+/app/hosts
+/app/projects
+/app/capacity
 ```
 
 ---
@@ -1181,10 +1211,12 @@ Introduce:
 
 ```text
 /app
-/app/workdays
-/app/governance
-/app/knowledge
-/app/infrastructure
+/app/hosts
+/app/projects
+/app/capacity
+/app/work/objectives
+/app/work/decisions
+/app/knowledge/artifacts
 ```
 
 Begin deprecating:
@@ -1358,10 +1390,10 @@ Without requiring prompt inspection.
 
 ### Governance Dashboard
 
-New route:
+Current decision route:
 
 ```text
-/app/governance
+/app/work/decisions
 ```
 
 Displays:
@@ -1552,7 +1584,9 @@ Relocate:
 into:
 
 ```text
-/app/infrastructure
+/app/hosts
+/app/projects
+/app/capacity
 ```
 
 ---
@@ -1657,10 +1691,12 @@ Document the walkthrough across:
 
 ```text
 /app
-/app/workdays
-/app/governance
-/app/knowledge
-/app/infrastructure
+/app/hosts
+/app/projects
+/app/capacity
+/app/work/objectives
+/app/work/decisions
+/app/knowledge/artifacts
 ```
 
 ---
@@ -1782,13 +1818,13 @@ The numbered UX migration phases are complete.
 
 Implemented status:
 
-* Phase 1 collapsed authenticated app navigation to Mission Control, Workdays, Governance, Knowledge, and Infrastructure.
-* Phase 2 made Workdays the canonical operational execution surface.
-* Phase 3 elevated Governance into a first-class review system.
-* Phase 4 unified Knowledge as operational memory.
-* Phase 5 isolated advanced operator tooling under Infrastructure.
+* Phase 1 through Phase 5 were superseded by the controls-first simplification after operational dashboards proved too complex for the product task.
+* The current authenticated app navigation is Start, Hosts, Projects, Capacity, Work, and Knowledge.
+* Team management remains available through the persistent sidebar team selector and `/app/teams`.
+* Work objectives, workday requests, decisions, and questions are managed under Work.
+* Generated artifacts, templates, packs, releases, and publishing are managed under Knowledge.
 * Phase 6 is documentation-only demo rehearsal through the real seeded local system.
-* Phase 7 finalized the operational visual identity, accessibility pass, and product tone.
+* Phase 7 finalized the compact control-console visual identity, accessibility pass, and product tone.
 
 There is no compatibility route layer for the old team/project section hierarchy.
 
@@ -2026,12 +2062,16 @@ Do not preserve deprecated app routes for compatibility.
 Introduce:
 
 ```text
-/app/workdays
-/app/governance
-/app/knowledge
+/app/hosts
+/app/projects
+/app/capacity
+/app/work/objectives
+/app/work/decisions
+/app/work/questions
+/app/knowledge/artifacts
 ```
 
-Remove team/project-first route controllers as the clean operational IA lands.
+Keep `/app/teams` for the persistent team selector's management target, but do not make Team a primary navigation step. Remove dashboard route controllers as the clean control IA lands.
 
 ---
 

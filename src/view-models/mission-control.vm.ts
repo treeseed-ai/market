@@ -58,7 +58,7 @@ export async function loadMissionControlViewModel(locals: App.Locals): Promise<M
 		state: task.state,
 		tone: toneForState(task.state),
 		timestamp: task.updatedAt ?? task.createdAt ?? null,
-		href: workdays.find((entry: any) => entry.id === task.workDayId)?.href ?? '/app/workdays',
+		href: workdays.find((entry: any) => entry.id === task.workDayId)?.href ?? '/app/projects',
 		meta: describeState(task.priority, 'task'),
 	}))).slice(0, 6);
 	const repositoryHealth = bundles.flatMap((bundle: any) => safeArray(bundle.summary?.repositories).map((repository: any) => ({
@@ -93,7 +93,7 @@ export async function loadMissionControlViewModel(locals: App.Locals): Promise<M
 		state: release.status,
 		tone: toneForState(release.status),
 		timestamp: release.finishedAt ?? release.startedAt ?? release.createdAt ?? null,
-		href: '/app/governance',
+		href: '/app/work/decisions',
 		meta: release.environment ?? 'release',
 	}))).slice(0, 5);
 

@@ -1,84 +1,38 @@
 ---
-import ActionList from '../../../packages/core/src/components/ui/data/ActionList.astro';
-import MetricGrid from '../../../packages/core/src/components/ui/data/MetricGrid.astro';
-import Button from '../../../packages/core/src/components/ui/forms/Button.astro';
-import EmptyState from '../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../packages/core/src/components/ui/surface/Panel.astro';
-import GovernancePanel from '../../components/app/operations/GovernancePanel.astro';
-import KnowledgeArtifactCard from '../../components/app/operations/KnowledgeArtifactCard.astro';
-import RepositoryContextPanel from '../../components/app/operations/RepositoryContextPanel.astro';
-import WorkdaySummaryCard from '../../components/app/operations/WorkdaySummaryCard.astro';
+import PlainTable from '../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../layouts/TreeseedAppLayout.astro';
-import { loadMissionControlViewModel } from '../../view-models/mission-control.vm.js';
+import { escapeHtml as esc } from '../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../view-models/shared.js';
 
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/')}`);
 }
 
-const vm = await loadMissionControlViewModel(Astro.locals);
+const context = await loadOperationalContext(Astro.locals, Astro);
+const rows = [
+	{ step: '1', name: '<strong>Hosts</strong><span>Add repository, web, processing, email, and AI host credentials.</span>', action: '<a class="ts-link-button" href="/app/hosts">Open Hosts</a>' },
+	{ step: '2', name: '<strong>Projects</strong><span>Create hosted projects and manage their settings.</span>', action: '<a class="ts-link-button" href="/app/projects">Open Projects</a>' },
+	{ step: '3', name: '<strong>Capacity</strong><span>Manage pluggable processors, lanes, keys, and grants.</span>', action: '<a class="ts-link-button" href="/app/capacity">Open Capacity</a>' },
+	{ step: '4', name: '<strong>Work</strong><span>Create objectives, answer decisions, and track questions.</span>', action: '<a class="ts-link-button" href="/app/work/objectives">Open Work</a>' },
+	{ step: '5', name: '<strong>Knowledge</strong><span>Review, package, publish, and share artifacts.</span>', action: '<a class="ts-link-button" href="/app/knowledge/artifacts">Open Knowledge</a>' },
+];
 ---
 
 <TreeseedAppLayout
-	title="Mission Control"
-	description="Operational overview for objectives, workdays, governance, knowledge, and infrastructure health."
+	title="Start"
+	description="Follow the setup path. Each page has one job."
 	currentPath={Astro.url.pathname}
-	teams={vm.context.teams}
-	activeTeam={vm.context.activeTeam}
+	teams={context.teams}
+	activeTeam={context.activeTeam}
 >
-	<Panel eyebrow={vm.teamName} title={vm.currentObjective} description={vm.summary}>
-		<Button slot="actions" href="/app/workdays" variant="secondary" size="sm">Open workdays</Button>
-		<MetricGrid metrics={vm.metrics} min="10rem" />
-	</Panel>
-
-	<section class="ts-operational-grid ts-stack-top">
-		<Panel eyebrow="Execution" title="Active workdays" description="Current operational work across repositories and approvals.">
-			<div class="ts-card-list">
-				{vm.activeWorkdays.length > 0 ? vm.activeWorkdays.map((workday) => (
-					<WorkdaySummaryCard workday={workday} />
-				)) : <EmptyState title="No active workdays" description="Start with a new objective when the organization is ready for coordinated work." actions={[{ label: 'New objective', href: '/app/launch' }]} />}
-			</div>
-		</Panel>
-
-		<GovernancePanel title="Pending approvals" description="Operational decisions waiting for deliberate review." items={vm.pendingApprovals} />
-	</section>
-
-	<section class="ts-operational-grid ts-stack-top">
-		<Panel eyebrow="Queue" title="Queued operational work" description="Execution work that is visible without exposing implementation chatter.">
-			<ActionList items={vm.queuedWork.map((item) => ({
-				title: item.title,
-				description: item.description,
-				href: item.href,
-				meta: item.meta,
-				tone: item.tone,
-				actionLabel: item.href ? 'Open' : undefined,
-			}))}>
-				<p class="ts-empty-inline">No queued execution work is currently visible.</p>
-			</ActionList>
-		</Panel>
-
-		<RepositoryContextPanel repositories={vm.repositoryHealth} />
-	</section>
-
-	<section class="ts-operational-grid ts-stack-top">
-		<Panel eyebrow="Knowledge" title="Recent knowledge produced" description="Operational work compounding into durable organizational memory.">
-			<div class="ts-card-list">
-				{vm.recentKnowledge.length > 0 ? vm.recentKnowledge.map((artifact) => (
-					<KnowledgeArtifactCard artifact={artifact} />
-				)) : <EmptyState title="No knowledge produced yet" description="Knowledge outputs will appear as workdays generate reports, decisions, and operational artifacts." />}
-			</div>
-		</Panel>
-
-		<Panel eyebrow="Operational record" title="Recent decisions and releases">
-			<ActionList items={[...vm.recentDecisions, ...vm.recentReleases].map((item) => ({
-				title: item.title,
-				description: item.description,
-				href: item.href,
-				meta: item.meta,
-				tone: item.tone,
-				actionLabel: item.href ? 'Open' : undefined,
-			}))}>
-				<p class="ts-empty-inline">No recent decisions or releases are recorded yet.</p>
-			</ActionList>
+	<section class="ts-control-page" aria-label="Start">
+		<Panel eyebrow="Start" title="Choose the next control" description={context.activeTeam ? `Active team: ${esc(context.activeTeam.displayName ?? context.activeTeam.name)}` : 'Create a team first.'}>
+			<PlainTable columns={[
+				{ key: 'step', label: 'Step' },
+				{ key: 'name', label: 'Control' },
+				{ key: 'action', label: 'Action' },
+			]} rows={rows} />
 		</Panel>
 	</section>
 </TreeseedAppLayout>

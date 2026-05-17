@@ -1123,10 +1123,8 @@ async function requireConnectedProjectRuntime(c, store, projectId, principal, pa
 }
 
 async function projectAppHref(_store, _teamId, _projectSlug, section) {
-	if (section === 'workdays') return '/app/workdays';
-	if (section === 'agents' || section === 'releases') return '/app/governance';
-	if (section === 'share') return '/app/infrastructure#resources';
-	return '/app/infrastructure';
+	if (section === 'share') return '/app/knowledge/artifacts';
+	return _projectSlug ? `/app/projects/${encodeURIComponent(_projectSlug)}` : '/app/projects';
 }
 
 function unwrapLaunchOperationOutput(output) {
@@ -6395,7 +6393,7 @@ export function createMarketApiApp(options = {}) {
 						latestWorkdayReport,
 					},
 				});
-				const workdayHref = `/app/workdays/${encodeURIComponent(String(body.workDayId))}`;
+				const workdayHref = `/app/projects/${encodeURIComponent(project.id)}#development`;
 				await store.upsertTeamInboxItem(project.teamId, {
 					id: `workday-summary:${project.id}:${String(body.workDayId)}`,
 					projectId: project.id,

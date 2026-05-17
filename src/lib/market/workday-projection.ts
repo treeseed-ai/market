@@ -1,5 +1,4 @@
 import {
-	anchorPart,
 	compact,
 	compareDatesAsc,
 	describeState,
@@ -259,7 +258,7 @@ function governanceEvent(approval: any): OperationalTimelineEvent {
 		state: compact(approval?.state, 'pending'),
 		tone: toneForState(approval?.state ?? approval?.severity),
 		timestamp: latestDate(approval?.createdAt, approval?.decidedAt, approval?.updatedAt),
-		href: `/app/governance#approval-${anchorPart(id)}`,
+		href: `/app/work/decisions/${encodeURIComponent(id)}`,
 		meta: `${describeState(approval?.severity, 'review')} severity`,
 		governanceRefs: [id],
 	};
@@ -347,7 +346,7 @@ function capacityProjection(bundle: any) {
 function repositoryContextFor(bundle: any, artifacts: OperationalArtifact[]) {
 	const repositories = safeArray(bundle.projectSummary?.repositories).map((repository: any) => ({
 		...repository,
-		href: `/app/infrastructure#project-${anchorPart(bundle.project?.id)}`,
+		href: bundle.project?.id ? `/app/projects/${encodeURIComponent(bundle.project.id)}` : '/app/projects',
 		projectName: compact(bundle.project?.name, compact(bundle.project?.slug, 'Project')),
 	}));
 	const artifactRefs = uniqueStrings(artifacts.flatMap((artifact) => artifact.repositories));
@@ -361,7 +360,7 @@ function repositoryContextFor(bundle: any, artifacts: OperationalArtifact[]) {
 			meta: `${artifactRefs.length} reference${artifactRefs.length === 1 ? '' : 's'}`,
 			status: 'referenced',
 			tone: 'info',
-			href: `/app/workdays/${encodeURIComponent(bundle.workday.id)}#workday-report-timeline`,
+			href: bundle.project?.id ? `/app/projects/${encodeURIComponent(bundle.project.id)}#development` : '/app/projects',
 		},
 	];
 }
@@ -387,7 +386,7 @@ function normalizeWorkday(project: any, source: any, runtime: any, summaryEntry:
 		summary,
 		docsAutomation,
 		contentSnapshot,
-		href: `/app/workdays/${encodeURIComponent(id)}`,
+		href: project?.id ? `/app/projects/${encodeURIComponent(project.id)}#development` : '/app/projects',
 		tone: toneForState(source?.state ?? runtime?.state),
 	};
 }

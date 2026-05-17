@@ -6,7 +6,7 @@ This plan defines how TreeSeed should reach a fully governed, background-running
 
 The target outcome is:
 
-> Running `trsd dev:manager` starts a local governed workday that analyzes the TreeSeed codebase, builds and updates a detailed knowledge base, proposes supporting content, routes changes through review and approval, and exposes the whole governance process in the TreeSeed operational app.
+> Running `trsd dev:manager` starts a local governed workday that analyzes the TreeSeed codebase, builds and updates a detailed knowledge base, proposes supporting content, routes changes through review and approval, and exposes the process in the TreeSeed control app.
 
 This plan is intentionally scoped to the current TreeSeed repository shape:
 
@@ -16,7 +16,7 @@ This plan is intentionally scoped to the current TreeSeed repository shape:
 * `packages/cli`
 * `packages/core`
 
-The plan does not introduce a separate documentation automation system. It completes the loop around the existing TreeSeed agent runtime, knowledge pipeline, workday services, worktree lifecycle, Codex docs mutation path, content model, and operational app.
+The plan does not introduce a separate documentation automation system. It completes the loop around the existing TreeSeed agent runtime, knowledge pipeline, workday services, worktree lifecycle, Codex docs mutation path, content model, and control app.
 
 ---
 
@@ -31,7 +31,7 @@ TreeSeed already has most of the lower-level ingredients needed for this system:
 * worktree mutation infrastructure with allowed/forbidden path enforcement;
 * tests for research/knowledge handlers, research workdays, worktree mutation, Codex docs mutation, worker, manager, orchestration, runtime readiness, and Market knowledge dogfooding;
 * top-level Market content directories for agents, books, decisions, knowledge, notes, objectives, pages, people, proposals, questions, templates, workdays, and knowledge packs;
-* app UI now organized around Mission Control, Workdays, Governance, Knowledge, Infrastructure, and operational components;
+* app UI now organized around Start, Hosts, Projects, Capacity, Work, and Knowledge controls;
 * database migrations for workdays, tasks, events, outputs, reports, work policies, priority overrides, approvals, capacity, runners, governance summary items, operational summaries, remote jobs, and hub/repository topology.
 
 The missing work is not “invent agents.” The missing work is to make the existing pieces operate as a complete product loop: seed code-aware documentation work, execute it safely, persist outputs, present them in governance UI, and allow approved content mutations to become canonical knowledge.
@@ -51,7 +51,7 @@ The system should:
 5. optimize and score drafts;
 6. request governance decisions for promotion, rewrite, defer, or reject;
 7. mutate documentation only in isolated worktrees and approved paths;
-8. surface every artifact and decision in the operational app;
+8. surface every artifact and decision in the Work and Knowledge areas of the control app;
 9. run locally through `trsd dev:manager` and later remotely through the same manager/worker model;
 10. leave a durable audit trail of what agents saw, wrote, recommended, changed, and could not verify.
 
@@ -69,7 +69,7 @@ The plan is complete when all of the following are true:
 * Agents produce content under governed documentation surfaces only.
 * Generated outputs include source maps that point back to implementation files.
 * Promotion requires an approval request unless the work policy explicitly allows low-risk auto-promotion.
-* The operational app shows active workday state, queued/running/completed tasks, generated notes, drafts, optimization scores, source maps, proposed mutations, approvals, verification state, and audit trail.
+* The Work and Knowledge areas show active workday state, queued/running/completed tasks, generated notes, drafts, optimization scores, source maps, proposed mutations, approvals, verification state, and audit trail.
 * A reviewer can approve, request changes, defer, or reject generated documentation from the UI.
 * Approved documentation mutations run through the existing worktree and verification lifecycle.
 * Failed verification creates a visible repair task and preserves the failed snapshot.
@@ -136,17 +136,16 @@ The governance plane owns:
 * audit events;
 * release gates.
 
-### 6. Operational App
+### 6. Control App
 
-The operational app should make the automation inspectable and steerable:
+The control app should make the automation inspectable and steerable:
 
-* Workday detail view;
-* Governance review queue;
-* Mission Control approval summary;
-* generated artifact review surfaces;
-* approval decision forms;
-* Codex/provider readiness cards;
-* workday timeline;
+* Work objectives and workday request controls;
+* Work decision review queue;
+* generated artifact review surfaces under Knowledge;
+* approval decision forms under Work;
+* Capacity provider and grant controls;
+* project guidance controls;
 * knowledge base diffs and source maps.
 
 ---
@@ -756,7 +755,7 @@ Purpose:
 * summarize daily/background agent work;
 * write workday reports;
 * update operational summary snapshots;
-* create concise Mission Control governance entries.
+* create concise Work decision entries.
 
 Triggers:
 
@@ -1159,8 +1158,8 @@ research knowledge workday pipeline
 Codex docs mutation lifecycle
 agent worktree path safety
 local dev manager and worker loop
-Operational governance UI
-Mission Control approval UI
+Work decision UI
+Knowledge artifact UI
 content model and knowledge routes
 SDK graph and context query engine
 CLI dev command surfaces
@@ -1239,14 +1238,15 @@ Core Knowledge Hub
   caching
   deployment
 
-Operational app
-  Mission Control
-  Workdays
-  Governance
+Control app
+  Start
+  Hosts
+  Projects
+  Capacity
+  Work
   Knowledge
-  Infrastructure
-  approvals
-  capacity
+  decisions
+  artifacts
 
 Governance
   work policies
@@ -1468,9 +1468,9 @@ verification command
 
 The UI is essential. The goal is not just background automation; the goal is governed automation humans can inspect, trust, and steer.
 
-### Workday And Governance Views
+### Work And Knowledge Views
 
-Enhance the operational app surfaces to show:
+Enhance the control app surfaces to show:
 
 * current workday phase;
 * repository context;
@@ -1611,7 +1611,7 @@ POST /v1/projects/:projectId/agents/:agentSlug/pause
 POST /v1/projects/:projectId/agents/:agentSlug/resume
 ```
 
-### Workdays
+### Work
 
 ```text
 GET /v1/projects/:projectId/workdays
@@ -1899,7 +1899,7 @@ How does `trsd dev` supervise local surfaces?
 What should `trsd dev:manager` do in local docs automation mode?
 How does the TreeSeed app expose operational governance?
 How do approval requests move through the system?
-How does Mission Control summarize governance needs?
+How does Work summarize decision needs?
 How does the SDK graph/context query system support agent research?
 How does the Core Knowledge Hub render and publish content?
 ```
@@ -2031,7 +2031,7 @@ Make the entire automation loop visible and testable in the web UI.
 3. Add Generated Knowledge Review table.
 4. Add Approval detail page.
 5. Add provider readiness and policy cards.
-6. Add Mission Control governance summary.
+6. Add Work decision summary.
 8. Add operational summary docs automation widget.
 9. Add mutation diff viewer.
 10. Add task event log viewer.
@@ -2059,7 +2059,7 @@ The background system should leave durable records that teach future humans and 
 1. Generate workday report content under `src/content/workdays`.
 2. Link report to tasks, artifacts, approvals, and mutations.
 3. Update operational summary snapshot.
-4. Create Mission Control summary.
+4. Create Work summary.
 5. Optionally generate a weekly documentation automation digest.
 
 ### Workday Report Template
@@ -2096,8 +2096,8 @@ updated: YYYY-MM-DD
 ### Acceptance Criteria
 
 * Workday report appears in content.
-* Mission Control shows last report.
-* Governance summary has a review item.
+* Work shows the latest report context.
+* Work decisions has a review item.
 * Report references generated artifacts.
 
 ---
@@ -2142,7 +2142,7 @@ The same governed process should eventually run in hosted environments.
 2. Ensure local worker and hosted worker use same task contract.
 3. Store large artifacts in R2 for hosted mode.
 4. Keep repository mutation behind provider capability grants.
-5. Integrate Infrastructure capacity provider settings.
+5. Integrate Capacity provider settings.
 6. Preserve human approval gates in hosted UI.
 
 ### Acceptance Criteria
@@ -2198,7 +2198,7 @@ Workday detail renders operational phases
 Generated Knowledge Review table renders artifacts
 Approval modal records decision
 Governance queue shows review items
-Mission Control shows workday timeline context
+Work shows workday request context
 Codex readiness card shows warnings
 ```
 
@@ -2277,7 +2277,7 @@ Flow:
 
 ### PR 8: Operational App Governance
 
-* Extend Workday and Governance views.
+* Extend Work and Knowledge views.
 * Add generated artifact review table.
 * Add approval modal.
 * Add workday timeline.
@@ -2366,13 +2366,13 @@ Cloudflare deployment
 ### Operational App
 
 ```text
-Workday detail view
-Governance review view
-Mission Control queue
+Work objectives view
+Work decision view
+Work queue
 Approval flow
-Infrastructure capacity views
+Capacity provider views
 Knowledge output view
-Infrastructure policies
+Capacity policies
 Resources and imports
 ```
 

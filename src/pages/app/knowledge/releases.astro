@@ -1,0 +1,20 @@
+---
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../components/app/controls/PlainTable.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
+import { loadKnowledgeViewModel } from '../../../view-models/knowledge.vm.js';
+
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/knowledge/releases')}`);
+const vm = await loadKnowledgeViewModel(Astro.locals);
+const rows = (vm.releases ?? []).map((release: any) => ({ name: `<strong>${esc(release.title ?? release.releaseTag ?? release.version ?? 'Release')}</strong><span>${esc(release.summary ?? release.environment ?? '')}</span>`, state: esc(release.state ?? release.status ?? 'recorded') }));
+---
+
+<TreeseedAppLayout title="Releases" description="Review knowledge release records." currentPath="/app/knowledge/artifacts" teams={vm.context.teams} activeTeam={vm.context.activeTeam}>
+	<section class="ts-control-page" aria-label="Releases">
+		<Panel eyebrow="Knowledge" title="Releases" description="Release records generated from projects.">
+			{rows.length > 0 ? <PlainTable columns={[{ key: 'name', label: 'Release' }, { key: 'state', label: 'State' }]} rows={rows} /> : <EmptyState title="No releases yet" description="Release records appear after publish activity." />}
+		</Panel>
+	</section>
+</TreeseedAppLayout>

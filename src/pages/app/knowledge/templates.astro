@@ -1,0 +1,24 @@
+---
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../components/app/controls/PlainTable.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
+import { loadKnowledgeViewModel } from '../../../view-models/knowledge.vm.js';
+
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/knowledge/templates')}`);
+const vm = await loadKnowledgeViewModel(Astro.locals);
+const rows = vm.artifacts.filter((artifact: any) => String(`${artifact.type} ${artifact.category}`).toLowerCase().includes('template')).map((artifact: any) => ({
+	name: `<strong>${esc(artifact.title)}</strong><span>${esc(artifact.description ?? '')}</span>`,
+	state: esc(artifact.state ?? 'generated'),
+	action: `<a class="ts-link-button" href="${esc(artifact.href ?? '/app/knowledge/artifacts')}">Review</a>`,
+}));
+---
+
+<TreeseedAppLayout title="Templates" description="Review packaged templates." currentPath="/app/knowledge/artifacts" teams={vm.context.teams} activeTeam={vm.context.activeTeam}>
+	<section class="ts-control-page" aria-label="Templates">
+		<Panel eyebrow="Knowledge" title="Templates" description="Templates packaged from project artifacts.">
+			{rows.length > 0 ? <PlainTable columns={[{ key: 'name', label: 'Template' }, { key: 'state', label: 'State' }, { key: 'action', label: 'Action' }]} rows={rows} /> : <EmptyState title="No templates yet" description="Package a template from a project artifact page." />}
+		</Panel>
+	</section>
+</TreeseedAppLayout>

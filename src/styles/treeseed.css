@@ -456,33 +456,34 @@ a:hover {
 }
 
 .ts-team-switcher {
-	margin-bottom: 1.15rem;
-	padding-top: 1rem;
+	margin-bottom: 0.85rem;
+	padding-top: 0.75rem;
 }
 
 .ts-team-selector {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
-	gap: 0.35rem;
+	gap: 0.4rem;
 	align-items: center;
-	margin-top: 0.55rem;
+	margin-top: 0.4rem;
 }
 
-.ts-team-selector select {
+.ts-team-selector__label {
 	min-width: 0;
-	width: 100%;
-	padding: 0.55rem;
-	border: 1px solid var(--ts-color-border);
-	border-radius: var(--ts-radius-sm);
-	background: var(--ts-color-surface);
-	color: var(--ts-color-text);
-	font: inherit;
+	padding: 0;
+	border: 0;
+	background: transparent;
+}
+
+.ts-team-selector .ts-control {
+	min-height: 2.25rem;
+	padding-block: 0.35rem;
 }
 
 .ts-icon-button {
 	display: inline-grid;
 	place-items: center;
-	min-width: 2.25rem;
+	min-width: auto;
 	height: 2.25rem;
 	padding: 0 0.45rem;
 	border: 1px solid var(--ts-color-border);
@@ -540,8 +541,14 @@ a:hover {
 
 .ts-app-shell .ts-app-shell__header {
 	border-bottom: 1px solid var(--ts-color-border);
-	margin-bottom: 0.25rem;
-	padding-bottom: 0.85rem;
+	margin-bottom: 0;
+	padding-bottom: 0.55rem;
+}
+
+.ts-app-shell .ts-app-shell__main {
+	align-content: start;
+	gap: 0.7rem;
+	padding: 0.85rem 1rem 1.5rem;
 }
 
 .ts-app-shell .ts-app-shell__title h1 {
@@ -893,6 +900,271 @@ textarea.ts-control {
 
 .ts-form-note strong {
 	color: var(--ts-color-text);
+}
+
+.ts-checkbox-group {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 0.85rem;
+	margin-top: 0.55rem;
+}
+
+.ts-checkbox-group label,
+.ts-checkbox-row {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	color: var(--ts-color-text);
+	font-size: 0.9rem;
+	font-weight: 700;
+	line-height: 1.25;
+}
+
+.ts-checkbox-group input,
+.ts-checkbox-row input {
+	flex: 0 0 auto;
+}
+
+.ts-advanced-details {
+	border: 1px solid var(--ts-color-border);
+	border-radius: var(--ts-radius-md);
+	background: var(--ts-color-surface-muted);
+}
+
+.ts-advanced-details summary {
+	cursor: pointer;
+	padding: 0.82rem 0.95rem;
+	color: var(--ts-color-text);
+	font-size: 0.9rem;
+	font-weight: 820;
+	line-height: 1.3;
+}
+
+.ts-advanced-details summary:focus-visible {
+	outline: 2px solid var(--ts-color-focus);
+	outline-offset: 2px;
+}
+
+.ts-advanced-details > div {
+	padding: 0 0.95rem 0.95rem;
+}
+
+.ts-context-panel {
+	display: grid;
+	gap: 1rem;
+}
+
+.ts-control-page {
+	display: grid;
+	gap: 1rem;
+}
+
+.ts-control-stack {
+	display: grid;
+	gap: 1rem;
+}
+
+.ts-control-stack section {
+	display: grid;
+	gap: 0.65rem;
+	min-width: 0;
+}
+
+.ts-control-stack h3 {
+	margin: 0;
+	color: var(--ts-color-text);
+	font-size: 0.96rem;
+	line-height: 1.25;
+}
+
+.ts-plain-table {
+	overflow-x: auto;
+	border: 1px solid var(--ts-color-border);
+	border-radius: var(--ts-radius-sm);
+	background: var(--ts-color-surface);
+}
+
+.ts-plain-table table {
+	width: 100%;
+	min-width: 42rem;
+	border-collapse: collapse;
+	font-size: 0.9rem;
+	line-height: 1.38;
+}
+
+.ts-plain-table th,
+.ts-plain-table td {
+	padding: 0.68rem 0.75rem;
+	border-bottom: 1px solid var(--ts-color-border);
+	text-align: left;
+	vertical-align: top;
+	overflow-wrap: anywhere;
+}
+
+.ts-plain-table th {
+	background: var(--ts-color-surface-muted);
+	color: var(--ts-color-text-muted);
+	font-size: 0.76rem;
+	font-weight: 850;
+	text-transform: uppercase;
+	letter-spacing: 0;
+}
+
+.ts-plain-table tr:last-child td {
+	border-bottom: 0;
+}
+
+.ts-plain-table td strong,
+.ts-plain-table td span {
+	display: block;
+	min-width: 0;
+}
+
+.ts-plain-table td strong {
+	color: var(--ts-color-text);
+	font-weight: 760;
+}
+
+.ts-plain-table td span {
+	margin-top: 0.14rem;
+	color: var(--ts-color-text-muted);
+	font-size: 0.82rem;
+}
+
+.ts-link-button {
+	display: inline-flex;
+	align-items: center;
+	min-height: 1.9rem;
+	margin: 0.1rem 0.35rem 0.1rem 0;
+	padding: 0.22rem 0.48rem;
+	border: 1px solid var(--ts-color-border);
+	border-radius: var(--ts-radius-sm);
+	background: var(--ts-color-surface);
+	color: var(--ts-color-text);
+	font: inherit;
+	font-size: 0.82rem;
+	font-weight: 760;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.ts-link-button:hover {
+	border-color: var(--ts-color-border-strong);
+	background: var(--ts-color-surface-muted);
+}
+
+.ts-link-button:focus-visible {
+	outline: 2px solid var(--ts-color-focus);
+	outline-offset: 2px;
+}
+
+.ts-checkbox-row {
+	display: inline-flex;
+	gap: 0.5rem;
+	align-items: center;
+	color: var(--ts-color-text);
+	font-size: 0.9rem;
+	font-weight: 650;
+}
+
+.ts-checkbox-row input {
+	width: 1rem;
+	height: 1rem;
+	accent-color: var(--ts-color-info);
+}
+
+.ts-share-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: center;
+	margin-bottom: 0.85rem;
+}
+
+.ts-context-panel__summary {
+	display: grid;
+	gap: 0.55rem;
+}
+
+.ts-context-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 0.75rem;
+	align-items: center;
+	padding: 0.72rem 0.8rem;
+	border: 1px solid var(--ts-color-border);
+	border-radius: var(--ts-radius-md);
+	background: var(--ts-color-surface-muted);
+}
+
+.ts-context-row div {
+	display: grid;
+	min-width: 0;
+	gap: 0.18rem;
+}
+
+.ts-context-row strong,
+.ts-context-row span {
+	overflow-wrap: anywhere;
+}
+
+.ts-context-row strong {
+	color: var(--ts-color-text);
+	font-size: 0.96rem;
+	line-height: 1.2;
+}
+
+.ts-context-row span {
+	color: var(--ts-color-text-muted);
+	font-size: 0.84rem;
+	line-height: 1.35;
+}
+
+.ts-context-panel__forms {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 1rem;
+	align-items: start;
+}
+
+.ts-context-panel__forms form {
+	padding: 1rem;
+	border: 1px solid var(--ts-color-border);
+	border-radius: var(--ts-radius-md);
+	background: var(--ts-color-surface);
+}
+
+.ts-context-panel__forms h3 {
+	margin: 0;
+	color: var(--ts-color-text);
+	font-size: 1rem;
+	line-height: 1.25;
+}
+
+.ts-context-panel__forms p {
+	margin: 0.25rem 0 0;
+}
+
+.ts-start-flow {
+	display: grid;
+	grid-template-columns: repeat(5, minmax(0, 1fr));
+	gap: 0.5rem;
+	margin-top: 1rem;
+}
+
+.ts-start-flow span {
+	display: grid;
+	min-height: 2.75rem;
+	place-items: center;
+	padding: 0.5rem;
+	border: 1px solid var(--ts-color-border);
+	border-radius: var(--ts-radius-sm);
+	background: var(--ts-color-surface-muted);
+	color: var(--ts-color-text);
+	font-size: 0.8rem;
+	font-weight: 800;
+	text-align: center;
+	overflow-wrap: anywhere;
 }
 
 .ts-member-list {
@@ -1662,6 +1934,7 @@ input[data-team-name-state='error'] {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
+	.ts-context-panel__forms,
 	.ts-form-grid,
 	.ts-host-actions {
 		grid-template-columns: 1fr;
@@ -1716,6 +1989,10 @@ input[data-team-name-state='error'] {
 	}
 
 	.ts-infra-status-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.ts-start-flow {
 		grid-template-columns: 1fr;
 	}
 

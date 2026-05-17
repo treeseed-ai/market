@@ -1,0 +1,33 @@
+---
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../components/app/controls/PlainTable.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
+import { loadGovernanceViewModel } from '../../../view-models/governance.vm.js';
+import { loadKnowledgeViewModel } from '../../../view-models/knowledge.vm.js';
+
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/work/questions')}`);
+const [governance, knowledge] = await Promise.all([
+	loadGovernanceViewModel(Astro.locals),
+	loadKnowledgeViewModel(Astro.locals).catch(() => null),
+]);
+const approvalQuestions = governance.reviewQueue.filter((item: any) => String(item.kind ?? item.title ?? '').toLowerCase().includes('question'));
+const artifactQuestions = (knowledge?.artifacts ?? []).filter((artifact: any) => String(`${artifact.category} ${artifact.type} ${artifact.title}`).toLowerCase().includes('question'));
+const rows = [
+	...approvalQuestions.map((item: any) => ({ name: `<strong>${esc(item.title)}</strong><span>${esc(item.description ?? '')}</span>`, source: 'Decision', state: esc(item.state ?? 'pending'), action: `<a class="ts-link-button" href="/app/work/decisions/${encodeURIComponent(item.approvalId ?? item.id)}">Open</a>` })),
+	...artifactQuestions.map((artifact: any) => ({ name: `<strong>${esc(artifact.title)}</strong><span>${esc(artifact.description ?? '')}</span>`, source: 'Artifact', state: esc(artifact.state ?? 'generated'), action: `<a class="ts-link-button" href="${esc(artifact.href ?? '/app/knowledge/artifacts')}">Open</a>` })),
+];
+---
+
+<TreeseedAppLayout title="Questions" description="List questions from decisions and artifacts." currentPath="/app/work/objectives" teams={governance.context.teams} activeTeam={governance.context.activeTeam}>
+	<section class="ts-control-page" aria-label="Questions">
+		<Panel eyebrow="Work" title="Questions" description="Question-like records across the active team.">
+			{rows.length > 0 ? (
+				<PlainTable columns={[{ key: 'name', label: 'Question' }, { key: 'source', label: 'Source' }, { key: 'state', label: 'State' }, { key: 'action', label: 'Action' }]} rows={rows} />
+			) : (
+				<EmptyState title="No questions found" description="Questions appear here when decisions or research artifacts include them." />
+			)}
+		</Panel>
+	</section>
+</TreeseedAppLayout>

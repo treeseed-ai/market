@@ -1,55 +1,56 @@
-# TreeSeed Operational App UI Specification
+# TreeSeed Control App UI Specification
 
-This document replaces the legacy app specification. The authenticated app is no longer organized around retired section routes or a resource-discovery-first workflow. The current product surface is operational infrastructure for coordinating workdays, governance, knowledge, and advanced runtime context.
+This document replaces the legacy app specification. The authenticated app is no longer organized around retired dashboard routes or a resource-discovery-first workflow. The current product surface is a compact control console for configuring hosts, projects, capacity, work decisions, and knowledge artifacts.
 
 ## Product Frame
 
-TreeSeed should feel like calm industrial operations tooling:
+TreeSeed should feel like a plain operator console:
 
 ```text
-Objective
-  -> Workday
-  -> Execution
-  -> Governance
+Start
+  -> Hosts
+  -> Projects
+  -> Capacity
+  -> Work
   -> Knowledge
 ```
 
-The UI should communicate that automation-supported work is structured, repository-grounded, reviewed, and retained as organizational memory.
+The UI should communicate that setup and supervision are concrete, named, and action-oriented.
 
 ## Primary App IA
 
-The authenticated app has five primary sections:
+The authenticated app has six primary sections:
 
 ```text
-/app                 Mission Control
-/app/workdays        Workdays
-/app/governance      Governance
-/app/knowledge       Knowledge
-/app/infrastructure  Infrastructure
+/app                         Start
+/app/hosts                   Hosts
+/app/projects                Projects
+/app/capacity                Capacity
+/app/work/objectives         Work
+/app/knowledge/artifacts     Knowledge
 ```
 
-Additional app routes should be contextual detail surfaces under these sections, such as workday detail, approval review, knowledge entry detail, and Infrastructure subroutes.
+Team management lives in the persistent sidebar team selector and `/app/teams`, not in primary navigation. Additional app routes should be one-purpose detail or form surfaces under these sections.
 
-## Mission Control
+## Start
 
-Mission Control is the organization’s operational overview.
+Start is the shortest possible index into the control flow.
 
 It should show:
 
 * current objective
-* active workdays
-* queued operational work
-* pending approvals
-* repository health
-* recent knowledge produced
-* recent decisions and releases
-* operational metrics
+* active team context
+* next setup action
+* host setup link
+* project setup link
+* capacity setup link
+* work and knowledge links
 
-Mission Control should answer what is happening, what needs attention, and what durable memory has been produced.
+Start should answer where to go next without becoming a dashboard.
 
-## Workdays
+## Work
 
-Workdays are the core product abstraction.
+Work is where users create objectives, request workdays, answer decisions, and track questions.
 
 A workday detail surface should be organized around:
 

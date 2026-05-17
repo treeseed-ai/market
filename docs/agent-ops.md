@@ -136,24 +136,23 @@ Then inspect the same app surfaces used by operators and demos:
 
 ```text
 /app
-/app/workdays
-/app/governance
-/app/knowledge
-/app/infrastructure
+/app/teams
+/app/hosts
+/app/projects
+/app/capacity
+/app/work/objectives
+/app/work/decisions
+/app/knowledge/artifacts
 ```
 
 The ideal local UI should show:
 
 * seeded team and project;
-* seeded repository and product metadata;
-* local capacity provider, lanes, grants, and budgets;
-* active or recent workdays;
-* queued, claimed, running, completed, failed, and paused tasks;
-* task events and outputs;
-* generated artifacts;
-* approval requests;
-* workday reports;
-* capacity reservations, routing decisions, ledger entries, and usage actuals.
+* team and host setup controls;
+* hosted project creation and project settings;
+* development guidance controls for update plans and workday requests;
+* decision requests;
+* generated artifacts, templates, publish actions, and knowledge outputs.
 
 These are also the canonical local demo surfaces. Do not create demo-specific records or routes to make the UI look healthy; fix the seed, runtime, store, API, or UI read path instead.
 
@@ -243,7 +242,7 @@ Codex should work across packages when the feature crosses package boundaries:
 * `packages/core`: integrated dev supervisor and runtime wiring;
 * `packages/cli`: command parsing, help, local workflow entrypoints;
 * `src/api`: market control-plane API and store;
-* `src/pages` and `src/components`: operational app supervision surfaces;
+* `src/pages` and `src/components`: control app surfaces for Work, Knowledge, Capacity, Hosts, and Projects;
 * `seeds`: desired local/staging/prod portfolio shape.
 
 Do not copy logic between packages. Move shared contracts into SDK, keep runtime behavior in agent or market, and keep the CLI as the operator entrypoint.

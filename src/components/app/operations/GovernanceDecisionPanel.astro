@@ -13,10 +13,10 @@ const {
 	options = [],
 	action = `/api/governance/${encodeURIComponent(approval?.approvalId ?? approval?.id ?? '')}/decision`,
 } = Astro.props as Props;
-const pending = approval?.state === 'pending';
+const pending = ['pending', 'waiting_for_approval', 'under_review', 'approval_required'].includes(String(approval?.state ?? '').toLowerCase());
 ---
 
-<Panel eyebrow="Decision" title="Review decision" description="Approve or reject this operational request with an auditable note.">
+<Panel eyebrow="Decision" title="Review decision" description="Approve or reject this request with a short note.">
 	<div class="ts-governance-decision">
 		<div class="ts-governance-decision__state">
 			<Badge tone={approval?.tone ?? 'default'}>{approval?.state ?? 'recorded'}</Badge>
@@ -29,7 +29,10 @@ const pending = approval?.state === 'pending';
 					<textarea name="note" rows="4" placeholder="Record the operational rationale for this decision."></textarea>
 				</label>
 				<div class="ts-governance-decision__actions">
-					{options.map((option) => (
+					{(options.length > 0 ? options : [
+						{ id: 'approve', label: 'Approve', state: 'approved' },
+						{ id: 'reject', label: 'Reject', state: 'rejected' },
+					]).map((option) => (
 						<button class="ts-button" data-variant={option.state === 'rejected' ? 'danger' : 'primary'} type="submit" name="optionId" value={option.id}>{option.label}</button>
 					))}
 				</div>

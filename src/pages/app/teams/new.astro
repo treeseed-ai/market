@@ -1,0 +1,72 @@
+---
+import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import TextInput from '../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import Textarea from '../../../../packages/core/src/components/ui/forms/Textarea.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { loadOperationalContext } from '../../../view-models/shared.js';
+
+if (!Astro.locals.auth?.principal) {
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/teams/new')}`);
+}
+
+const context = await loadOperationalContext(Astro.locals, Astro);
+---
+
+<TreeseedAppLayout title="New team" description="Create one team." currentPath="/app/teams" teams={context.teams} activeTeam={context.activeTeam}>
+	<section class="ts-control-page" aria-label="New team">
+		<Panel eyebrow="Team" title="Create team" description="Teams own hosts, projects, capacity, work, and knowledge.">
+			<form id="team-create-form" class="ts-form-stack">
+				<div class="ts-form-grid">
+					<Field label="Name" name="name" required>
+						<TextInput name="name" required placeholder="acme-ops" pattern="[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?" />
+					</Field>
+					<Field label="Display name" name="displayName">
+						<TextInput name="displayName" placeholder="Acme Operations" />
+					</Field>
+					<Field label="Logo URL" name="logoUrl" class="ts-field--full">
+						<TextInput name="logoUrl" type="url" placeholder="https://example.com/logo.svg" />
+					</Field>
+					<Field label="Profile summary" name="profileSummary" class="ts-field--full">
+						<Textarea name="profileSummary" rows={4} placeholder="What this team builds or manages." />
+					</Field>
+				</div>
+				<FormActions align="start">
+					<Button type="submit">Create team</Button>
+					<Button href="/app/teams" variant="secondary">Cancel</Button>
+					<span class="ts-subtle" id="team-create-status" role="status"></span>
+				</FormActions>
+			</form>
+		</Panel>
+	</section>
+</TreeseedAppLayout>
+
+<script>
+	const form = document.getElementById('team-create-form') as HTMLFormElement | null;
+	const status = document.getElementById('team-create-status');
+	form?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const data = new FormData(form);
+		if (status) status.textContent = 'Creating...';
+		const response = await fetch('/v1/teams', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				name: String(data.get('name') ?? '').trim(),
+				displayName: String(data.get('displayName') ?? '').trim(),
+				logoUrl: String(data.get('logoUrl') ?? '').trim(),
+				profileSummary: String(data.get('profileSummary') ?? '').trim(),
+			}),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			if (status) status.textContent = payload?.error ?? 'Team could not be created.';
+			return;
+		}
+		const teamId = payload?.payload?.id;
+		document.cookie = `treeseed_active_team=${encodeURIComponent(teamId)}; path=/app; max-age=31536000; SameSite=Lax`;
+		window.location.href = `/app/teams?teamId=${encodeURIComponent(teamId)}`;
+	});
+</script>

@@ -947,7 +947,7 @@ async function createProductionApproval({ store, plan, manifestHash, actor }) {
 		state: 'waiting_for_approval',
 		title: request.title,
 		summary: request.summary,
-		href: `/app/governance#approval-${request.id}`,
+		href: `/app/work/decisions#approval-${request.id}`,
 		itemKey: request.id,
 		metadata: {
 			approvalId: request.id,

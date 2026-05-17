@@ -1,0 +1,115 @@
+---
+import Button from '../../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import Select from '../../../../../packages/core/src/components/ui/forms/Select.astro';
+import TextInput from '../../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../../components/app/controls/PlainTable.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../../../view-models/shared.js';
+
+const teamParam = String(Astro.params.teamId ?? '');
+if (!Astro.locals.auth?.principal) {
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+}
+const context = await loadOperationalContext(Astro.locals, Astro);
+const team = context.teams.find((entry: any) => entry.id === teamParam || entry.slug === teamParam) ?? null;
+const members = team && context.store ? await context.store.listTeamMembers(team.id).catch(() => []) : [];
+if (!team) Astro.response.status = 404;
+const rows = members.map((member: any) => ({
+	id: `member-${esc(member.id ?? member.userId)}`,
+	name: `<strong>${esc(member.displayName ?? member.email ?? member.userId ?? 'Member')}</strong><span>${esc(member.email ?? member.userId ?? '')}</span>`,
+	role: esc(member.roleKey ?? member.role ?? 'member'),
+	actions: `<form class="ts-inline-form" data-member-form="${esc(member.id)}"><select class="ts-control" name="roleKey"><option value="viewer" ${member.roleKey === 'viewer' ? 'selected' : ''}>viewer</option><option value="contributor" ${member.roleKey === 'contributor' ? 'selected' : ''}>contributor</option><option value="project_lead" ${member.roleKey === 'project_lead' ? 'selected' : ''}>project lead</option><option value="owner" ${member.roleKey === 'owner' ? 'selected' : ''}>owner</option></select><button class="ts-link-button" type="submit">Save</button><button class="ts-link-button" type="button" data-remove-member="${esc(member.id)}">Remove</button></form>`,
+}));
+---
+
+<TreeseedAppLayout title={team ? `${team.displayName ?? team.name} members` : 'Team not found'} description="Invite and manage team members." currentPath="/app/teams" teams={context.teams} activeTeam={context.activeTeam}>
+	{team ? (
+		<section class="ts-control-page" aria-label="Team members">
+			<Panel eyebrow="Team" title="Invite member" description="Send an invitation to this team.">
+				<form id="invite-form" class="ts-form-stack">
+					<div class="ts-form-grid">
+						<Field label="Email" name="email" required>
+							<TextInput name="email" type="email" required />
+						</Field>
+						<Field label="Role" name="roleKey" required>
+							<Select name="roleKey" required options={[
+								{ label: 'Viewer', value: 'viewer' },
+								{ label: 'Contributor', value: 'contributor' },
+								{ label: 'Project lead', value: 'project_lead' },
+								{ label: 'Owner', value: 'owner' },
+							]} />
+						</Field>
+					</div>
+					<FormActions align="start">
+						<Button type="submit">Invite member</Button>
+						<Button href="/app/teams" variant="secondary">Back</Button>
+						<span class="ts-subtle" id="member-status" role="status"></span>
+					</FormActions>
+				</form>
+			</Panel>
+			<Panel eyebrow="Team" title="Members" description="Update roles or remove members.">
+				<PlainTable columns={[
+					{ key: 'name', label: 'Member' },
+					{ key: 'role', label: 'Role' },
+					{ key: 'actions', label: 'Actions' },
+				]} rows={rows} emptyTitle="No members listed" emptyDescription="Invite the first member above." />
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="Team not found" description="This team is not available." actions={[{ label: 'Back to teams', href: '/app/teams' }]} />
+	)}
+</TreeseedAppLayout>
+
+<script is:inline define:vars={{ teamId: team?.id ?? '' }}>
+	const status = document.getElementById('member-status');
+	const inviteForm = document.getElementById('invite-form');
+	async function send(url, method, body) {
+		const response = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) throw new Error(payload?.error ?? 'Request failed.');
+		return payload.payload;
+	}
+	inviteForm?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const form = new FormData(inviteForm);
+		if (status) status.textContent = 'Inviting...';
+		try {
+			await send(`/v1/teams/${encodeURIComponent(teamId)}/invites`, 'POST', {
+				email: String(form.get('email') ?? '').trim(),
+				roleKey: String(form.get('roleKey') ?? 'contributor'),
+			});
+			window.location.href = `${window.location.pathname}?updated=${Date.now()}`;
+		} catch (error) {
+			if (status) status.textContent = error instanceof Error ? error.message : 'Invite failed.';
+		}
+	});
+	document.querySelectorAll('[data-member-form]').forEach((form) => {
+		form.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			const membershipId = form.getAttribute('data-member-form') ?? '';
+			const roleKey = String(new FormData(form).get('roleKey') ?? 'contributor');
+			try {
+				await send(`/v1/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(membershipId)}`, 'PATCH', { roleKey });
+				window.location.href = `${window.location.pathname}?updated=${Date.now()}`;
+			} catch (error) {
+				if (status) status.textContent = error instanceof Error ? error.message : 'Role update failed.';
+			}
+		});
+	});
+	document.querySelectorAll('[data-remove-member]').forEach((button) => {
+		button.addEventListener('click', async () => {
+			const membershipId = button.getAttribute('data-remove-member') ?? '';
+			try {
+				await send(`/v1/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(membershipId)}`, 'DELETE');
+				window.location.href = `${window.location.pathname}?removed=${Date.now()}`;
+			} catch (error) {
+				if (status) status.textContent = error instanceof Error ? error.message : 'Remove failed.';
+			}
+		});
+	});
+</script>

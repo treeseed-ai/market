@@ -151,41 +151,41 @@ Avoid:
 
 ## Authenticated app information architecture
 
-The authenticated app should remain centered on five sections:
+The authenticated app should remain centered on the compact control flow:
 
 ```text
-/app                 Mission Control
-/app/workdays        Workdays
-/app/governance      Governance
-/app/knowledge       Knowledge
-/app/infrastructure  Infrastructure
+/app                         Start
+/app/hosts                   Hosts
+/app/projects                Projects
+/app/capacity                Capacity
+/app/work/objectives         Work objectives
+/app/work/decisions          Work decisions
+/app/work/questions          Work questions
+/app/knowledge/artifacts     Knowledge artifacts
 ```
 
-No retired section-first navigation should return to the primary app experience. Organizations and projects remain real operational context in the backend, but the app should present them through subdued context selectors, workday relationships, governance metadata, and Infrastructure panels.
+No retired section-first navigation should return to the primary app experience. Teams remain real operational context in the backend and are managed through the persistent sidebar team selector and `/app/teams`, not as a primary navigation step.
 
 ## Section purposes
 
-### Mission Control
+### Start
 
-Mission Control is the operational overview of the organization.
+Start is a short control index that sends users to Hosts, Projects, Capacity, Work, or Knowledge.
 
 It should immediately show:
 
-* current objective
-* operational summary
-* active workdays
-* queued operational work
-* pending approvals
-* repository health
-* recent knowledge produced
-* recent decisions and releases
-* operational metrics
+* active team context
+* host setup entry point
+* project setup entry point
+* capacity setup entry point
+* work entry point
+* knowledge entry point
 
-Mission Control should communicate that AI-supported work is structured, visible, and governable.
+Start should avoid dashboards and duplicate team-management controls.
 
-### Workdays
+### Work
 
-Workdays are the center of the product.
+Work is where users create objectives and workday requests, answer decisions, and track questions.
 
 A workday should encapsulate:
 
@@ -200,24 +200,15 @@ A workday should encapsulate:
 * reports
 * knowledge production
 
-The workday detail page should be the canonical operational surface. It should be phase-first and organized around Research, Implementation, Verification, Governance, and Knowledge.
-
-### Governance
-
-Governance is a first-class review system.
-
 It should expose:
 
 * pending approvals
-* escalations
 * review queues
-* severity and risk classification
 * policy constraints
-* audit history
 * capacity and budget constraints
 * deliberate approval, rejection, revision, or escalation actions
 
-Governance should feel serious, inspectable, and trustworthy.
+Work should feel serious, inspectable, and trustworthy without becoming a dashboard.
 
 ### Knowledge
 
@@ -295,28 +286,28 @@ The primary demo should be a real operational walkthrough, not a fabricated demo
 
 The 20-minute story:
 
-1. Open Mission Control at `/app` and establish seeded operational context.
-2. Open Workdays and inspect a real manager/worker timeline.
-3. Review Governance and show pending review state, risk, policy, and auditability.
-4. Open Knowledge and show generated artifacts becoming operational memory.
-5. Open Infrastructure and show seeded projects, repositories, capacity, workers, hosts, resources, seeds, and policies as advanced operator context.
+1. Open Start at `/app` and establish the active team through the sidebar selector.
+2. Open Hosts and Projects to show the seeded local configuration.
+3. Open Capacity and show provider, lane, and grant controls.
+4. Open Work to show objectives, workday requests, decisions, and questions.
+5. Open Knowledge and show generated artifacts, templates, packs, releases, and publish actions.
 
 The demo should reinforce:
 
 ```text
-Goal -> Execution -> Governance -> Knowledge
+Setup -> Project -> Work -> Knowledge
 ```
 
 Never lead with prompting, code generation spectacle, or fake agent conversation. The system coordinates durable organizational work.
 
 ## Product principles
 
-1. Mission Control is the entry point.
-2. Workdays are the core product abstraction.
-3. Governance is a trust system, not a hidden queue.
-4. Knowledge is an output of operations.
-5. Infrastructure is powerful but secondary.
-6. Resources and imports are ecosystem infrastructure, not the main product frame.
+1. Start is the entry point.
+2. Team management lives in the sidebar selector.
+3. Hosts and Projects are explicit setup controls.
+4. Work owns objectives, workday requests, decisions, and questions.
+5. Knowledge owns generated artifacts, templates, packs, releases, and publishing.
+6. Capacity owns provider, lane, key, and grant controls.
 7. Automation should appear through operational state, artifacts, verification, and decisions.
 8. Primary UX should not expose raw prompts, task payload JSON, runner tokens, or agent IDs.
 9. Missing data should render calm empty operational states.
