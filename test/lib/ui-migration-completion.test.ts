@@ -42,7 +42,7 @@ describe('UI migration completion', () => {
 		expect(contents).not.toMatch(/\sstyle=/u);
 	});
 
-	it('converts launch and team management forms while preserving critical hooks', () => {
+	it('converts launch while retiring duplicate app team management routes', () => {
 		const launch = source('src/pages/app/launch.astro');
 		expect(launch).toContain('id="project-launch-form"');
 		expect(launch).toContain('id="launch-data"');
@@ -52,21 +52,10 @@ describe('UI migration completion', () => {
 		expect(launch).toContain('Select');
 		expect(launch).not.toMatch(/\sstyle=/u);
 
-		const edit = source('src/pages/app/teams/[teamSlug]/edit.astro');
-		expect(edit).toContain('data-team-name-input');
-		expect(edit).toContain('data-team-name-status');
-		expect(edit).toContain('/app/teams/name-check');
-		expect(edit).toContain('teamDeletionConfirmationMatches');
-		expect(edit).toContain('Field');
-		expect(edit).toContain('StatusPill');
-		expect(edit).not.toContain('<style');
-		expect(edit).not.toMatch(/\sstyle=/u);
-
-		const create = source('src/pages/app/teams/new.astro');
-		expect(create).toContain('validateTeamName');
-		expect(create).toContain('TextInput');
-		expect(create).toContain('Textarea');
-		expect(create).not.toMatch(/\sstyle=/u);
+		expect(existsSync(resolve(process.cwd(), 'src/pages/app/teams/[teamSlug]/edit.astro'))).toBe(false);
+		expect(existsSync(resolve(process.cwd(), 'src/pages/app/teams/new.astro'))).toBe(false);
+		expect(existsSync(resolve(process.cwd(), 'src/pages/app/teams/name-check.ts'))).toBe(false);
+		expect(launch).not.toContain('/app/teams/new');
 	});
 
 	it('keeps completion CSS and docs on TreeSeed UI rules', () => {

@@ -9,14 +9,14 @@ It is written for two audiences:
 * humans running and supervising local workdays;
 * AI agents, including Codex, implementing and debugging integrated features across `market`, `core`, `cli`, `sdk`, and `agent`.
 
-The goal is a tight local loop where the Market UI, local control plane, seeded TreeSeed portfolio, workday manager, worker runner, capacity providers, and budget records all describe the same system.
+The goal is a tight local loop where the operational app, local control plane, seeded TreeSeed portfolio, workday manager, worker runner, capacity providers, and budget records all describe the same system.
 
 ## Local Mental Model
 
 Local development should look like production in shape, but with local infrastructure:
 
 ```text
-Treeseed Market web UI
+TreeSeed operational app
   -> local Market API / control plane
   -> local D1 store
   -> seeded TreeSeed team
@@ -83,7 +83,7 @@ The local seed should create or reconcile:
 * local capacity lanes;
 * local team grant;
 * market local work policy;
-* TreeSeed market product/catalog references.
+* TreeSeed operational resource and import references.
 
 If the UI does not show these records after seed apply, treat that as a seed, store, auth, membership, or UI query bug.
 
@@ -132,14 +132,14 @@ Open:
 http://127.0.0.1:4321/app
 ```
 
-Then inspect the TreeSeed team and market project:
+Then inspect the same app surfaces used by operators and demos:
 
 ```text
-/app/teams/treeseed
-/app/teams/treeseed/seeds
-/app/teams/treeseed/capacity
-/app/teams/treeseed/inbox
-/app/teams/treeseed/projects/market
+/app
+/app/workdays
+/app/governance
+/app/knowledge
+/app/infrastructure
 ```
 
 The ideal local UI should show:
@@ -154,6 +154,8 @@ The ideal local UI should show:
 * approval requests;
 * workday reports;
 * capacity reservations, routing decisions, ledger entries, and usage actuals.
+
+These are also the canonical local demo surfaces. Do not create demo-specific records or routes to make the UI look healthy; fix the seed, runtime, store, API, or UI read path instead.
 
 If manager logs show work but the UI does not, debug the API/store/UI read path. If UI shows records but worker does nothing, debug task state, leases, worker config, or queue polling. If tasks run but capacity is missing, debug provider/grant/work policy reconciliation and usage recording.
 
@@ -241,7 +243,7 @@ Codex should work across packages when the feature crosses package boundaries:
 * `packages/core`: integrated dev supervisor and runtime wiring;
 * `packages/cli`: command parsing, help, local workflow entrypoints;
 * `src/api`: market control-plane API and store;
-* `src/pages` and `src/components`: Market UI supervision surfaces;
+* `src/pages` and `src/components`: operational app supervision surfaces;
 * `seeds`: desired local/staging/prod portfolio shape.
 
 Do not copy logic between packages. Move shared contracts into SDK, keep runtime behavior in agent or market, and keep the CLI as the operator entrypoint.
@@ -307,9 +309,9 @@ If records exist but the UI is empty, inspect:
 * API route;
 * store method;
 * serialized payload;
-* team/project access check;
-* section data loader;
-* component props.
+* operational context access check;
+* operational view model or projection;
+* operational component props.
 
 ### Database Locks Or Foreign Keys
 

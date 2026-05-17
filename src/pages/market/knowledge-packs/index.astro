@@ -10,14 +10,14 @@ const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
 ---
 
 <TreeseedPublicLayout
-	title="TreeSeed Knowledge Packs"
-	description="Packaged knowledge assets for TreeSeed and Treeseed."
+	title="TreeSeed Knowledge Imports"
+	description="Packaged operational knowledge assets for TreeSeed."
 	currentPath={Astro.url.pathname}
 >
 	<Panel
-		eyebrow="Knowledge packs"
-		title="Publish reusable direction, context, and source material"
-		description="Knowledge packs carry audience, install strategy, trust posture, and reusable knowledge artifacts through the same market app."
+		eyebrow="Knowledge Imports"
+		title="Reusable direction, context, and source material"
+		description="Knowledge imports carry audience, install strategy, trust posture, and reusable operational artifacts."
 	/>
 
 	<section class="ts-market-grid ts-stack-top">
@@ -27,7 +27,7 @@ const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
 				slug={entry.slug}
 				title={entry.name}
 				summary={entry.summary ?? 'Reusable packaged knowledge for teams and agents.'}
-				category="Knowledge pack"
+				category="Knowledge import"
 				publisherName="TreeSeed"
 				badges={[entry.visibility, entry.installStrategy, entry.sourceKind]}
 			/>

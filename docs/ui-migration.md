@@ -784,13 +784,9 @@ But they should no longer dominate navigation.
 
 ## Existing Routes
 
-Current routes include:
+Earlier app routes included team/project-first, project-section, market, template, and knowledge-pack entrypoints.
 
-* `/app/teams/[teamSlug]/...`
-* `/projects/...`
-* `/market/...`
-* `/templates/...`
-* `/knowledge-packs/...`
+Those route families are deprecated as user-facing app navigation.
 
 ---
 
@@ -1596,11 +1592,11 @@ Primary users no longer experience infrastructure overload.
 
 ---
 
-# Phase 6 — Demo Optimization Layer
+# Phase 6 — Demo Runbook And Operational Rehearsal
 
 ## Goals
 
-* optimize the product for strategic demos,
+* optimize the product for strategic demos through documentation and rehearsal,
 * reinforce positioning,
 * and maximize narrative coherence.
 
@@ -1608,56 +1604,83 @@ Primary users no longer experience infrastructure overload.
 
 ## Deliverables
 
-* demo-ready Mission Control,
-* polished workday flow,
-* governance moments,
-* operational storytelling,
-* artifact showcase.
+* canonical demo runbook,
+* seeded local demo prerequisites,
+* app-surface walkthrough,
+* operational storytelling guidance,
+* troubleshooting guidance.
 
 ---
 
 ## Technical Tasks
 
-### Demo Seed Environment
+### Demo Runbook
 
 Create:
 
-* canonical repositories,
-* canonical workdays,
-* realistic governance queues,
-* and realistic generated knowledge.
+```text
+docs/demo.md
+```
 
-The demo environment should always feel:
+The runbook demonstrates TreeSeed through the real seeded TreeSeed portfolio, local Market API, workday manager, worker runner, capacity system, governance records, and existing app surfaces.
 
-# operationally real.
-
----
-
-### Demo Timeline Presets
-
-Support:
-
-* seeded execution traces,
-* staged governance states,
-* staged approvals,
-* and staged knowledge generation.
+Do not add demo-specific app functionality.
 
 ---
 
-### Demo Focus Mode
+### Seeded Local Environment
 
-Optional presentation mode:
+Use:
 
-* reduced navigation,
-* enlarged timeline,
-* artifact-first presentation,
-* and simplified operational framing.
+```bash
+npx trsd dev --surfaces web,api --setup auto
+npx trsd auth:login --market local
+npx trsd seed treeseed --environments local --validate
+npx trsd seed treeseed --environments local --plan
+npx trsd seed treeseed --environments local --apply --json
+npx trsd dev:manager --with-worker --docs-automation dry-run --approval-policy manual --workday-id local-docs-1 --capacity-budget 500
+```
+
+The demo environment should be real:
+
+* seeded TreeSeed team and market project,
+* seeded repository metadata,
+* seeded local capacity provider, lanes, grants, and work policy,
+* real manager and worker records,
+* real approvals, artifacts, reports, and capacity records.
+
+---
+
+### Demo Walkthrough
+
+Document the walkthrough across:
+
+```text
+/app
+/app/workdays
+/app/governance
+/app/knowledge
+/app/infrastructure
+```
+
+---
+
+### Explicit Non-Goals
+
+Do not implement:
+
+* special demo app routes,
+* special demo API endpoints,
+* fake demo projections,
+* demo seed manifests,
+* simulated agent chatter,
+* manually fabricated operational state.
 
 ---
 
 ## Success Criteria
 
-A 20-minute walkthrough naturally communicates:
+A 20-minute walkthrough using the real local system naturally communicates:
 
 ```text
 Goal
@@ -1750,6 +1773,26 @@ The final system feels like:
 Not:
 
 * experimental AI software.
+
+---
+
+# Migration Completion Status
+
+The numbered UX migration phases are complete.
+
+Implemented status:
+
+* Phase 1 collapsed authenticated app navigation to Mission Control, Workdays, Governance, Knowledge, and Infrastructure.
+* Phase 2 made Workdays the canonical operational execution surface.
+* Phase 3 elevated Governance into a first-class review system.
+* Phase 4 unified Knowledge as operational memory.
+* Phase 5 isolated advanced operator tooling under Infrastructure.
+* Phase 6 is documentation-only demo rehearsal through the real seeded local system.
+* Phase 7 finalized the operational visual identity, accessibility pass, and product tone.
+
+There is no compatibility route layer for the old team/project section hierarchy.
+
+Deprecated authenticated app routes, project-section controllers, team-section controllers, and agent-first UI components are intentionally retired rather than preserved.
 
 ---
 
@@ -1978,7 +2021,7 @@ Avoid:
 
 ## Migration Strategy
 
-Do NOT rewrite all routes simultaneously.
+Do not preserve deprecated app routes for compatibility.
 
 Introduce:
 
@@ -1988,13 +2031,7 @@ Introduce:
 /app/knowledge
 ```
 
-while temporarily preserving:
-
-```text
-/app/teams/[teamSlug]/...
-```
-
-using redirect compatibility layers.
+Remove team/project-first route controllers as the clean operational IA lands.
 
 ---
 
@@ -2645,7 +2682,13 @@ Track:
 
 ---
 
-# Demo Environment Specification
+# Demo Runbook Specification
+
+This is documentation and rehearsal guidance only.
+
+The canonical demo uses the real `treeseed` seed, local API, workday manager, worker runner, capacity records, governance records, and existing app surfaces.
+
+Do not create a separate demo environment or demo-only runtime behavior.
 
 # Canonical Demo Scenario
 
@@ -2657,9 +2700,9 @@ Improve deployment reliability documentation and operational verification guidan
 
 ---
 
-# Demo Repositories
+# Demo Repository Context
 
-Include:
+The seeded TreeSeed portfolio should expose:
 
 * infrastructure repo,
 * deployment repo,
@@ -2670,7 +2713,7 @@ Include:
 
 # Demo Timeline Structure
 
-## Planned Timeline
+## Real Workday Timeline To Narrate
 
 ```text
 Objective Intake
@@ -2686,7 +2729,7 @@ Knowledge Publication
 
 # Demo Artifacts
 
-Generate:
+When real work produces them, highlight:
 
 * architecture rationale,
 * deployment checklist,
@@ -2699,7 +2742,7 @@ Generate:
 
 # Demo Governance Events
 
-Include:
+When real work produces them, highlight:
 
 * medium-risk approval,
 * operational review,

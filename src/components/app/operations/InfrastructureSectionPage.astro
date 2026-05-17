@@ -1,0 +1,37 @@
+---
+import MetricGrid from '../../../../packages/core/src/components/ui/data/MetricGrid.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import InfrastructureResourceTable from './InfrastructureResourceTable.astro';
+
+interface Props {
+	vm: any;
+	section: string;
+	title: string;
+	description: string;
+	items: any[];
+	emptyTitle: string;
+}
+
+const { vm, section, title, description, items, emptyTitle } = Astro.props as Props;
+---
+
+<TreeseedAppLayout
+	title={title}
+	description={description}
+	currentPath="/app/infrastructure"
+	teams={vm.context.teams}
+	activeTeam={vm.context.activeTeam}
+>
+	<MetricGrid metrics={vm.metrics} min="9rem" />
+	<Panel class="ts-stack-top" eyebrow="Infrastructure" title={title} description={description}>
+		<InfrastructureResourceTable items={items} emptyTitle={emptyTitle} />
+	</Panel>
+	<Panel class="ts-stack-top" eyebrow="Navigation" title="Infrastructure sections">
+		<div class="ts-badge-list">
+			{['repositories', 'deployments', 'capacity', 'workers', 'hosts', 'resources', 'seeds', 'policies'].map((key) => (
+				<a class="ts-action-link" href={`/app/infrastructure/${key}`} aria-current={key === section ? 'page' : undefined}>{key.replace('-', ' ')}</a>
+			))}
+		</div>
+	</Panel>
+</TreeseedAppLayout>

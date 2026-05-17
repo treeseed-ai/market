@@ -1,0 +1,46 @@
+---
+import Badge from '../../../../packages/core/src/components/ui/data/Badge.astro';
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+
+interface Props {
+	items: any[];
+	emptyTitle?: string;
+	emptyDescription?: string;
+}
+
+const {
+	items,
+	emptyTitle = 'No infrastructure records',
+	emptyDescription = 'This operator section has no records in the current context.',
+} = Astro.props as Props;
+---
+
+{items.length > 0 ? (
+	<div class="ts-infra-table" role="region" aria-label="Infrastructure records">
+		<table>
+			<thead>
+				<tr>
+					<th scope="col">Name</th>
+					<th scope="col">State</th>
+					<th scope="col">Scope</th>
+					<th scope="col">Updated</th>
+				</tr>
+			</thead>
+			<tbody>
+				{items.map((item) => (
+					<tr id={item.id}>
+						<td>
+							<a href={item.href ?? '#'}>{item.title}</a>
+							{item.description ? <span>{item.description}</span> : null}
+						</td>
+						<td><Badge tone={item.tone ?? 'default'} size="sm">{item.state ?? 'recorded'}</Badge></td>
+						<td>{item.meta ?? item.projectName ?? 'infrastructure'}</td>
+						<td>{item.timestamp ?? 'not recorded'}</td>
+					</tr>
+				))}
+			</tbody>
+		</table>
+	</div>
+) : (
+	<EmptyState title={emptyTitle} description={emptyDescription} />
+)}

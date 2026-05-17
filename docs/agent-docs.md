@@ -6,7 +6,7 @@ This plan defines how TreeSeed should reach a fully governed, background-running
 
 The target outcome is:
 
-> Running `trsd dev:manager` starts a local governed agent workday that analyzes the TreeSeed codebase, builds and updates a detailed knowledge base, proposes supporting content, routes changes through review and approval, and exposes the whole governance process in the Market web UI.
+> Running `trsd dev:manager` starts a local governed workday that analyzes the TreeSeed codebase, builds and updates a detailed knowledge base, proposes supporting content, routes changes through review and approval, and exposes the whole governance process in the TreeSeed operational app.
 
 This plan is intentionally scoped to the current TreeSeed repository shape:
 
@@ -16,7 +16,7 @@ This plan is intentionally scoped to the current TreeSeed repository shape:
 * `packages/cli`
 * `packages/core`
 
-The plan does not introduce a separate documentation automation system. It completes the loop around the existing TreeSeed agent runtime, knowledge pipeline, workday services, worktree lifecycle, Codex docs mutation path, content model, and Market UI.
+The plan does not introduce a separate documentation automation system. It completes the loop around the existing TreeSeed agent runtime, knowledge pipeline, workday services, worktree lifecycle, Codex docs mutation path, content model, and operational app.
 
 ---
 
@@ -31,8 +31,8 @@ TreeSeed already has most of the lower-level ingredients needed for this system:
 * worktree mutation infrastructure with allowed/forbidden path enforcement;
 * tests for research/knowledge handlers, research workdays, worktree mutation, Codex docs mutation, worker, manager, orchestration, runtime readiness, and Market knowledge dogfooding;
 * top-level Market content directories for agents, books, decisions, knowledge, notes, objectives, pages, people, proposals, questions, templates, workdays, and knowledge packs;
-* UI directories already organized around project agents, team inbox, project workstreams, project overview, releases, settings, share, team products, team hosts, and team capacity;
-* database migrations for workdays, tasks, events, outputs, reports, work policies, priority overrides, approvals, capacity, runners, team inbox items, project summaries, remote jobs, and hub/repository topology.
+* app UI now organized around Mission Control, Workdays, Governance, Knowledge, Infrastructure, and operational components;
+* database migrations for workdays, tasks, events, outputs, reports, work policies, priority overrides, approvals, capacity, runners, governance summary items, operational summaries, remote jobs, and hub/repository topology.
 
 The missing work is not “invent agents.” The missing work is to make the existing pieces operate as a complete product loop: seed code-aware documentation work, execute it safely, persist outputs, present them in governance UI, and allow approved content mutations to become canonical knowledge.
 
@@ -51,7 +51,7 @@ The system should:
 5. optimize and score drafts;
 6. request governance decisions for promotion, rewrite, defer, or reject;
 7. mutate documentation only in isolated worktrees and approved paths;
-8. surface every artifact and decision in the Market UI;
+8. surface every artifact and decision in the operational app;
 9. run locally through `trsd dev:manager` and later remotely through the same manager/worker model;
 10. leave a durable audit trail of what agents saw, wrote, recommended, changed, and could not verify.
 
@@ -61,15 +61,15 @@ The system should:
 
 The plan is complete when all of the following are true:
 
-* `trsd dev:manager` can start a local workday for the top-level Market project.
-* The manager discovers enabled Market project agents from `src/content/agents` or a normalized agent spec source.
+* `trsd dev:manager` can start a local workday for the top-level Market operational context.
+* The manager discovers enabled documentation automation agents from `src/content/agents` or a normalized agent spec source.
 * Startup tasks are seeded automatically for codebase scan, graph refresh, knowledge gap detection, research, draft generation, optimization, review, and promotion request creation.
-* Workers execute documentation tasks without direct human prompting.
+* Workers execute documentation tasks without ad hoc human instruction.
 * Agents read code context from `market`, `packages/agent`, `packages/sdk`, `packages/cli`, and `packages/core`.
 * Agents produce content under governed documentation surfaces only.
 * Generated outputs include source maps that point back to implementation files.
 * Promotion requires an approval request unless the work policy explicitly allows low-risk auto-promotion.
-* Market UI shows active workday state, queued/running/completed tasks, generated notes, drafts, optimization scores, source maps, proposed mutations, approvals, verification state, and audit trail.
+* The operational app shows active workday state, queued/running/completed tasks, generated notes, drafts, optimization scores, source maps, proposed mutations, approvals, verification state, and audit trail.
 * A reviewer can approve, request changes, defer, or reject generated documentation from the UI.
 * Approved documentation mutations run through the existing worktree and verification lifecycle.
 * Failed verification creates a visible repair task and preserves the failed snapshot.
@@ -90,13 +90,13 @@ Top-level Market should define its own agents in `src/content/agents/*.mdx`. The
 
 `trsd dev:manager` should run a local workday manager that:
 
-* loads the Market project runtime;
+* loads the Market operational runtime;
 * resolves work policy;
 * starts or resumes the active local workday;
-* refreshes the project graph;
+* refreshes repository context;
 * seeds startup tasks;
 * periodically schedules follow-up tasks;
-* records workday summaries and inbox items;
+* records workday summaries and governance summary items;
 * exposes state through the API/UI.
 
 ### 3. Worker Loop
@@ -136,13 +136,13 @@ The governance plane owns:
 * audit events;
 * release gates.
 
-### 6. Market UI
+### 6. Operational App
 
-The Market UI should make the automation inspectable and steerable:
+The operational app should make the automation inspectable and steerable:
 
-* Project Agents view;
-* Project Workstreams view;
-* Team Inbox view;
+* Workday detail view;
+* Governance review queue;
+* Mission Control approval summary;
 * generated artifact review surfaces;
 * approval decision forms;
 * Codex/provider readiness cards;
@@ -256,7 +256,7 @@ src/content/agents/**
 
 Purpose:
 
-* define runtime-visible Market project agents;
+* define runtime-visible documentation automation agents;
 * explain each agent’s role, triggers, permissions, and governance boundaries.
 
 ### Workday Reports
@@ -699,7 +699,7 @@ reviewer
 Purpose:
 
 * convert review recommendations into approval requests;
-* maintain inbox items;
+* maintain governance summary items;
 * ensure promotion requests have enough evidence for humans;
 * enforce policy boundaries.
 
@@ -714,7 +714,7 @@ Triggers:
 Permissions:
 
 * read approval requests, reports, artifacts, tasks;
-* create inbox items;
+* create governance summary items;
 * create approval requests;
 * update approval request state when a human decision is recorded;
 * no content mutation.
@@ -755,8 +755,8 @@ Purpose:
 
 * summarize daily/background agent work;
 * write workday reports;
-* update project summary snapshots;
-* create concise Market inbox entries.
+* update operational summary snapshots;
+* create concise Mission Control governance entries.
 
 Triggers:
 
@@ -767,16 +767,16 @@ Triggers:
 
 Permissions:
 
-* read tasks, task events, outputs, approvals, reports, inbox items;
+* read tasks, task events, outputs, approvals, reports, and governance summary items;
 * create workday reports;
 * create notes/messages;
-* update project summary snapshots.
+* update operational summary snapshots.
 
 Outputs:
 
 * `workday_report_created`
-* `project_summary_updated`
-* `team_inbox_item_created`
+* `operational_summary_updated`
+* `governance_summary_item_created`
 
 Governance:
 
@@ -959,7 +959,7 @@ create_repair_task
 ```text
 create_approval_request
 record_approval_decision
-sync_team_inbox
+sync_governance_summary
 summarize_governance_state
 ```
 
@@ -967,7 +967,7 @@ summarize_governance_state
 
 ```text
 write_workday_report
-update_project_summary_snapshot
+update_operational_summary_snapshot
 publish_agent_activity_summary
 ```
 
@@ -985,7 +985,7 @@ trsd dev:manager
 
 TreeSeed should:
 
-1. load local Market project config;
+1. load local Market operational config;
 2. ensure local D1/schema state exists;
 3. run migrations if needed;
 4. load agent specs from `src/content/agents`;
@@ -995,7 +995,7 @@ TreeSeed should:
 8. seed startup tasks;
 9. start manager scheduling loop;
 10. optionally start or connect to a local worker;
-11. expose state to the Market UI.
+11. expose state to the operational app.
 
 ### Manager Startup Algorithm
 
@@ -1006,13 +1006,13 @@ load treeseed.site.yaml, src/manifest.yaml, src/content/agents
 resolve AgentSdk local runtime
 run runtime readiness
 start or resume active workday
-refresh project graph
+refresh repository context
 seed documentation startup tasks
 record manager lease
 run scheduling loop
 write manager events
-update project summary snapshot
-sync team inbox
+update operational summary snapshot
+sync governance summary
 ```
 
 ### Local Development Modes
@@ -1159,8 +1159,8 @@ research knowledge workday pipeline
 Codex docs mutation lifecycle
 agent worktree path safety
 local dev manager and worker loop
-Market project agent UI
-Team inbox and approval UI
+Operational governance UI
+Mission Control approval UI
 content model and knowledge routes
 SDK graph and context query engine
 CLI dev command surfaces
@@ -1239,15 +1239,14 @@ Core Knowledge Hub
   caching
   deployment
 
-Market UI
-  project overview
-  project agents
-  project workstreams
-  team inbox
+Operational app
+  Mission Control
+  Workdays
+  Governance
+  Knowledge
+  Infrastructure
   approvals
   capacity
-  releases
-  settings
 
 Governance
   work policies
@@ -1394,7 +1393,7 @@ Later, low-risk auto-promotion can be enabled for:
 * notes only;
 * draft-only paths;
 * typo fixes;
-* index/listing updates generated from already-approved content;
+* index updates generated from already-approved content;
 * workday reports.
 
 ---
@@ -1465,24 +1464,21 @@ verification command
 
 ---
 
-## Market UI Integration
+## Operational App Integration
 
 The UI is essential. The goal is not just background automation; the goal is governed automation humans can inspect, trust, and steer.
 
-### Project Agents View
+### Workday And Governance Views
 
-Enhance `ProjectAgentsView` to show:
+Enhance the operational app surfaces to show:
 
-* enabled agents;
-* runtime status;
-* current task;
-* last task outcome;
-* last run time;
-* queued task count;
+* current workday phase;
+* repository context;
+* timeline events;
 * generated artifact count;
 * approval count;
-* readiness warnings;
-* actions: pause, resume, request run, view artifacts, view policy.
+* capacity and readiness warnings;
+* actions: review approval, inspect artifacts, view policy.
 
 ### Agent Detail Panel
 
@@ -1562,9 +1558,9 @@ Show:
 * task history;
 * decision buttons.
 
-### Team Inbox Integration
+### Governance Summary Integration
 
-Create inbox items for:
+Create governance summary items for:
 
 * approval required;
 * verification failed;
@@ -1587,7 +1583,7 @@ Show:
 * warnings;
 * allowed mutation paths.
 
-### Project Summary Snapshot
+### Operational Summary Snapshot
 
 Show:
 
@@ -1681,8 +1677,8 @@ task outputs
 reports
 approval requests
 approval decisions
-team inbox items
-project summary snapshots
+governance summary items
+operational summary snapshots
 capacity estimates
 usage actuals
 worker runners
@@ -1777,8 +1773,8 @@ At closeout:
 
 ```text
 write_workday_report
-update_project_summary_snapshot
-sync_team_inbox
+update_operational_summary_snapshot
+sync_governance_summary
 ```
 
 ### Budget Defaults
@@ -1824,14 +1820,14 @@ Make the top-level Market project define documentation automation agents as firs
 8. Add `src/content/agents/treeseed-workday-reporter.mdx`.
 9. Add `src/content/agents/treeseed-releaser.mdx`.
 10. Ensure content config validates all agent frontmatter fields.
-11. Ensure the agent spec loader can read these top-level Market agents.
+11. Ensure the agent spec loader can read these top-level documentation automation agents.
 
 ### Acceptance Criteria
 
 * `listAgentSpecs` returns the new Market agents.
 * Disabled agents are ignored.
 * Startup-trigger agents are seeded on workday start.
-* Agent pages render in the Market UI.
+* Automation records render in the operational app.
 
 ---
 
@@ -1861,8 +1857,7 @@ packages/agent/src/api/**
 packages/sdk/src/**
 packages/cli/src/cli/**
 packages/core/src/**
-src/components/app/project/**
-src/components/team/**
+src/components/app/operations/**
 src/pages/app/**
 src/pages/v1/**
 src/content/**
@@ -1902,9 +1897,9 @@ How does the research-to-knowledge pipeline convert code evidence into docs?
 How does Codex docs mutation stay inside worktree and path boundaries?
 How does `trsd dev` supervise local surfaces?
 What should `trsd dev:manager` do in local docs automation mode?
-How does the Market UI expose project agent governance?
+How does the TreeSeed app expose operational governance?
 How do approval requests move through the system?
-How do Team Inbox items summarize agent governance needs?
+How does Mission Control summarize governance needs?
 How does the SDK graph/context query system support agent research?
 How does the Core Knowledge Hub render and publish content?
 ```
@@ -1964,13 +1959,13 @@ Generated documentation must be governed before canonical mutation.
 2. Add approval detail payloads with artifact refs and source-map refs.
 3. Add decision recording endpoint.
 4. Add approval state transitions.
-5. Add team inbox items for pending approvals.
+5. Add governance summary items for pending approvals.
 6. Add approval policy snapshot to each request.
 7. Add tests for approve/request changes/defer/reject.
 
 ### Acceptance Criteria
 
-* Pending approval appears in Market UI.
+* Pending approval appears in the operational app.
 * Approval decision is persisted.
 * Approved requests enqueue docs mutation.
 * Requested changes enqueue revision task.
@@ -2010,7 +2005,7 @@ Optional targeted set:
 ```bash
 npm run test -- packages/agent/test/agents/knowledge-handlers.test.ts
 npm run test -- packages/agent/test/services/research-knowledge-workday.test.ts
-npm run test -- test/lib/team-project-section-extraction.test.ts
+npm run test -- test/lib/operational-ia.test.ts
 ```
 
 ### Acceptance Criteria
@@ -2023,7 +2018,7 @@ npm run test -- test/lib/team-project-section-extraction.test.ts
 
 ---
 
-## Phase 7: Market UI Governance Surfaces
+## Phase 7: Operational App Governance Surfaces
 
 ### Goal
 
@@ -2031,20 +2026,19 @@ Make the entire automation loop visible and testable in the web UI.
 
 ### Tasks
 
-1. Extend Project Agents view.
-2. Add agent detail panel.
-3. Add Workday Timeline panel.
-4. Add Generated Knowledge Review table.
-5. Add Approval detail modal/page.
-6. Add Codex/provider readiness card.
-7. Add Team Inbox integration.
-8. Add Project Summary docs automation widget.
+1. Extend Workday detail view.
+2. Add operational timeline panel.
+3. Add Generated Knowledge Review table.
+4. Add Approval detail page.
+5. Add provider readiness and policy cards.
+6. Add Mission Control governance summary.
+8. Add operational summary docs automation widget.
 9. Add mutation diff viewer.
 10. Add task event log viewer.
 
 ### Acceptance Criteria
 
-* User can see agents running after `trsd dev:manager`.
+* User can see operational work progressing after `trsd dev:manager`.
 * User can open a generated draft.
 * User can inspect source map.
 * User can approve/request changes/reject/defer.
@@ -2064,8 +2058,8 @@ The background system should leave durable records that teach future humans and 
 
 1. Generate workday report content under `src/content/workdays`.
 2. Link report to tasks, artifacts, approvals, and mutations.
-3. Update project summary snapshot.
-4. Create Team Inbox summary.
+3. Update operational summary snapshot.
+4. Create Mission Control summary.
 5. Optionally generate a weekly documentation automation digest.
 
 ### Workday Report Template
@@ -2102,8 +2096,8 @@ updated: YYYY-MM-DD
 ### Acceptance Criteria
 
 * Workday report appears in content.
-* Project Summary view shows last report.
-* Team Inbox has summary item.
+* Mission Control shows last report.
+* Governance summary has a review item.
 * Report references generated artifacts.
 
 ---
@@ -2148,7 +2142,7 @@ The same governed process should eventually run in hosted environments.
 2. Ensure local worker and hosted worker use same task contract.
 3. Store large artifacts in R2 for hosted mode.
 4. Keep repository mutation behind provider capability grants.
-5. Integrate team/project capacity provider settings.
+5. Integrate Infrastructure capacity provider settings.
 6. Preserve human approval gates in hosted UI.
 
 ### Acceptance Criteria
@@ -2200,11 +2194,11 @@ surface artifacts through API state collector
 Add tests for:
 
 ```text
-ProjectAgentsView renders enabled agents
+Workday detail renders operational phases
 Generated Knowledge Review table renders artifacts
 Approval modal records decision
-TeamInboxView shows governance items
-ProjectWorkstreamsView shows workday timeline
+Governance queue shows review items
+Mission Control shows workday timeline context
 Codex readiness card shows warnings
 ```
 
@@ -2271,7 +2265,7 @@ Flow:
 
 * Add approval list/detail/decision endpoints.
 * Add state transition tests.
-* Add inbox item creation.
+* Add governance summary item creation.
 
 ### PR 7: Docs Mutation from Approval
 
@@ -2281,9 +2275,9 @@ Flow:
 * Enforce path safety.
 * Run verification.
 
-### PR 8: Market UI Agent Governance
+### PR 8: Operational App Governance
 
-* Extend Project Agents view.
+* Extend Workday and Governance views.
 * Add generated artifact review table.
 * Add approval modal.
 * Add workday timeline.
@@ -2292,8 +2286,8 @@ Flow:
 ### PR 9: Workday Reporting
 
 * Generate workday reports.
-* Update project summaries.
-* Add inbox summary.
+* Update operational summaries.
+* Add governance summary.
 
 ### PR 10: Background Hardening
 
@@ -2369,17 +2363,17 @@ Cache strategy
 Cloudflare deployment
 ```
 
-### Market UI
+### Operational App
 
 ```text
-Project Agents view
-Project Workstreams view
-Team Inbox view
+Workday detail view
+Governance review view
+Mission Control queue
 Approval flow
-Capacity views
-Releases view
-Project settings
-Team/product catalog
+Infrastructure capacity views
+Knowledge output view
+Infrastructure policies
+Resources and imports
 ```
 
 ---
@@ -2417,8 +2411,8 @@ Mitigation:
 
 Mitigation:
 
-* separate timeline, artifacts, approvals, and inbox;
-* summarize in project snapshot;
+* separate timeline, artifacts, approvals, and governance summary;
+* summarize in operational snapshots;
 * keep raw events behind expandable details.
 
 ### Risk: Local and Hosted Paths Diverge
@@ -2507,7 +2501,7 @@ Then TreeSeed:
 6. generates draft knowledge;
 7. scores and optimizes the drafts;
 8. opens approval requests;
-9. shows pending governance items in the Market UI;
+9. shows pending governance items in the operational app;
 10. lets a human approve or request changes;
 11. applies approved docs mutations in a safe worktree;
 12. runs verification;

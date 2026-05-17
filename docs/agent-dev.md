@@ -133,7 +133,7 @@ State-changing shared-repository operations are not model-directed by default. A
 TreeSeed should run the agent research/knowledge system through these layers:
 
 ```text
-Market web UI
+TreeSeed operational app
   -> Market API / v1 routes
   -> @treeseed/agent API routes
   -> manager/workday control plane
@@ -243,7 +243,7 @@ Core must not become the owner of generic agent runtime behavior.
 Owns:
 
 * integrated product web app;
-* team/project supervision views;
+* operational Mission Control, Workdays, Governance, Knowledge, and Infrastructure views;
 * agent workday dashboards;
 * approval request UI;
 * generated knowledge/proposal UI;
@@ -956,7 +956,7 @@ context:
   queries:
     - id: market-supervision-ui
       purpose: design
-      query: market project agents workday approvals generated knowledge UI
+      query: market operational governance workday approvals generated knowledge UI
       scope: /knowledge
       relations: [related, references]
       depth: 2
@@ -1554,7 +1554,7 @@ GET  /v1/projects/:projectId/providers/codex/readiness
 
 ### 11.4 Web UI
 
-Market UI should expose a project agent supervision page with:
+The TreeSeed app should expose Workday and Governance supervision surfaces with:
 
 * operation grants by agent role;
 * recent operation events;
@@ -1577,7 +1577,7 @@ Market UI should expose a project agent supervision page with:
 Recommended sections:
 
 ```text
-Project Agents
+Workday Detail
   - Runtime readiness
   - Operations grants
   - Operations event log
@@ -2054,7 +2054,7 @@ A docs task can produce a worktree-scoped documentation diff, pass canonical ver
 
 ## Milestone 11: API surface for research/knowledge and Codex provider
 
-Goal: expose runtime state to Market UI.
+Goal: expose runtime state to the TreeSeed operational app.
 
 Tasks:
 
@@ -2081,13 +2081,13 @@ The web app can fetch workday, generated knowledge, approval, and Codex readines
 
 ---
 
-## Milestone 12: Market UI supervision
+## Milestone 12: Operational app supervision
 
 Goal: make humans able to supervise the loop from the web UI.
 
 Tasks:
 
-* Update project agents view.
+* Update Workday and Governance views.
 * Add runtime readiness cards.
 * Add current workday panel.
 * Add active tasks table.
@@ -2101,8 +2101,8 @@ Tasks:
 Deliverables:
 
 ```text
-src/components/app/project/ProjectAgentsView.astro updates
-src/lib/market/project-section-data.ts updates
+src/components/app/operations updates
+src/view-models/workday.vm.ts updates
 ```
 
 Acceptance:
@@ -2240,7 +2240,7 @@ Test:
 
 Test:
 
-* ProjectAgentsView renders readiness;
+* Workday detail renders readiness;
 * generated drafts appear;
 * optimization scores appear;
 * pending approvals appear;
@@ -2282,7 +2282,7 @@ No code mutation in dogfood test.
 | Codex provider skeleton            | mocked SDK unit tests                                                                     |
 | Codex provider execution           | mocked SDK tests plus manual local readiness test                                         |
 | API surface                        | market API tests                                                                          |
-| ProjectAgentsView                  | UI/render tests and local manual inspection                                               |
+| Workday/Governance app surfaces    | UI/render tests and local manual inspection                                               |
 | End-to-end local runtime           | `npm run dev -- --reset`, `npm run dev -- --surface services`, launch workday, inspect UI |
 
 ---
@@ -2361,7 +2361,7 @@ Low-confidence or exploratory work may still use draft paths, but canonical file
 
 ---
 
-## 17. Market UI acceptance design
+## 17. Operational app acceptance design
 
 ### 17.1 Runtime readiness card
 
@@ -2496,9 +2496,9 @@ Fields:
 
 * Expose artifacts, approvals, provider readiness.
 
-### PR 11: Market UI
+### PR 11: Operational app UI
 
-* Add project agent supervision UI.
+* Add Workday and Governance supervision UI.
 * Add Codex readiness card.
 * Add generated knowledge review table.
 
@@ -2528,7 +2528,7 @@ Implemented coverage includes:
 * Agent context processing, package-owned research/knowledge/optimizer handlers, workday orchestration, runtime readiness, operation adapters, Codex provider readiness/execution, worktree-scoped docs mutation, knowledge promotion, human-gated release approval, artifact APIs, operation observability, reports, and local E2E verification harnesses.
 * Capacity scheduling runtime from `docs/agent-budget.md`: classify, estimate, route, reserve, execute, reconcile, learn, checkpoint or continue, and preserve idle capacity when no useful admitted work remains.
 * Core integrated dev surface support for `--surface all`.
-* Market API delegation, Project Agents supervision UI for runtime/artifacts/approvals, and Project Capacity UI for provider readiness, grants, lane pressure, routing decisions, reservations, learned estimates, usage actuals, checkpointed interruptions, approval-required work, and manual budgeted task submission through admission.
+* Market API delegation, Workday/Governance supervision UI for runtime/artifacts/approvals, and Infrastructure capacity UI for provider readiness, grants, lane pressure, routing decisions, reservations, learned estimates, usage actuals, checkpointed interruptions, approval-required work, and manual budgeted task submission through admission.
 
 The intended completion gate is now verification and review organization: package-local `verify:local` checks, targeted Market Agents tests, the capacity scheduling E2E harness, `git diff --check`, review of tracked files, and human approval before any production release.
 
@@ -2579,7 +2579,7 @@ The implementation target is complete. Use this checklist before staging or rele
   * `cd packages/core && npm run verify:local`
   * `cd packages/agent && npm run verify:local`
   * `npx vitest run test/api/market-api.test.ts -t "agents"`
-  * `npx vitest run test/lib/team-project-section-extraction.test.ts`
+  * `npx vitest run test/lib/operational-ia.test.ts`
   * `git diff --check`
 * Run root `npm run verify:local` when package verifies pass and the local runtime cost is acceptable.
 * Keep production release human-gated: release may run only through an explicit human release approval.

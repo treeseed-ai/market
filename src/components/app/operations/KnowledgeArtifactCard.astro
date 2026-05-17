@@ -1,0 +1,29 @@
+---
+import Badge from '../../../../packages/core/src/components/ui/data/Badge.astro';
+import Card from '../../../../packages/core/src/components/ui/surface/Card.astro';
+
+interface Props {
+	artifact: any;
+}
+
+const { artifact } = Astro.props as Props;
+const repositories = Array.isArray(artifact.repositories) ? artifact.repositories : [];
+const relationshipCount = (artifact.relationships?.approvals?.length ?? 0)
+	+ (artifact.relationships?.workdays?.length ?? 0)
+	+ (artifact.relationships?.releases?.length ?? 0);
+---
+
+<Card
+	href={artifact.href}
+	eyebrow={artifact.type ?? artifact.category ?? 'Knowledge'}
+	title={artifact.title}
+	description={artifact.description}
+>
+	<div class="ts-operational-card__summary">
+		<Badge tone={artifact.tone ?? 'default'} size="sm">{artifact.state ?? 'generated'}</Badge>
+		<span>{artifact.metadata?.projectName ?? artifact.producedBy ?? 'Operational work'}</span>
+		{relationshipCount > 0 ? <span>{relationshipCount} operational link{relationshipCount === 1 ? '' : 's'}</span> : null}
+	</div>
+	{artifact.metadata?.producedDuring ? <p>Produced during {artifact.metadata.producedDuring}</p> : null}
+	{repositories.length > 0 ? <p>{repositories.slice(0, 3).join(', ')}</p> : null}
+</Card>

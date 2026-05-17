@@ -40,36 +40,36 @@ const launchJson = JSON.stringify({
 ---
 
 <TreeseedAppLayout
-	title="Launch Project"
-	description="Create a new knowledge hub in the same control plane you will use to operate, release, and publish it."
+	title="New Objective"
+	description="Create operational context for a new objective, repository baseline, and future workdays."
 	currentPath={Astro.url.pathname}
 	teams={teams}
 	activeTeam={teams[0] ?? null}
 >
 	{teams.length === 0 ? (
 		<Panel
-			eyebrow="Team required"
-			title="Create a team first"
-			description="Projects belong to teams, so create a team before launching your first knowledge hub."
+			eyebrow="Operational context required"
+			title="Add organization context in Infrastructure"
+			description="Objectives need an organization context before TreeSeed can create repository context and future workdays."
 		>
-			<Button slot="actions" href="/app/teams/new" size="sm">Create new team</Button>
+			<Button slot="actions" href="/app/infrastructure#teams" size="sm">Inspect infrastructure</Button>
 		</Panel>
 	) : (
 		<section class="ts-section-grid">
 			<Panel
 				eyebrow="Launch"
-				title="Create a knowledge hub"
+				title="Create operational context"
 				description="Provision the control-plane record now. Runtime provisioning and repository bootstrap will follow through the launch job."
 			>
 				<form id="project-launch-form" class="ts-form-stack">
-					<Field label="Team" name="teamId" required>
+					<Field label="Organization context" name="teamId" required>
 						<Select name="teamId" options={teams.map((team: any) => ({ label: team.name, value: team.id }))} required />
 					</Field>
 					<Field label="Name" name="name" required>
-						<TextInput name="name" required placeholder="Applied Systems Coop" />
+						<TextInput name="name" required placeholder="Deployment Reliability Operations" />
 					</Field>
 					<Field label="Slug" name="slug" required>
-						<TextInput name="slug" required placeholder="applied-systems-coop" />
+						<TextInput name="slug" required placeholder="deployment-reliability-ops" />
 					</Field>
 					<Field label="Summary" name="summary">
 						<Textarea name="summary" rows={4} placeholder="Short statement of what this hub exists to operate." />
@@ -77,8 +77,8 @@ const launchJson = JSON.stringify({
 					<Field label="Source kind" name="sourceKind">
 						<Select name="sourceKind" options={[
 							{ label: 'Blank', value: 'blank' },
-							{ label: 'Template', value: 'template' },
-							{ label: 'Knowledge pack', value: 'knowledge_pack' },
+							{ label: 'Workflow import', value: 'template' },
+							{ label: 'Knowledge import', value: 'knowledge_pack' },
 						]} />
 					</Field>
 					<Field label="Hosting mode" name="hostingMode">
@@ -105,17 +105,17 @@ const launchJson = JSON.stringify({
 						<span>Unlock sensitive data from the header before launch so TreeSeed can create short-lived credential sessions for the selected hosts.</span>
 					</div>
 					<FormActions align="start">
-						<Button type="submit">Launch project</Button>
+						<Button type="submit">Create operational context</Button>
 						<span class="ts-subtle" id="project-launch-status" role="status"></span>
 					</FormActions>
 				</form>
 			</Panel>
 
-			<Panel eyebrow="Launch defaults" title="MVP launch behavior">
+			<Panel eyebrow="Launch defaults" title="Operational launch behavior">
 				<KeyValueList items={[
-					{ key: 'Visibility', value: 'Hub surfaces are public-ready by default. Market listing remains draft until you publish from Share.' },
+					{ key: 'Visibility', value: 'Hub surfaces are public-ready by default. Resource publication remains governed.' },
 					{ key: 'Repository provider', value: 'The selected Repository Host creates software and content repositories for launch, release, and checks.' },
-					{ key: 'Release policy', value: 'Agents can save and verify autonomously, but humans approve staging, release, and publish.' },
+					{ key: 'Release policy', value: 'Runtime work can save and verify, but humans approve staging, release, and publish.' },
 				]} />
 			</Panel>
 		</section>
@@ -379,9 +379,8 @@ const launchJson = JSON.stringify({
 			if (!response.ok || payload?.ok === false) {
 				throw new Error(payload?.error ?? `Launch failed with ${response.status}`);
 			}
-			const team = data.teams.find((entry: any) => entry.id === teamId);
-			setStatus('Launch queued. Opening the project overview...');
-			window.location.href = `/app/teams/${team?.name ?? team?.slug}/projects/${slug}/overview`;
+			setStatus('Launch queued. Opening infrastructure context...');
+			window.location.href = '/app/infrastructure';
 		} catch (error) {
 			if ((error as Error)?.message === 'Sensitive data is locked.') return;
 			setStatus(error instanceof Error ? error.message : String(error));

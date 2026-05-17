@@ -1,0 +1,31 @@
+---
+import Card from '../../../../packages/core/src/components/ui/surface/Card.astro';
+import StatusPill from '../../../../packages/core/src/components/ui/data/StatusPill.astro';
+
+interface Props {
+	workday: any;
+}
+
+const { workday } = Astro.props as Props;
+const automation = workday?.docsAutomation ?? {};
+const artifactCount = Number(automation.generatedArtifactCount ?? automation.knowledgeDraftCount ?? 0);
+const approvalCount = Number(automation.pendingApprovalCount ?? 0);
+---
+
+<Card
+	href={workday.href}
+	eyebrow={workday.projectName}
+	title={workday.objective}
+	description={`${workday.environment ?? 'staging'} - ${workday.kind ?? 'workday'}`}
+>
+	<div class="ts-operational-card__summary">
+		<StatusPill tone={workday.tone ?? 'default'}>{workday.state ?? 'active'}</StatusPill>
+		<span>{artifactCount} artifact{artifactCount === 1 ? '' : 's'}</span>
+		<span>{approvalCount} approval{approvalCount === 1 ? '' : 's'}</span>
+	</div>
+	<Fragment slot="footer">
+		<div class="ts-card__meta">
+			<span>{workday.updatedAt ?? workday.startedAt ?? 'No timestamp recorded'}</span>
+		</div>
+	</Fragment>
+</Card>

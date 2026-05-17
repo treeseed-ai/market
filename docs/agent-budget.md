@@ -979,7 +979,7 @@ Implementation status:
 * Phase 1 through Phase 5 are implemented in the SDK, agent runtime, and market control-plane surfaces.
 * Post-phase roadmap items are implemented as metadata-driven capacity extensions without additional schema migrations.
 * Comprehensive capacity scheduling E2E coverage now verifies classification, admission, routing, estimate learning, bounded planning, interruption recovery, backfill/idling, attention/utility metadata, and hybrid escalation behavior.
-* Market UI operator surfaces now include team-level provider/grant administration and a project-level Capacity console for readiness, pressure, routing decisions, active reservations, learned estimates, usage actuals, approvals, checkpointed interruptions, and manual budgeted work submission through admission.
+* Infrastructure operator surfaces now include capacity provider and grant administration, readiness, pressure, routing decisions, active reservations, learned estimates, usage actuals, approvals, checkpointed interruptions, and manual budgeted work submission through admission.
 
 # Phase 1 — Runtime Classification
 

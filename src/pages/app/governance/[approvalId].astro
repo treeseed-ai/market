@@ -1,0 +1,84 @@
+---
+import ActionList from '../../../../packages/core/src/components/ui/data/ActionList.astro';
+import KeyValueList from '../../../../packages/core/src/components/ui/data/KeyValueList.astro';
+import Badge from '../../../../packages/core/src/components/ui/data/Badge.astro';
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import GovernanceDecisionPanel from '../../../components/app/operations/GovernanceDecisionPanel.astro';
+import GovernancePolicySummary from '../../../components/app/operations/GovernancePolicySummary.astro';
+import OperationalTimeline from '../../../components/app/operations/OperationalTimeline.astro';
+import RepositoryContextPanel from '../../../components/app/operations/RepositoryContextPanel.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { loadGovernanceApprovalViewModel } from '../../../view-models/governance.vm.js';
+
+const approvalId = String(Astro.params.approvalId ?? '');
+if (!Astro.locals.auth?.principal) {
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+}
+
+const vm = await loadGovernanceApprovalViewModel(Astro.locals, approvalId);
+if (!vm.detail) {
+	Astro.response.status = 404;
+}
+
+const detail = vm.detail;
+---
+
+<TreeseedAppLayout
+	title={detail?.approval.title ?? 'Approval not found'}
+	description="Traceable governance review with policy, context, and audit history."
+	currentPath="/app/governance"
+	teams={vm.context.teams}
+	activeTeam={vm.context.activeTeam}
+>
+	{detail ? (
+		<>
+			<Panel eyebrow={detail.approval.projectName ?? 'Governance'} title={detail.approval.title} description={detail.approval.description}>
+				<Badge slot="actions" tone={detail.approval.tone ?? 'default'}>{detail.approval.state}</Badge>
+				<KeyValueList items={[
+					{ key: 'Severity', value: detail.approval.severity },
+					{ key: 'Kind', value: detail.approval.kind },
+					{ key: 'Project', value: detail.approval.projectName ?? 'Organization' },
+					{ key: 'Related workday', value: detail.approval.workDayId ?? 'not recorded' },
+					{ key: 'Requested', value: detail.approval.requestedAt ?? 'not recorded' },
+					{ key: 'Expires', value: detail.approval.expiresAt ?? 'not recorded' },
+				]} />
+			</Panel>
+
+			<section class="ts-operational-grid ts-stack-top">
+				<GovernanceDecisionPanel approval={detail.approval} options={detail.decisionOptions} />
+				<GovernancePolicySummary policies={detail.policies} constraints={detail.capacityConstraints} />
+			</section>
+
+			<section class="ts-operational-grid ts-stack-top">
+				<RepositoryContextPanel repositories={detail.repositories} />
+				<Panel eyebrow="Related Work" title="Workday and artifacts">
+					<ActionList items={[
+						...(detail.relatedWorkday ? [{
+							title: detail.relatedWorkday.summary?.objective ?? detail.relatedWorkday.summary?.title ?? `Workday ${detail.approval.workDayId}`,
+							description: detail.relatedWorkday.state ?? 'Operational workday',
+							href: detail.approval.workDayId ? `/app/workdays/${encodeURIComponent(detail.approval.workDayId)}` : undefined,
+							meta: 'workday',
+							actionLabel: detail.approval.workDayId ? 'Open' : undefined,
+						}] : []),
+						...detail.relatedArtifacts.map((artifact) => ({
+							title: artifact.title,
+							description: artifact.state,
+							href: artifact.href,
+							meta: 'artifact',
+							actionLabel: artifact.href ? 'Open' : undefined,
+						})),
+					]}>
+						<p class="ts-empty-inline">No related workday or artifacts are attached to this approval yet.</p>
+					</ActionList>
+				</Panel>
+			</section>
+
+			<Panel eyebrow="Audit Trail" title="Review timeline" description="The decision is anchored in the operational record.">
+				<OperationalTimeline events={detail.auditTrail} emptyTitle="No audit events recorded" />
+			</Panel>
+		</>
+	) : (
+		<EmptyState title="Approval not found" description="This approval is not available in the current operational context." actions={[{ label: 'Back to Governance', href: '/app/governance' }]} />
+	)}
+</TreeseedAppLayout>

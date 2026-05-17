@@ -5,9 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { NodeSqliteD1Database } from '@treeseed/sdk/db/node-sqlite';
 import { MarketControlPlaneStore } from '../../src/api/store.js';
+import { loadInfrastructureSeedState } from '../../src/lib/market/infrastructure-seeds.js';
 import { applyLocalSeedFromCli, exportSeedWithStore } from '../../src/lib/market/seeds/apply.js';
 import { applyLocalSeedViaApiFromCli } from '../../src/lib/market/seeds/local-api.js';
-import { loadTeamSectionData } from '../../src/lib/market/team-section-data.js';
 import { createAccessToken } from '../../packages/agent/src/api/auth/tokens.ts';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -431,25 +431,28 @@ describe('local seed apply', () => {
 				},
 			};
 
-			const data: any = await loadTeamSectionData(context, {
-				runtime: {
-					env: {
-						TREESEED_ENVIRONMENT: 'local',
-					},
-					resolved: {
-						config: {
-							repoRoot: projectRoot,
+			const seedPage: any = await loadInfrastructureSeedState({
+				store: context.store,
+				team: context.team,
+				principal: context.principal,
+				locals: {
+					runtime: {
+						env: {
+							TREESEED_ENVIRONMENT: 'local',
+						},
+						resolved: {
+							config: {
+								repoRoot: projectRoot,
+							},
 						},
 					},
-				},
-			} as any, {
-				section: 'seeds',
-				url: new URL('https://market.example.com/app/teams/treeseed/seeds'),
+				} as any,
+				url: new URL('https://market.example.com/app/governance'),
 			});
 
-			expect(data.seedPage.selectedSeed).toBe('treeseed');
-			expect(data.seedPage.selectedEnvironments).toBe('local');
-			expect(data.seedPage.plan.summary).toMatchObject({
+			expect(seedPage.selectedSeed).toBe('treeseed');
+			expect(seedPage.selectedEnvironments).toBe('local');
+			expect(seedPage.plan.summary).toMatchObject({
 				create: 9,
 				update: 1,
 				unchanged: 0,

@@ -1,0 +1,41 @@
+---
+import Badge from '../../../../packages/core/src/components/ui/data/Badge.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+
+interface Props {
+	approval: any;
+	options?: any[];
+	action?: string;
+}
+
+const {
+	approval,
+	options = [],
+	action = `/api/governance/${encodeURIComponent(approval?.approvalId ?? approval?.id ?? '')}/decision`,
+} = Astro.props as Props;
+const pending = approval?.state === 'pending';
+---
+
+<Panel eyebrow="Decision" title="Review decision" description="Approve or reject this operational request with an auditable note.">
+	<div class="ts-governance-decision">
+		<div class="ts-governance-decision__state">
+			<Badge tone={approval?.tone ?? 'default'}>{approval?.state ?? 'recorded'}</Badge>
+			<span>{approval?.severity ?? 'moderate'} severity</span>
+		</div>
+		{pending ? (
+			<form method="post" action={action} class="ts-governance-decision__form">
+				<label>
+					<span>Decision note</span>
+					<textarea name="note" rows="4" placeholder="Record the operational rationale for this decision."></textarea>
+				</label>
+				<div class="ts-governance-decision__actions">
+					{options.map((option) => (
+						<button class="ts-button" data-variant={option.state === 'rejected' ? 'danger' : 'primary'} type="submit" name="optionId" value={option.id}>{option.label}</button>
+					))}
+				</div>
+			</form>
+		) : (
+			<p class="ts-empty-inline">This request has already been decided.</p>
+		)}
+	</div>
+</Panel>

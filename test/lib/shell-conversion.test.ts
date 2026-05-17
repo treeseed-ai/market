@@ -11,13 +11,18 @@ describe('app and public shell conversion', () => {
 		const contents = source('src/layouts/TreeseedAppLayout.astro');
 
 		expect(contents).toContain('AppShell');
-		expect(contents).toContain('ProjectHeader');
 		expect(contents).toContain('SensitiveDataUnlock');
 		expect(contents).toContain('slot="railContext"');
 		expect(contents).toContain('slot="headerAction"');
-		expect(contents).toContain('slot="projectContext"');
 		expect(contents).toContain('slot="sensitiveModal"');
 		expect(contents).toContain('resolveAuthenticatedThemePreference');
+		expect(contents).toContain('Mission Control');
+		expect(contents).toContain('Workdays');
+		expect(contents).toContain('Governance');
+		expect(contents).toContain('Knowledge');
+		expect(contents).toContain('Infrastructure');
+		expect(contents).not.toContain('ProjectHeader');
+		expect(contents).not.toContain('projectTabs');
 	});
 
 	it('adapts market public layout through the core public shell', () => {

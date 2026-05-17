@@ -22,9 +22,9 @@ const {
 
 const navItems: NavItem[] = [
 	{ label: 'Home', href: '/' },
-	{ label: 'Market', href: '/market/' },
-	{ label: 'Templates', href: '/market/templates/' },
-	{ label: 'Knowledge Packs', href: '/market/knowledge-packs/' },
+	{ label: 'Resources', href: '/market/' },
+	{ label: 'Workflow Imports', href: '/market/templates/' },
+	{ label: 'Knowledge Imports', href: '/market/knowledge-packs/' },
 ];
 
 const isSignedIn = Boolean(Astro.locals.auth?.principal);
@@ -46,7 +46,7 @@ const actions = isSignedIn
 	appearance={appearance}
 	brand={{
 		name: 'TreeSeed',
-		tag: 'The GitHub of knowledge and agent teams',
+		tag: 'Governable AI Infrastructure for Organizational Continuity',
 		href: '/',
 		logoSrc: '/logo.svg',
 		logoAlt: '',

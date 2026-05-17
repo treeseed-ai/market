@@ -1282,6 +1282,20 @@ function serializeJobEvent(row) {
 	};
 }
 
+function serializeAuditEvent(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		actorType: row.actor_type,
+		actorId: row.actor_id,
+		eventType: row.event_type,
+		targetType: row.target_type,
+		targetId: row.target_id,
+		data: parseJson(row.data_json, {}),
+		createdAt: row.created_at,
+	};
+}
+
 function serializeKnowledgePack(row) {
 	if (!row) return null;
 	return {
@@ -3470,7 +3484,7 @@ export class MarketControlPlaneStore {
 			state: 'open',
 			title: 'Helper capacity connected',
 			summary: 'TreeSeed-managed helper capacity is connected and ready for approved project work.',
-			href: `/app/teams/${teamId}/capacity`,
+			href: '/app/infrastructure#capacity',
 			itemKey: `capacity-connected:${provider.id}`,
 			metadata: {
 				providerId: provider.id,
@@ -3589,7 +3603,7 @@ export class MarketControlPlaneStore {
 			state: 'open',
 			title: 'Helper capacity connected',
 			summary: `${provider.name} is connected to ${processingHost.name} and ready for provider registration.`,
-			href: `/app/teams/${teamId}/capacity`,
+			href: '/app/infrastructure#capacity',
 			itemKey: `capacity-connected:${provider.id}`,
 			metadata: {
 				providerId: provider.id,
@@ -4773,13 +4787,11 @@ export class MarketControlPlaneStore {
 				[teamId],
 			),
 		]);
-		const team = await this.getTeam(teamId);
-		const teamHandle = team?.name ?? team?.slug ?? teamId;
 		return [
-			...projects.map((row) => ({ code: 'project', id: row.id, label: row.name, href: `/app/teams/${teamHandle}/projects/${row.slug}/overview` })),
-			...catalogItems.map((row) => ({ code: 'catalog_item', id: row.id, label: row.title, href: `/market/${row.kind === 'knowledge_pack' ? 'knowledge-packs' : 'templates'}/${row.slug}` })),
-			...knowledgePacks.map((row) => ({ code: 'knowledge_pack', id: row.id, label: row.name, href: `/market/knowledge-packs/${row.slug}` })),
-			...jobs.map((row) => ({ code: 'active_job', id: row.id, label: `${row.project_name}: ${row.operation}`, href: `/app/teams/${teamHandle}/projects/${row.project_slug}/overview` })),
+			...projects.map((row) => ({ code: 'project', id: row.id, label: row.name, href: `/app/infrastructure#project-${row.id}` })),
+			...catalogItems.map((row) => ({ code: 'catalog_item', id: row.id, label: row.title, href: `/app/infrastructure#resources` })),
+			...knowledgePacks.map((row) => ({ code: 'knowledge_pack', id: row.id, label: row.name, href: `/app/knowledge/imports/${String(row.id).replace(/[^a-zA-Z0-9_-]+/gu, '-').toLowerCase()}` })),
+			...jobs.map((row) => ({ code: 'active_job', id: row.id, label: `${row.project_name}: ${row.operation}`, href: '/app/infrastructure#deployments' })),
 		];
 	}
 
@@ -4802,7 +4814,6 @@ export class MarketControlPlaneStore {
 		await this.ensureInitialized();
 		const project = await this.getProject(projectId);
 		if (!project) return [{ code: 'missing', id: projectId, label: 'Project not found.' }];
-		const team = await this.getTeam(project.teamId);
 		const [jobs, workdays, requests, leases, runners, reservations, approvals] = await Promise.all([
 			this.all(
 				`SELECT id, namespace, operation, status FROM remote_jobs
@@ -4847,16 +4858,15 @@ export class MarketControlPlaneStore {
 				[projectId],
 			),
 		]);
-		const teamHandle = team?.name ?? team?.slug ?? project.teamId;
-		const href = `/app/teams/${teamHandle}/projects/${project.slug}/overview`;
+		const href = `/app/infrastructure#project-${project.id}`;
 		return [
-			...jobs.map((row) => ({ code: 'active_job', id: row.id, label: `${row.namespace}:${row.operation} ${row.status}`, href })),
-			...workdays.map((row) => ({ code: 'active_workday', id: row.id, label: `Workday ${row.id} ${row.state}`, href })),
-			...requests.map((row) => ({ code: 'workday_request', id: row.id, label: `${row.environment} ${row.type} ${row.state}`, href })),
+			...jobs.map((row) => ({ code: 'active_job', id: row.id, label: `${row.namespace}:${row.operation} ${row.status}`, href: '/app/infrastructure#deployments' })),
+			...workdays.map((row) => ({ code: 'active_workday', id: row.id, label: `Workday ${row.id} ${row.state}`, href: `/app/workdays/${row.id}` })),
+			...requests.map((row) => ({ code: 'workday_request', id: row.id, label: `${row.environment} ${row.type} ${row.state}`, href: '/app/workdays' })),
 			...leases.map((row) => ({ code: 'manager_lease', id: row.id, label: `${row.environment} ${row.manager_id}`, href })),
 			...runners.map((row) => ({ code: 'worker_runner', id: row.id, label: `${row.environment} ${row.runner_id}`, href })),
-			...reservations.map((row) => ({ code: 'capacity_reservation', id: row.id, label: `${row.state} ${row.reserved_credits ?? 0} credits`, href })),
-			...approvals.map((row) => ({ code: 'pending_approval', id: row.id, label: row.title ?? row.kind, href })),
+			...reservations.map((row) => ({ code: 'capacity_reservation', id: row.id, label: `${row.state} ${row.reserved_credits ?? 0} credits`, href: '/app/infrastructure#capacity' })),
+			...approvals.map((row) => ({ code: 'pending_approval', id: row.id, label: row.title ?? row.kind, href: `/app/governance#approval-${row.id}` })),
 		];
 	}
 
@@ -7302,7 +7312,7 @@ export class MarketControlPlaneStore {
 					state: 'action_required',
 					title: `${project.name}: ${failedJob.operation} failed`,
 					summary: `The latest ${failedJob.namespace}:${failedJob.operation} run failed and needs review.`,
-					href: `/app/teams/${team.name}/projects/${project.slug}/overview`,
+					href: `/app/infrastructure#project-${project.id}`,
 					createdAt: latestDate(failedJob.finishedAt, failedJob.updatedAt, failedJob.createdAt),
 				});
 			}
@@ -7317,7 +7327,7 @@ export class MarketControlPlaneStore {
 						state: 'waiting_for_approval',
 						title: `${project.name}: staging candidate ready`,
 						summary: 'A verified staging deployment is ready for human release review.',
-						href: `/app/teams/${team.name}/projects/${project.slug}/releases`,
+						href: '/app/governance',
 						createdAt: latestDate(summary.latestStagingDeployment.finishedAt, summary.latestStagingDeployment.startedAt),
 					});
 				}
@@ -7330,8 +7340,8 @@ export class MarketControlPlaneStore {
 					kind: 'share',
 					state: 'informational',
 					title: `${project.name}: artifacts available`,
-					summary: 'Release artifacts exist for this project and can be packaged for market distribution.',
-					href: `/app/teams/${team.name}/projects/${project.slug}/share`,
+					summary: 'Release artifacts exist for this project and can be packaged as operational resources.',
+					href: '/app/infrastructure#resources',
 					createdAt: products[0].publishedAt,
 				});
 			}
@@ -7465,6 +7475,27 @@ export class MarketControlPlaneStore {
 			[jobId],
 		);
 		return rows.map(serializeJobEvent);
+	}
+
+	async listAuditEventsForTarget(targetType, targetId, limit = 50) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM audit_events
+			 WHERE target_type = ? AND target_id = ?
+			 ORDER BY created_at DESC LIMIT ?`,
+			[targetType, targetId, Math.max(1, Math.min(200, Number(limit) || 50))],
+		);
+		return rows.map(serializeAuditEvent);
+	}
+
+	async listRecentAuditEvents(limit = 50) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM audit_events
+			 ORDER BY created_at DESC LIMIT ?`,
+			[Math.max(1, Math.min(200, Number(limit) || 50))],
+		);
+		return rows.map(serializeAuditEvent);
 	}
 
 	async findJobById(jobId) {

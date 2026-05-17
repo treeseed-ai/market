@@ -1,0 +1,12 @@
+---
+import InfrastructureSectionPage from '../../../components/app/operations/InfrastructureSectionPage.astro';
+import { loadInfrastructureViewModel } from '../../../view-models/infrastructure.vm.js';
+
+if (!Astro.locals.auth?.principal) {
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+}
+
+const vm = await loadInfrastructureViewModel(Astro.locals, Astro.url);
+---
+
+<InfrastructureSectionPage vm={vm} section="workers" title="Workers and Queues" description="Runtime workers, queue state, and active execution lanes." items={vm.workers} emptyTitle="No workers or queued tasks visible" />

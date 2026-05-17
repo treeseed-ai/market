@@ -1122,9 +1122,11 @@ async function requireConnectedProjectRuntime(c, store, projectId, principal, pa
 	return { payload };
 }
 
-async function projectAppHref(store, teamId, projectSlug, section) {
-	const team = await store.getTeam(teamId);
-	return team ? `/app/teams/${team.name}/projects/${projectSlug}/${section}` : null;
+async function projectAppHref(_store, _teamId, _projectSlug, section) {
+	if (section === 'workdays') return '/app/workdays';
+	if (section === 'agents' || section === 'releases') return '/app/governance';
+	if (section === 'share') return '/app/infrastructure#resources';
+	return '/app/infrastructure';
 }
 
 function unwrapLaunchOperationOutput(output) {
@@ -6393,7 +6395,7 @@ export function createMarketApiApp(options = {}) {
 						latestWorkdayReport,
 					},
 				});
-				const agentsHref = await projectAppHref(store, project.teamId, project.slug, 'agents');
+				const workdayHref = `/app/workdays/${encodeURIComponent(String(body.workDayId))}`;
 				await store.upsertTeamInboxItem(project.teamId, {
 					id: `workday-summary:${project.id}:${String(body.workDayId)}`,
 					projectId: project.id,
@@ -6401,7 +6403,7 @@ export function createMarketApiApp(options = {}) {
 					state,
 					title: `${project.name}: documentation workday ${state}`,
 					summary: `Generated ${latestWorkdayReport.generatedArtifactCount} artifact(s), ${pendingApprovalCount} pending approval(s), and ${verificationFailureCount} verification issue(s).`,
-					href: agentsHref ? `${agentsHref}#workday-report-timeline` : null,
+					href: `${workdayHref}#workday-report-timeline`,
 					itemKey: `workday-summary:${String(body.workDayId)}`,
 					metadata: {
 						workDayId: String(body.workDayId),
