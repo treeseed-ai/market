@@ -1,13 +1,37 @@
 ---
+import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import PlainTable from '../../../components/app/controls/PlainTable.astro';
+import WorkContentNav from '../../../components/app/controls/WorkContentNav.astro';
 import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
 import { loadGovernanceViewModel } from '../../../view-models/governance.vm.js';
+import { loadWorkContentEntries, workContentEntriesFor, workContentRelationSummary } from '../../../view-models/work-content.js';
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/work/decisions')}`);
-const vm = await loadGovernanceViewModel(Astro.locals);
-const rows = vm.reviewQueue.map((item: any) => ({
+const [vm, contentEntries] = await Promise.all([
+	loadGovernanceViewModel(Astro.locals),
+	loadWorkContentEntries(),
+]);
+const decisionEntries = workContentEntriesFor(contentEntries, 'decisions');
+const proposalEntries = workContentEntriesFor(contentEntries, 'proposals');
+const proposalRows = proposalEntries.map((entry: any) => ({
+	id: `proposal-content-${esc(entry.id)}`,
+	name: `<strong>${esc(entry.title)}</strong><span>${esc(entry.summary || entry.description)}</span>`,
+	type: esc(entry.type),
+	state: esc(entry.status),
+	related: esc(workContentRelationSummary(entry)),
+	action: `<a class="ts-link-button" href="${esc(entry.href)}">Review</a>`,
+}));
+const contentRows = decisionEntries.map((entry: any) => ({
+	id: `decision-content-${esc(entry.id)}`,
+	name: `<strong>${esc(entry.title)}</strong><span>${esc(entry.summary || entry.description)}</span>`,
+	type: esc(entry.type),
+	state: esc(entry.status),
+	related: esc(workContentRelationSummary(entry)),
+	action: `<a class="ts-link-button" href="${esc(entry.href)}">Open</a>`,
+}));
+const approvalRows = vm.reviewQueue.map((item: any) => ({
 	id: `decision-${esc(item.approvalId ?? item.id)}`,
 	name: `<strong>${esc(item.title)}</strong><span>${esc(item.description ?? item.projectName ?? '')}</span>`,
 	project: esc(item.projectName ?? 'Team'),
@@ -16,10 +40,19 @@ const rows = vm.reviewQueue.map((item: any) => ({
 }));
 ---
 
-<TreeseedAppLayout title="Decisions" description="Approve or reject waiting decisions." currentPath="/app/work/objectives" teams={vm.context.teams} activeTeam={vm.context.activeTeam}>
+<TreeseedAppLayout title="Decisions" description="Review proposals and preserve the decisions they become." currentPath="/app/work/decisions" teams={vm.context.teams} activeTeam={vm.context.activeTeam}>
 	<section class="ts-control-page" aria-label="Decisions">
-		<Panel eyebrow="Work" title="Decision queue" description="Open one decision to act on it.">
-			<PlainTable columns={[{ key: 'name', label: 'Decision' }, { key: 'project', label: 'Project' }, { key: 'state', label: 'State' }, { key: 'action', label: 'Action' }]} rows={rows} emptyTitle="No decisions waiting" emptyDescription="Decision requests appear when project work or publishing needs review." />
+		<WorkContentNav current="decisions" />
+		<Panel eyebrow="Proposal review" title="Proposals" description="Suggested changes that can be approved, changed, deferred, rejected, or combined into decisions.">
+			<Button slot="actions" href="/app/work/proposals/new" size="sm">New proposal</Button>
+			<PlainTable columns={[{ key: 'name', label: 'Proposal' }, { key: 'type', label: 'Type' }, { key: 'state', label: 'State' }, { key: 'related', label: 'Links' }, { key: 'action', label: 'Action' }]} rows={proposalRows} emptyTitle="No proposal content yet" emptyDescription="Create a proposal to make a suggested change reviewable." />
+		</Panel>
+		<Panel eyebrow="Decision memory" title="Decision records" description="Approved, rejected, deferred, and superseded decisions with their proposal context.">
+			<Button slot="actions" href="/app/work/decisions/new" size="sm">New decision</Button>
+			<PlainTable columns={[{ key: 'name', label: 'Decision' }, { key: 'type', label: 'Type' }, { key: 'state', label: 'State' }, { key: 'related', label: 'Links' }, { key: 'action', label: 'Action' }]} rows={contentRows} emptyTitle="No decision content yet" emptyDescription="Decision records appear from src/content/decisions." />
+		</Panel>
+		<Panel eyebrow="Operational governance" title="Proposal review queue" description="Open a review item to record a human decision when automation requests approval.">
+			<PlainTable columns={[{ key: 'name', label: 'Decision' }, { key: 'project', label: 'Project' }, { key: 'state', label: 'State' }, { key: 'action', label: 'Action' }]} rows={approvalRows} emptyTitle="No decisions waiting" emptyDescription="Decision requests appear when project work or publishing needs review." />
 		</Panel>
 	</section>
 </TreeseedAppLayout>

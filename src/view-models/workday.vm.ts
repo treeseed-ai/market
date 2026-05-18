@@ -23,6 +23,7 @@ export interface WorkdayDetailViewModel extends WorkdayListViewModel {
 	governance: OperationalTimelineEvent[];
 	capacity: any;
 	knowledgeOutputs: any[];
+	agentActivity: any[];
 }
 
 export async function loadWorkdayListViewModel(locals: App.Locals): Promise<WorkdayListViewModel> {
@@ -64,6 +65,7 @@ export async function loadWorkdayDetailViewModel(locals: App.Locals, workdayId: 
 			governance: [],
 			capacity: null,
 			knowledgeOutputs: [],
+			agentActivity: [],
 		};
 	}
 
@@ -84,5 +86,6 @@ export async function loadWorkdayDetailViewModel(locals: App.Locals, workdayId: 
 		governance: projection?.governance ?? [],
 		capacity: projection?.capacity ?? null,
 		knowledgeOutputs: projection?.knowledgeOutputs ?? [],
+		agentActivity: projection?.agentActivity ?? [],
 	};
 }

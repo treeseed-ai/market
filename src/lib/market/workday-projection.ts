@@ -51,6 +51,7 @@ export interface WorkdayProjection {
 	governance: OperationalTimelineEvent[];
 	capacity: any;
 	knowledgeOutputs: OperationalArtifact[];
+	agentActivity: any[];
 }
 
 interface BuildWorkdayProjectionInput {
@@ -166,7 +167,48 @@ function projectWorkdayProjection(bundle: any): WorkdayProjection {
 		governance,
 		capacity: capacityProjection(bundle),
 		knowledgeOutputs: artifacts.filter((artifact) => artifact.type === 'Knowledge Entry' || artifact.type === 'Report' || artifact.type === 'Release Note' || artifact.type === 'Operational Decision' || artifact.type === 'Architecture Update'),
+		agentActivity: agentActivityProjection(bundle),
 	};
+}
+
+function agentActivityProjection(bundle: any): any[] {
+	const byAgent = new Map<string, any>();
+	for (const entry of safeArray(bundle.taskDetails)) {
+		const task = entry.task ?? {};
+		const agentId = compact(task.agentId ?? task.agent_id, 'unassigned');
+		const record = byAgent.get(agentId) ?? {
+			id: agentId,
+			name: titleFromKind(agentId, agentId === 'unassigned' ? 'Unassigned' : agentId),
+			taskCount: 0,
+			completedCount: 0,
+			failedCount: 0,
+			tasks: [],
+			events: [],
+			outputs: [],
+		};
+		record.taskCount += 1;
+		if (String(task.state ?? '').toLowerCase() === 'completed') record.completedCount += 1;
+		if (['failed', 'blocked', 'rejected'].includes(String(task.state ?? '').toLowerCase())) record.failedCount += 1;
+		record.tasks.push({
+			id: compact(task.id, 'task'),
+			type: compact(task.type, 'task'),
+			state: compact(task.state, 'recorded'),
+			createdAt: latestDate(task.createdAt, task.created_at),
+			updatedAt: latestDate(task.updatedAt, task.updated_at, task.completedAt, task.completed_at),
+		});
+		record.events.push(...safeArray(entry.events).map((event: any) => ({
+			id: compact(event.id, `${task.id}-event`),
+			kind: compact(event.kind, 'event'),
+			createdAt: latestDate(event.createdAt, event.created_at),
+		})));
+		record.outputs.push(...safeArray(entry.outputs).map((output: any) => ({
+			id: compact(output.id ?? output.outputRef ?? output.output_ref, `${task.id}-output`),
+			ref: compact(output.outputRef ?? output.output_ref, ''),
+			createdAt: latestDate(output.createdAt, output.created_at),
+		})));
+		byAgent.set(agentId, record);
+	}
+	return [...byAgent.values()].sort((left, right) => left.name.localeCompare(right.name));
 }
 
 function collectArtifacts(bundle: any, taskIds: Set<string>): OperationalArtifact[] {

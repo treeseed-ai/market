@@ -19,6 +19,9 @@ const rows = context.projects.map((project: any) => ({
 		`<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/settings">Settings</a>`,
 		`<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/hosts">Hosts</a>`,
 		`<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/guidance">Guide</a>`,
+		`<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/decisions">Decisions</a>`,
+		`<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/workdays">Workdays</a>`,
+		`<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/agents">Agents</a>`,
 		`<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/artifacts">Artifacts</a>`,
 	].join(' '),
 }));

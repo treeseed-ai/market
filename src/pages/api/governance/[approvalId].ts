@@ -12,6 +12,20 @@ function json(payload: unknown, status = 200) {
 	});
 }
 
+function decodeApprovalId(value: unknown) {
+	let decoded = String(value ?? '');
+	for (let index = 0; index < 2; index += 1) {
+		try {
+			const next = decodeURIComponent(decoded);
+			if (next === decoded) break;
+			decoded = next;
+		} catch {
+			break;
+		}
+	}
+	return decoded;
+}
+
 export const GET: APIRoute = async (context) => {
 	const session = await loadSiteWebSession(context);
 	if (!session) return json({ ok: false, error: 'Authentication required.' }, 401);
@@ -27,7 +41,7 @@ export const GET: APIRoute = async (context) => {
 		principal: session.principal,
 		teams,
 		projects,
-		approvalId: String(context.params.approvalId ?? ''),
+		approvalId: decodeApprovalId(context.params.approvalId),
 	});
 
 	if (!detail) return json({ ok: false, error: 'Unknown approval request.' }, 404);

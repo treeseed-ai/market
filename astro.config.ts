@@ -18,6 +18,13 @@ export default {
 			...(config.vite?.build ?? {}),
 			chunkSizeWarningLimit: Math.max(config.vite?.build?.chunkSizeWarningLimit ?? 0, 1200),
 		},
+		optimizeDeps: {
+			...(config.vite?.optimizeDeps ?? {}),
+			exclude: Array.from(new Set([
+				...(config.vite?.optimizeDeps?.exclude ?? []),
+				'libsodium-wrappers-sumo',
+			])),
+		},
 		plugins: [
 			...vitePlugins,
 			{

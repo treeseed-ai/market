@@ -56,7 +56,15 @@ function proposalCandidates(approval: any) {
 	].filter((value): value is string => typeof value === 'string' && value.trim().length > 0));
 }
 
-const approvalId = String(Astro.params.approvalId ?? '');
+function approvalIdFromPath(value: unknown) {
+	const parts = Array.isArray(value) ? value : String(value ?? '').split('/');
+	return parts
+		.filter(Boolean)
+		.map((part) => decodeURIComponent(String(part)))
+		.join(':');
+}
+
+const approvalId = approvalIdFromPath(Astro.params.approvalPath);
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 const vm = await loadGovernanceApprovalViewModel(Astro.locals, approvalId);
 const detail = vm.detail;

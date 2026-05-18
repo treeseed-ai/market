@@ -90,9 +90,11 @@ describe('workday projection', () => {
 		expect(projection?.artifacts.map((artifact) => artifact.type)).toEqual(expect.arrayContaining(['Architecture Update', 'Verification Checklist', 'Release Note', 'Report']));
 		expect(projection?.repositoryContext.map((entry) => entry.name ?? entry.title)).toEqual(expect.arrayContaining(['market', 'Referenced operational files']));
 		expect(projection?.capacity).toMatchObject({ totalCredits: 6, totalUsd: 2.5, routingDecisionCount: 1 });
+		expect(projection?.agentActivity).toEqual(expect.arrayContaining([
+			expect.objectContaining({ id: 'planner-agent', taskCount: 1, completedCount: 1, failedCount: 0 }),
+		]));
 
 		const serialized = JSON.stringify(projection);
-		expect(serialized).not.toContain('planner-agent');
 		expect(serialized).not.toContain('hidden prompt text');
 		expect(serialized).not.toContain('payloadJson');
 	});

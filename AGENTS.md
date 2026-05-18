@@ -107,6 +107,8 @@ Railway worker-runner volumes:
 For agents and automation:
 
 - Start with `npx trsd status --json` to inspect branch role, dirty state, locks, package state, and next safe actions.
+- For local UI iteration, prefer `npx trsd dev --surfaces web,api --web-runtime local --force --json`. `--web-runtime local` uses the Astro dev server for hot reload instead of rebuilding the Cloudflare/Wrangler runtime, while still sharing the local API/control-plane state. `--force` is intentional for agent/dev loops: it terminates overlapping Treeseed dev supervisors and listeners on required ports before startup. Without `--force`, `trsd dev` and `trsd dev:*` fail with an existing-service warning when required ports are already occupied.
+- Treeseed dev supervisors always mirror their output into `.treeseed/logs/dev-<surfaces>.jsonl`, for example `.treeseed/logs/dev-web-api.jsonl` or `.treeseed/logs/dev-manager-worker.jsonl`. Start them directly or daemonize them with normal shell job control, then follow the stable log path with `tail -f`.
 - Use `npx trsd switch <task-branch> --json`; when the result includes `payload.worktreePath`, run all future commands from that worktree path.
 - Use `npx trsd save --json` for checkpoints. Save is optimized for fast local iteration by default. Add `--verify-deployed-resources` on staging or production branches when the checkpoint should wait for hosted deploy checks that verify provider resources.
 - Use `npx trsd stage "message" --json` when the task is ready for staging. Stage waits for required hosted CI/CD gates before cleanup; add `--verify-deployed-resources` when the staging promotion must force deployed resource verification even if another option would skip waiting.

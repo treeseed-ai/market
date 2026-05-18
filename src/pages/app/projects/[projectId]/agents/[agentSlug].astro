@@ -1,0 +1,118 @@
+---
+import { getCollection } from 'astro:content';
+import Badge from '../../../../../../packages/core/src/components/ui/data/Badge.astro';
+import Button from '../../../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import Select from '../../../../../../packages/core/src/components/ui/forms/Select.astro';
+import TextInput from '../../../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import Textarea from '../../../../../../packages/core/src/components/ui/forms/Textarea.astro';
+import KeyValueList from '../../../../../../packages/core/src/components/ui/data/KeyValueList.astro';
+import EmptyState from '../../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import ProjectControlNav from '../../../../../components/app/controls/ProjectControlNav.astro';
+import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
+import { loadOperationalContext } from '../../../../../view-models/shared.js';
+
+const projectParam = String(Astro.params.projectId ?? '');
+const agentSlug = String(Astro.params.agentSlug ?? '');
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
+const [agentEntries, summary] = project ? await Promise.all([
+	getCollection('agents' as any, ({ data }: any) => data?.enabled !== false).catch(() => []),
+	context.store && typeof context.store.getProjectAgentsSummary === 'function' ? context.store.getProjectAgentsSummary(project.id, context.principal).catch(() => null) : null,
+]) : [[], null];
+const entry = agentEntries.find((candidate: any) => String(candidate.data?.slug ?? candidate.id ?? '') === agentSlug || String(candidate.data?.id ?? '').replace(/^agent:/u, '') === agentSlug) ?? null;
+const runtime = (summary?.agents ?? []).find((agent: any) => String(agent.agentSlug ?? agent.slug ?? '') === agentSlug) ?? null;
+if (!project || (!entry && !runtime)) Astro.response.status = 404;
+const rendered = entry ? await entry.render() : null;
+const Content = rendered?.Content;
+const data = entry?.data ?? {};
+---
+
+<TreeseedAppLayout title={data.name ?? data.title ?? agentSlug} description={data.description ?? runtime?.lastMessage ?? ''} currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+	{project && (entry || runtime) ? (
+		<section class="ts-control-page" aria-label="Agent detail">
+			<ProjectControlNav projectId={project.id} current="agents" />
+			<Panel eyebrow="Agent" title={data.name ?? data.title ?? agentSlug} description={data.summary ?? data.description ?? runtime?.lastMessage ?? ''}>
+				<Badge slot="actions" tone={String(runtime?.status ?? data.runtimeStatus ?? '') === 'active' ? 'success' : 'default'}>{runtime?.status ?? data.runtimeStatus ?? 'configured'}</Badge>
+				<KeyValueList items={[
+					{ key: 'Slug', value: agentSlug },
+					{ key: 'Handler', value: data.handler ?? runtime?.handler ?? 'not recorded' },
+					{ key: 'Current task', value: runtime?.currentTask ?? 'none' },
+					{ key: 'Last run', value: runtime?.lastRunAt ?? 'not recorded' },
+				]} />
+				<FormActions align="start">
+					<button class="ts-button" data-size="sm" type="button" id="run-agent-button">Run</button>
+					<button class="ts-button" data-size="sm" data-variant="secondary" type="button" id="pause-agent-button">Pause</button>
+					<button class="ts-button" data-size="sm" data-variant="secondary" type="button" id="resume-agent-button">Resume</button>
+					<span class="ts-subtle" id="agent-action-status" role="status"></span>
+				</FormActions>
+			</Panel>
+			<Panel eyebrow="Agent" title="Definition body" description="Human-readable description from the local agent content file.">
+				<article class="ts-prose">{Content ? <Content /> : null}</article>
+			</Panel>
+			{entry ? (
+				<Panel eyebrow="Edit" title="Edit agent summary" description="Update the plain-language agent definition fields. Advanced permissions remain managed in the source file.">
+					<form id="agent-edit-form" class="ts-form-stack">
+						<div class="ts-form-grid">
+							<Field label="Name" name="title" required><TextInput name="title" required value={data.name ?? data.title ?? agentSlug} /></Field>
+							<Field label="Handler" name="handler"><TextInput name="handler" value={data.handler ?? 'planner'} /></Field>
+							<Field label="Runtime status" name="runtimeStatus"><Select name="runtimeStatus" value={data.runtimeStatus ?? 'active'} options={[{ label: 'Active', value: 'active' }, { label: 'Experimental', value: 'experimental' }, { label: 'Dormant', value: 'dormant' }]} /></Field>
+						</div>
+						<Field label="Description" name="description" required><Textarea name="description" rows={3} required value={data.description ?? ''} /></Field>
+						<Field label="Summary" name="summary"><Textarea name="summary" rows={3} value={data.summary ?? ''} /></Field>
+						<Field label="System prompt" name="systemPrompt"><Textarea name="systemPrompt" rows={7} value={data.systemPrompt ?? ''} /></Field>
+						<Field label="Body" name="body"><Textarea name="body" rows={6} value="Update this agent role, operating boundaries, and expected outputs." /></Field>
+						<FormActions align="start"><Button type="submit">Save summary</Button><span class="ts-subtle" id="agent-edit-status" role="status"></span></FormActions>
+					</form>
+				</Panel>
+			) : null}
+		</section>
+	) : (
+		<EmptyState title="Agent not found" description="This agent is not available for the selected project." actions={[{ label: 'Back to Agents', href: project ? `/app/projects/${project.id}/agents` : '/app/projects' }]} />
+	)}
+</TreeseedAppLayout>
+
+<script is:inline define:vars={{ projectId: project?.id ?? '', agentSlug }}>
+	const actionStatus = document.getElementById('agent-action-status');
+	async function postAgentAction(action) {
+		if (actionStatus) actionStatus.textContent = `${action} requested...`;
+		const response = await fetch(`/v1/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(agentSlug)}/${action}`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ environment: 'local', reason: `${action} requested from agent page`, payload: { source: 'project_agent_page' } }),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			if (actionStatus) actionStatus.textContent = payload?.error ?? `${action} could not be requested.`;
+			return;
+		}
+		if (actionStatus) actionStatus.textContent = `${action} request recorded.`;
+	}
+	document.getElementById('run-agent-button')?.addEventListener('click', () => postAgentAction('run'));
+	document.getElementById('pause-agent-button')?.addEventListener('click', () => postAgentAction('pause'));
+	document.getElementById('resume-agent-button')?.addEventListener('click', () => postAgentAction('resume'));
+
+	const editForm = document.getElementById('agent-edit-form');
+	const editStatus = document.getElementById('agent-edit-status');
+	editForm?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const body = Object.fromEntries(new FormData(editForm).entries());
+		body.slug = agentSlug;
+		body.overwrite = true;
+		if (editStatus) editStatus.textContent = 'Saving...';
+		const response = await fetch(`/v1/projects/${encodeURIComponent(projectId)}/local-content/agents`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(body),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			if (editStatus) editStatus.textContent = payload?.error ?? 'Agent could not be saved.';
+			return;
+		}
+		window.location.href = `${window.location.pathname}?saved=${Date.now()}`;
+	});
+</script>

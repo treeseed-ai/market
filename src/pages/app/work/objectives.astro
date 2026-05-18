@@ -1,42 +1,37 @@
 ---
 import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
-import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import PlainTable from '../../../components/app/controls/PlainTable.astro';
+import WorkContentNav from '../../../components/app/controls/WorkContentNav.astro';
 import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
 import { loadOperationalContext } from '../../../view-models/shared.js';
+import { loadWorkContentEntries, workContentEntriesFor, workContentRelationSummary } from '../../../view-models/work-content.js';
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/work/objectives')}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
-const records = context.store ? (await Promise.all(context.projects.map(async (project: any) => {
-	const [plans, workdays] = await Promise.all([
-		typeof context.store.listProjectUpdatePlans === 'function' ? context.store.listProjectUpdatePlans(project.id).catch(() => []) : [],
-		typeof context.store.listProjectWorkdaySummaries === 'function' ? context.store.listProjectWorkdaySummaries(project.id, null).catch(() => []) : [],
-	]);
-	return [
-		...plans.map((plan: any) => ({ project, kind: 'Plan', id: plan.id, title: plan.title ?? plan.plan?.title ?? plan.sourceRef, summary: plan.plan?.objective ?? plan.summary, state: plan.state ?? plan.status ?? 'queued' })),
-		...workdays.map((workday: any) => ({ project, kind: 'Workday', id: workday.workDayId ?? workday.id, title: workday.summary?.objective ?? workday.summary?.title ?? workday.id, summary: workday.environment, state: workday.state ?? workday.status ?? 'recorded' })),
-	];
-}))).flat() : [];
-const rows = records.map((record: any) => ({
-	id: `objective-${esc(record.kind)}-${esc(record.id)}`,
-	name: `<strong>${esc(record.title ?? record.id)}</strong><span>${esc(record.summary ?? '')}</span>`,
-	project: esc(record.project.name ?? record.project.slug),
-	kind: esc(record.kind),
-	state: esc(record.state),
+const [context, contentEntries] = await Promise.all([
+	loadOperationalContext(Astro.locals, Astro),
+	loadWorkContentEntries(),
+]);
+const objectiveEntries = workContentEntriesFor(contentEntries, 'objectives');
+const core = objectiveEntries.find((entry: any) => entry.id === 'core' || entry.id === 'objective:core' || entry.title.toLowerCase().includes('core treeseed objective')) ?? null;
+const orderedObjectives = [...(core ? [core] : []), ...objectiveEntries.filter((entry: any) => entry !== core)];
+const contentRows = orderedObjectives.map((entry: any) => ({
+	id: `objective-content-${esc(entry.id)}`,
+	name: `<strong>${esc(entry.title)}</strong><span>${esc(entry.summary || entry.description)}</span>`,
+	type: esc(entry.type),
+	state: esc(entry.status),
+	related: esc(workContentRelationSummary(entry)),
+	action: `<a class="ts-link-button" href="${esc(entry.href)}">Open</a>`,
 }));
 ---
 
 <TreeseedAppLayout title="Objectives" description="List project objectives and workdays." currentPath="/app/work/objectives" teams={context.teams} activeTeam={context.activeTeam}>
 	<section class="ts-control-page" aria-label="Objectives">
-		<Panel eyebrow="Work" title="Objectives" description="Open project guidance to create work for a specific project.">
+		<WorkContentNav current="objectives" />
+		<Panel eyebrow="Work content" title="Objective records" description="Source content objectives from the active TreeSeed workspace.">
 			<Button slot="actions" href="/app/work/objectives/new" size="sm">New objective</Button>
-			{context.activeTeam ? (
-				<PlainTable columns={[{ key: 'name', label: 'Objective' }, { key: 'project', label: 'Project' }, { key: 'kind', label: 'Kind' }, { key: 'state', label: 'State' }]} rows={rows} emptyTitle="No objectives yet" emptyDescription="Create the first objective." />
-			) : (
-				<EmptyState title="No team selected" description="Create or switch to a team first." actions={[{ label: 'Open Team', href: '/app/teams' }]} />
-			)}
+			<PlainTable columns={[{ key: 'name', label: 'Objective' }, { key: 'type', label: 'Horizon' }, { key: 'state', label: 'State' }, { key: 'related', label: 'Related' }, { key: 'action', label: 'Action' }]} rows={contentRows} emptyTitle="No objective content yet" emptyDescription="Objective records appear from src/content/objectives." />
 		</Panel>
 	</section>
 </TreeseedAppLayout>

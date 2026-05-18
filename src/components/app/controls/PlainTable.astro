@@ -11,6 +11,9 @@ interface Props {
 	rows: Array<Record<string, any>>;
 	emptyTitle?: string;
 	emptyDescription?: string;
+	interactive?: boolean;
+	pageSize?: number;
+	searchLabel?: string;
 }
 
 const {
@@ -18,28 +21,123 @@ const {
 	rows,
 	emptyTitle = 'Nothing configured',
 	emptyDescription = 'Use the controls on this page to add the first record.',
+	interactive = false,
+	pageSize = 10,
+	searchLabel = 'Filter',
 } = Astro.props as Props;
+const tableId = `table-${Math.random().toString(36).slice(2)}`;
 ---
 
 {rows.length > 0 ? (
-	<div class="ts-plain-table" role="region" aria-label="Records">
-		<table>
-			<thead>
-				<tr>
-					{columns.map((column) => <th scope="col">{column.label}</th>)}
-				</tr>
-			</thead>
-			<tbody>
-				{rows.map((row) => (
-					<tr id={row.id ? String(row.id) : undefined}>
+	<div class="ts-data-table" data-table-root={interactive ? tableId : undefined} data-page-size={interactive ? String(pageSize) : undefined}>
+		{interactive ? (
+			<div class="ts-data-table__toolbar">
+				<label class="ts-field ts-data-table__search">
+					<span class="ts-field__label">{searchLabel}</span>
+					<input class="ts-control" type="search" data-table-filter placeholder="Search records" />
+				</label>
+				<p class="ts-subtle" data-table-summary aria-live="polite"></p>
+			</div>
+		) : null}
+		<div class="ts-plain-table" role="region" aria-label="Records">
+			<table>
+				<thead>
+					<tr>
 						{columns.map((column) => (
-							<td set:html={String(row[column.key] ?? '')}></td>
+							<th scope="col">
+								{interactive ? <button class="ts-table-sort" type="button" data-sort-key={column.key}>{column.label}</button> : column.label}
+							</th>
 						))}
 					</tr>
-				))}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					{rows.map((row) => (
+						<tr id={row.id ? String(row.id) : undefined} data-table-row>
+							{columns.map((column) => (
+								<td data-column={column.key} set:html={String(row[column.key] ?? '')}></td>
+							))}
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</div>
+		{interactive ? (
+			<div class="ts-data-table__pager" data-table-pager>
+				<button class="ts-link-button" type="button" data-page-prev>Previous</button>
+				<span class="ts-subtle" data-page-label></span>
+				<button class="ts-link-button" type="button" data-page-next>Next</button>
+			</div>
+		) : null}
 	</div>
 ) : (
 	<EmptyState title={emptyTitle} description={emptyDescription} />
 )}
+
+{interactive ? (
+	<script is:inline>
+		(() => {
+			function textFor(row, key) {
+				return (row.querySelector(`[data-column="${key}"]`)?.textContent || '').trim().toLowerCase();
+			}
+			function init(root) {
+				if (!root || root.dataset.tableReady === 'true') return;
+				root.dataset.tableReady = 'true';
+				const filter = root.querySelector('[data-table-filter]');
+				const rows = [...root.querySelectorAll('[data-table-row]')];
+				const summary = root.querySelector('[data-table-summary]');
+				const pageLabel = root.querySelector('[data-page-label]');
+				const prev = root.querySelector('[data-page-prev]');
+				const next = root.querySelector('[data-page-next]');
+				const pageSize = Math.max(1, Number(root.dataset.pageSize || 10));
+				let page = 1;
+				let sortKey = '';
+				let sortDirection = 1;
+				function visibleRows() {
+					const needle = (filter?.value || '').trim().toLowerCase();
+					const filtered = rows.filter((row) => !needle || row.textContent.toLowerCase().includes(needle));
+					if (sortKey) {
+						filtered.sort((left, right) => textFor(left, sortKey).localeCompare(textFor(right, sortKey)) * sortDirection);
+					}
+					return filtered;
+				}
+				function render() {
+					const filtered = visibleRows();
+					const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+					page = Math.min(Math.max(1, page), totalPages);
+					const start = (page - 1) * pageSize;
+					const shown = new Set(filtered.slice(start, start + pageSize));
+					for (const row of rows) row.hidden = !shown.has(row);
+					if (summary) summary.textContent = `${filtered.length} record${filtered.length === 1 ? '' : 's'}`;
+					if (pageLabel) pageLabel.textContent = `Page ${page} of ${totalPages}`;
+					if (prev) prev.disabled = page <= 1;
+					if (next) next.disabled = page >= totalPages;
+				}
+				filter?.addEventListener('input', () => {
+					page = 1;
+					render();
+				});
+				prev?.addEventListener('click', () => {
+					page -= 1;
+					render();
+				});
+				next?.addEventListener('click', () => {
+					page += 1;
+					render();
+				});
+				root.querySelectorAll('[data-sort-key]').forEach((button) => {
+					button.addEventListener('click', () => {
+						const key = button.getAttribute('data-sort-key') || '';
+						sortDirection = sortKey === key ? sortDirection * -1 : 1;
+						sortKey = key;
+						page = 1;
+						root.querySelectorAll('[data-sort-key]').forEach((item) => item.removeAttribute('aria-sort'));
+						button.setAttribute('aria-sort', sortDirection === 1 ? 'ascending' : 'descending');
+						render();
+					});
+				});
+				render();
+			}
+			document.querySelectorAll('[data-table-root]').forEach(init);
+		})();
+	</script>
+) : null}

@@ -1,0 +1,32 @@
+---
+id: proposal:approve-documentation-automation-bootstrap
+title: Approve Documentation Automation Bootstrap
+description: Approve the first governed documentation automation plan for turning TreeSeed objectives and questions into code-aware knowledge content.
+date: 2026-05-17
+summary: Use the new documentation objective and questions as the explicit starting point for the next live docs automation workday.
+status: planned
+proposalType: implementation
+motivation: The system needs a human-approved planning record before agents continue mutating canonical TreeSeed knowledge and content.
+primaryContributor: market-steward
+relatedObjectives:
+  - harden-documentation-automation-workday-loop
+relatedQuestions:
+  - how-should-docs-workday-start-from-objectives
+  - what-evidence-should-knowledge-drafts-carry
+  - how-should-approval-gates-control-docs-mutation
+  - how-should-work-ui-supervise-documentation-content
+relatedBooks:
+  - market-architecture
+supersedes: []
+---
+
+Approve a governed documentation automation bootstrap pass:
+
+- Treat `objective:harden-documentation-automation-workday-loop` as the next workday objective.
+- Treat the four linked questions as the initial research queue.
+- Require generated drafts to include source maps, confidence, and explicit uncertainty.
+- Require a pending approval request before canonical knowledge or content mutation.
+- Keep writes inside documentation and content paths allowed by TreeSeed docs automation policy.
+- Surface the objective, questions, proposal, approval request, generated artifacts, and workday report in the operational UI.
+
+If approved, the next step is to let the documentation manager seed agent work from these records instead of relying on hidden manual task insertion.

@@ -1,6 +1,7 @@
 ---
 import '../styles/treeseed.css';
 import PublicShell from '../../packages/core/src/components/ui/shell/PublicShell.astro';
+import ShellIconLink from '../../packages/core/src/components/ui/shell/ShellIconLink.astro';
 import { resolveAnonymousThemePreference, resolveAuthenticatedThemePreference } from '../lib/auth/appearance';
 
 interface NavItem {
@@ -32,10 +33,9 @@ const appearance = isSignedIn
 	? await resolveAuthenticatedThemePreference(Astro)
 	: resolveAnonymousThemePreference(Astro);
 const actions = isSignedIn
-	? [{ label: 'Open app', href: '/app/', variant: 'secondary' as const }]
+	? []
 	: [
 		{ label: 'Sign in', href: '/auth/sign-in', variant: 'ghost' as const },
-		{ label: 'Open app', href: '/auth/sign-in?returnTo=/app/projects', variant: 'primary' as const },
 	];
 ---
 
@@ -53,8 +53,11 @@ const actions = isSignedIn
 	}}
 	navItems={navItems}
 	actions={actions}
-	showAppearanceControl={!isSignedIn}
+	showAppearanceControl
 	preferServerAppearance={isSignedIn}
 >
+	<Fragment slot="actions">
+		<ShellIconLink href="/app/" label="Manager" icon="manager" />
+	</Fragment>
 	<slot />
 </PublicShell>

@@ -6,7 +6,6 @@ import TextInput from '../../../packages/core/src/components/ui/forms/TextInput.
 import Button from '../../../packages/core/src/components/ui/forms/Button.astro';
 import FormActions from '../../../packages/core/src/components/ui/forms/FormActions.astro';
 import PasswordMeter from '../../../packages/core/src/components/ui/forms/PasswordMeter.astro';
-import ThemeSelector from '../../../packages/core/src/components/ui/theme/ThemeSelector.astro';
 import { authProviderCapabilities, normalizeReturnTo, redirectAuthenticatedToApp, submitBetterAuthEmailFlow } from '../../lib/auth/flow';
 import { getSiteAuthConfig } from '../../lib/auth/config';
 import { authEmailConfigurationMessage, canDeliverAuthEmail } from '../../lib/auth/email';
@@ -121,16 +120,6 @@ if (Astro.request.method === 'POST') {
 				<TextInput data-confirm-password-input name="confirmPassword" type="password" autocomplete="new-password" required minlength={12} />
 			</Field>
 			<PasswordMeter inputId="registerPassword" />
-			<div class="auth-appearance-panel">
-				<p>Default appearance</p>
-				<ThemeSelector
-					selectedScheme={appearance.scheme}
-					selectedMode={appearance.mode}
-					includeHiddenFields={true}
-					schemeFieldName="colorScheme"
-					modeFieldName="themeMode"
-				/>
-			</div>
 			<FormActions>
 				<Button type="submit">Create account</Button>
 			</FormActions>

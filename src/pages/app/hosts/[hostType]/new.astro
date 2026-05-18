@@ -72,13 +72,6 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, provider }).re
 								<Field label="Status" name="status">
 									<Select name="status" options={[{ label: 'Active', value: 'active' }, { label: 'Paused', value: 'paused' }]} />
 								</Field>
-								<Field label="Environments" name="allowedEnvironments">
-									<div class="ts-checkbox-group">
-										<label><input type="checkbox" name="allowedEnvironments" value="local" /> Local</label>
-										<label><input type="checkbox" name="allowedEnvironments" value="staging" checked /> Staging</label>
-										<label><input type="checkbox" name="allowedEnvironments" value="prod" checked /> Production</label>
-									</div>
-								</Field>
 							</>
 						)}
 						{hostType === 'web' && (
@@ -135,9 +128,6 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, provider }).re
 	function value(formData: FormData, key: string) {
 		return String(formData.get(key) ?? '').trim();
 	}
-	function values(formData: FormData, key: string) {
-		return formData.getAll(key).map((entry) => String(entry)).filter(Boolean);
-	}
 	function credentialConfig(formData: FormData, hostType: string) {
 		if (hostType === 'repository') {
 			const token = value(formData, 'githubToken');
@@ -187,7 +177,6 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, provider }).re
 					provider: value(formData, 'provider') || pageData.provider,
 					ownership: 'team_owned',
 					status: value(formData, 'status') || 'active',
-					allowedEnvironments: values(formData, 'allowedEnvironments'),
 					metadata: { hostType: pageData.hostType },
 					encryptedPayload,
 				});

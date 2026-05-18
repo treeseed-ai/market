@@ -1,0 +1,81 @@
+---
+import { getCollection } from 'astro:content';
+import Badge from '../../../../../packages/core/src/components/ui/data/Badge.astro';
+import KeyValueList from '../../../../../packages/core/src/components/ui/data/KeyValueList.astro';
+import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../../components/app/controls/PlainTable.astro';
+import WorkContentNav from '../../../../components/app/controls/WorkContentNav.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../../../view-models/shared.js';
+
+const collection = String(Astro.params.collection ?? '');
+const slug = String(Astro.params.slug ?? '');
+const validCollections = new Set(['objectives', 'questions', 'notes', 'proposals', 'decisions']);
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+let entry: any = null;
+if (validCollections.has(collection)) {
+	const entries = await getCollection(collection as any, ({ data }: any) => !data?.draft).catch(() => []);
+	entry = entries.find((candidate: any) => {
+		const id = String(candidate.id ?? '');
+		const dataId = String(candidate.data?.id ?? '');
+		return id === slug || dataId === slug || dataId.replace(/^[^:]+:/u, '') === slug;
+	}) ?? null;
+}
+if (!entry) Astro.response.status = 404;
+const rendered = entry ? await entry.render() : null;
+const Content = rendered?.Content;
+const data = entry?.data ?? {};
+const title = data.title ?? 'Content not found';
+const typeLabel = collection === 'objectives' ? 'Objective'
+	: collection === 'questions' ? 'Question'
+		: collection === 'notes' ? 'Note'
+			: collection === 'proposals' ? 'Proposal'
+				: 'Decision';
+const typeValue = data.timeHorizon ?? data.questionType ?? data.proposalType ?? data.decisionType ?? 'note';
+const relationEntries = [
+	...(Array.isArray(data.relatedObjectives) ? data.relatedObjectives.map((id: any) => ({ type: 'Objective', id, href: `/app/work/objectives/${encodeURIComponent(String(id))}` })) : []),
+	...(Array.isArray(data.relatedQuestions) ? data.relatedQuestions.map((id: any) => ({ type: 'Question', id, href: `/app/work/questions/${encodeURIComponent(String(id))}` })) : []),
+	...(Array.isArray(data.relatedNotes) ? data.relatedNotes.map((id: any) => ({ type: 'Note', id, href: `/app/work/notes/${encodeURIComponent(String(id))}` })) : []),
+	...(Array.isArray(data.relatedProposals) ? data.relatedProposals.map((id: any) => ({ type: 'Proposal', id, href: `/app/work/proposals/${encodeURIComponent(String(id))}` })) : []),
+	...(data.decision ? [{ type: 'Decision', id: data.decision, href: `/app/work/decisions/${encodeURIComponent(String(data.decision))}` }] : []),
+];
+const relationRows = relationEntries.map((relation) => ({
+	id: `relation-${esc(relation.type)}-${esc(relation.id)}`,
+	name: `<strong>${esc(String(relation.id))}</strong>`,
+	type: esc(relation.type),
+	action: `<a class="ts-link-button" href="${esc(relation.href)}">Open</a>`,
+}));
+const metadata = [
+	{ key: 'Content type', value: typeLabel },
+	{ key: 'Subtype', value: String(typeValue) },
+	{ key: 'Status', value: String(data.status ?? 'recorded') },
+	{ key: 'Date', value: data.date instanceof Date ? data.date.toISOString().slice(0, 10) : String(data.date ?? '') },
+	{ key: 'Contributor', value: String(data.primaryContributor ?? data.author ?? 'not recorded') },
+	{ key: 'Content id', value: String(data.id ?? entry?.id ?? '') },
+].filter((item) => item.value);
+---
+
+<TreeseedAppLayout title={title} description={data.description ?? ''} currentPath={`/app/work/${collection}`} teams={context.teams} activeTeam={context.activeTeam}>
+	{entry ? (
+		<section class="ts-control-page" aria-label={`${typeLabel} content`}>
+			<WorkContentNav current={collection as any} />
+			<Panel eyebrow={typeLabel} title={title} description={data.summary ?? data.description ?? ''}>
+				<Badge slot="actions" tone={String(data.status ?? '') === 'live' ? 'success' : 'warning'}>{data.status ?? 'recorded'}</Badge>
+				<KeyValueList items={metadata} />
+			</Panel>
+			<Panel eyebrow="Content" title="Body" description={data.description ?? ''}>
+				<article class="ts-prose">
+					{Content ? <Content /> : null}
+				</article>
+			</Panel>
+			<Panel eyebrow="Connections" title="Links" description="Records this content depends on or closes.">
+				<PlainTable columns={[{ key: 'name', label: 'Record' }, { key: 'type', label: 'Type' }, { key: 'action', label: 'Action' }]} rows={relationRows} emptyTitle="No links" emptyDescription="Linked objectives, questions, notes, proposals, and decisions appear here." />
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="Content not found" description="This content record is not available." actions={[{ label: 'Back to Work', href: `/app/work/${collection}` }]} />
+	)}
+</TreeseedAppLayout>

@@ -12,6 +12,20 @@ function json(payload: unknown, status = 200) {
 	});
 }
 
+function decodeApprovalId(value: unknown) {
+	let decoded = String(value ?? '');
+	for (let index = 0; index < 2; index += 1) {
+		try {
+			const next = decodeURIComponent(decoded);
+			if (next === decoded) break;
+			decoded = next;
+		} catch {
+			break;
+		}
+	}
+	return decoded;
+}
+
 async function readDecision(request: Request) {
 	const contentType = request.headers.get('content-type') ?? '';
 	if (contentType.includes('application/json')) {
@@ -37,7 +51,7 @@ export const POST: APIRoute = async (context) => {
 	const teams = await loadAccessibleTeams(context.locals);
 	const activeTeam = teams[0] ?? null;
 	const projects = activeTeam ? await store.listTeamProjects(activeTeam.id).catch(() => []) : [];
-	const approvalId = String(context.params.approvalId ?? '');
+	const approvalId = decodeApprovalId(context.params.approvalId);
 	const detail = await buildGovernanceApprovalProjection({
 		store,
 		principal: session.principal,

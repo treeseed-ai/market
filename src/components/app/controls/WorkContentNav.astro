@@ -1,0 +1,20 @@
+---
+interface Props {
+	current: 'questions' | 'objectives' | 'notes' | 'proposals' | 'decisions';
+}
+
+const { current } = Astro.props as Props;
+const items = [
+	{ key: 'objectives', label: 'Objectives', href: '/app/work/objectives' },
+	{ key: 'questions', label: 'Questions', href: '/app/work/questions' },
+	{ key: 'notes', label: 'Notes', href: '/app/work/notes' },
+	{ key: 'proposals', label: 'Proposals', href: '/app/work/proposals' },
+	{ key: 'decisions', label: 'Decisions', href: '/app/work/decisions' },
+];
+---
+
+<nav class="ts-tabs" aria-label="Work content">
+	{items.map((item) => (
+		<a class="ts-tab" href={item.href} aria-current={item.key === current ? 'page' : undefined}>{item.label}</a>
+	))}
+</nav>

@@ -31,6 +31,9 @@ import {
 } from '../lib/market/managed-hosts.js';
 import { decryptHostConfig } from '../lib/cloudflare-host-crypto.js';
 import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicKey, createVerify, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { resolve, relative } from 'node:path';
 
 function jsonError(c, status, error, details = {}) {
 	return c.json({
@@ -86,6 +89,212 @@ function optionalTrimmedString(value) {
 function enumValue(value, allowed, fallback = null) {
 	const candidate = typeof value === 'string' ? value.trim() : '';
 	return allowed.includes(candidate) ? candidate : fallback;
+}
+
+const LOCAL_CONTENT_COLLECTIONS = new Set(['objectives', 'questions', 'notes', 'proposals', 'decisions', 'agents']);
+const LOCAL_CONTENT_DEFAULTS = {
+	objectives: {
+		idPrefix: 'objective',
+		extension: 'mdx',
+		fields: { timeHorizon: 'near-term', motivation: '', primaryContributor: 'market-steward', relatedQuestions: [], relatedBooks: [] },
+		body: 'Describe the objective, expected outcome, and the evidence that should update it over time.',
+	},
+	questions: {
+		idPrefix: 'question',
+		extension: 'mdx',
+		fields: { questionType: 'strategy', motivation: '', primaryContributor: 'market-steward', relatedObjectives: [], relatedBooks: [] },
+		body: 'Describe what needs to be learned and what evidence would make the answer useful.',
+	},
+	notes: {
+		idPrefix: 'note',
+		extension: 'mdx',
+		fields: { author: 'market-steward' },
+		body: 'Capture the useful context, evidence, and follow-up links for this note.',
+	},
+	proposals: {
+		idPrefix: 'proposal',
+		extension: 'mdx',
+		fields: { proposalType: 'implementation', motivation: '', primaryContributor: 'market-steward', relatedObjectives: [], relatedQuestions: [], relatedNotes: [], relatedBooks: [], supersedes: [] },
+		body: 'Describe the proposed change, why it matters, what it affects, and how a reviewer should evaluate it.',
+	},
+	decisions: {
+		idPrefix: 'decision',
+		extension: 'mdx',
+		fields: { decisionType: 'approved', rationale: '', authority: 'TreeSeed Market Team', primaryContributor: 'market-steward', relatedObjectives: [], relatedQuestions: [], relatedNotes: [], relatedProposals: [], relatedBooks: [], supersedes: [], implements: [] },
+		body: 'Record what was decided, why it was decided, and which proposals or evidence it closes.',
+	},
+	agents: {
+		idPrefix: 'agent',
+		extension: 'mdx',
+		fields: {
+			name: '',
+			handler: 'planner',
+			enabled: true,
+			operator: 'TreeSeed platform',
+			runtimeStatus: 'active',
+			capabilities: [],
+			tags: ['agent'],
+			systemPrompt: 'Use the core objective as the first context message. Keep work observable, governed, and grounded in project content.',
+			persona: 'Helpful, careful, and accountable.',
+			triggers: [{ type: 'message', messageTypes: [] }],
+			permissions: [],
+			execution: { provider: 'codex', model: 'gpt-5.5', approvalPolicy: 'never', sandboxMode: 'read_only', reasoningEffort: 'medium' },
+			outputs: {},
+		},
+		body: 'Describe this agent role, operating boundaries, and expected outputs.',
+	},
+};
+
+function slugifyContent(value) {
+	return String(value ?? '')
+		.toLowerCase()
+		.trim()
+		.replace(/['"]/gu, '')
+		.replace(/[^a-z0-9]+/gu, '-')
+		.replace(/^-+|-+$/gu, '')
+		.slice(0, 96);
+}
+
+function yamlScalar(value) {
+	const text = String(value ?? '');
+	if (/^[a-zA-Z0-9_:/.-]+$/u.test(text) && !['true', 'false', 'null'].includes(text.toLowerCase())) {
+		return text;
+	}
+	return JSON.stringify(text);
+}
+
+function yamlLines(value, indent = 0) {
+	const pad = ' '.repeat(indent);
+	if (Array.isArray(value)) {
+		if (value.length === 0) return [`${pad}[]`];
+		return value.flatMap((entry) => {
+			if (entry && typeof entry === 'object') {
+				return [``, ...yamlLines(entry, indent + 2)].map((line, index) => index === 0 ? `${pad}-` : line);
+			}
+			return [`${pad}- ${yamlScalar(entry)}`];
+		});
+	}
+	if (value && typeof value === 'object') {
+		return Object.entries(value).flatMap(([key, entry]) => {
+			if (Array.isArray(entry) || (entry && typeof entry === 'object')) {
+				return [`${pad}${key}:`, ...yamlLines(entry, indent + 2)];
+			}
+			return [`${pad}${key}: ${yamlScalar(entry)}`];
+		});
+	}
+	return [`${pad}${yamlScalar(value)}`];
+}
+
+function serializeFrontmatter(data) {
+	const lines = ['---'];
+	for (const [key, value] of Object.entries(data)) {
+		if (Array.isArray(value) || (value && typeof value === 'object')) {
+			const nested = yamlLines(value, 2);
+			lines.push(`${key}:`);
+			lines.push(...nested);
+		} else {
+			lines.push(`${key}: ${yamlScalar(value)}`);
+		}
+	}
+	lines.push('---');
+	return lines.join('\n');
+}
+
+function normalizeRelationArray(value) {
+	if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
+	if (typeof value === 'string') return value.split(/[\n,]/u).map((entry) => entry.trim()).filter(Boolean);
+	return [];
+}
+
+function normalizeLocalContentInput(collection, body) {
+	const defaults = LOCAL_CONTENT_DEFAULTS[collection];
+	const title = optionalTrimmedString(body.title);
+	if (!title) return { error: 'title is required.' };
+	const slug = slugifyContent(body.slug || title);
+	if (!slug) return { error: 'A safe slug is required.' };
+	const today = new Date().toISOString().slice(0, 10);
+	const summary = optionalTrimmedString(body.summary) ?? optionalTrimmedString(body.description) ?? title;
+	const description = optionalTrimmedString(body.description) ?? summary;
+	const frontmatter = {
+		id: optionalTrimmedString(body.id) ?? `${defaults.idPrefix}:${slug}`,
+		title,
+		description,
+		date: optionalTrimmedString(body.date) ?? today,
+		summary,
+		status: enumValue(body.status, ['live', 'in progress', 'exploratory', 'planned', 'speculative'], 'planned'),
+		...defaults.fields,
+	};
+	if (collection === 'agents') {
+		frontmatter.name = optionalTrimmedString(body.name) ?? title;
+		frontmatter.slug = slug;
+		frontmatter.description = description;
+		frontmatter.summary = summary;
+		frontmatter.handler = optionalTrimmedString(body.handler) ?? frontmatter.handler;
+		frontmatter.systemPrompt = optionalTrimmedString(body.systemPrompt) ?? frontmatter.systemPrompt;
+		frontmatter.runtimeStatus = enumValue(body.runtimeStatus, ['active', 'experimental', 'dormant'], frontmatter.runtimeStatus);
+		delete frontmatter.date;
+		delete frontmatter.status;
+	} else if (collection === 'notes') {
+		frontmatter.author = optionalTrimmedString(body.author) ?? frontmatter.author;
+	} else if (collection === 'objectives') {
+		frontmatter.timeHorizon = enumValue(body.timeHorizon, ['near-term', 'mid-term', 'long-term'], frontmatter.timeHorizon);
+		frontmatter.motivation = optionalTrimmedString(body.motivation) ?? description;
+		frontmatter.relatedQuestions = normalizeRelationArray(body.relatedQuestions);
+	} else if (collection === 'questions') {
+		frontmatter.questionType = enumValue(body.questionType, ['research', 'implementation', 'strategy', 'evaluation'], frontmatter.questionType);
+		frontmatter.motivation = optionalTrimmedString(body.motivation) ?? description;
+		frontmatter.relatedObjectives = normalizeRelationArray(body.relatedObjectives);
+	} else if (collection === 'proposals') {
+		frontmatter.proposalType = enumValue(body.proposalType, ['strategy', 'policy', 'implementation', 'research'], frontmatter.proposalType);
+		frontmatter.motivation = optionalTrimmedString(body.motivation) ?? description;
+		frontmatter.relatedObjectives = normalizeRelationArray(body.relatedObjectives);
+		frontmatter.relatedQuestions = normalizeRelationArray(body.relatedQuestions);
+		frontmatter.relatedNotes = normalizeRelationArray(body.relatedNotes);
+		frontmatter.decision = optionalTrimmedString(body.decision) ?? undefined;
+	} else if (collection === 'decisions') {
+		frontmatter.decisionType = enumValue(body.decisionType, ['approved', 'rejected', 'deferred', 'superseded'], frontmatter.decisionType);
+		frontmatter.rationale = optionalTrimmedString(body.rationale) ?? description;
+		frontmatter.authority = optionalTrimmedString(body.authority) ?? frontmatter.authority;
+		frontmatter.relatedObjectives = normalizeRelationArray(body.relatedObjectives);
+		frontmatter.relatedQuestions = normalizeRelationArray(body.relatedQuestions);
+		frontmatter.relatedNotes = normalizeRelationArray(body.relatedNotes);
+		frontmatter.relatedProposals = normalizeRelationArray(body.relatedProposals);
+	}
+	return {
+		slug,
+		extension: defaults.extension,
+		frontmatter: Object.fromEntries(Object.entries(frontmatter).filter(([, value]) => value !== undefined)),
+		body: optionalTrimmedString(body.body) ?? defaults.body,
+	};
+}
+
+async function writeLocalContentRecord(collection, input) {
+	if (!LOCAL_CONTENT_COLLECTIONS.has(collection)) {
+		return { error: 'Unsupported content collection.' };
+	}
+	const normalized = normalizeLocalContentInput(collection, input);
+	if (normalized.error) return normalized;
+	const root = resolve(process.cwd(), 'src', 'content', collection);
+	const target = resolve(root, `${normalized.slug}.${normalized.extension}`);
+	const relativeTarget = relative(root, target);
+	if (relativeTarget.startsWith('..') || relativeTarget.includes('..') || relativeTarget.startsWith('/')) {
+		return { error: 'Unsafe content path.' };
+	}
+	if (existsSync(target) && input.overwrite !== true) {
+		return { error: 'A content record with that slug already exists.' };
+	}
+	await mkdir(root, { recursive: true });
+	const content = `${serializeFrontmatter(normalized.frontmatter)}\n\n${normalized.body.trim()}\n`;
+	await writeFile(target, content, 'utf8');
+	return {
+		collection,
+		slug: normalized.slug,
+		id: normalized.frontmatter.id,
+		path: relative(process.cwd(), target),
+		href: collection === 'agents'
+			? `/app/projects/${encodeURIComponent(String(input.projectId ?? ''))}/agents/${encodeURIComponent(normalized.slug)}`
+			: `/app/work/${collection}/${encodeURIComponent(normalized.slug)}`,
+	};
 }
 
 function isLoopbackUrl(value) {
@@ -4627,6 +4836,21 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
 				if (access.response) return access.response;
 				return c.json({ ok: true, payload: await store.listProjectUpdatePlans(access.details.project.id) });
+			});
+
+			app.post('/v1/projects/:projectId/local-content/:collection', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const collection = String(c.req.param('collection') ?? '');
+				const body = await readJsonOrFormBody(c);
+				const payload = await writeLocalContentRecord(collection, {
+					...body,
+					projectId: access.details.project.id,
+					teamId: access.details.project.teamId,
+					createdBy: access.principal.id,
+				});
+				if (payload.error) return jsonError(c, 400, payload.error);
+				return c.json({ ok: true, payload }, { status: 201 });
 			});
 
 			app.post('/v1/projects/:projectId/update-plans', async (c) => {

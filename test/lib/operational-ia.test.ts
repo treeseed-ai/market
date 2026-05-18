@@ -42,6 +42,8 @@ const onePurposeRoutes = [
 	'src/pages/app/work/decisions.astro',
 	'src/pages/app/work/decisions/[approvalId].astro',
 	'src/pages/app/work/questions.astro',
+	'src/pages/app/work/notes.astro',
+	'src/pages/app/work/proposals.astro',
 	'src/pages/app/knowledge/templates.astro',
 	'src/pages/app/knowledge/packs.astro',
 	'src/pages/app/knowledge/releases.astro',
@@ -77,6 +79,24 @@ describe('one-purpose control app information architecture', () => {
 			'teams',
 			'work',
 		]);
+	});
+
+	it('represents every work content model in the management interface', () => {
+		const nav = source('src/components/app/controls/WorkContentNav.astro');
+		for (const [model, route] of [
+			['objectives', '/app/work/objectives'],
+			['questions', '/app/work/questions'],
+			['notes', '/app/work/notes'],
+			['proposals', '/app/work/proposals'],
+			['decisions', '/app/work/decisions'],
+		]) {
+			expect(nav).toContain(`key: '${model}'`);
+			expect(nav).toContain(`href: '${route}'`);
+			const routePath = `src/pages${route}.astro`;
+			expect(source(routePath), routePath).toContain('loadWorkContentEntries');
+		}
+		expect(source('src/view-models/work-content.ts')).toContain("['questions', 'objectives', 'notes', 'proposals', 'decisions']");
+		expect(source('src/view-models/knowledge-content.ts')).toContain("'objectives'");
 	});
 
 	it('removes dashboard and bundled setup surfaces from primary app code', () => {

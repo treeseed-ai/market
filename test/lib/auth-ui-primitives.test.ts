@@ -29,10 +29,9 @@ describe('auth and account UI primitive conversion', () => {
 
 	it('keeps register and account appearance wiring intact', () => {
 		const register = source('src/pages/auth/register.astro');
-		expect(register).toContain('Default appearance');
-		expect(register).toContain('includeHiddenFields={true}');
-		expect(register).toContain('schemeFieldName="colorScheme"');
-		expect(register).toContain('modeFieldName="themeMode"');
+		expect(register).toContain('showAppearance={false}');
+		expect(register).not.toContain('Default appearance');
+		expect(register).not.toContain('includeHiddenFields={true}');
 
 		const account = source('src/pages/app/account.astro');
 		expect(account).toContain('action="/auth/appearance"');

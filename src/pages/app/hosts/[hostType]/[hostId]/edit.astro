@@ -61,13 +61,6 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, hostId, provid
 										: [{ label: provider, value: provider }]} />
 								</Field>
 								<Field label="Status" name="status"><Select name="status" value={host.status ?? 'active'} options={[{ label: 'Active', value: 'active' }, { label: 'Paused', value: 'paused' }]} /></Field>
-								<Field label="Environments" name="allowedEnvironments">
-									<div class="ts-checkbox-group">
-										<label><input type="checkbox" name="allowedEnvironments" value="local" checked={host.allowedEnvironments?.includes?.('local')} /> Local</label>
-										<label><input type="checkbox" name="allowedEnvironments" value="staging" checked={host.allowedEnvironments?.includes?.('staging') !== false} /> Staging</label>
-										<label><input type="checkbox" name="allowedEnvironments" value="prod" checked={host.allowedEnvironments?.includes?.('prod') !== false} /> Production</label>
-									</div>
-								</Field>
 							</>
 						)}
 						{hostType === 'web' && (
@@ -124,7 +117,6 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, hostId, provid
 	const status = document.getElementById('host-edit-status');
 	const deleteButton = document.getElementById('delete-host-button') as HTMLButtonElement | null;
 	function value(formData: FormData, key: string) { return String(formData.get(key) ?? '').trim(); }
-	function values(formData: FormData, key: string) { return formData.getAll(key).map((entry) => String(entry)).filter(Boolean); }
 	function hasReplacementCredentials(formData: FormData) {
 		return ['githubToken', 'cloudflareAccountId', 'cloudflareApiToken', 'railwayApiToken', 'railwayWorkspace', 'smtpHost', 'smtpPort', 'smtpUsername', 'smtpPassword', 'smtpFromEmail', 'smtpReplyTo', 'smtpSecure', 'aiApiKey', 'aiBaseUrl', 'aiDefaultModel'].some((key) => value(formData, key));
 	}
@@ -175,7 +167,6 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, hostId, provid
 				provider: value(formData, 'provider') || pageData.provider,
 				ownership: 'team_owned',
 				status: value(formData, 'status') || 'active',
-				allowedEnvironments: values(formData, 'allowedEnvironments'),
 				metadata: { hostType: pageData.hostType },
 			});
 		}

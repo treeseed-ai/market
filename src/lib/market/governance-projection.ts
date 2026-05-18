@@ -34,6 +34,7 @@ export interface GovernanceReviewItem extends GovernanceEvent {
 	decisionOptions: GovernanceDecisionOption[];
 	policySnapshot?: Record<string, unknown>;
 	recommendation?: Record<string, unknown>;
+	metadata?: Record<string, unknown>;
 }
 
 export interface GovernanceDecisionOption {
@@ -261,6 +262,7 @@ function approvalItem(bundle: GovernanceBundle, approval: any): GovernanceReview
 		decisionOptions: decisionOptionsFor(approval),
 		policySnapshot: objectValue(approval?.policySnapshot) ?? {},
 		recommendation: objectValue(approval?.recommendation) ?? {},
+		metadata: objectValue(approval?.metadata) ?? {},
 	};
 }
 
