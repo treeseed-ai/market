@@ -23,7 +23,7 @@ const {
 const previewId = `${id}-preview`;
 const editorId = `${id}-editor`;
 const errorId = `${id}-error`;
-const minHeightRem = Math.max(10, Math.min(24, rows * 1.45));
+const size = rows >= 12 ? 'xl' : rows >= 8 ? 'lg' : 'md';
 ---
 
 <div
@@ -31,6 +31,7 @@ const minHeightRem = Math.max(10, Math.min(24, rows * 1.45));
 	data-markdown-field
 	data-markdown-required={required ? 'true' : 'false'}
 	data-markdown-error-id={errorId}
+	data-markdown-size={size}
 >
 	<div class="ts-markdown-field__header">
 		<div class="ts-markdown-field__title">
@@ -53,7 +54,6 @@ const minHeightRem = Math.max(10, Math.min(24, rows * 1.45));
 			role="textbox"
 			aria-label={label}
 			aria-multiline="true"
-			style={`--ts-markdown-min-height: ${minHeightRem}rem;`}
 			data-markdown-editor-host
 		></div>
 		<textarea
@@ -71,217 +71,6 @@ const minHeightRem = Math.max(10, Math.min(24, rows * 1.45));
 	</div>
 	<p class="ts-markdown-field__error" id={errorId} hidden data-markdown-error>{label} is required.</p>
 </div>
-
-<style>
-	.ts-markdown-field {
-		background: color-mix(in srgb, var(--ts-color-surface, #fff) 94%, var(--ts-color-border, #d8dee4));
-		border: 1px solid var(--ts-color-border, #d8dee4);
-		border-radius: 10px;
-		gap: 0.65rem;
-		padding: 0.85rem;
-	}
-
-	.ts-markdown-field__header {
-		align-items: flex-start;
-		border-bottom: 1px solid color-mix(in srgb, var(--ts-color-border, #d8dee4) 70%, transparent);
-		display: flex;
-		gap: 0.75rem;
-		justify-content: space-between;
-		padding-bottom: 0.65rem;
-	}
-
-	.ts-markdown-field__title {
-		display: grid;
-		gap: 0.2rem;
-		min-width: 0;
-	}
-
-	.ts-markdown-field__title .ts-field__help {
-		margin: 0;
-	}
-
-	.ts-markdown-field__tabs {
-		align-items: center;
-		background: color-mix(in srgb, var(--ts-color-surface, #fff) 80%, var(--ts-color-border, #d8dee4));
-		border: 1px solid var(--ts-color-border, #d8dee4);
-		border-radius: 8px;
-		display: inline-flex;
-		flex: 0 0 auto;
-		padding: 0.125rem;
-	}
-
-	.ts-markdown-field__status {
-		border-right: 1px solid var(--ts-color-border, #d8dee4);
-		color: var(--ts-color-text-muted, #57606a);
-		font-size: 0.72rem;
-		font-weight: 700;
-		line-height: 1;
-		padding: 0.38rem 0.55rem 0.38rem 0.45rem;
-		text-transform: uppercase;
-	}
-
-	.ts-markdown-field[data-enhanced='true'] .ts-markdown-field__status {
-		color: #0969da;
-	}
-
-	.ts-markdown-field[data-enhanced='false'] .ts-markdown-field__status {
-		color: #b42318;
-	}
-
-	.ts-markdown-field__tab {
-		background: transparent;
-		border: 0;
-		border-radius: 6px;
-		color: var(--ts-color-text-muted, #57606a);
-		cursor: pointer;
-		font: inherit;
-		font-size: 0.8rem;
-		font-weight: 650;
-		padding: 0.3rem 0.55rem;
-	}
-
-	.ts-markdown-field__tab[aria-selected='true'] {
-		background: var(--ts-color-surface, #fff);
-		box-shadow: 0 1px 2px rgb(15 23 42 / 10%);
-		color: var(--ts-color-text, #24292f);
-	}
-
-	.ts-markdown-field__editor {
-		min-height: var(--ts-markdown-min-height, 12rem);
-		position: relative;
-	}
-
-	.ts-markdown-field__codemirror {
-		display: none;
-		min-height: var(--ts-markdown-min-height, 12rem);
-	}
-
-	.ts-markdown-field__textarea {
-		background: color-mix(in srgb, var(--ts-color-surface, #fff) 92%, var(--ts-color-accent, #4f46e5));
-		border: 1px solid color-mix(in srgb, var(--ts-color-border, #d8dee4) 85%, var(--ts-color-accent, #4f46e5));
-		border-radius: 8px;
-		box-sizing: border-box;
-		color: var(--ts-color-text, #24292f);
-		display: block;
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-		font-size: 0.92rem;
-		line-height: 1.55;
-		min-height: var(--ts-markdown-min-height, 12rem);
-		padding: 0.75rem 0.9rem;
-		resize: vertical;
-		width: 100%;
-	}
-
-	.ts-markdown-field[data-enhanced='true'] .ts-markdown-field__codemirror {
-		display: block;
-	}
-
-	.ts-markdown-field[data-enhanced='true'] .ts-markdown-field__textarea {
-		height: 1px;
-		inset: auto auto 0 0;
-		opacity: 0;
-		pointer-events: none;
-		position: absolute;
-		width: 1px;
-	}
-
-	.ts-markdown-field__codemirror :global(.cm-editor) {
-		background: color-mix(in srgb, var(--ts-color-surface, #fff) 92%, var(--ts-color-accent, #4f46e5));
-		border: 1px solid color-mix(in srgb, var(--ts-color-border, #d8dee4) 85%, var(--ts-color-accent, #4f46e5));
-		border-radius: 8px;
-		color: var(--ts-color-text, #24292f);
-		font-size: 0.92rem;
-		min-height: var(--ts-markdown-min-height, 12rem);
-		outline: none;
-	}
-
-	.ts-markdown-field__codemirror :global(.cm-editor.cm-focused) {
-		border-color: color-mix(in srgb, var(--ts-color-accent, #4f46e5) 75%, var(--ts-color-border, #d8dee4));
-		box-shadow: 0 0 0 3px color-mix(in srgb, var(--ts-color-accent, #4f46e5) 18%, transparent);
-	}
-
-	.ts-markdown-field__codemirror :global(.cm-scroller) {
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-		line-height: 1.55;
-		min-height: var(--ts-markdown-min-height, 12rem);
-	}
-
-	.ts-markdown-field__codemirror :global(.cm-content) {
-		padding: 0.75rem 0;
-	}
-
-	.ts-markdown-field__codemirror :global(.cm-line) {
-		padding: 0 0.9rem;
-	}
-
-	.ts-markdown-field__codemirror :global(.cm-gutters) {
-		background: color-mix(in srgb, var(--ts-color-surface, #fff) 84%, var(--ts-color-border, #d8dee4));
-		border-right: 1px solid var(--ts-color-border, #d8dee4);
-		color: var(--ts-color-text-muted, #57606a);
-	}
-
-	.ts-markdown-field__codemirror :global(.cm-activeLine),
-	.ts-markdown-field__codemirror :global(.cm-activeLineGutter) {
-		background: color-mix(in srgb, var(--ts-color-accent, #4f46e5) 8%, transparent);
-	}
-
-	.ts-markdown-field__codemirror :global(.cm-md-heading) {
-		color: #0550ae;
-		font-weight: 800;
-	}
-
-	.ts-markdown-field__codemirror :global(.cm-md-strong) {
-		color: #cf222e;
-		font-weight: 800;
-	}
-
-	.ts-markdown-field__codemirror :global(.cm-md-emphasis) {
-		color: #8250df;
-		font-style: italic;
-	}
-
-	.ts-markdown-field__codemirror :global(.cm-md-code) {
-		color: #6f42c1;
-	}
-
-	.ts-markdown-field__codemirror :global(.cm-md-link) {
-		color: #0969da;
-		text-decoration: underline;
-	}
-
-	.ts-markdown-field__codemirror :global(.cm-md-meta) {
-		color: #57606a;
-	}
-
-	.ts-markdown-field__codemirror :global(.cm-md-quote) {
-		color: #116329;
-	}
-
-	.ts-markdown-field__preview {
-		background: var(--ts-color-surface, #fff);
-		border: 1px solid var(--ts-color-border, #d8dee4);
-		border-radius: 8px;
-		min-height: var(--ts-markdown-min-height, 12rem);
-		overflow: auto;
-		padding: 1rem;
-	}
-
-	.ts-markdown-field__error {
-		color: var(--ts-color-danger, #b42318);
-		font-size: 0.84rem;
-		font-weight: 650;
-		margin: 0;
-	}
-
-	.ts-markdown-field[data-invalid='true'] {
-		border-color: var(--ts-color-danger, #b42318);
-	}
-
-	.ts-markdown-field:focus-within {
-		border-color: color-mix(in srgb, var(--ts-color-accent, #4f46e5) 70%, var(--ts-color-border, #d8dee4));
-		box-shadow: 0 10px 30px rgb(15 23 42 / 8%);
-	}
-</style>
 
 <script is:inline>
 	(() => {

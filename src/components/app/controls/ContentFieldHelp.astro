@@ -26,68 +26,6 @@ const {
 	</details>
 ) : null}
 
-<style>
-	.ts-content-help {
-		display: inline-flex;
-		position: relative;
-	}
-
-	.ts-content-help summary {
-		align-items: center;
-		background: var(--ts-color-surface);
-		border: 1px solid var(--ts-color-border);
-		border-radius: 999px;
-		color: var(--ts-color-text-muted);
-		cursor: pointer;
-		display: inline-flex;
-		font-size: 0.75rem;
-		font-weight: 800;
-		height: 1.35rem;
-		justify-content: center;
-		list-style: none;
-		width: 1.35rem;
-	}
-
-	.ts-content-help summary::-webkit-details-marker {
-		display: none;
-	}
-
-	.ts-content-help[open] summary,
-	.ts-content-help summary:hover {
-		background: var(--ts-color-accent);
-		border-color: var(--ts-color-accent);
-		color: var(--ts-color-accent-text);
-	}
-
-	.ts-content-help__panel {
-		background: var(--ts-color-surface-overlay, var(--ts-color-surface));
-		border: 1px solid var(--ts-color-border);
-		border-radius: var(--ts-radius-md);
-		box-shadow: var(--ts-shadow-lg, 0 16px 40px rgb(15 23 42 / 16%));
-		color: var(--ts-color-text);
-		display: grid;
-		gap: 0.4rem;
-		line-height: 1.45;
-		max-height: min(24rem, calc(100vh - 1rem));
-		overflow: auto;
-		padding: 0.75rem;
-		position: fixed;
-		top: var(--ts-content-help-top, 0.5rem);
-		left: var(--ts-content-help-left, 0.5rem);
-		width: var(--ts-content-help-width, min(22rem, calc(100vw - 1rem)));
-		z-index: 60;
-	}
-
-	.ts-content-help__panel p {
-		margin: 0;
-	}
-
-	.ts-content-help__panel span {
-		color: var(--ts-color-text-muted);
-		font-weight: 700;
-	}
-</style>
-
 <script is:inline>
 	(() => {
 		if (window.__treeseedContentHelpReady) return;

@@ -68,7 +68,7 @@ function help(name: string) {
 			</div>
 		</div>
 		<div class="ts-related-float" data-related-float hidden>
-			<div class="ts-related-float__window" data-related-window style="left: 22rem; top: 7rem; width: min(44rem, calc(100vw - 3rem)); height: min(42rem, calc(100vh - 4rem));">
+			<div class="ts-related-float__window" data-related-window>
 				<header class="ts-related-float__bar" data-related-drag-handle>
 					<div>
 						<p class="ts-section__eyebrow">Create related content</p>
@@ -142,101 +142,6 @@ function help(name: string) {
 		<script is:inline type="application/json" id="related-content-data" set:html={json}></script>
 	</section>
 ) : null}
-
-<style>
-	.ts-related-create {
-		background: var(--ts-color-surface);
-		border: 1px solid var(--ts-color-border);
-		border-radius: var(--ts-radius-lg);
-		display: grid;
-		gap: var(--ts-space-2);
-		padding: var(--ts-space-3);
-	}
-
-	.ts-related-create__header {
-		align-items: flex-start;
-		display: flex;
-		gap: var(--ts-space-3);
-		justify-content: space-between;
-	}
-
-	.ts-related-create h2,
-	.ts-related-create p {
-		margin: 0;
-	}
-
-	.ts-related-create__actions {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--ts-space-2);
-		justify-content: flex-end;
-	}
-
-	.ts-related-create__button span {
-		pointer-events: none;
-	}
-
-	.ts-related-float {
-		inset: 0;
-		pointer-events: none;
-		position: fixed;
-		z-index: 80;
-	}
-
-	.ts-related-float__window {
-		background: var(--ts-color-surface-overlay, var(--ts-color-surface));
-		border: 1px solid var(--ts-color-border);
-		border-radius: var(--ts-radius-lg);
-		box-shadow: var(--ts-shadow-lg, 0 24px 60px rgb(15 23 42 / 20%));
-		display: grid;
-		grid-template-rows: auto minmax(0, 1fr);
-		min-height: 24rem;
-		min-width: min(26rem, calc(100vw - 2rem));
-		overflow: hidden;
-		pointer-events: auto;
-		position: fixed;
-		resize: both;
-	}
-
-	.ts-related-float__bar {
-		align-items: center;
-		background: color-mix(in srgb, var(--ts-color-canvas-subtle) 72%, var(--ts-color-surface));
-		border-bottom: 1px solid var(--ts-color-border);
-		cursor: move;
-		display: flex;
-		gap: var(--ts-space-3);
-		justify-content: space-between;
-		padding: var(--ts-space-2) var(--ts-space-3);
-	}
-
-	.ts-related-float__bar h2 {
-		font-size: 1rem;
-		margin: 0;
-	}
-
-	.ts-related-float__body {
-		overflow: auto;
-		padding: var(--ts-space-3);
-	}
-
-	.ts-help-row {
-		align-items: center;
-		display: grid;
-		gap: 0.45rem;
-		grid-template-columns: minmax(0, 1fr) auto;
-	}
-
-	@media (max-width: 44rem) {
-		.ts-related-create__header {
-			display: grid;
-		}
-
-		.ts-related-float__window {
-			inset: 1rem !important;
-			width: auto !important;
-		}
-	}
-</style>
 
 <script>
 	import './markdown-field.ts';
