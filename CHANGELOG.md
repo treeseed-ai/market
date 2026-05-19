@@ -1,5 +1,56 @@
 # Changelog
 
+## [0.6.0] - 2026-05-19
+
+### Added
+
+- feat(market): implement agent runtime state and work management UI (d475964eec49)
+- feat(app): implement operational mission control, governance, (8462c94ca4f5)
+- feat(market): update dependencies and documentation (0e391c31afa1)
+
+### Changed
+
+- docs: promote knowledge:market-ui-work-content-management-interface-mdx (ef8a521ddfe0)
+- docs: promote knowledge:market-ui-work-content-management-interface-mdx (ae405b0e4be3)
+- docs: promote knowledge:market-ui-work-content-management-interface-mdx (f9a6bd0b750a)
+- docs: promote knowledge:sdk-graph-context-query-agent-research-mdx (cad346f75a61)
+- docs: promote knowledge:agent-runtime-workdays-agent-runtime-workday-mdx (00649874e551)
+- docs: promote knowledge:market-ui-governance-operational-governance-mdx (5ab32be97a10)
+- docs: promote knowledge:core-knowledge-hub-rendering-publishing-mdx (75c1e013fe11)
+- docs: promote knowledge:documentation-automation-research-to-knowledge-code-evidence-mdx (2a7740aaee47)
+- docs: promote knowledge:market-ui-mission-control-governance-summary-mdx (ea784b401dba)
+- docs: promote knowledge:governance-approvals-state-flow-mdx (ccb18b572162)
+- docs: promote knowledge:documentation-automation-mutations-codex-docs-boundaries-mdx (08e0abd340a7)
+- docs: promote knowledge:cli-dev-manager-docs-automation-mode-mdx (bf77918e804c)
+- docs: promote knowledge:cli-dev-local-surfaces-mdx (744a07cfb0a3)
+- Updates to the agent AI development prompt. (829712aad034)
+- Adding an initial agent AI development prompt. (c669bdd79b7e)
+
+### Fixed
+
+- fix(deps): sync integrated package updates (5e6f53014fb3)
+- docs(knowledge): update documentation (073160edbe1b)
+
+### Infrastructure
+
+- release: sync package staging heads (95378e0d71a0)
+
+### Tests
+
+- ci(deps): sync integrated package updates (b396076959f3)
+- build(deps): sync integrated package updates (91088885c4f9)
+- build(deps): sync integrated package updates (b87f1f10347a)
+- chore(market): update @treeseed/cli dependency and refactor seeds (5a0585e8443e)
+
+### Dependencies
+
+- build(deps): sync integrated package updates (a87aed663402)
+- Release @treeseed/market 0.6.0.
+- Release package @treeseed/agent: 0.9.0.
+- Release package @treeseed/cli: 0.9.0.
+- Release package @treeseed/core: 0.9.0.
+- Release package @treeseed/sdk: 0.9.0.
+
 ## [0.5.18] - 2026-05-16
 
 ### Added
