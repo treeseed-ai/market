@@ -42,31 +42,20 @@ describe('UI migration completion', () => {
 		expect(contents).not.toMatch(/\sstyle=/u);
 	});
 
-	it('converts launch and team management forms while preserving critical hooks', () => {
-		const launch = source('src/pages/app/launch.astro');
-		expect(launch).toContain('id="project-launch-form"');
-		expect(launch).toContain('id="launch-data"');
-		expect(launch).toContain('/projects/launch');
-		expect(launch).toContain('treeseedSensitiveUnlock');
-		expect(launch).toContain('Field');
-		expect(launch).toContain('Select');
-		expect(launch).not.toMatch(/\sstyle=/u);
+	it('splits launch and team controls into one-purpose app routes', () => {
+		const projects = source('src/pages/app/projects/new.astro');
+		expect(projects).toContain('id="project-launch-form"');
+		expect(projects).toContain('id="project-launch-data"');
+		expect(projects).toContain('/projects/launch');
+		expect(projects).toContain('treeseedSensitiveUnlock');
+		expect(projects).toContain('Field');
+		expect(projects).toContain('Select');
+		expect(projects).not.toMatch(/\sstyle=/u);
 
-		const edit = source('src/pages/app/teams/[teamSlug]/edit.astro');
-		expect(edit).toContain('data-team-name-input');
-		expect(edit).toContain('data-team-name-status');
-		expect(edit).toContain('/app/teams/name-check');
-		expect(edit).toContain('teamDeletionConfirmationMatches');
-		expect(edit).toContain('Field');
-		expect(edit).toContain('StatusPill');
-		expect(edit).not.toContain('<style');
-		expect(edit).not.toMatch(/\sstyle=/u);
-
-		const create = source('src/pages/app/teams/new.astro');
-		expect(create).toContain('validateTeamName');
-		expect(create).toContain('TextInput');
-		expect(create).toContain('Textarea');
-		expect(create).not.toMatch(/\sstyle=/u);
+		expect(existsSync(resolve(process.cwd(), 'src/pages/app/teams/new.astro'))).toBe(true);
+		expect(existsSync(resolve(process.cwd(), 'src/pages/app/teams/[teamId]/edit.astro'))).toBe(true);
+		expect(existsSync(resolve(process.cwd(), 'src/pages/app/teams/name-check.ts'))).toBe(false);
+		expect(existsSync(resolve(process.cwd(), 'src/pages/app/launch.astro'))).toBe(false);
 	});
 
 	it('keeps completion CSS and docs on TreeSeed UI rules', () => {

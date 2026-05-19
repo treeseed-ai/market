@@ -1,0 +1,21 @@
+---
+id: agent-test:governed-mutation-basic
+agent: treeseed-docs-engineer
+kind: message_chain
+fixture: packages/agent/test/fixtures/agent-tests/governed-mutation/basic
+trigger:
+  messageType: approval_request_created
+expect:
+  status: completed
+  messages:
+    - docs_mutation_completed
+  changedPaths:
+    - docs/**
+  requiresHumanApproval: true
+tags:
+  - documentation
+  - governed-mutation
+---
+
+This test proves that approved documentation mutation remains path-limited,
+verified, and visible to the review chain.

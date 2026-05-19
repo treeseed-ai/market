@@ -17,19 +17,19 @@ const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
 ---
 
 <TreeseedPublicLayout
-	title="TreeSeed Market"
-	description="Browse templates and knowledge packs inside TreeSeed."
+	title="TreeSeed Operational Resources"
+	description="Browse reusable workflows, imports, and operational assets inside TreeSeed."
 	currentPath={Astro.url.pathname}
 >
 	<Panel
-		eyebrow="Market"
-		title="Reusable foundations for knowledge hubs and agent teams"
-		description="Templates give you working project scaffolds. Knowledge packs give you reusable direction, source material, and packaged operational context."
+		eyebrow="Operational Resources"
+		title="Reusable workflows, imports, and operational assets"
+		description="Resources provide working operational baselines, reusable source material, and governed context for future workdays."
 	/>
 
 	<section class="ts-section-grid ts-stack-top">
-		<Panel title="Templates" description="Launch hubs with a proven operational baseline.">
-			<Button slot="actions" href="/market/templates/" variant="secondary" size="sm">Browse templates</Button>
+		<Panel title="Workflow imports" description="Start operational contexts with a proven baseline.">
+			<Button slot="actions" href="/market/templates/" variant="secondary" size="sm">Browse imports</Button>
 			<div class="ts-card-list">
 				{templateListing.items.map((entry) => (
 					<MarketProductCard
@@ -46,8 +46,8 @@ const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
 				))}
 			</div>
 		</Panel>
-		<Panel title="Knowledge packs" description="Publish reusable knowledge sets with install and trust context attached.">
-			<Button slot="actions" href="/market/knowledge-packs/" variant="secondary" size="sm">Browse packs</Button>
+		<Panel title="Knowledge imports" description="Reusable knowledge sets with install and trust context attached.">
+			<Button slot="actions" href="/market/knowledge-packs/" variant="secondary" size="sm">Browse imports</Button>
 			<div class="ts-card-list">
 				{knowledgePacks.length > 0 ? knowledgePacks.map((entry: any) => (
 					<MarketProductCard
@@ -55,7 +55,7 @@ const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
 						slug={entry.slug}
 						title={entry.name}
 						summary={entry.summary ?? 'Reusable source material and market-packaged knowledge assets.'}
-						category="Knowledge pack"
+						category="Knowledge import"
 						publisherName="TreeSeed"
 						badges={[entry.visibility, entry.installStrategy]}
 					/>

@@ -1,6 +1,5 @@
 ---
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
-import ThemeSelector from '../../../../packages/core/src/components/ui/theme/ThemeSelector.astro';
 import type { ThemePreference } from '../../../../packages/core/src/utils/theme.ts';
 
 interface Props {
@@ -18,9 +17,6 @@ const {
 	description,
 	error = '',
 	notice = '',
-	appearance,
-	appearanceLabel = 'Appearance',
-	showAppearance = true,
 } = Astro.props as Props;
 ---
 
@@ -34,9 +30,4 @@ const {
 	<div class="auth-card__body">
 		<slot />
 	</div>
-	{showAppearance ? (
-		<div class="auth-card__appearance">
-			<ThemeSelector label={appearanceLabel} selectedScheme={appearance.scheme} selectedMode={appearance.mode} />
-		</div>
-	) : null}
 </Panel>

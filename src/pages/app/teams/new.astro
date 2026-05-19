@@ -1,93 +1,72 @@
 ---
-import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
 import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
 import Field from '../../../../packages/core/src/components/ui/forms/Field.astro';
 import FormActions from '../../../../packages/core/src/components/ui/forms/FormActions.astro';
 import TextInput from '../../../../packages/core/src/components/ui/forms/TextInput.astro';
 import Textarea from '../../../../packages/core/src/components/ui/forms/Textarea.astro';
-import StatusPill from '../../../../packages/core/src/components/ui/data/StatusPill.astro';
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
-import { loadAccessibleTeams, resolveMarketStore } from '../../../lib/market/store.js';
-import { validateTeamName } from '../../../api/store.js';
-
-export const prerender = false;
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { loadOperationalContext } from '../../../view-models/shared.js';
 
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/teams/new')}`);
 }
 
-const store = resolveMarketStore(Astro.locals);
-const teams = await loadAccessibleTeams(Astro.locals);
-let error = '';
-let submittedName = '';
-let submittedDisplayName = '';
-let submittedLogoUrl = '';
-let submittedSummary = '';
-
-if (Astro.request.method === 'POST' && store) {
-	const form = await Astro.request.formData();
-	submittedName = String(form.get('name') ?? '').trim();
-	submittedDisplayName = String(form.get('displayName') ?? '').trim();
-	submittedLogoUrl = String(form.get('logoUrl') ?? '').trim();
-	submittedSummary = String(form.get('profileSummary') ?? '').trim();
-	const validation = validateTeamName(submittedName);
-	if (!validation.ok) {
-		error = validation.message ?? 'Team name is invalid.';
-	} else if (!(await store.isTeamNameAvailable(validation.name))) {
-		error = 'That team name is already taken.';
-	} else {
-		try {
-			await store.createTeam({
-				name: validation.name,
-				displayName: submittedDisplayName || validation.name,
-				logoUrl: submittedLogoUrl || null,
-				profileSummary: submittedSummary || null,
-				ownerUserId: Astro.locals.auth.principal.id,
-				metadata: { source: 'team_create_page' },
-			});
-			return Astro.redirect(`/app/teams/${validation.name}/edit?created=1`, 303);
-		} catch (createError) {
-			error = createError instanceof Error ? createError.message : 'Unable to create team.';
-		}
-	}
-}
+const context = await loadOperationalContext(Astro.locals, Astro);
 ---
 
-<TreeseedAppLayout
-	title="Create Team"
-	description="Create a team workspace for projects, members, releases, and market listings."
-	currentPath={Astro.url.pathname}
-	teams={teams}
-	activeTeam={teams[0] ?? null}
->
-	<Panel
-		eyebrow="New team"
-		title="Add a team"
-		description="The team name is public, used in URLs, and cannot be changed later."
-	>
-		<form class="ts-form-stack" method="POST">
-			{error ? <StatusPill tone="danger">{error}</StatusPill> : null}
-			<Field label="Team name" name="name" help="Public handle for /t/name and app URLs." required>
-				<TextInput
-					name="name"
-					value={submittedName}
-					required
-					maxlength={39}
-					pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?"
-				/>
-			</Field>
-			<Field label="Display name" name="displayName" required>
-				<TextInput name="displayName" value={submittedDisplayName} required />
-			</Field>
-			<Field label="Logo URL" name="logoUrl">
-				<TextInput name="logoUrl" type="url" value={submittedLogoUrl} placeholder="https://example.com/logo.png" />
-			</Field>
-			<Field label="Profile summary" name="profileSummary">
-				<Textarea name="profileSummary" rows={4} value={submittedSummary} />
-			</Field>
-			<FormActions align="start">
-				<Button type="submit">Create team</Button>
-			</FormActions>
-		</form>
-	</Panel>
+<TreeseedAppLayout title="New team" description="Create one team." currentPath="/app/teams" teams={context.teams} activeTeam={context.activeTeam}>
+	<section class="ts-control-page" aria-label="New team">
+		<Panel eyebrow="Team" title="Create team" description="Teams own hosts, projects, capacity, work, and knowledge.">
+			<form id="team-create-form" class="ts-form-stack">
+				<div class="ts-form-grid">
+					<Field label="Name" name="name" required>
+						<TextInput name="name" required placeholder="acme-ops" pattern="[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?" />
+					</Field>
+					<Field label="Display name" name="displayName">
+						<TextInput name="displayName" placeholder="Acme Operations" />
+					</Field>
+					<Field label="Logo URL" name="logoUrl" class="ts-field--full">
+						<TextInput name="logoUrl" type="url" placeholder="https://example.com/logo.svg" />
+					</Field>
+					<Field label="Profile summary" name="profileSummary" class="ts-field--full">
+						<Textarea name="profileSummary" rows={4} placeholder="What this team builds or manages." />
+					</Field>
+				</div>
+				<FormActions align="start">
+					<Button type="submit">Create team</Button>
+					<Button href="/app/teams" variant="secondary">Cancel</Button>
+					<span class="ts-subtle" id="team-create-status" role="status"></span>
+				</FormActions>
+			</form>
+		</Panel>
+	</section>
 </TreeseedAppLayout>
+
+<script>
+	const form = document.getElementById('team-create-form') as HTMLFormElement | null;
+	const status = document.getElementById('team-create-status');
+	form?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const data = new FormData(form);
+		if (status) status.textContent = 'Creating...';
+		const response = await fetch('/v1/teams', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				name: String(data.get('name') ?? '').trim(),
+				displayName: String(data.get('displayName') ?? '').trim(),
+				logoUrl: String(data.get('logoUrl') ?? '').trim(),
+				profileSummary: String(data.get('profileSummary') ?? '').trim(),
+			}),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			if (status) status.textContent = payload?.error ?? 'Team could not be created.';
+			return;
+		}
+		const teamId = payload?.payload?.id;
+		document.cookie = `treeseed_active_team=${encodeURIComponent(teamId)}; path=/app; max-age=31536000; SameSite=Lax`;
+		window.location.href = `/app/teams?teamId=${encodeURIComponent(teamId)}`;
+	});
+</script>

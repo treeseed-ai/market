@@ -1,0 +1,64 @@
+---
+import Button from '../../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import TextInput from '../../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../../components/app/controls/PlainTable.astro';
+import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../../../view-models/shared.js';
+
+const projectParam = String(Astro.params.projectId ?? '');
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
+const blockers = project && context.store ? await context.store.evaluateProjectDeletionBlockers(project.id).catch(() => null) : null;
+if (!project) Astro.response.status = 404;
+const blockerRows = Object.entries(blockers ?? {}).filter(([, value]) => Array.isArray(value) ? value.length > 0 : Number(value) > 0).map(([key, value]) => ({ name: esc(key), value: esc(Array.isArray(value) ? value.length : value) }));
+const confirmation = project ? `DELETE ${project.slug}` : '';
+---
+
+<TreeseedAppLayout title="Delete project" description="Delete one project." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+	{project ? (
+		<section class="ts-control-page" aria-label="Delete project">
+			<ProjectControlNav projectId={project.id} current="delete" />
+			<Panel eyebrow="Projects" title={`Delete ${project.name ?? project.slug}`} description="This action is permanent. Blocking records must be removed first.">
+				<PlainTable columns={[{ key: 'name', label: 'Blocker' }, { key: 'value', label: 'Count' }]} rows={blockerRows} emptyTitle="No blockers found" emptyDescription="This project can be deleted after confirmation." />
+				<form id="project-delete-form" class="ts-form-stack ts-stack-top">
+					<Field label={`Type ${confirmation}`} name="confirmation" required><TextInput name="confirmation" required /></Field>
+					<FormActions align="start">
+						<Button type="submit" variant="danger">Delete project</Button>
+						<Button href="/app/projects" variant="secondary">Cancel</Button>
+						<span class="ts-subtle" id="project-delete-status" role="status"></span>
+					</FormActions>
+				</form>
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="Project not found" description="This project is not available." actions={[{ label: 'Back to Projects', href: '/app/projects' }]} />
+	)}
+</TreeseedAppLayout>
+
+<script is:inline define:vars={{ projectId: project?.id ?? '' }}>
+	const form = document.getElementById('project-delete-form');
+	const status = document.getElementById('project-delete-status');
+	form?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const confirmation = String(new FormData(form).get('confirmation') ?? '');
+		if (status) status.textContent = 'Deleting...';
+		const response = await fetch(`/v1/projects/${encodeURIComponent(projectId)}`, {
+			method: 'DELETE',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ confirmation }),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			if (status) status.textContent = payload?.error ?? 'Project could not be deleted.';
+			return;
+		}
+		window.location.href = '/app/projects';
+	});
+</script>

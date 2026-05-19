@@ -1,0 +1,185 @@
+---
+import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import Select from '../../../../packages/core/src/components/ui/forms/Select.astro';
+import TextInput from '../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import Textarea from '../../../../packages/core/src/components/ui/forms/Textarea.astro';
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { listTreeseedManagedHostsFromConfig } from '../../../lib/market/managed-hosts.js';
+import { loadOperationalContext } from '../../../view-models/shared.js';
+
+if (!Astro.locals.auth?.principal) {
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/projects/new')}`);
+}
+const context = await loadOperationalContext(Astro.locals, Astro);
+const runtime = (Astro.locals as any).runtime ?? Astro.locals;
+const team = context.activeTeam;
+const [managedHosts, customHosts, repositoryHosts] = team && context.store
+	? await Promise.all([
+			listTreeseedManagedHostsFromConfig(team.id, runtime).catch(() => []),
+			context.store.listTeamWebHosts(team.id).catch(() => []),
+			context.store.listRepositoryHosts(team.id).catch(() => []),
+		])
+	: [[], [], []];
+const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managedHosts, ...customHosts], repositoryHosts }).replace(/</gu, '\\u003c');
+---
+
+<TreeseedAppLayout title="New project" description="Create one hosted project." currentPath="/app/projects" teams={context.teams} activeTeam={team}>
+	{team ? (
+		<section class="ts-control-page" aria-label="New project">
+			<Panel eyebrow="Projects" title="Create hosted project" description="Managed hosts are selected by default. Custom hosts need sensitive unlock.">
+				<form id="project-launch-form" class="ts-form-stack">
+					<div class="ts-form-grid">
+						<Field label="Project name" name="name" required><TextInput name="name" required placeholder="Deployment Reliability" /></Field>
+						<Field label="Handle" name="slug" required><TextInput name="slug" required placeholder="deployment-reliability" pattern="[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?" /></Field>
+						<Field label="Purpose" name="summary" class="ts-field--full"><Textarea name="summary" rows={4} placeholder="What this project is for and what TreeSeed should help maintain." /></Field>
+					</div>
+					<details class="ts-advanced-details">
+						<summary>Host selection</summary>
+						<div class="ts-form-stack">
+							<Field label="Source" name="sourceKind">
+								<Select name="sourceKind" options={[
+									{ label: 'Blank project', value: 'blank' },
+									{ label: 'Template import', value: 'template' },
+									{ label: 'Knowledge pack import', value: 'knowledge_pack' },
+								]} />
+							</Field>
+							<Field label="Repository host" name="repositoryHostId"><Select name="repositoryHostId" options={[]} /></Field>
+							<div class="ts-form-grid">
+								<Field label="Web host" name="cloudflareHostChoice" required><Select name="cloudflareHostChoice" options={[]} required /></Field>
+								<Field label="Processing host" name="processingHostChoice" required><Select name="processingHostChoice" options={[]} required /></Field>
+								<Field label="Email host" name="emailHostChoice" required><Select name="emailHostChoice" options={[]} required /></Field>
+							</div>
+							<div class="ts-form-note" id="launch-sensitive-notice" hidden>
+								<strong>Sensitive data unlock required.</strong>
+								<span>Unlock sensitive data from the header before launching with team-owned hosts.</span>
+							</div>
+						</div>
+					</details>
+					<FormActions align="start">
+						<Button type="submit">Create project</Button>
+						<Button href="/app/projects" variant="secondary">Cancel</Button>
+						<span class="ts-subtle" id="project-launch-status" role="status"></span>
+					</FormActions>
+				</form>
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="No active team" description="Create or switch to a team before creating projects." actions={[{ label: 'Open Team', href: '/app/teams' }]} />
+	)}
+	<script is:inline type="application/json" id="project-launch-data" set:html={launchJson}></script>
+</TreeseedAppLayout>
+
+<script>
+	const dataElement = document.getElementById('project-launch-data');
+	const data = dataElement?.textContent ? JSON.parse(dataElement.textContent) : { hosts: [], repositoryHosts: [] };
+	const launchForm = document.getElementById('project-launch-form') as HTMLFormElement | null;
+	const hostSelect = launchForm?.elements.namedItem('cloudflareHostChoice') as HTMLSelectElement | null;
+	const processingHostSelect = launchForm?.elements.namedItem('processingHostChoice') as HTMLSelectElement | null;
+	const emailHostSelect = launchForm?.elements.namedItem('emailHostChoice') as HTMLSelectElement | null;
+	const repositoryHostSelect = launchForm?.elements.namedItem('repositoryHostId') as HTMLSelectElement | null;
+	const sensitiveNotice = document.getElementById('launch-sensitive-notice');
+	const statusElement = document.getElementById('project-launch-status');
+	function setStatus(message: string) { if (statusElement) statusElement.textContent = message; }
+	function hostType(host: any) {
+		const legacyProcessing = ['ag', 'ent'].join('');
+		return host.metadata?.hostType === legacyProcessing ? 'processing' : (host.metadata?.hostType ?? 'web');
+	}
+	function hostsFor(hostKind: string, provider: string) { return (data.hosts ?? []).filter((host: any) => host.provider === provider && hostType(host) === hostKind); }
+	function refreshOne(select: HTMLSelectElement | null, hostKind: string, provider: string) {
+		if (!select) return;
+		select.replaceChildren();
+		for (const host of hostsFor(hostKind, provider)) {
+			const mode = host.ownership === 'treeseed_managed' ? 'treeseed_managed' : 'team_owned';
+			select.append(new Option(`${host.name} (${mode === 'treeseed_managed' ? 'managed' : host.accountLabel ?? provider})`, `${mode}:${host.id}`));
+		}
+		if (select.options.length === 0) select.append(new Option(`TreeSeed managed ${hostKind}`, `treeseed_managed:managed-${hostKind}`));
+	}
+	function refreshRepositories() {
+		if (!repositoryHostSelect) return;
+		repositoryHostSelect.replaceChildren();
+		for (const host of data.repositoryHosts ?? []) {
+			repositoryHostSelect.append(new Option(`${host.name} (${host.ownership === 'treeseed_managed' ? 'managed' : host.organizationOrOwner})`, host.id));
+		}
+		if (repositoryHostSelect.options.length === 0) repositoryHostSelect.append(new Option('TreeSeed managed repositories', 'platform:github:hosted-hubs'));
+	}
+	function selectedHost(select: HTMLSelectElement | null, hostKind: string, provider: string) {
+		const [, hostId] = String(select?.value ?? '').split(':');
+		return hostsFor(hostKind, provider).find((host: any) => host.id === hostId) ?? null;
+	}
+	function selectedHostMode(select: HTMLSelectElement | null) { return String(select?.value ?? '').startsWith('team_owned:') ? 'team_owned' : 'treeseed_managed'; }
+	function selectedRepositoryHost() { return (data.repositoryHosts ?? []).find((host: any) => host.id === repositoryHostSelect?.value) ?? null; }
+	function requiresSensitiveUnlock() {
+		return selectedHostMode(hostSelect) === 'team_owned'
+			|| selectedHostMode(processingHostSelect) === 'team_owned'
+			|| selectedHostMode(emailHostSelect) === 'team_owned'
+			|| selectedRepositoryHost()?.ownership === 'team_owned';
+	}
+	function refreshSensitiveRequirement() { if (sensitiveNotice) sensitiveNotice.hidden = !requiresSensitiveUnlock(); }
+	async function createCredentialSession(request: { hostKind: string; hostId: string; passphrase: string }) {
+		const response = await fetch(`/v1/teams/${encodeURIComponent(data.teamId)}/provider-credential-sessions`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ ...request, purpose: 'launch_project', expiresInSeconds: 900 }),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) throw new Error(payload?.error ?? `Unable to unlock ${request.hostKind}.`);
+		return payload.payload?.id;
+	}
+	refreshOne(hostSelect, 'web', 'cloudflare');
+	refreshOne(processingHostSelect, 'processing', 'railway');
+	refreshOne(emailHostSelect, 'email', 'smtp');
+	refreshRepositories();
+	refreshSensitiveRequirement();
+	[hostSelect, processingHostSelect, emailHostSelect, repositoryHostSelect].forEach((select) => select?.addEventListener('change', refreshSensitiveRequirement));
+	launchForm?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const form = new FormData(launchForm);
+		const credentialSessions: Record<string, string> = {};
+		setStatus('Creating project...');
+		try {
+			const passphrase = requiresSensitiveUnlock() ? (window as any).treeseedSensitiveUnlock?.requirePassphrase?.() : null;
+			if (requiresSensitiveUnlock() && !passphrase) throw new Error('Unlock sensitive data from the header before launching with team-owned hosts.');
+			const selectedWebHost: any = selectedHost(hostSelect, 'web', 'cloudflare');
+			const selectedProcessingHost: any = selectedHost(processingHostSelect, 'processing', 'railway');
+			const selectedEmailHost: any = selectedHost(emailHostSelect, 'email', 'smtp');
+			const selectedRepoHost: any = selectedRepositoryHost();
+			if (selectedRepoHost?.ownership === 'team_owned') credentialSessions.repositoryHost = await createCredentialSession({ hostKind: 'repository_host', hostId: selectedRepoHost.id, passphrase });
+			if (selectedHostMode(hostSelect) === 'team_owned') credentialSessions.webHost = await createCredentialSession({ hostKind: 'web_host', hostId: selectedWebHost?.id ?? '', passphrase });
+			if (selectedHostMode(processingHostSelect) === 'team_owned') credentialSessions.processingHost = await createCredentialSession({ hostKind: 'processing_host', hostId: selectedProcessingHost?.id ?? '', passphrase });
+			if (selectedHostMode(emailHostSelect) === 'team_owned') credentialSessions.emailHost = await createCredentialSession({ hostKind: 'email_host', hostId: selectedEmailHost?.id ?? '', passphrase });
+			const slug = String(form.get('slug') ?? '').trim();
+			const response = await fetch(`/v1/teams/${encodeURIComponent(data.teamId)}/projects/launch`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					slug,
+					name: String(form.get('name') ?? '').trim(),
+					summary: String(form.get('summary') ?? '').trim(),
+					sourceKind: String(form.get('sourceKind') ?? 'blank'),
+					hostingMode: 'managed',
+					repoProvider: 'github',
+					repoVisibility: 'private',
+					repositoryHostId: String(form.get('repositoryHostId') ?? 'platform:github:hosted-hubs'),
+					cloudflareHostMode: selectedHostMode(hostSelect),
+					cloudflareHostId: selectedWebHost?.id ?? null,
+					processingHostMode: selectedHostMode(processingHostSelect),
+					processingHostId: selectedProcessingHost?.id ?? null,
+					emailHostMode: selectedHostMode(emailHostSelect),
+					emailHostId: selectedEmailHost?.id ?? null,
+					credentialSessions,
+					publicSite: true,
+				}),
+			});
+			const payload = await response.json().catch(() => null);
+			if (!response.ok || payload?.ok === false) throw new Error(payload?.error ?? `Project launch failed with ${response.status}`);
+			const projectId = payload?.payload?.project?.id ?? payload?.payload?.project?.project?.id ?? slug;
+			window.location.href = `/app/projects/${encodeURIComponent(projectId)}/settings`;
+		} catch (error) {
+			setStatus(error instanceof Error ? error.message : String(error));
+		}
+	});
+</script>

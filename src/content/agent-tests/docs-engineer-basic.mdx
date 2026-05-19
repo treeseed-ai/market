@@ -1,0 +1,19 @@
+---
+id: agent-test:docs-engineer-basic
+agent: treeseed-docs-engineer
+kind: handler
+fixture: packages/agent/test/fixtures/agent-tests/docs-engineer/basic
+trigger:
+  messageType: approval_request_approved
+expect:
+  status: waiting
+  messages:
+    - docs_mutation_failed
+  requiresHumanApproval: true
+tags:
+  - mutation
+  - governance
+---
+
+This test proves the docs engineer refuses to mutate without an explicit
+approved path policy.

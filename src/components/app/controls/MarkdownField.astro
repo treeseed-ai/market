@@ -1,0 +1,132 @@
+---
+interface Props {
+	label: string;
+	name: string;
+	id?: string;
+	value?: string;
+	rows?: number;
+	required?: boolean;
+	help?: string;
+	placeholder?: string;
+}
+
+const {
+	label,
+	name,
+	id = name,
+	value = '',
+	rows = 8,
+	required = false,
+	help,
+	placeholder,
+} = Astro.props as Props;
+const previewId = `${id}-preview`;
+const editorId = `${id}-editor`;
+const errorId = `${id}-error`;
+const size = rows >= 12 ? 'xl' : rows >= 8 ? 'lg' : 'md';
+---
+
+<div
+	class="ts-field ts-markdown-field"
+	data-markdown-field
+	data-markdown-required={required ? 'true' : 'false'}
+	data-markdown-error-id={errorId}
+	data-markdown-size={size}
+>
+	<div class="ts-markdown-field__header">
+		<div class="ts-markdown-field__title">
+			<label class="ts-field__label" for={editorId}>
+				<span>{label}</span>
+				{required ? <span class="ts-field__required" aria-hidden="true">*</span> : null}
+			</label>
+			{help ? <p class="ts-field__help">{help}</p> : null}
+		</div>
+		<div class="ts-markdown-field__tabs" role="tablist" aria-label={`${label} modes`}>
+			<span class="ts-markdown-field__status" data-markdown-status>Plain text</span>
+			<button class="ts-markdown-field__tab" type="button" role="tab" aria-selected="true" data-markdown-editor-tab>Edit</button>
+			<button class="ts-markdown-field__tab" type="button" role="tab" aria-selected="false" aria-controls={previewId} data-markdown-preview-tab>Preview</button>
+		</div>
+	</div>
+	<div class="ts-markdown-field__editor" data-markdown-editor-panel>
+		<div
+			class="ts-markdown-field__codemirror"
+			id={editorId}
+			role="textbox"
+			aria-label={label}
+			aria-multiline="true"
+			data-markdown-editor-host
+		></div>
+		<textarea
+			class="ts-markdown-field__textarea"
+			id={id}
+			name={name}
+			placeholder={placeholder}
+			spellcheck="true"
+			tabindex="-1"
+			data-markdown-textarea
+		>{value}</textarea>
+	</div>
+	<div class="ts-markdown-field__preview ts-prose" id={previewId} hidden data-markdown-preview-panel>
+		<p class="ts-empty-inline">Preview will appear here.</p>
+	</div>
+	<p class="ts-markdown-field__error" id={errorId} hidden data-markdown-error>{label} is required.</p>
+</div>
+
+<script is:inline>
+	(() => {
+		function debounce(callback, delay = 250) {
+			let timer = 0;
+			return (...args) => {
+				window.clearTimeout(timer);
+				timer = window.setTimeout(() => callback(...args), delay);
+			};
+		}
+		function initializeFallback(root) {
+			if (root.dataset.markdownFallbackReady === 'true') return;
+			root.dataset.markdownFallbackReady = 'true';
+			const textarea = root.querySelector('[data-markdown-textarea]');
+			const editTab = root.querySelector('[data-markdown-editor-tab]');
+			const previewTab = root.querySelector('[data-markdown-preview-tab]');
+			const editPanel = root.querySelector('[data-markdown-editor-panel]');
+			const previewPanel = root.querySelector('[data-markdown-preview-panel]');
+			if (!textarea || !editPanel || !previewPanel) return;
+			const renderPreview = debounce(async () => {
+				previewPanel.innerHTML = '<p class="ts-empty-inline">Rendering preview...</p>';
+				const response = await fetch('/api/markdown/preview', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ markdown: textarea.value }),
+				});
+				const payload = await response.json().catch(() => null);
+				previewPanel.innerHTML = response.ok && payload?.ok
+					? payload.payload.html || '<p class="ts-empty-inline">Nothing to preview.</p>'
+					: '<p class="ts-empty-inline">Preview is unavailable.</p>';
+			}, 150);
+			function selectMode(mode) {
+				const preview = mode === 'preview';
+				editTab?.setAttribute('aria-selected', preview ? 'false' : 'true');
+				previewTab?.setAttribute('aria-selected', preview ? 'true' : 'false');
+				editPanel.hidden = preview;
+				previewPanel.hidden = !preview;
+				if (preview) renderPreview();
+			}
+			editTab?.addEventListener('click', () => {
+				if (root.dataset.enhanced === 'true') return;
+				selectMode('edit');
+			});
+			previewTab?.addEventListener('click', () => {
+				if (root.dataset.enhanced === 'true') return;
+				selectMode('preview');
+			});
+		}
+		function initializeFallbacks() {
+			document.querySelectorAll('[data-markdown-field]').forEach(initializeFallback);
+		}
+		initializeFallbacks();
+		document.addEventListener('astro:page-load', initializeFallbacks);
+	})();
+</script>
+
+<script>
+	import './markdown-field.ts';
+</script>

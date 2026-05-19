@@ -1,0 +1,189 @@
+---
+import Button from '../../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import Select from '../../../../../packages/core/src/components/ui/forms/Select.astro';
+import TextInput from '../../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import { hostProviderFor } from '../../../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../../../view-models/shared.js';
+
+const hostType = String(Astro.params.hostType ?? '');
+const validTypes = new Set(['repository', 'web', 'processing', 'email', 'ai']);
+if (!Astro.locals.auth?.principal) {
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+}
+const context = await loadOperationalContext(Astro.locals, Astro);
+if (!validTypes.has(hostType)) Astro.response.status = 404;
+const team = context.activeTeam;
+const provider = hostProviderFor(hostType);
+const title = `New ${hostType} host`;
+const data = JSON.stringify({ teamId: team?.id ?? null, hostType, provider }).replace(/</gu, '\\u003c');
+---
+
+<TreeseedAppLayout title={title} description="Create one host configuration." currentPath="/app/hosts" teams={context.teams} activeTeam={team}>
+	{validTypes.has(hostType) && team ? (
+		<section class="ts-control-page" aria-label={title}>
+			<Panel eyebrow="Hosts" title={title} description="Sensitive values are encrypted in the browser using the unlock passphrase.">
+				<form id="host-create-form" class="ts-form-stack">
+					<div class="ts-form-grid">
+						<Field label="Name" name="name" required>
+							<TextInput name="name" required placeholder={`${hostType} host`} />
+						</Field>
+						<Field label="Account label" name="accountLabel">
+							<TextInput name="accountLabel" placeholder="Production account" />
+						</Field>
+						{hostType === 'repository' && (
+							<>
+								<Field label="GitHub owner or organization" name="organizationOrOwner" required>
+									<TextInput name="organizationOrOwner" required placeholder="example-org" />
+								</Field>
+								<Field label="Default visibility" name="defaultVisibility">
+									<Select name="defaultVisibility" options={[{ label: 'Private', value: 'private' }, { label: 'Public', value: 'public' }]} />
+								</Field>
+								<Field label="Software repository name template" name="softwareRepositoryNameTemplate">
+									<TextInput name="softwareRepositoryNameTemplate" value="{hub}-site" />
+								</Field>
+								<Field label="Content repository name template" name="contentRepositoryNameTemplate">
+									<TextInput name="contentRepositoryNameTemplate" value="{hub}-content" />
+								</Field>
+								<Field label="Default branch" name="defaultBranch">
+									<TextInput name="defaultBranch" value="main" />
+								</Field>
+								<Field label="GitHub token" name="githubToken" required>
+									<TextInput name="githubToken" type="password" required autocomplete="new-password" />
+								</Field>
+							</>
+						)}
+						{hostType !== 'repository' && (
+							<>
+								<Field label="Provider" name="provider" required>
+									<Select name="provider" required options={hostType === 'ai'
+										? [
+												{ label: 'OpenAI', value: 'openai' },
+												{ label: 'GitHub Copilot', value: 'github_copilot' },
+												{ label: 'OpenRouter', value: 'openrouter' },
+												{ label: 'Custom', value: 'custom' },
+											]
+										: [{ label: provider, value: provider }]} />
+								</Field>
+								<Field label="Status" name="status">
+									<Select name="status" options={[{ label: 'Active', value: 'active' }, { label: 'Paused', value: 'paused' }]} />
+								</Field>
+							</>
+						)}
+						{hostType === 'web' && (
+							<>
+								<Field label="Cloudflare account ID" name="cloudflareAccountId" required><TextInput name="cloudflareAccountId" required /></Field>
+								<Field label="Cloudflare API token" name="cloudflareApiToken" required><TextInput name="cloudflareApiToken" type="password" required autocomplete="new-password" /></Field>
+							</>
+						)}
+						{hostType === 'processing' && (
+							<>
+								<Field label="Railway API token" name="railwayApiToken" required><TextInput name="railwayApiToken" type="password" required autocomplete="new-password" /></Field>
+								<Field label="Railway workspace" name="railwayWorkspace"><TextInput name="railwayWorkspace" /></Field>
+							</>
+						)}
+						{hostType === 'email' && (
+							<>
+								<Field label="SMTP host" name="smtpHost" required><TextInput name="smtpHost" required /></Field>
+								<Field label="SMTP port" name="smtpPort" required><TextInput name="smtpPort" type="number" required value="587" /></Field>
+								<Field label="SMTP username" name="smtpUsername"><TextInput name="smtpUsername" /></Field>
+								<Field label="SMTP password" name="smtpPassword"><TextInput name="smtpPassword" type="password" autocomplete="new-password" /></Field>
+								<Field label="From email" name="smtpFromEmail"><TextInput name="smtpFromEmail" type="email" /></Field>
+								<Field label="Reply-to email" name="smtpReplyTo"><TextInput name="smtpReplyTo" type="email" /></Field>
+								<Field label="Secure mode" name="smtpSecure"><Select name="smtpSecure" options={[{ label: 'STARTTLS', value: 'false' }, { label: 'TLS', value: 'true' }]} /></Field>
+							</>
+						)}
+						{hostType === 'ai' && (
+							<>
+								<Field label="API key" name="aiApiKey" required><TextInput name="aiApiKey" type="password" required autocomplete="new-password" /></Field>
+								<Field label="Base URL" name="aiBaseUrl"><TextInput name="aiBaseUrl" type="url" /></Field>
+								<Field label="Default model" name="aiDefaultModel"><TextInput name="aiDefaultModel" /></Field>
+							</>
+						)}
+					</div>
+					<FormActions align="start">
+						<Button type="submit">Create host</Button>
+						<Button href="/app/hosts" variant="secondary">Cancel</Button>
+						<span class="ts-subtle" id="host-create-status" role="status"></span>
+					</FormActions>
+				</form>
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title={team ? 'Unknown host type' : 'No active team'} description={team ? 'Choose a supported host type.' : 'Create or switch to a team before adding hosts.'} actions={[{ label: 'Back to hosts', href: '/app/hosts' }]} />
+	)}
+	<script is:inline type="application/json" id="host-create-data" set:html={data}></script>
+</TreeseedAppLayout>
+
+<script>
+	import { encryptHostConfig } from '../../../../lib/cloudflare-host-crypto.js';
+	const dataElement = document.getElementById('host-create-data');
+	const pageData = dataElement?.textContent ? JSON.parse(dataElement.textContent) : {};
+	const form = document.getElementById('host-create-form') as HTMLFormElement | null;
+	const status = document.getElementById('host-create-status');
+	function value(formData: FormData, key: string) {
+		return String(formData.get(key) ?? '').trim();
+	}
+	function credentialConfig(formData: FormData, hostType: string) {
+		if (hostType === 'repository') {
+			const token = value(formData, 'githubToken');
+			return { GH_TOKEN: token, GITHUB_TOKEN: token, organizationOrOwner: value(formData, 'organizationOrOwner'), owner: value(formData, 'organizationOrOwner') };
+		}
+		if (hostType === 'web') return { CLOUDFLARE_ACCOUNT_ID: value(formData, 'cloudflareAccountId'), CLOUDFLARE_API_TOKEN: value(formData, 'cloudflareApiToken') };
+		if (hostType === 'processing') return { RAILWAY_API_TOKEN: value(formData, 'railwayApiToken'), TREESEED_RAILWAY_WORKSPACE: value(formData, 'railwayWorkspace') };
+		if (hostType === 'email') return { SMTP_HOST: value(formData, 'smtpHost'), SMTP_PORT: value(formData, 'smtpPort'), SMTP_USERNAME: value(formData, 'smtpUsername'), SMTP_PASSWORD: value(formData, 'smtpPassword'), SMTP_FROM_EMAIL: value(formData, 'smtpFromEmail'), SMTP_REPLY_TO: value(formData, 'smtpReplyTo'), SMTP_SECURE: value(formData, 'smtpSecure') };
+		return { AI_API_KEY: value(formData, 'aiApiKey'), AI_BASE_URL: value(formData, 'aiBaseUrl'), AI_DEFAULT_MODEL: value(formData, 'aiDefaultModel'), AI_PROVIDER: value(formData, 'provider') };
+	}
+	async function submitJson(url: string, method: string, body: any) {
+		const response = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) throw new Error(payload?.error ?? 'Request failed.');
+		return payload.payload;
+	}
+	form?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const formData = new FormData(form);
+		const passphrase = (window as any).treeseedSensitiveUnlock?.requirePassphrase?.();
+		if (!passphrase) {
+			if (status) status.textContent = 'Unlock sensitive data before saving this host.';
+			return;
+		}
+		if (status) status.textContent = 'Encrypting...';
+		try {
+			const encryptedPayload = await encryptHostConfig(credentialConfig(formData, pageData.hostType), String(passphrase));
+			if (pageData.hostType === 'repository') {
+				await submitJson(`/v1/teams/${encodeURIComponent(pageData.teamId)}/repository-hosts`, 'POST', {
+					name: value(formData, 'name'),
+					accountLabel: value(formData, 'accountLabel'),
+					organizationOrOwner: value(formData, 'organizationOrOwner'),
+					defaultVisibility: value(formData, 'defaultVisibility') || 'private',
+					softwareRepositoryNameTemplate: value(formData, 'softwareRepositoryNameTemplate') || '{hub}-site',
+					contentRepositoryNameTemplate: value(formData, 'contentRepositoryNameTemplate') || '{hub}-content',
+					branchPolicy: { defaultBranch: value(formData, 'defaultBranch') || 'main' },
+					workflowPolicy: {},
+					allowedProjectKinds: ['knowledge_hub'],
+					status: 'active',
+					ownership: 'team_owned',
+					encryptedPayload,
+				});
+			} else {
+				await submitJson(`/v1/teams/${encodeURIComponent(pageData.teamId)}/hosts`, 'POST', {
+					name: value(formData, 'name'),
+					accountLabel: value(formData, 'accountLabel'),
+					provider: value(formData, 'provider') || pageData.provider,
+					ownership: 'team_owned',
+					status: value(formData, 'status') || 'active',
+					metadata: { hostType: pageData.hostType },
+					encryptedPayload,
+				});
+			}
+			window.location.href = '/app/hosts';
+		} catch (error) {
+			if (status) status.textContent = error instanceof Error ? error.message : 'Host could not be saved.';
+		}
+	});
+</script>

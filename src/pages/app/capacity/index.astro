@@ -1,0 +1,40 @@
+---
+import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../components/app/controls/PlainTable.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../../view-models/shared.js';
+
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/capacity')}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+const team = context.activeTeam;
+const providers = team && context.store ? await context.store.listTeamCapacityProviders(team.id).catch(() => []) : [];
+const rows = providers.map((provider: any) => ({
+	id: `provider-${esc(provider.id)}`,
+	name: `<strong>${esc(provider.name)}</strong><span>${esc(provider.provider ?? provider.kind ?? 'custom')}</span>`,
+	budget: esc(`${provider.dailyCreditBudget ?? 0} daily / ${provider.monthlyCreditBudget ?? 0} monthly`),
+	status: esc(provider.status ?? 'active'),
+	actions: `<a class="ts-link-button" href="/app/capacity/providers/${encodeURIComponent(provider.id)}/edit">Edit</a> <a class="ts-link-button" href="/app/capacity/providers/${encodeURIComponent(provider.id)}/lanes">Lanes</a> <a class="ts-link-button" href="/app/capacity/providers/${encodeURIComponent(provider.id)}/keys">Keys</a>`,
+}));
+---
+
+<TreeseedAppLayout title="Capacity" description="Manage pluggable processors for the active team." currentPath={Astro.url.pathname} teams={context.teams} activeTeam={team}>
+	<section class="ts-control-page" aria-label="Capacity">
+		<Panel eyebrow="Capacity" title="Providers" description={team ? 'Create and edit processing capacity providers.' : 'Create a team before adding capacity.'}>
+			<Button slot="actions" href="/app/capacity/providers/new" size="sm">New provider</Button>
+			<Button slot="actions" href="/app/capacity/grants" size="sm" variant="secondary">Grants</Button>
+			{team ? (
+				<PlainTable columns={[
+					{ key: 'name', label: 'Provider' },
+					{ key: 'budget', label: 'Budget' },
+					{ key: 'status', label: 'Status' },
+					{ key: 'actions', label: 'Actions' },
+				]} rows={rows} emptyTitle="No providers yet" emptyDescription="Create a provider to make processing capacity available." />
+			) : (
+				<EmptyState title="No team selected" description="Create or switch to a team first." actions={[{ label: 'Open Team', href: '/app/teams' }]} />
+			)}
+		</Panel>
+	</section>
+</TreeseedAppLayout>

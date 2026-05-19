@@ -6,6 +6,21 @@ Last updated: 2026-05-13
 
 ---
 
+## Processing Parity Update
+
+Capacity scheduling now sits behind the same processing role contract used by
+manager and worker parity. `@treeseed/agent` owns the built processing runtime,
+including `treeseed-processing`, manager, worker, runtime paths, doctor, plan,
+and built-in handlers. Market supplies the tenant agent specs and capacity
+configuration consumed by that runtime.
+
+Parity-mode workers must use `/data` storage, including
+`/data/repositories/<repository-id>/bare.git`,
+`/data/repositories/<repository-id>/worktrees/<task-id>`,
+`/data/runners/<runner-id>`, and `/data/tmp`. Loop-mode managers, source-mode
+TypeScript execution, stub providers in hosted environments, and non-`/data`
+worker roots should appear as non-parity behavior in processing reports.
+
 # Purpose
 
 This document defines a coherent implementation plan for evolving TreeSeed into:
@@ -979,7 +994,7 @@ Implementation status:
 * Phase 1 through Phase 5 are implemented in the SDK, agent runtime, and market control-plane surfaces.
 * Post-phase roadmap items are implemented as metadata-driven capacity extensions without additional schema migrations.
 * Comprehensive capacity scheduling E2E coverage now verifies classification, admission, routing, estimate learning, bounded planning, interruption recovery, backfill/idling, attention/utility metadata, and hybrid escalation behavior.
-* Market UI operator surfaces now include team-level provider/grant administration and a project-level Capacity console for readiness, pressure, routing decisions, active reservations, learned estimates, usage actuals, approvals, checkpointed interruptions, and manual budgeted work submission through admission.
+* Infrastructure operator surfaces now include capacity provider and grant administration, readiness, pressure, routing decisions, active reservations, learned estimates, usage actuals, approvals, checkpointed interruptions, and manual budgeted work submission through admission.
 
 # Phase 1 — Runtime Classification
 

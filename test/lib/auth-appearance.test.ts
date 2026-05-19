@@ -126,12 +126,11 @@ describe('anonymous auth appearance', () => {
 		});
 	});
 
-	it('renders register appearance fields with the core theme selector', () => {
+	it('keeps the register page free of the appearance selector', () => {
 		const source = readFileSync(resolve(process.cwd(), 'src/pages/auth/register.astro'), 'utf8');
-		expect(source).toContain('Default appearance');
-		expect(source).toContain('includeHiddenFields={true}');
-		expect(source).toContain('schemeFieldName="colorScheme"');
-		expect(source).toContain('modeFieldName="themeMode"');
+		expect(source).toContain('showAppearance={false}');
+		expect(source).not.toContain('Default appearance');
+		expect(source).not.toContain('includeHiddenFields={true}');
 	});
 
 	it('returns anonymous defaults when no preference database is available', async () => {

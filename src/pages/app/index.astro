@@ -1,32 +1,38 @@
 ---
+import Panel from '../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../layouts/TreeseedAppLayout.astro';
-import { loadAccessibleTeams } from '../../lib/market/store.js';
+import { escapeHtml as esc } from '../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../view-models/shared.js';
 
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/')}`);
 }
 
-const teams = await loadAccessibleTeams(Astro.locals);
-if (teams[0]) {
-	return Astro.redirect(`/app/teams/${teams[0].name}/home`);
-}
+const context = await loadOperationalContext(Astro.locals, Astro);
+const rows = [
+	{ step: '1', name: '<strong>Hosts</strong><span>Add repository, web, processing, email, and AI host credentials.</span>', action: '<a class="ts-link-button" href="/app/hosts">Open Hosts</a>' },
+	{ step: '2', name: '<strong>Projects</strong><span>Create hosted projects and manage their settings.</span>', action: '<a class="ts-link-button" href="/app/projects">Open Projects</a>' },
+	{ step: '3', name: '<strong>Capacity</strong><span>Manage pluggable processors, lanes, keys, and grants.</span>', action: '<a class="ts-link-button" href="/app/capacity">Open Capacity</a>' },
+	{ step: '4', name: '<strong>Work</strong><span>Review objectives, questions, notes, proposals, and decisions.</span>', action: '<a class="ts-link-button" href="/app/work/objectives">Open Work</a>' },
+	{ step: '5', name: '<strong>Knowledge</strong><span>Review, package, publish, and share artifacts.</span>', action: '<a class="ts-link-button" href="/app/knowledge/artifacts">Open Knowledge</a>' },
+];
 ---
 
 <TreeseedAppLayout
-	title="Create Your First Team"
-	description="Teams organize projects, members, and public profiles. Create one when you are ready to start building."
+	title="Start"
+	description="Follow the setup path. Each page has one job."
 	currentPath={Astro.url.pathname}
-	teams={teams}
-	activeTeam={null}
+	teams={context.teams}
+	activeTeam={context.activeTeam}
 >
-	<section class="ts-panel">
-		<div class="ts-panel__header">
-			<div>
-				<p class="ts-section__eyebrow">No teams yet</p>
-				<h2>Start with a team</h2>
-				<p>Create a team to launch projects, invite collaborators, and publish a public team profile.</p>
-			</div>
-			<a class="ts-button" href="/app/teams/new">Create new team</a>
-		</div>
+	<section class="ts-control-page" aria-label="Start">
+		<Panel eyebrow="Start" title="Choose the next control" description={context.activeTeam ? `Active team: ${esc(context.activeTeam.displayName ?? context.activeTeam.name)}` : 'Create a team first.'}>
+			<PlainTable columns={[
+				{ key: 'step', label: 'Step' },
+				{ key: 'name', label: 'Control' },
+				{ key: 'action', label: 'Action' },
+			]} rows={rows} />
+		</Panel>
 	</section>
 </TreeseedAppLayout>

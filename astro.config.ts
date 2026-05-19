@@ -18,6 +18,23 @@ export default {
 			...(config.vite?.build ?? {}),
 			chunkSizeWarningLimit: Math.max(config.vite?.build?.chunkSizeWarningLimit ?? 0, 1200),
 		},
+		optimizeDeps: {
+			...(config.vite?.optimizeDeps ?? {}),
+			include: Array.from(new Set([
+				...(config.vite?.optimizeDeps?.include ?? []),
+				'codemirror',
+				'@codemirror/commands',
+				'@codemirror/lang-markdown',
+				'@codemirror/language',
+				'@codemirror/state',
+				'@codemirror/view',
+				'@lezer/highlight',
+			])),
+			exclude: Array.from(new Set([
+				...(config.vite?.optimizeDeps?.exclude ?? []),
+				'libsodium-wrappers-sumo',
+			])),
+		},
 		plugins: [
 			...vitePlugins,
 			{

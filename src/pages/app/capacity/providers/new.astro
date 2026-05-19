@@ -1,0 +1,74 @@
+---
+import Button from '../../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import Select from '../../../../../packages/core/src/components/ui/forms/Select.astro';
+import TextInput from '../../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import { loadOperationalContext } from '../../../../view-models/shared.js';
+
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/capacity/providers/new')}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+const team = context.activeTeam;
+---
+
+<TreeseedAppLayout title="New capacity provider" description="Create one processing capacity provider." currentPath="/app/capacity" teams={context.teams} activeTeam={team}>
+	{team ? (
+		<section class="ts-control-page" aria-label="New capacity provider">
+			<Panel eyebrow="Capacity" title="Create provider" description="Set budgets and concurrency for one provider.">
+				<form id="provider-form" class="ts-form-stack">
+					<div class="ts-form-grid">
+						<Field label="Name" name="name" required><TextInput name="name" required /></Field>
+						<Field label="Provider" name="provider" required><TextInput name="provider" required value="custom" /></Field>
+						<Field label="Kind" name="kind"><Select name="kind" options={[{ label: 'Team owned', value: 'team_owned' }, { label: 'Managed', value: 'managed' }, { label: 'Host backed', value: 'host_backed' }]} /></Field>
+						<Field label="Status" name="status"><Select name="status" options={[{ label: 'Active', value: 'active' }, { label: 'Paused', value: 'paused' }, { label: 'Draining', value: 'draining' }]} /></Field>
+						<Field label="Billing scope" name="billingScope"><Select name="billingScope" options={[{ label: 'Team', value: 'team' }, { label: 'Project', value: 'project' }]} /></Field>
+						<Field label="Daily credit budget" name="dailyCreditBudget"><TextInput name="dailyCreditBudget" type="number" value="0" /></Field>
+						<Field label="Monthly credit budget" name="monthlyCreditBudget"><TextInput name="monthlyCreditBudget" type="number" value="0" /></Field>
+						<Field label="Max concurrent workdays" name="maxConcurrentWorkdays"><TextInput name="maxConcurrentWorkdays" type="number" value="1" /></Field>
+						<Field label="Max concurrent workers" name="maxConcurrentWorkers"><TextInput name="maxConcurrentWorkers" type="number" value="1" /></Field>
+					</div>
+					<FormActions align="start"><Button type="submit">Create provider</Button><Button href="/app/capacity" variant="secondary">Cancel</Button><span class="ts-subtle" id="provider-status" role="status"></span></FormActions>
+				</form>
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="No active team" description="Create or switch to a team before adding capacity." actions={[{ label: 'Open Team', href: '/app/teams' }]} />
+	)}
+</TreeseedAppLayout>
+
+<script is:inline define:vars={{ teamId: team?.id ?? '' }}>
+	const form = document.getElementById('provider-form');
+	const status = document.getElementById('provider-status');
+	function numberValue(data, key) { return Number(data.get(key) ?? 0); }
+	form?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const data = new FormData(form);
+		if (status) status.textContent = 'Creating...';
+		const response = await fetch(`/v1/teams/${encodeURIComponent(teamId)}/capacity-providers`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				name: String(data.get('name') ?? '').trim(),
+				provider: String(data.get('provider') ?? 'custom').trim(),
+				kind: String(data.get('kind') ?? 'team_owned'),
+				status: String(data.get('status') ?? 'active'),
+				billingScope: String(data.get('billingScope') ?? 'team'),
+				dailyCreditBudget: numberValue(data, 'dailyCreditBudget'),
+				monthlyCreditBudget: numberValue(data, 'monthlyCreditBudget'),
+				maxConcurrentWorkdays: numberValue(data, 'maxConcurrentWorkdays'),
+				maxConcurrentWorkers: numberValue(data, 'maxConcurrentWorkers'),
+				capacityModel: {},
+				metadata: {},
+			}),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			if (status) status.textContent = payload?.error ?? 'Provider could not be created.';
+			return;
+		}
+		window.location.href = '/app/capacity';
+	});
+</script>

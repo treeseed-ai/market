@@ -16,7 +16,7 @@ resources:
       slug: treeseed
       name: treeseed
       displayName: TreeSeed
-      profileSummary: TreeSeed platform, market, SDK, CLI, core, and agent operations.
+      profileSummary: TreeSeed platform market, integrated package, and agent operations.
 
   projects:
     - key: project:treeseed/market
@@ -33,70 +33,6 @@ resources:
         gitUrl: https://github.com/knowledge-coop/market.git
         defaultBranch: main
         checkoutPath: .
-
-    - key: project:treeseed/sdk
-      team: team:treeseed
-      slug: sdk
-      name: TreeSeed SDK
-      description: SDK package for platform operations and project automation.
-      kind: package
-      repository:
-        role: package
-        provider: github
-        owner: treeseed-ai
-        name: sdk
-        gitUrl: https://github.com/treeseed-ai/sdk.git
-        defaultBranch: main
-        checkoutPath: packages/sdk
-        submodulePath: packages/sdk
-
-    - key: project:treeseed/core
-      team: team:treeseed
-      slug: core
-      name: TreeSeed Core
-      description: Core Knowledge Hub runtime, templates, and web platform package.
-      kind: package
-      repository:
-        role: package
-        provider: github
-        owner: treeseed-ai
-        name: core
-        gitUrl: https://github.com/treeseed-ai/core.git
-        defaultBranch: main
-        checkoutPath: packages/core
-        submodulePath: packages/core
-
-    - key: project:treeseed/cli
-      team: team:treeseed
-      slug: cli
-      name: TreeSeed CLI
-      description: Command-line interface for TreeSeed operations.
-      kind: package
-      repository:
-        role: package
-        provider: github
-        owner: treeseed-ai
-        name: cli
-        gitUrl: https://github.com/treeseed-ai/cli.git
-        defaultBranch: main
-        checkoutPath: packages/cli
-        submodulePath: packages/cli
-
-    - key: project:treeseed/agent
-      team: team:treeseed
-      slug: agent
-      name: TreeSeed Agent
-      description: Agent execution, workday orchestration, and processing runtime.
-      kind: package
-      repository:
-        role: package
-        provider: github
-        owner: treeseed-ai
-        name: agent
-        gitUrl: https://github.com/treeseed-ai/agent.git
-        defaultBranch: main
-        checkoutPath: packages/agent
-        submodulePath: packages/agent
 
   capacityProviders:
     - key: capacity-provider:treeseed/local-dev
@@ -210,54 +146,6 @@ resources:
       priorityWeight: 8
       overflowPolicy: approval_required
 
-    - key: grant:treeseed/prod/sdk
-      environments: [prod]
-      provider: capacity-provider:treeseed/production
-      team: team:treeseed
-      project: project:treeseed/sdk
-      environment: prod
-      grantScope: project
-      dailyCreditLimit: 1000
-      monthlyCreditLimit: 10000
-      priorityWeight: 6
-      overflowPolicy: approval_required
-
-    - key: grant:treeseed/prod/core
-      environments: [prod]
-      provider: capacity-provider:treeseed/production
-      team: team:treeseed
-      project: project:treeseed/core
-      environment: prod
-      grantScope: project
-      dailyCreditLimit: 1000
-      monthlyCreditLimit: 10000
-      priorityWeight: 6
-      overflowPolicy: approval_required
-
-    - key: grant:treeseed/prod/cli
-      environments: [prod]
-      provider: capacity-provider:treeseed/production
-      team: team:treeseed
-      project: project:treeseed/cli
-      environment: prod
-      grantScope: project
-      dailyCreditLimit: 500
-      monthlyCreditLimit: 5000
-      priorityWeight: 4
-      overflowPolicy: approval_required
-
-    - key: grant:treeseed/prod/agent
-      environments: [prod]
-      provider: capacity-provider:treeseed/production
-      team: team:treeseed
-      project: project:treeseed/agent
-      environment: prod
-      grantScope: project
-      dailyCreditLimit: 1000
-      monthlyCreditLimit: 10000
-      priorityWeight: 8
-      overflowPolicy: approval_required
-
   workPolicies:
     - key: work-policy:treeseed/local/market
       environments: [local]
@@ -306,19 +194,6 @@ resources:
       ownership: treeseed_managed
       accountLabel: Knowledge Coop GitHub organization
       organizationOrOwner: knowledge-coop
-      defaultVisibility: public
-      softwareRepositoryNameTemplate: "{project}"
-      contentRepositoryNameTemplate: "{project}-content"
-      allowedProjectKinds: [market_app, package, knowledge_hub]
-      status: active
-
-    - key: repository-host:treeseed/github
-      team: team:treeseed
-      provider: github
-      name: treeseed-ai
-      ownership: treeseed_managed
-      accountLabel: TreeSeed AI GitHub organization
-      organizationOrOwner: treeseed-ai
       defaultVisibility: public
       softwareRepositoryNameTemplate: "{project}"
       contentRepositoryNameTemplate: "{project}-content"

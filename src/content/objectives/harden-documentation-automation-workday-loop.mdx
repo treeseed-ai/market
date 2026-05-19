@@ -1,0 +1,26 @@
+---
+id: objective:harden-documentation-automation-workday-loop
+title: Harden Documentation Automation Workday Loop
+description: Make the local TreeSeed documentation automation loop observable, approval-gated, resumable, and able to produce governed content changes.
+date: 2026-05-17
+summary: Documentation automation should turn source evidence into managed objectives, questions, drafts, approvals, mutations, verification, and workday reports.
+status: planned
+timeHorizon: near-term
+motivation: The loop must prove TreeSeed can coordinate agent work without bypassing human governance or writing outside approved documentation paths.
+primaryContributor: market-steward
+relatedQuestions:
+  - how-should-docs-workday-start-from-objectives
+  - what-evidence-should-knowledge-drafts-carry
+  - how-should-approval-gates-control-docs-mutation
+  - how-should-work-ui-supervise-documentation-content
+relatedBooks:
+  - market-architecture
+dependsOn:
+  - knowledge/agent-runtime/workdays/agent-runtime-workday
+  - knowledge/documentation-automation/research-to-knowledge/code-evidence
+  - knowledge/governance/approvals/state-flow
+---
+
+This objective is the first planning anchor for the TreeSeed documentation automation dogfood loop.
+
+The work is not simply to generate prose. The system should prove that documentation agents can discover source evidence, persist research and drafts, request human approval, apply only policy-allowed content changes, verify the result, and make the state legible in the operational UI.

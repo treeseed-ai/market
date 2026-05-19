@@ -20,17 +20,17 @@ const Content = contentRender?.Content;
 ---
 
 <TreeseedPublicLayout
-	title={`${template.item?.title ?? 'Template'} | TreeSeed`}
-	description={template.item?.description ?? 'TreeSeed template detail'}
+	title={`${template.item?.title ?? 'Workflow import'} | TreeSeed`}
+	description={template.item?.description ?? 'TreeSeed workflow import detail'}
 	currentPath={Astro.url.pathname}
 >
 	<Panel
-		eyebrow="Template"
-		title={template.item?.title ?? 'Unknown template'}
-		description={template.item?.description ?? 'This template could not be resolved.'}
+		eyebrow="Workflow Import"
+		title={template.item?.title ?? 'Unknown workflow import'}
+		description={template.item?.description ?? 'This workflow import could not be resolved.'}
 	>
 		<div class="ts-badges">
-			<Badge tone="muted">{template.item?.category ?? 'Template'}</Badge>
+			<Badge tone="muted">{template.item?.category ?? 'Workflow import'}</Badge>
 			{template.item?.compatibility.templateVersion ? <Badge tone="muted">v{template.item.compatibility.templateVersion}</Badge> : null}
 			{template.item?.priceModel ? <Badge tone="muted">{template.item.priceModel.replaceAll('_', ' ')}</Badge> : null}
 		</div>
@@ -38,15 +38,15 @@ const Content = contentRender?.Content;
 
 	{template.item ? (
 		<section class="ts-section-grid ts-stack-top">
-			<Panel title="Compatibility" description="Version and runtime expectations for this template.">
+			<Panel title="Compatibility" description="Version and runtime expectations for this workflow import.">
 				<KeyValueList items={[
-					{ key: 'Template version', value: template.item.compatibility.templateVersion ?? 'unknown' },
-					{ key: 'Template API', value: template.item.compatibility.templateApiVersion ?? 'unknown' },
+					{ key: 'Import version', value: template.item.compatibility.templateVersion ?? 'unknown' },
+					{ key: 'Import API', value: template.item.compatibility.templateApiVersion ?? 'unknown' },
 					{ key: 'Minimum CLI', value: template.item.compatibility.minCliVersion ?? 'unknown' },
 					{ key: 'Minimum core', value: template.item.compatibility.minCoreVersion ?? 'unknown' },
 				]} />
 			</Panel>
-			<Panel title="Fulfillment" description="Where this template comes from and how it should be installed.">
+			<Panel title="Fulfillment" description="Where this workflow import comes from and how it should be installed.">
 				<KeyValueList items={[
 					{ key: 'Mode', value: template.item.fulfillment.mode ?? 'unknown' },
 					{ key: 'Source', value: template.item.fulfillment.sourceLabel ?? 'unknown' },

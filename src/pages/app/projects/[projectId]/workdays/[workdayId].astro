@@ -1,0 +1,73 @@
+---
+import Badge from '../../../../../../packages/core/src/components/ui/data/Badge.astro';
+import KeyValueList from '../../../../../../packages/core/src/components/ui/data/KeyValueList.astro';
+import EmptyState from '../../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../../../components/app/controls/PlainTable.astro';
+import ProjectControlNav from '../../../../../components/app/controls/ProjectControlNav.astro';
+import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
+import { buildWorkdayProjection } from '../../../../../lib/market/workday-projection.js';
+import { escapeHtml as esc } from '../../../../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../../../../view-models/shared.js';
+
+const projectParam = String(Astro.params.projectId ?? '');
+const workdayId = String(Astro.params.workdayId ?? '');
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
+const projection = project && context.store ? await buildWorkdayProjection({ store: context.store, principal: context.principal, projects: [project], workdayId }).catch(() => null) : null;
+if (!project || !projection) Astro.response.status = 404;
+const workday = projection?.workday ?? null;
+const agentRows = (projection?.agentActivity ?? []).map((agent: any) => ({
+	id: `agent-${esc(agent.id)}`,
+	name: `<strong>${esc(agent.name)}</strong><span>${esc(agent.id)}</span>`,
+	tasks: esc(agent.taskCount ?? 0),
+	completed: esc(agent.completedCount ?? 0),
+	failed: esc(agent.failedCount ?? 0),
+	action: `<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project?.id ?? '')}/agents/${encodeURIComponent(agent.id)}">Open agent</a>`,
+}));
+const timelineRows = (projection?.timeline ?? []).slice(-80).map((event: any) => ({
+	id: `event-${esc(event.id)}`,
+	name: `<strong>${esc(event.title)}</strong><span>${esc(event.description ?? '')}</span>`,
+	phase: esc(event.phase ?? event.category ?? ''),
+	state: esc(event.state ?? ''),
+	time: esc(event.timestamp ?? ''),
+}));
+const artifactRows = (projection?.artifacts ?? []).map((artifact: any) => ({
+	id: `artifact-${esc(artifact.id)}`,
+	name: `<strong>${esc(artifact.title)}</strong><span>${esc(artifact.description ?? artifact.type ?? '')}</span>`,
+	type: esc(artifact.type),
+	state: esc(artifact.state ?? ''),
+	action: artifact.href ? `<a class="ts-link-button" href="${esc(artifact.href)}">Open</a>` : '',
+}));
+const capacity = projection?.capacity ?? {};
+---
+
+<TreeseedAppLayout title={workday?.objective ?? 'Workday'} description="Agent workday dashboard." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+	{project && projection ? (
+		<section class="ts-control-page" aria-label="Workday detail">
+			<ProjectControlNav projectId={project.id} current="workdays" />
+			<Panel eyebrow="Workday" title={workday.objective ?? workday.id} description={workday.id}>
+				<Badge slot="actions" tone={workday.tone ?? 'default'}>{workday.state}</Badge>
+				<KeyValueList items={[
+					{ key: 'Project', value: project.name ?? project.slug },
+					{ key: 'Started', value: workday.startedAt ?? 'not recorded' },
+					{ key: 'Ended', value: workday.endedAt ?? 'not recorded' },
+					{ key: 'Credits used', value: String(workday.budget?.capacityUsed ?? capacity?.usedCredits ?? 0) },
+					{ key: 'Credit budget', value: String(workday.budget?.capacityBudget ?? capacity?.dailyCreditLimit ?? 0) },
+				]} />
+			</Panel>
+			<Panel eyebrow="Agents" title="Agent activity" description="Tasks, completions, and failures grouped by agent for this workday.">
+				<PlainTable columns={[{ key: 'name', label: 'Agent' }, { key: 'tasks', label: 'Tasks' }, { key: 'completed', label: 'Completed' }, { key: 'failed', label: 'Failed' }, { key: 'action', label: 'Action' }]} rows={agentRows} emptyTitle="No agent activity" emptyDescription="Agent activity appears after tasks are recorded for this workday." interactive={true} pageSize={10} searchLabel="Filter agents" />
+			</Panel>
+			<Panel eyebrow="Logs" title="Timeline" description="Recent task, governance, artifact, and knowledge events.">
+				<PlainTable columns={[{ key: 'name', label: 'Event' }, { key: 'phase', label: 'Phase' }, { key: 'state', label: 'State' }, { key: 'time', label: 'Time' }]} rows={timelineRows} emptyTitle="No events" emptyDescription="Task and governance events appear here when the worker records them." interactive={true} pageSize={20} searchLabel="Filter timeline" />
+			</Panel>
+			<Panel eyebrow="Outputs" title="Artifacts" description="Generated notes, drafts, reports, mutation results, and verification artifacts.">
+				<PlainTable columns={[{ key: 'name', label: 'Artifact' }, { key: 'type', label: 'Type' }, { key: 'state', label: 'State' }, { key: 'action', label: 'Action' }]} rows={artifactRows} emptyTitle="No artifacts" emptyDescription="Artifacts appear here when agents write task outputs." interactive={true} pageSize={10} searchLabel="Filter artifacts" />
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="Workday not found" description="This workday is not available for the selected project." actions={[{ label: 'Back to Workdays', href: project ? `/app/projects/${project.id}/workdays` : '/app/projects' }]} />
+	)}
+</TreeseedAppLayout>

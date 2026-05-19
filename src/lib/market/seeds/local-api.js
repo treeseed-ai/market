@@ -1,18 +1,19 @@
 import { NodeSqliteD1Database } from '@treeseed/sdk/db/node-sqlite';
 import { createMarketApiApp } from '../../../api/app.js';
-import { resolveLocalSeedPersistTo } from './apply.js';
+import { resolveLocalSeedEnv, resolveLocalSeedPersistTo } from './apply.js';
 
 function localApiConfig(projectRoot, env = process.env) {
+	const localEnv = resolveLocalSeedEnv(projectRoot, env);
 	return {
 		repoRoot: projectRoot,
-		projectId: env.TREESEED_PROJECT_ID ?? 'treeseed-market',
-		baseUrl: String(env.TREESEED_MARKET_API_BASE_URL ?? 'http://127.0.0.1:3000').replace(/\/+$/u, ''),
-		issuer: String(env.TREESEED_API_ISSUER ?? env.TREESEED_MARKET_API_BASE_URL ?? 'http://127.0.0.1:3000').replace(/\/+$/u, ''),
-		authSecret: env.TREESEED_AUTH_SECRET ?? env.TREESEED_API_AUTH_SECRET ?? env.TREESEED_BETTER_AUTH_SECRET ?? 'treeseed-local-seed-auth-secret',
-		webAssertionSecret: env.TREESEED_WEB_ASSERTION_SECRET ?? env.TREESEED_API_WEB_ASSERTION_SECRET ?? 'treeseed-local-seed-assertion-secret',
-		webServiceId: env.TREESEED_WEB_SERVICE_ID ?? env.TREESEED_API_SERVICE_ID ?? 'web',
-		webServiceSecret: env.TREESEED_WEB_SERVICE_SECRET ?? env.TREESEED_API_SERVICE_SECRET ?? 'treeseed-local-seed-service-secret',
-		projectApiKey: env.TREESEED_PROJECT_API_KEY,
+		projectId: localEnv.TREESEED_PROJECT_ID ?? 'treeseed-market',
+		baseUrl: String(localEnv.TREESEED_MARKET_API_BASE_URL ?? 'http://127.0.0.1:3000').replace(/\/+$/u, ''),
+		issuer: String(localEnv.TREESEED_API_ISSUER ?? localEnv.TREESEED_MARKET_API_BASE_URL ?? 'http://127.0.0.1:3000').replace(/\/+$/u, ''),
+		authSecret: localEnv.TREESEED_AUTH_SECRET ?? localEnv.TREESEED_API_AUTH_SECRET ?? localEnv.TREESEED_BETTER_AUTH_SECRET ?? 'treeseed-local-seed-auth-secret',
+		webAssertionSecret: localEnv.TREESEED_WEB_ASSERTION_SECRET ?? localEnv.TREESEED_API_WEB_ASSERTION_SECRET ?? 'treeseed-local-seed-assertion-secret',
+		webServiceId: localEnv.TREESEED_WEB_SERVICE_ID ?? localEnv.TREESEED_API_SERVICE_ID ?? 'web',
+		webServiceSecret: localEnv.TREESEED_WEB_SERVICE_SECRET ?? localEnv.TREESEED_API_WEB_SERVICE_SECRET ?? localEnv.TREESEED_API_SERVICE_SECRET ?? 'treeseed-local-seed-service-secret',
+		projectApiKey: localEnv.TREESEED_PROJECT_API_KEY,
 		providers: {
 			auth: 'd1',
 		},
@@ -55,9 +56,10 @@ async function jsonRequest(app, path, input, body = {}) {
 }
 
 async function requestLocalSeedApi(input, endpoint) {
-	const db = new NodeSqliteD1Database(await resolveLocalSeedPersistTo(input.projectRoot, input.env));
+	const localEnv = resolveLocalSeedEnv(input.projectRoot, input.env);
+	const db = new NodeSqliteD1Database(await resolveLocalSeedPersistTo(input.projectRoot, localEnv));
 	try {
-		const config = localApiConfig(input.projectRoot, input.env);
+		const config = localApiConfig(input.projectRoot, localEnv);
 		const app = createMarketApiApp({ config, db });
 		return await jsonRequest(app, `/v1/seeds/${encodeURIComponent(input.seedName)}/${endpoint}`, input, seedRequestBody(input));
 	} finally {
@@ -66,9 +68,10 @@ async function requestLocalSeedApi(input, endpoint) {
 }
 
 async function requestLocalSeedExport(input) {
-	const db = new NodeSqliteD1Database(await resolveLocalSeedPersistTo(input.projectRoot, input.env));
+	const localEnv = resolveLocalSeedEnv(input.projectRoot, input.env);
+	const db = new NodeSqliteD1Database(await resolveLocalSeedPersistTo(input.projectRoot, localEnv));
 	try {
-		const config = localApiConfig(input.projectRoot, input.env);
+		const config = localApiConfig(input.projectRoot, localEnv);
 		const app = createMarketApiApp({ config, db });
 		let teamId = input.team;
 		const teamsResponse = await app.request('/v1/teams', {

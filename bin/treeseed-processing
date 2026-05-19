@@ -1,0 +1,3 @@
+#!/usr/bin/env node
+
+import '../packages/agent/dist/scripts/treeseed-processing.js';

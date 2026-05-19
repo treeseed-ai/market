@@ -1,0 +1,51 @@
+---
+import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../components/app/controls/PlainTable.astro';
+import WorkContentNav from '../../../components/app/controls/WorkContentNav.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
+import { loadGovernanceViewModel } from '../../../view-models/governance.vm.js';
+import { loadKnowledgeViewModel } from '../../../view-models/knowledge.vm.js';
+import { loadWorkContentEntries, workContentEntriesFor, workContentRelationSummary } from '../../../view-models/work-content.js';
+
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/work/questions')}`);
+const [governance, knowledge, contentEntries] = await Promise.all([
+	loadGovernanceViewModel(Astro.locals),
+	loadKnowledgeViewModel(Astro.locals).catch(() => null),
+	loadWorkContentEntries(),
+]);
+const questionEntries = workContentEntriesFor(contentEntries, 'questions');
+const approvalQuestions = governance.reviewQueue.filter((item: any) => String(item.kind ?? item.title ?? '').toLowerCase().includes('question'));
+const artifactQuestions = (knowledge?.artifacts ?? []).filter((artifact: any) => String(`${artifact.category} ${artifact.type} ${artifact.title}`).toLowerCase().includes('question'));
+const contentRows = questionEntries.map((entry: any) => ({
+	id: `question-content-${esc(entry.id)}`,
+	name: `<strong>${esc(entry.title)}</strong><span>${esc(entry.summary || entry.description)}</span>`,
+	type: esc(entry.type),
+	state: esc(entry.status),
+	related: esc(workContentRelationSummary(entry)),
+	action: `<a class="ts-link-button" href="${esc(entry.href)}">Open</a>`,
+}));
+const operationalRows = [
+	...approvalQuestions.map((item: any) => ({ name: `<strong>${esc(item.title)}</strong><span>${esc(item.description ?? '')}</span>`, source: 'Decision', state: esc(item.state ?? 'pending'), action: `<a class="ts-link-button" href="/app/work/decisions/${encodeURIComponent(item.approvalId ?? item.id)}">Open</a>` })),
+	...artifactQuestions.map((artifact: any) => ({ name: `<strong>${esc(artifact.title)}</strong><span>${esc(artifact.description ?? '')}</span>`, source: 'Artifact', state: esc(artifact.state ?? 'generated'), action: `<a class="ts-link-button" href="${esc(artifact.href ?? '/app/knowledge/artifacts')}">Open</a>` })),
+];
+---
+
+<TreeseedAppLayout title="Questions" description="List questions from content, decisions, and artifacts." currentPath="/app/work/questions" teams={governance.context.teams} activeTeam={governance.context.activeTeam}>
+	<section class="ts-control-page" aria-label="Questions">
+		<WorkContentNav current="questions" />
+		<Panel eyebrow="Work content" title="Question records" description="Source content questions from the active TreeSeed workspace.">
+			<Button slot="actions" href="/app/work/questions/new" size="sm">New question</Button>
+			<PlainTable columns={[{ key: 'name', label: 'Question' }, { key: 'type', label: 'Type' }, { key: 'state', label: 'State' }, { key: 'related', label: 'Related' }, { key: 'action', label: 'Action' }]} rows={contentRows} emptyTitle="No question content yet" emptyDescription="Question records appear from src/content/questions." />
+		</Panel>
+		<Panel eyebrow="Operational work" title="Question signals" description="Question-like records across decisions and generated artifacts.">
+			{operationalRows.length > 0 ? (
+				<PlainTable columns={[{ key: 'name', label: 'Question' }, { key: 'source', label: 'Source' }, { key: 'state', label: 'State' }, { key: 'action', label: 'Action' }]} rows={operationalRows} />
+			) : (
+				<EmptyState title="No questions found" description="Questions appear here when decisions or research artifacts include them." />
+			)}
+		</Panel>
+	</section>
+</TreeseedAppLayout>

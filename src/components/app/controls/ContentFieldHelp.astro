@@ -1,0 +1,86 @@
+---
+interface Props {
+	label: string;
+	purpose?: string;
+	example?: string;
+	editable?: boolean;
+}
+
+const {
+	label,
+	purpose = '',
+	example,
+	editable = true,
+} = Astro.props as Props;
+---
+
+{purpose ? (
+	<details class="ts-content-help" data-content-help>
+		<summary aria-label={`Help for ${label}`} data-content-help-trigger>?</summary>
+		<div class="ts-content-help__panel" data-content-help-panel>
+			<strong>{label}</strong>
+			<p>{purpose}</p>
+			{example ? <p><span>Example:</span> {example}</p> : null}
+			{!editable ? <p><span>Generated:</span> This field is maintained by TreeSeed and is shown for context.</p> : null}
+		</div>
+	</details>
+) : null}
+
+<script is:inline>
+	(() => {
+		if (window.__treeseedContentHelpReady) return;
+		window.__treeseedContentHelpReady = true;
+
+		function clamp(value, min, max) {
+			return Math.max(min, Math.min(max, value));
+		}
+
+		function positionHelp(details) {
+			if (!details.open) return;
+			const trigger = details.querySelector('[data-content-help-trigger]');
+			const panel = details.querySelector('[data-content-help-panel]');
+			if (!trigger || !panel) return;
+			const rect = trigger.getBoundingClientRect();
+			const gutter = 8;
+			const width = Math.min(352, window.innerWidth - gutter * 2);
+			const panelHeight = Math.min(panel.scrollHeight, window.innerHeight - gutter * 2);
+			const belowTop = rect.bottom + gutter;
+			const aboveTop = rect.top - panelHeight - gutter;
+			const top = belowTop + panelHeight <= window.innerHeight - gutter
+				? belowTop
+				: Math.max(gutter, aboveTop);
+			const left = clamp(rect.right - width, gutter, window.innerWidth - width - gutter);
+			panel.style.setProperty('--ts-content-help-width', `${width}px`);
+			panel.style.setProperty('--ts-content-help-left', `${left}px`);
+			panel.style.setProperty('--ts-content-help-top', `${top}px`);
+		}
+
+		function closeOtherHelp(active) {
+			document.querySelectorAll('[data-content-help][open]').forEach((details) => {
+				if (details !== active) details.removeAttribute('open');
+			});
+		}
+
+		document.addEventListener('toggle', (event) => {
+			const details = event.target;
+			if (!(details instanceof HTMLDetailsElement) || !details.matches('[data-content-help]')) return;
+			if (details.open) {
+				closeOtherHelp(details);
+				requestAnimationFrame(() => positionHelp(details));
+			}
+		}, true);
+
+		document.addEventListener('click', (event) => {
+			const target = event.target;
+			if (target instanceof Element && target.closest('[data-content-help]')) return;
+			document.querySelectorAll('[data-content-help][open]').forEach((details) => details.removeAttribute('open'));
+		});
+
+		window.addEventListener('resize', () => {
+			document.querySelectorAll('[data-content-help][open]').forEach(positionHelp);
+		});
+		window.addEventListener('scroll', () => {
+			document.querySelectorAll('[data-content-help][open]').forEach(positionHelp);
+		}, true);
+	})();
+</script>

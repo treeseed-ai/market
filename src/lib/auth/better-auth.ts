@@ -22,9 +22,6 @@ CREATE TABLE IF NOT EXISTS better_auth_user (
   updatedAt INTEGER NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_better_auth_user_username
-  ON better_auth_user(username);
-
 CREATE TABLE IF NOT EXISTS better_auth_session (
   id TEXT PRIMARY KEY,
   expiresAt INTEGER NOT NULL,

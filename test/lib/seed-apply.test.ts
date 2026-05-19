@@ -5,9 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { NodeSqliteD1Database } from '@treeseed/sdk/db/node-sqlite';
 import { MarketControlPlaneStore } from '../../src/api/store.js';
+import { loadInfrastructureSeedState } from '../../src/lib/market/infrastructure-seeds.js';
 import { applyLocalSeedFromCli, exportSeedWithStore } from '../../src/lib/market/seeds/apply.js';
 import { applyLocalSeedViaApiFromCli } from '../../src/lib/market/seeds/local-api.js';
-import { loadTeamSectionData } from '../../src/lib/market/team-section-data.js';
 import { createAccessToken } from '../../packages/agent/src/api/auth/tokens.ts';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -95,10 +95,10 @@ describe('local seed apply', () => {
 		} as any);
 
 		expect(applied.plan.summary).toMatchObject({
-			create: 15,
+			create: 10,
 			update: 0,
 			unchanged: 0,
-			skip: 11,
+			skip: 7,
 		});
 		expect((applied.result as any).localTeamMemberships).toEqual([
 			expect.objectContaining({
@@ -123,7 +123,7 @@ describe('local seed apply', () => {
 			const teamContext = await verifyStore.resolvePrincipalTeamContext(team!.id, { id: 'user-local', roles: [] });
 			expect(teamContext?.roles).toContain('team_owner');
 			const projects = await verifyStore.listTeamProjects(team!.id);
-			expect(projects.map((project: any) => project.slug).sort()).toEqual(['agent', 'cli', 'core', 'market', 'sdk']);
+			expect(projects.map((project: any) => project.slug).sort()).toEqual(['market']);
 		} finally {
 			verifyDb.close();
 		}
@@ -140,10 +140,10 @@ describe('local seed apply', () => {
 			});
 
 			expect(first.plan.summary).toMatchObject({
-				create: 15,
+				create: 10,
 				update: 0,
 				unchanged: 0,
-				skip: 11,
+				skip: 7,
 			});
 
 			const team = await store.getTeamBySlug('treeseed');
@@ -174,6 +174,24 @@ describe('local seed apply', () => {
 				resourceKey: 'project:treeseed/market',
 				manifestHash: first.result.manifestHash,
 			});
+
+			const projectDetails = await store.getProjectDetails(marketProject!.id);
+			expect(projectDetails?.hosting).toMatchObject({
+				kind: 'self_hosted_project',
+				registration: 'optional',
+				sourceRepoOwner: 'knowledge-coop',
+				sourceRepoName: 'market',
+				sourceRepoUrl: 'https://github.com/knowledge-coop/market.git',
+			});
+			expect(projectDetails?.hosting?.metadata?.seed).toMatchObject({
+				resourceKey: 'project:treeseed/market',
+				manifestHash: first.result.manifestHash,
+			});
+			expect(projectDetails?.connection).toMatchObject({
+				mode: 'hybrid',
+				executionOwner: 'project_runner',
+			});
+			expect((await store.getProjectSummary(marketProject!.id))?.health.state).not.toBe('setup_needed');
 
 			const providers = await store.listTeamCapacityProviders(team!.id);
 			const provider = providers.find((entry: any) => entry.name === 'treeseed-local-dev');
@@ -237,11 +255,11 @@ describe('local seed apply', () => {
 				expect.objectContaining({
 					provider: 'github',
 					ownership: 'treeseed_managed',
-					name: 'treeseed-ai',
-					organizationOrOwner: 'treeseed-ai',
+					name: 'knowledge-coop',
+					organizationOrOwner: 'knowledge-coop',
 					metadata: expect.objectContaining({
 						seed: expect.objectContaining({
-							resourceKey: 'repository-host:treeseed/github',
+							resourceKey: 'repository-host:treeseed/market-github',
 							manifestHash: first.result.manifestHash,
 						}),
 					}),
@@ -291,13 +309,105 @@ describe('local seed apply', () => {
 			expect(second.plan.summary).toMatchObject({
 				create: 0,
 				update: 0,
-				unchanged: 15,
-				skip: 11,
+				unchanged: 10,
+				skip: 7,
 			});
 			const secondResult = second.result as any;
 			expect(secondResult.capacityProviderKeys.created).toHaveLength(0);
 			expect(secondResult.capacityProviderKeys.existing).toHaveLength(1);
 			expect(secondResult.capacityProviderKeys.existing[0]).not.toHaveProperty('plaintextKey');
+		} finally {
+			db.close();
+		}
+	});
+
+	it('repairs missing project hosting for an unchanged seeded project', async () => {
+		const { db, store } = createStore();
+		try {
+			await applyLocalSeedFromCli({
+				projectRoot,
+				seedName: 'treeseed',
+				environments: 'local',
+				store,
+			});
+			const team = await store.getTeamBySlug('treeseed');
+			const marketProject = await store.getProjectByTeamAndSlug(team!.id, 'market');
+			await store.run(`DELETE FROM project_connections WHERE project_id = ?`, [marketProject!.id]);
+			await store.run(`DELETE FROM project_hosting WHERE project_id = ?`, [marketProject!.id]);
+
+			const repaired = await applyLocalSeedFromCli({
+				projectRoot,
+				seedName: 'treeseed',
+				environments: 'local',
+				store,
+			});
+			expect(repaired.plan.summary).toMatchObject({
+				create: 0,
+				update: 0,
+				unchanged: 10,
+				skip: 7,
+			});
+			expect((repaired.result as any).repairs).toEqual([
+				expect.objectContaining({ kind: 'projectHosting', projectId: marketProject!.id }),
+			]);
+			const details = await store.getProjectDetails(marketProject!.id);
+			expect(details?.hosting).toMatchObject({
+				kind: 'self_hosted_project',
+				registration: 'optional',
+				sourceRepoOwner: 'knowledge-coop',
+				sourceRepoName: 'market',
+			});
+			expect(details?.connection).toMatchObject({
+				mode: 'hybrid',
+				executionOwner: 'project_runner',
+			});
+		} finally {
+			db.close();
+		}
+	});
+
+	it('does not overwrite existing project hosting during unchanged seed apply', async () => {
+		const { db, store } = createStore();
+		try {
+			await applyLocalSeedFromCli({
+				projectRoot,
+				seedName: 'treeseed',
+				environments: 'local',
+				store,
+			});
+			const team = await store.getTeamBySlug('treeseed');
+			const marketProject = await store.getProjectByTeamAndSlug(team!.id, 'market');
+			await store.upsertProjectHosting(marketProject!.id, {
+				kind: 'hosted_project',
+				registration: 'required',
+				marketBaseUrl: 'https://custom.example.com',
+				sourceRepoOwner: 'custom-owner',
+				sourceRepoName: 'custom-market',
+				sourceRepoUrl: 'https://github.com/custom-owner/custom-market.git',
+				sourceRepoWorkflowPath: '.github/workflows/custom.yml',
+				executionOwner: 'project_api',
+				metadata: { editedBy: 'test' },
+			});
+
+			const repeated = await applyLocalSeedFromCli({
+				projectRoot,
+				seedName: 'treeseed',
+				environments: 'local',
+				store,
+			});
+			expect((repeated.result as any).repairs).toEqual([]);
+			const details = await store.getProjectDetails(marketProject!.id);
+			expect(details?.hosting).toMatchObject({
+				kind: 'hosted_project',
+				registration: 'required',
+				marketBaseUrl: 'https://custom.example.com',
+				sourceRepoOwner: 'custom-owner',
+				sourceRepoName: 'custom-market',
+			});
+			expect(details?.connection).toMatchObject({
+				mode: 'hosted',
+				executionOwner: 'project_api',
+			});
 		} finally {
 			db.close();
 		}
@@ -321,29 +431,32 @@ describe('local seed apply', () => {
 				},
 			};
 
-			const data: any = await loadTeamSectionData(context, {
-				runtime: {
-					env: {
-						TREESEED_ENVIRONMENT: 'local',
-					},
-					resolved: {
-						config: {
-							repoRoot: projectRoot,
+			const seedPage: any = await loadInfrastructureSeedState({
+				store: context.store,
+				team: context.team,
+				principal: context.principal,
+				locals: {
+					runtime: {
+						env: {
+							TREESEED_ENVIRONMENT: 'local',
+						},
+						resolved: {
+							config: {
+								repoRoot: projectRoot,
+							},
 						},
 					},
-				},
-			} as any, {
-				section: 'seeds',
-				url: new URL('https://market.example.com/app/teams/treeseed/seeds'),
+				} as any,
+				url: new URL('https://market.example.com/app/work/decisions'),
 			});
 
-			expect(data.seedPage.selectedSeed).toBe('treeseed');
-			expect(data.seedPage.selectedEnvironments).toBe('local');
-			expect(data.seedPage.plan.summary).toMatchObject({
-				create: 14,
+			expect(seedPage.selectedSeed).toBe('treeseed');
+			expect(seedPage.selectedEnvironments).toBe('local');
+			expect(seedPage.plan.summary).toMatchObject({
+				create: 9,
 				update: 1,
 				unchanged: 0,
-				skip: 11,
+				skip: 7,
 			});
 			expect(await store.listSeedRuns()).toHaveLength(0);
 		} finally {

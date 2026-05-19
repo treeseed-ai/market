@@ -1,6 +1,7 @@
 ---
 import '../styles/treeseed.css';
 import PublicShell from '../../packages/core/src/components/ui/shell/PublicShell.astro';
+import ShellIconLink from '../../packages/core/src/components/ui/shell/ShellIconLink.astro';
 import { resolveAnonymousThemePreference, resolveAuthenticatedThemePreference } from '../lib/auth/appearance';
 
 interface NavItem {
@@ -22,9 +23,9 @@ const {
 
 const navItems: NavItem[] = [
 	{ label: 'Home', href: '/' },
-	{ label: 'Market', href: '/market/' },
-	{ label: 'Templates', href: '/market/templates/' },
-	{ label: 'Knowledge Packs', href: '/market/knowledge-packs/' },
+	{ label: 'Resources', href: '/market/' },
+	{ label: 'Workflow Imports', href: '/market/templates/' },
+	{ label: 'Knowledge Imports', href: '/market/knowledge-packs/' },
 ];
 
 const isSignedIn = Boolean(Astro.locals.auth?.principal);
@@ -32,10 +33,9 @@ const appearance = isSignedIn
 	? await resolveAuthenticatedThemePreference(Astro)
 	: resolveAnonymousThemePreference(Astro);
 const actions = isSignedIn
-	? [{ label: 'Open app', href: '/app/', variant: 'secondary' as const }]
+	? []
 	: [
 		{ label: 'Sign in', href: '/auth/sign-in', variant: 'ghost' as const },
-		{ label: 'Launch your coop', href: '/auth/sign-in?returnTo=/app/launch', variant: 'primary' as const },
 	];
 ---
 
@@ -46,15 +46,18 @@ const actions = isSignedIn
 	appearance={appearance}
 	brand={{
 		name: 'TreeSeed',
-		tag: 'The GitHub of knowledge and agent teams',
+		tag: 'Governable AI Infrastructure for Organizational Continuity',
 		href: '/',
 		logoSrc: '/logo.svg',
 		logoAlt: '',
 	}}
 	navItems={navItems}
 	actions={actions}
-	showAppearanceControl={!isSignedIn}
+	showAppearanceControl
 	preferServerAppearance={isSignedIn}
 >
+	<Fragment slot="actions">
+		<ShellIconLink href="/app/" label="Manager" icon="manager" />
+	</Fragment>
 	<slot />
 </PublicShell>

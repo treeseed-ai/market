@@ -20,7 +20,7 @@ import {
 	resolveApiConfig,
 	resolveApiD1Database,
 } from '@treeseed/agent/api';
-import { MarketControlPlaneStore } from './store.js';
+import { MarketControlPlaneStore, validateProjectSlug } from './store.js';
 import { applySeedWithStore, exportSeedWithStore, planSeedWithStore } from '../lib/market/seeds/apply.js';
 import {
 	listTreeseedManagedHostsFromConfig,
@@ -31,6 +31,11 @@ import {
 } from '../lib/market/managed-hosts.js';
 import { decryptHostConfig } from '../lib/cloudflare-host-crypto.js';
 import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicKey, createVerify, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { resolve, relative } from 'node:path';
+import { parse as parseYaml } from 'yaml';
+import { contentRelationPolicy } from '../lib/market/content-relations.js';
 
 function jsonError(c, status, error, details = {}) {
 	return c.json({
@@ -77,6 +82,428 @@ function bearerTokenFromRequest(request) {
 
 function normalizeBaseUrl(baseUrl) {
 	return String(baseUrl ?? '').trim().replace(/\/+$/u, '');
+}
+
+function optionalTrimmedString(value) {
+	return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function enumValue(value, allowed, fallback = null) {
+	const candidate = typeof value === 'string' ? value.trim() : '';
+	return allowed.includes(candidate) ? candidate : fallback;
+}
+
+const LOCAL_CONTENT_COLLECTIONS = new Set(['objectives', 'questions', 'notes', 'proposals', 'decisions', 'agents']);
+const LOCAL_WORK_CONTENT_COLLECTIONS = new Set(['objectives', 'questions', 'notes', 'proposals', 'decisions']);
+const LOCAL_DECISION_TYPE_VALUES = ['approved', 'rejected', 'deferred', 'request_changes', 'superseded'];
+const PROPOSAL_VERDICT_DECISION_TYPES = new Set(['approved', 'rejected', 'deferred', 'request_changes']);
+const LOCAL_CONTENT_DEFAULTS = {
+	objectives: {
+		idPrefix: 'objective',
+		extension: 'mdx',
+		fields: { timeHorizon: 'near-term', motivation: '', primaryContributor: 'market-steward', relatedQuestions: [], relatedBooks: [] },
+		body: 'Describe the objective, expected outcome, and the evidence that should update it over time.',
+	},
+	questions: {
+		idPrefix: 'question',
+		extension: 'mdx',
+		fields: { questionType: 'strategy', motivation: '', primaryContributor: 'market-steward', relatedObjectives: [], relatedBooks: [] },
+		body: 'Describe what needs to be learned and what evidence would make the answer useful.',
+	},
+	notes: {
+		idPrefix: 'note',
+		extension: 'mdx',
+		fields: { author: 'market-steward', relatedObjectives: [], relatedQuestions: [], relatedProposals: [], relatedBooks: [] },
+		body: 'Capture the useful context, evidence, and follow-up links for this note.',
+	},
+	proposals: {
+		idPrefix: 'proposal',
+		extension: 'mdx',
+		fields: { proposalType: 'implementation', motivation: '', primaryContributor: 'market-steward', relatedObjectives: [], relatedQuestions: [], relatedNotes: [], relatedBooks: [], decision: '', supersedes: [] },
+		body: 'Describe the proposed change, why it matters, what it affects, and how a reviewer should evaluate it.',
+	},
+	decisions: {
+		idPrefix: 'decision',
+		extension: 'mdx',
+		fields: { decisionType: 'approved', rationale: '', authority: 'TreeSeed Market Team', primaryContributor: 'market-steward', relatedObjectives: [], relatedQuestions: [], relatedNotes: [], relatedProposals: [], relatedBooks: [], supersedes: [], implements: [] },
+		body: 'Record what was decided, why it was decided, and which proposals or evidence it closes.',
+	},
+	agents: {
+		idPrefix: 'agent',
+		extension: 'mdx',
+		fields: {
+			name: '',
+			handler: 'planner',
+			enabled: true,
+			operator: 'TreeSeed platform',
+			runtimeStatus: 'active',
+			capabilities: [],
+			tags: ['agent'],
+			systemPrompt: 'Use the core objective as the first context message. Keep work observable, governed, and grounded in project content.',
+			persona: 'Helpful, careful, and accountable.',
+			triggers: [{ type: 'message', messageTypes: [] }],
+			permissions: [],
+			execution: { provider: 'codex', model: 'gpt-5.5', approvalPolicy: 'never', sandboxMode: 'read_only', reasoningEffort: 'medium' },
+			outputs: {},
+		},
+		body: 'Describe this agent role, operating boundaries, and expected outputs.',
+	},
+};
+
+function slugifyContent(value) {
+	return String(value ?? '')
+		.toLowerCase()
+		.trim()
+		.replace(/['"]/gu, '')
+		.replace(/[^a-z0-9]+/gu, '-')
+		.replace(/^-+|-+$/gu, '')
+		.slice(0, 96);
+}
+
+function yamlScalar(value) {
+	const text = String(value ?? '');
+	if (/^[a-zA-Z0-9_:/.-]+$/u.test(text) && !['true', 'false', 'null'].includes(text.toLowerCase())) {
+		return text;
+	}
+	return JSON.stringify(text);
+}
+
+function yamlLines(value, indent = 0) {
+	const pad = ' '.repeat(indent);
+	if (Array.isArray(value)) {
+		if (value.length === 0) return [`${pad}[]`];
+		return value.flatMap((entry) => {
+			if (entry && typeof entry === 'object') {
+				return [``, ...yamlLines(entry, indent + 2)].map((line, index) => index === 0 ? `${pad}-` : line);
+			}
+			return [`${pad}- ${yamlScalar(entry)}`];
+		});
+	}
+	if (value && typeof value === 'object') {
+		return Object.entries(value).flatMap(([key, entry]) => {
+			if (Array.isArray(entry) || (entry && typeof entry === 'object')) {
+				return [`${pad}${key}:`, ...yamlLines(entry, indent + 2)];
+			}
+			return [`${pad}${key}: ${yamlScalar(entry)}`];
+		});
+	}
+	return [`${pad}${yamlScalar(value)}`];
+}
+
+function serializeFrontmatter(data) {
+	const lines = ['---'];
+	for (const [key, value] of Object.entries(data)) {
+		if (Array.isArray(value) || (value && typeof value === 'object')) {
+			const nested = yamlLines(value, 2);
+			lines.push(`${key}:`);
+			lines.push(...nested);
+		} else {
+			lines.push(`${key}: ${yamlScalar(value)}`);
+		}
+	}
+	lines.push('---');
+	return lines.join('\n');
+}
+
+function normalizeRelationArray(value) {
+	if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
+	if (typeof value === 'string') return value.split(/[\n,]/u).map((entry) => entry.trim()).filter(Boolean);
+	return [];
+}
+
+function uniqueRelationArray(value) {
+	return [...new Set(normalizeRelationArray(value))];
+}
+
+function addRelationValue(frontmatter, field, value, single = false) {
+	const ref = String(value ?? '').trim();
+	if (!field || !ref) return;
+	if (single) {
+		frontmatter[field] = ref;
+		return;
+	}
+	frontmatter[field] = uniqueRelationArray([...(normalizeRelationArray(frontmatter[field])), ref]);
+}
+
+function normalizeLocalContentInput(collection, body) {
+	const defaults = LOCAL_CONTENT_DEFAULTS[collection];
+	const title = optionalTrimmedString(body.title);
+	if (!title) return { error: 'title is required.' };
+	const slug = slugifyContent(body.slug || title);
+	if (!slug) return { error: 'A safe slug is required.' };
+	const today = new Date().toISOString().slice(0, 10);
+	const summary = optionalTrimmedString(body.summary) ?? optionalTrimmedString(body.description) ?? title;
+	const description = optionalTrimmedString(body.description) ?? summary;
+	const frontmatter = {
+		id: optionalTrimmedString(body.id) ?? `${defaults.idPrefix}:${slug}`,
+		title,
+		description,
+		date: optionalTrimmedString(body.date) ?? today,
+		summary,
+		status: enumValue(body.status, ['recorded', 'live', 'in progress', 'exploratory', 'planned', 'speculative'], 'planned'),
+		...defaults.fields,
+	};
+	if (collection === 'agents') {
+		frontmatter.name = optionalTrimmedString(body.name) ?? title;
+		frontmatter.slug = slug;
+		frontmatter.description = description;
+		frontmatter.summary = summary;
+		frontmatter.handler = optionalTrimmedString(body.handler) ?? frontmatter.handler;
+		frontmatter.systemPrompt = optionalTrimmedString(body.systemPrompt) ?? frontmatter.systemPrompt;
+		frontmatter.runtimeStatus = enumValue(body.runtimeStatus, ['active', 'experimental', 'dormant'], frontmatter.runtimeStatus);
+		delete frontmatter.date;
+		delete frontmatter.status;
+	} else if (collection === 'notes') {
+		frontmatter.author = optionalTrimmedString(body.author) ?? frontmatter.author;
+		frontmatter.relatedObjectives = normalizeRelationArray(body.relatedObjectives);
+		frontmatter.relatedQuestions = normalizeRelationArray(body.relatedQuestions);
+		frontmatter.relatedProposals = normalizeRelationArray(body.relatedProposals);
+	} else if (collection === 'objectives') {
+		frontmatter.primaryContributor = optionalTrimmedString(body.primaryContributor) ?? frontmatter.primaryContributor;
+		frontmatter.timeHorizon = enumValue(body.timeHorizon, ['near-term', 'mid-term', 'long-term'], frontmatter.timeHorizon);
+		frontmatter.motivation = optionalTrimmedString(body.motivation) ?? description;
+		frontmatter.relatedQuestions = normalizeRelationArray(body.relatedQuestions);
+	} else if (collection === 'questions') {
+		frontmatter.primaryContributor = optionalTrimmedString(body.primaryContributor) ?? frontmatter.primaryContributor;
+		frontmatter.questionType = enumValue(body.questionType, ['research', 'implementation', 'strategy', 'evaluation'], frontmatter.questionType);
+		frontmatter.motivation = optionalTrimmedString(body.motivation) ?? description;
+		frontmatter.relatedObjectives = normalizeRelationArray(body.relatedObjectives);
+	} else if (collection === 'proposals') {
+		frontmatter.primaryContributor = optionalTrimmedString(body.primaryContributor) ?? frontmatter.primaryContributor;
+		frontmatter.proposalType = enumValue(body.proposalType, ['strategy', 'policy', 'implementation', 'research'], frontmatter.proposalType);
+		frontmatter.motivation = optionalTrimmedString(body.motivation) ?? description;
+		frontmatter.relatedObjectives = normalizeRelationArray(body.relatedObjectives);
+		frontmatter.relatedQuestions = normalizeRelationArray(body.relatedQuestions);
+		frontmatter.relatedNotes = normalizeRelationArray(body.relatedNotes);
+		frontmatter.decision = optionalTrimmedString(body.decision) ?? undefined;
+	} else if (collection === 'decisions') {
+		frontmatter.primaryContributor = optionalTrimmedString(body.primaryContributor) ?? frontmatter.primaryContributor;
+		frontmatter.decisionType = enumValue(body.decisionType, LOCAL_DECISION_TYPE_VALUES, frontmatter.decisionType);
+		frontmatter.rationale = optionalTrimmedString(body.rationale) ?? description;
+		frontmatter.authority = optionalTrimmedString(body.authority) ?? frontmatter.authority;
+		frontmatter.relatedObjectives = normalizeRelationArray(body.relatedObjectives);
+		frontmatter.relatedQuestions = normalizeRelationArray(body.relatedQuestions);
+		frontmatter.relatedNotes = normalizeRelationArray(body.relatedNotes);
+		frontmatter.relatedProposals = normalizeRelationArray(body.relatedProposals);
+	}
+	return {
+		slug,
+		extension: defaults.extension,
+		frontmatter: Object.fromEntries(Object.entries(frontmatter).filter(([, value]) => value !== undefined)),
+		body: optionalTrimmedString(body.body) ?? defaults.body,
+	};
+}
+
+async function writeLocalContentRecord(collection, input) {
+	if (!LOCAL_CONTENT_COLLECTIONS.has(collection)) {
+		return { error: 'Unsupported content collection.' };
+	}
+	const normalized = normalizeLocalContentInput(collection, input);
+	if (normalized.error) return normalized;
+	const root = resolve(process.cwd(), 'src', 'content', collection);
+	const existingTarget = input.overwrite === true
+		? [`${normalized.slug}.mdx`, `${normalized.slug}.md`]
+			.map((file) => resolve(root, file))
+			.find((candidate) => existsSync(candidate))
+		: null;
+	const target = existingTarget ?? resolve(root, `${normalized.slug}.${normalized.extension}`);
+	const relativeTarget = relative(root, target);
+	if (relativeTarget.startsWith('..') || relativeTarget.includes('..') || relativeTarget.startsWith('/')) {
+		return { error: 'Unsafe content path.' };
+	}
+	if (existsSync(target) && input.overwrite !== true) {
+		return { error: 'A content record with that slug already exists.' };
+	}
+	await mkdir(root, { recursive: true });
+	const content = `${serializeFrontmatter(normalized.frontmatter)}\n\n${normalized.body.trim()}\n`;
+	await writeFile(target, content, 'utf8');
+	return {
+		collection,
+		slug: normalized.slug,
+		id: normalized.frontmatter.id,
+		path: relative(process.cwd(), target),
+		href: collection === 'agents'
+			? `/app/projects/${encodeURIComponent(String(input.projectId ?? ''))}/agents/${encodeURIComponent(normalized.slug)}`
+			: `/app/work/${collection}/${encodeURIComponent(normalized.slug)}`,
+	};
+}
+
+function localContentRoot(collection) {
+	return resolve(process.cwd(), 'src', 'content', collection);
+}
+
+function localContentPath(collection, slug, extension = null) {
+	const root = localContentRoot(collection);
+	const safeSlug = slugifyContent(slug);
+	if (!safeSlug || safeSlug !== String(slug ?? '').trim()) return null;
+	const candidates = extension
+		? [resolve(root, `${safeSlug}.${extension}`)]
+		: ['mdx', 'md'].map((ext) => resolve(root, `${safeSlug}.${ext}`));
+	const target = candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
+	const relativeTarget = relative(root, target);
+	if (relativeTarget.startsWith('..') || relativeTarget.includes('..') || relativeTarget.startsWith('/')) return null;
+	return target;
+}
+
+async function readLocalContentRecord(collection, slug) {
+	if (!LOCAL_WORK_CONTENT_COLLECTIONS.has(collection)) return { error: 'Unsupported content collection.' };
+	const safeSlug = slugifyContent(slug);
+	if (!safeSlug || safeSlug !== String(slug ?? '').trim()) return { error: 'Unsafe content slug.' };
+	const target = localContentPath(collection, safeSlug);
+	if (!target || !existsSync(target)) return { error: 'Parent content record was not found.' };
+	const raw = await readFile(target, 'utf8');
+	const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/u);
+	if (!match) return { error: 'Content record is missing frontmatter.' };
+	const frontmatter = parseYaml(match[1]) ?? {};
+	if (!frontmatter || typeof frontmatter !== 'object' || Array.isArray(frontmatter)) {
+		return { error: 'Content frontmatter could not be parsed.' };
+	}
+	return {
+		path: target,
+		slug: safeSlug,
+		extension: target.endsWith('.md') ? 'md' : 'mdx',
+		frontmatter,
+		body: match[2] ?? '',
+	};
+}
+
+async function writeParsedLocalContentRecord(record) {
+	const content = `${serializeFrontmatter(record.frontmatter)}\n\n${String(record.body ?? '').trim()}\n`;
+	await writeFile(record.path, content, 'utf8');
+}
+
+export async function createRelatedLocalContentRecord(parentCollection, parentSlug, targetCollection, input) {
+	if (!LOCAL_WORK_CONTENT_COLLECTIONS.has(parentCollection) || !LOCAL_WORK_CONTENT_COLLECTIONS.has(targetCollection)) {
+		return { error: 'Unsupported content relation collection.' };
+	}
+	const policy = contentRelationPolicy(parentCollection, targetCollection);
+	if (!policy) return { error: `Cannot create related ${targetCollection} from ${parentCollection}.` };
+	const parent = await readLocalContentRecord(parentCollection, parentSlug);
+	if (parent.error) return parent;
+	const normalized = normalizeLocalContentInput(targetCollection, input);
+	if (normalized.error) return normalized;
+	const childTarget = localContentPath(targetCollection, normalized.slug, normalized.extension);
+	if (!childTarget) return { error: 'Unsafe content path.' };
+	if (existsSync(childTarget)) return { error: 'A content record with that slug already exists.' };
+
+	addRelationValue(parent.frontmatter, policy.sourceField, normalized.slug, policy.sourceSingle);
+	addRelationValue(normalized.frontmatter, policy.targetField, parent.slug, policy.targetSingle);
+
+	await mkdir(localContentRoot(targetCollection), { recursive: true });
+	const childRecord = {
+		path: childTarget,
+		frontmatter: normalized.frontmatter,
+		body: normalized.body,
+	};
+	await writeParsedLocalContentRecord(childRecord);
+	try {
+		await writeParsedLocalContentRecord(parent);
+	} catch (error) {
+		await rm(childTarget, { force: true }).catch(() => {});
+		return {
+			error: 'Related content could not be linked to the parent record.',
+			details: error instanceof Error ? error.message : String(error),
+		};
+	}
+	return {
+		parent: {
+			collection: parentCollection,
+			slug: parent.slug,
+			path: relative(process.cwd(), parent.path),
+			href: `/app/work/${parentCollection}/${encodeURIComponent(parent.slug)}`,
+		},
+		child: {
+			collection: targetCollection,
+			slug: normalized.slug,
+			id: normalized.frontmatter.id,
+			path: relative(process.cwd(), childTarget),
+			href: `/app/work/${targetCollection}/${encodeURIComponent(normalized.slug)}`,
+		},
+		relation: {
+			parentField: policy.sourceField,
+			childField: policy.targetField,
+		},
+	};
+}
+
+export async function createDecisionFromProposals(input) {
+	const proposalSlugs = [...new Set(normalizeRelationArray(input.proposalSlugs))];
+	if (proposalSlugs.length === 0) return { error: 'Select at least one proposal.' };
+	for (const slug of proposalSlugs) {
+		if (!slug || slugifyContent(slug) !== slug) return { error: 'Unsafe proposal slug.' };
+	}
+	const decisionType = enumValue(input.decisionType, [...PROPOSAL_VERDICT_DECISION_TYPES], null);
+	if (!decisionType) return { error: 'Unsupported proposal verdict.' };
+	const reason = optionalTrimmedString(input.reason) ?? optionalTrimmedString(input.rationale);
+	if (!reason) return { error: 'A decision reason is required.' };
+	const title = optionalTrimmedString(input.title) ?? `Decision for ${proposalSlugs.length === 1 ? proposalSlugs[0] : `${proposalSlugs.length} proposals`}`;
+	const decisionSlug = slugifyContent(input.slug || title);
+	if (!decisionSlug) return { error: 'A safe decision slug is required.' };
+	const decisionTarget = localContentPath('decisions', decisionSlug, 'mdx');
+	if (!decisionTarget) return { error: 'Unsafe decision path.' };
+	if (existsSync(decisionTarget)) return { error: 'A decision with that slug already exists.' };
+
+	const proposals = [];
+	for (const slug of proposalSlugs) {
+		const proposal = await readLocalContentRecord('proposals', slug);
+		if (proposal.error) return { error: `Proposal ${slug} was not found.` };
+		proposals.push(proposal);
+	}
+
+	const proposalTitles = proposals.map((proposal) => proposal.frontmatter.title ?? proposal.slug);
+	const body = optionalTrimmedString(input.body)
+		?? [
+			`## Verdict`,
+			decisionType.replace(/_/gu, ' '),
+			``,
+			`## Reason`,
+			reason,
+			``,
+			`## Proposals`,
+			...proposalTitles.map((proposalTitle, index) => `- ${proposalTitle} (${proposalSlugs[index]})`),
+		].join('\n');
+	const decisionPayload = await writeLocalContentRecord('decisions', {
+		...input,
+		slug: decisionSlug,
+		title,
+		status: 'live',
+		decisionType,
+		description: optionalTrimmedString(input.description) ?? reason,
+		summary: optionalTrimmedString(input.summary) ?? reason,
+		rationale: reason,
+		relatedProposals: proposalSlugs,
+		body,
+	});
+	if (decisionPayload.error) return decisionPayload;
+
+	const writtenProposals = [];
+	const originalProposals = proposals.map((proposal) => ({
+		...proposal,
+		frontmatter: { ...proposal.frontmatter },
+		body: proposal.body,
+	}));
+	try {
+		for (const proposal of proposals) {
+			proposal.frontmatter.decision = decisionSlug;
+			await writeParsedLocalContentRecord(proposal);
+			writtenProposals.push(proposal);
+		}
+	} catch (error) {
+		await rm(decisionTarget, { force: true }).catch(() => {});
+		for (const original of originalProposals.slice(0, writtenProposals.length)) {
+			await writeParsedLocalContentRecord(original).catch(() => {});
+		}
+		return {
+			error: 'Decision content was created but proposals could not be linked; changes were rolled back.',
+			details: error instanceof Error ? error.message : String(error),
+		};
+	}
+
+	return {
+		decision: decisionPayload,
+		proposals: proposalSlugs.map((slug) => ({ collection: 'proposals', slug, href: `/app/work/proposals/${encodeURIComponent(slug)}` })),
+		href: decisionPayload.href,
+	};
 }
 
 function isLoopbackUrl(value) {
@@ -1113,9 +1540,9 @@ async function requireConnectedProjectRuntime(c, store, projectId, principal, pa
 	return { payload };
 }
 
-async function projectAppHref(store, teamId, projectSlug, section) {
-	const team = await store.getTeam(teamId);
-	return team ? `/app/teams/${team.name}/projects/${projectSlug}/${section}` : null;
+async function projectAppHref(_store, _teamId, _projectSlug, section) {
+	if (section === 'share') return '/app/knowledge/artifacts';
+	return _projectSlug ? `/app/projects/${encodeURIComponent(_projectSlug)}` : '/app/projects';
 }
 
 function unwrapLaunchOperationOutput(output) {
@@ -3550,6 +3977,46 @@ export function createMarketApiApp(options = {}) {
 				return c.json({ ok: true, payload: access.details });
 			});
 
+			app.put('/v1/projects/:projectId', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const slugResult = body.slug == null ? { ok: true, slug: access.details.project.slug } : validateProjectSlug(body.slug);
+				if (!slugResult.ok) return jsonError(c, 400, slugResult.message, { code: slugResult.code });
+				const name = String(body.name ?? access.details.project.name).trim();
+				if (!name) return jsonError(c, 400, 'Project name is required.', { code: 'missing_name' });
+				const existing = slugResult.slug === access.details.project.slug
+					? null
+					: await store.getProjectByTeamAndSlug(access.details.project.teamId, slugResult.slug);
+				if (existing && existing.id !== c.req.param('projectId')) {
+					return jsonError(c, 409, 'That project slug is already in use for this team.', { code: 'slug_taken' });
+				}
+				const updated = await store.updateProject(c.req.param('projectId'), {
+					slug: slugResult.slug,
+					name,
+					description: typeof body.description === 'string' ? body.description.trim() || null : access.details.project.description ?? null,
+					metadata: {
+						...(access.details.project.metadata ?? {}),
+						...(body.metadata && typeof body.metadata === 'object' ? body.metadata : {}),
+					},
+				});
+				return c.json({ ok: true, payload: await store.getProjectDetails(updated.id) });
+			});
+
+			app.get('/v1/projects/:projectId/deletion-blockers', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				return c.json({ ok: true, payload: await store.evaluateProjectDeletionBlockers(c.req.param('projectId')) });
+			});
+
+			app.delete('/v1/projects/:projectId', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const result = await store.deleteProject(c.req.param('projectId'), body.confirmation);
+				return c.json(result, result.ok ? 200 : 400);
+			});
+
 			app.get('/v1/projects/:projectId/access', async (c) => {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
 				if (access.response) return access.response;
@@ -4123,10 +4590,14 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
+				const mode = enumValue(body.mode, ['hosted', 'hybrid', 'self_hosted'], body.mode == null ? access.details.connection?.mode ?? 'self_hosted' : null);
+				if (!mode) return jsonError(c, 400, 'Invalid connection mode.');
+				const executionOwner = enumValue(body.executionOwner, ['project_api', 'project_runner'], body.executionOwner == null ? access.details.connection?.executionOwner ?? 'project_runner' : null);
+				if (!executionOwner) return jsonError(c, 400, 'Invalid execution owner.');
 				const result = await store.upsertProjectConnection(c.req.param('projectId'), {
-					mode: typeof body.mode === 'string' ? body.mode : access.details.connection?.mode ?? 'self_hosted',
-					projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
-					executionOwner: typeof body.executionOwner === 'string' ? body.executionOwner : 'project_runner',
+					mode,
+					projectApiBaseUrl: optionalTrimmedString(body.projectApiBaseUrl),
+					executionOwner,
 					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
 					rotateRunnerToken: body.rotateRunnerToken === true,
 				});
@@ -4152,19 +4623,21 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
-				if (!body.kind) {
-					return jsonError(c, 400, 'kind is required.');
-				}
+				const kind = enumValue(body.kind, ['hosted_project', 'self_hosted_project']);
+				if (!kind) return jsonError(c, 400, 'Invalid hosting kind.');
+				const registration = enumValue(body.registration, ['none', 'optional', 'required'], 'none');
+				const executionOwner = enumValue(body.executionOwner, ['project_api', 'project_runner'], null);
+				if (body.executionOwner != null && !executionOwner) return jsonError(c, 400, 'Invalid execution owner.');
 				const payload = await store.upsertProjectHosting(c.req.param('projectId'), {
-					kind: String(body.kind),
-					registration: typeof body.registration === 'string' ? body.registration : 'none',
-					marketBaseUrl: typeof body.marketBaseUrl === 'string' ? body.marketBaseUrl : null,
-					sourceRepoOwner: typeof body.sourceRepoOwner === 'string' ? body.sourceRepoOwner : null,
-					sourceRepoName: typeof body.sourceRepoName === 'string' ? body.sourceRepoName : null,
-					sourceRepoUrl: typeof body.sourceRepoUrl === 'string' ? body.sourceRepoUrl : null,
-					sourceRepoWorkflowPath: typeof body.sourceRepoWorkflowPath === 'string' ? body.sourceRepoWorkflowPath : null,
-					projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
-					executionOwner: typeof body.executionOwner === 'string' ? body.executionOwner : null,
+					kind,
+					registration,
+					marketBaseUrl: optionalTrimmedString(body.marketBaseUrl),
+					sourceRepoOwner: optionalTrimmedString(body.sourceRepoOwner),
+					sourceRepoName: optionalTrimmedString(body.sourceRepoName),
+					sourceRepoUrl: optionalTrimmedString(body.sourceRepoUrl),
+					sourceRepoWorkflowPath: optionalTrimmedString(body.sourceRepoWorkflowPath),
+					projectApiBaseUrl: optionalTrimmedString(body.projectApiBaseUrl),
+					executionOwner,
 					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
 				});
 				return c.json({ ok: true, payload });
@@ -4572,6 +5045,57 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
 				if (access.response) return access.response;
 				return c.json({ ok: true, payload: await store.listProjectUpdatePlans(access.details.project.id) });
+			});
+
+			app.post('/v1/projects/:projectId/local-content/decisions/from-proposals', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await readJsonOrFormBody(c);
+				const payload = await createDecisionFromProposals({
+					...body,
+					projectId: access.details.project.id,
+					teamId: access.details.project.teamId,
+					createdBy: access.principal.id,
+				});
+				if (payload.error) return jsonError(c, 400, payload.error, payload.details ? { details: payload.details } : {});
+				return c.json({ ok: true, payload }, { status: 201 });
+			});
+
+			app.post('/v1/projects/:projectId/local-content/:collection', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const collection = String(c.req.param('collection') ?? '');
+				const body = await readJsonOrFormBody(c);
+				const payload = await writeLocalContentRecord(collection, {
+					...body,
+					projectId: access.details.project.id,
+					teamId: access.details.project.teamId,
+					createdBy: access.principal.id,
+				});
+				if (payload.error) return jsonError(c, 400, payload.error);
+				return c.json({ ok: true, payload }, { status: 201 });
+			});
+
+			app.post('/v1/projects/:projectId/local-content/:collection/related', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const routeCollection = String(c.req.param('collection') ?? '');
+				const body = await readJsonOrFormBody(c);
+				const parentCollection = optionalTrimmedString(body.parentCollection) ?? routeCollection;
+				const targetCollection = optionalTrimmedString(body.targetCollection) ?? routeCollection;
+				const parentSlug = optionalTrimmedString(body.parentSlug);
+				if (!parentSlug) return jsonError(c, 400, 'parentSlug is required.');
+				if (targetCollection !== routeCollection) {
+					return jsonError(c, 400, 'Route collection must match targetCollection.');
+				}
+				const payload = await createRelatedLocalContentRecord(parentCollection, parentSlug, targetCollection, {
+					...body,
+					projectId: access.details.project.id,
+					teamId: access.details.project.teamId,
+					createdBy: access.principal.id,
+				});
+				if (payload.error) return jsonError(c, 400, payload.error, payload.details ? { details: payload.details } : {});
+				return c.json({ ok: true, payload }, { status: 201 });
 			});
 
 			app.post('/v1/projects/:projectId/update-plans', async (c) => {
@@ -6338,7 +6862,7 @@ export function createMarketApiApp(options = {}) {
 						latestWorkdayReport,
 					},
 				});
-				const agentsHref = await projectAppHref(store, project.teamId, project.slug, 'agents');
+				const workdayHref = `/app/projects/${encodeURIComponent(project.id)}#development`;
 				await store.upsertTeamInboxItem(project.teamId, {
 					id: `workday-summary:${project.id}:${String(body.workDayId)}`,
 					projectId: project.id,
@@ -6346,7 +6870,7 @@ export function createMarketApiApp(options = {}) {
 					state,
 					title: `${project.name}: documentation workday ${state}`,
 					summary: `Generated ${latestWorkdayReport.generatedArtifactCount} artifact(s), ${pendingApprovalCount} pending approval(s), and ${verificationFailureCount} verification issue(s).`,
-					href: agentsHref ? `${agentsHref}#workday-report-timeline` : null,
+					href: `${workdayHref}#workday-report-timeline`,
 					itemKey: `workday-summary:${String(body.workDayId)}`,
 					metadata: {
 						workDayId: String(body.workDayId),

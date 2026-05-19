@@ -1,0 +1,72 @@
+---
+import Button from '../../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../../packages/core/src/components/ui/forms/Field.astro';
+import FormActions from '../../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import Select from '../../../../../packages/core/src/components/ui/forms/Select.astro';
+import TextInput from '../../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import Textarea from '../../../../../packages/core/src/components/ui/forms/Textarea.astro';
+import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import { loadOperationalContext } from '../../../../view-models/shared.js';
+
+const projectParam = String(Astro.params.projectId ?? '');
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+const projectEntry = context.projects.find((project: any) => project.id === projectParam || project.slug === projectParam || project.handle === projectParam) ?? null;
+const details = projectEntry && context.store ? await context.store.getProjectDetails(projectEntry.id).catch(() => null) : null;
+const project = details?.project ?? projectEntry;
+if (!project) Astro.response.status = 404;
+---
+
+<TreeseedAppLayout title={project ? `Project settings` : 'Project not found'} description="Edit one project." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+	{project ? (
+		<section class="ts-control-page" aria-label="Project settings">
+			<ProjectControlNav projectId={project.id} current="settings" />
+			<Panel eyebrow="Projects" title={project.name ?? project.slug} description="Update project fields.">
+				<form id="project-settings-form" class="ts-form-stack">
+					<div class="ts-form-grid">
+						<Field label="Project name" name="name" required><TextInput name="name" required value={project.name ?? ''} /></Field>
+						<Field label="Handle" name="slug" required><TextInput name="slug" required value={project.slug ?? ''} pattern="[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?" /></Field>
+						<Field label="Tier" name="entitlementTier"><Select name="entitlementTier" value={project.entitlementTier ?? 'free'} options={[{ label: 'Free', value: 'free' }, { label: 'Paid hosting', value: 'paid_hosting' }]} /></Field>
+						<Field label="Description" name="description" class="ts-field--full"><Textarea name="description" rows={4} value={project.description ?? project.summary ?? ''} /></Field>
+					</div>
+					<FormActions align="start">
+						<Button type="submit">Save project</Button>
+						<Button href="/app/projects" variant="secondary">Back</Button>
+						<span class="ts-subtle" id="project-settings-status" role="status"></span>
+					</FormActions>
+				</form>
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="Project not found" description="This project is not available to the active team." actions={[{ label: 'Back to Projects', href: '/app/projects' }]} />
+	)}
+</TreeseedAppLayout>
+
+<script is:inline define:vars={{ projectId: project?.id ?? '' }}>
+	const form = document.getElementById('project-settings-form');
+	const status = document.getElementById('project-settings-status');
+	form?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const data = new FormData(form);
+		if (status) status.textContent = 'Saving...';
+		const response = await fetch(`/v1/projects/${encodeURIComponent(projectId)}`, {
+			method: 'PUT',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				name: String(data.get('name') ?? '').trim(),
+				slug: String(data.get('slug') ?? '').trim(),
+				description: String(data.get('description') ?? '').trim(),
+				metadata: { entitlementTier: String(data.get('entitlementTier') ?? 'free') },
+			}),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			if (status) status.textContent = payload?.error ?? 'Project could not be saved.';
+			return;
+		}
+		if (status) status.textContent = 'Saved.';
+	});
+</script>

@@ -1,0 +1,25 @@
+---
+import ActionList from '../../../../packages/core/src/components/ui/data/ActionList.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+
+interface Props {
+	capacity: any[];
+	diagnostics: any[];
+}
+
+const { capacity, diagnostics } = Astro.props as Props;
+const items = [...diagnostics.filter((item) => item.meta === 'capacity' || String(item.id ?? '').includes('capacity')), ...capacity].slice(0, 12);
+---
+
+<Panel eyebrow="Capacity" title="Budget and routing diagnostics" description="Provider, grant, routing, and budget state for operator review.">
+	<ActionList items={items.map((item) => ({
+		title: item.title,
+		description: item.description,
+		href: item.href,
+		meta: item.meta,
+		tone: item.tone,
+		actionLabel: item.href ? 'Inspect' : undefined,
+	}))}>
+		<p class="ts-empty-inline">No capacity diagnostics are visible.</p>
+	</ActionList>
+</Panel>

@@ -1,0 +1,48 @@
+---
+import { getCollection } from 'astro:content';
+import Button from '../../../../../packages/core/src/components/ui/forms/Button.astro';
+import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../../components/app/controls/PlainTable.astro';
+import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../../../view-models/shared.js';
+
+const projectParam = String(Astro.params.projectId ?? '');
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
+const [agentContent, agentSummary] = project ? await Promise.all([
+	getCollection('agents' as any, ({ data }: any) => data?.enabled !== false).catch(() => []),
+	context.store && typeof context.store.getProjectAgentsSummary === 'function' ? context.store.getProjectAgentsSummary(project.id, context.principal).catch(() => null) : null,
+]) : [[], null];
+if (!project) Astro.response.status = 404;
+const runtimeBySlug: Map<string, any> = new Map((agentSummary?.agents ?? []).map((agent: any) => [String(agent.agentSlug ?? agent.slug ?? ''), agent]));
+const contentRows = agentContent.map((entry: any) => {
+	const slug = String(entry.data?.slug ?? entry.id ?? '');
+	const runtime = runtimeBySlug.get(slug);
+	return {
+		id: `agent-${esc(slug)}`,
+		name: `<strong>${esc(entry.data?.name ?? entry.data?.title ?? slug)}</strong><span>${esc(entry.data?.summary ?? entry.data?.description ?? '')}</span>`,
+		handler: esc(entry.data?.handler ?? runtime?.handler ?? 'agent'),
+		status: esc(runtime?.status ?? entry.data?.runtimeStatus ?? 'configured'),
+		current: esc(runtime?.currentTask ?? 'none'),
+		action: `<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/agents/${encodeURIComponent(slug)}">Open</a>`,
+	};
+});
+---
+
+<TreeseedAppLayout title="Project agents" description="Manage agent definitions and runtime status." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+	{project ? (
+		<section class="ts-control-page" aria-label="Project agents">
+			<ProjectControlNav projectId={project.id} current="agents" />
+			<Panel eyebrow="Agents" title="Agent definitions" description="Configured agents, their handlers, runtime state, and current task.">
+				<Button slot="actions" href={`/app/projects/${encodeURIComponent(project.id)}/agents/new`} size="sm">New agent</Button>
+				<PlainTable columns={[{ key: 'name', label: 'Agent' }, { key: 'handler', label: 'Handler' }, { key: 'status', label: 'Status' }, { key: 'current', label: 'Current task' }, { key: 'action', label: 'Action' }]} rows={contentRows} emptyTitle="No agents" emptyDescription="Create an agent definition under src/content/agents." interactive={true} pageSize={10} searchLabel="Filter agents" />
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="Project not found" description="This project is not available." actions={[{ label: 'Back to Projects', href: '/app/projects' }]} />
+	)}
+</TreeseedAppLayout>

@@ -1,0 +1,45 @@
+---
+import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
+import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../components/app/controls/PlainTable.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../../view-models/shared.js';
+
+if (!Astro.locals.auth?.principal) {
+	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/projects')}`);
+}
+const context = await loadOperationalContext(Astro.locals, Astro);
+const rows = context.projects.map((project: any) => ({
+	id: `project-${esc(project.id)}`,
+	name: `<strong>${esc(project.name ?? project.slug ?? project.id)}</strong><span>${esc(project.description ?? project.summary ?? 'Hosted project')}</span>`,
+	handle: esc(project.slug ?? project.handle ?? project.id),
+	actions: [
+		`<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/settings">Settings</a>`,
+		`<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/hosts">Hosts</a>`,
+		`<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/guidance">Guide</a>`,
+		`<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/decisions">Decisions</a>`,
+		`<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/workdays">Workdays</a>`,
+		`<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/agents">Agents</a>`,
+		`<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/artifacts">Artifacts</a>`,
+	].join(' '),
+}));
+---
+
+<TreeseedAppLayout title="Projects" description="List hosted projects for the active team." currentPath={Astro.url.pathname} teams={context.teams} activeTeam={context.activeTeam}>
+	<section class="ts-control-page" aria-label="Projects">
+		<Panel eyebrow="Projects" title="Projects" description={context.activeTeam ? 'Open one project control page.' : 'Create a team before adding projects.'}>
+			<Button slot="actions" href="/app/projects/new" size="sm">New project</Button>
+			{context.activeTeam ? (
+				<PlainTable columns={[
+					{ key: 'name', label: 'Project' },
+					{ key: 'handle', label: 'Handle' },
+					{ key: 'actions', label: 'Actions' },
+				]} rows={rows} emptyTitle="No projects yet" emptyDescription="Create the first hosted project for this team." />
+			) : (
+				<EmptyState title="No team selected" description="Create or switch to a team first." actions={[{ label: 'Open Team', href: '/app/teams' }]} />
+			)}
+		</Panel>
+	</section>
+</TreeseedAppLayout>

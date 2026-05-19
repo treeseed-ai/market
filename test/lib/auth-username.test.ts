@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { D1DatabaseLike, D1PreparedStatementLike } from '@treeseed/core/types/cloudflare';
+import { ensureBetterAuthD1Schema } from '../../src/lib/auth/better-auth';
 import {
 	assignImmutableUsername,
 	composeDisplayNameFromParts,
@@ -110,6 +111,35 @@ describe('market username validation', () => {
 });
 
 runtimeDescribe('market username persistence', () => {
+	it('repairs older Better Auth user tables before creating the username index', async () => {
+		const db = new TestD1Database();
+		const context = contextFor(db);
+		db.db.exec(`
+			DROP INDEX IF EXISTS idx_better_auth_user_username;
+			ALTER TABLE better_auth_user RENAME TO better_auth_user_legacy_without_username;
+			CREATE TABLE better_auth_user (
+				id TEXT PRIMARY KEY,
+				name TEXT NOT NULL,
+				email TEXT NOT NULL UNIQUE,
+				emailVerified INTEGER NOT NULL DEFAULT 0,
+				image TEXT,
+				createdAt INTEGER NOT NULL,
+				updatedAt INTEGER NOT NULL
+			);
+			INSERT INTO better_auth_user (id, name, email, emailVerified, image, createdAt, updatedAt)
+			SELECT id, name, email, emailVerified, image, createdAt, updatedAt
+			FROM better_auth_user_legacy_without_username;
+			DROP TABLE better_auth_user_legacy_without_username;
+		`);
+
+		await ensureBetterAuthD1Schema(context);
+
+		const columns = db.db.prepare(`PRAGMA table_info(better_auth_user)`).all().map((row: any) => row.name);
+		expect(columns).toEqual(expect.arrayContaining(['username', 'firstName', 'lastName']));
+		const indexes = db.db.prepare(`PRAGMA index_list(better_auth_user)`).all().map((row: any) => row.name);
+		expect(indexes).toContain('idx_better_auth_user_username');
+	});
+
 	it('checks availability case-insensitively and refuses mutation after assignment', async () => {
 		const db = new TestD1Database();
 		const context = contextFor(db);

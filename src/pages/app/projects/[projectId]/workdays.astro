@@ -1,0 +1,79 @@
+---
+import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../../components/app/controls/PlainTable.astro';
+import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
+import { loadOperationalContext, normalizeWorkdayEntry } from '../../../../view-models/shared.js';
+
+const projectParam = String(Astro.params.projectId ?? '');
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
+let workdays: any[] = [];
+if (project && context.store) {
+	const [summaries, runtime] = await Promise.all([
+		typeof context.store.listProjectWorkdaySummaries === 'function' ? context.store.listProjectWorkdaySummaries(project.id, null).catch(() => []) : [],
+		typeof context.store.listRuntimeWorkDays === 'function' ? context.store.listRuntimeWorkDays(project.id, { limit: 1000 }).catch(() => []) : [],
+	]);
+	const seen = new Set();
+	workdays = [...summaries, ...runtime].map((entry: any) => normalizeWorkdayEntry(project, entry)).filter((entry: any) => {
+		if (seen.has(entry.id)) return false;
+		seen.add(entry.id);
+		return true;
+	});
+}
+if (!project) Astro.response.status = 404;
+const rows = await Promise.all(workdays.map(async (workday: any) => {
+	const tasks = project && context.store && typeof context.store.listRuntimeTasks === 'function'
+		? await context.store.listRuntimeTasks(project.id, { workDayId: workday.id, limit: 1000 }).catch(() => [])
+		: [];
+	const agentCount = new Set(tasks.map((task: any) => task.agentId ?? task.agent_id).filter(Boolean)).size;
+	const credits = Number(workday.summary?.capacityUsed ?? workday.summary?.creditsUsed ?? workday.summary?.budget?.capacityUsed ?? 0);
+	return {
+		id: `workday-${esc(workday.id)}`,
+		name: `<strong>${esc(workday.objective)}</strong><span>${esc(workday.id)}</span>`,
+		state: esc(workday.state),
+		agents: esc(agentCount || workday.docsAutomation?.agentCount || 0),
+		tasks: esc(tasks.length || workday.docsAutomation?.taskCount || 0),
+		credits: esc(credits ? credits.toFixed(2) : '0'),
+		updated: esc(workday.updatedAt ?? workday.startedAt ?? ''),
+		action: `<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/workdays/${encodeURIComponent(workday.id)}">Open</a>`,
+	};
+}));
+---
+
+<TreeseedAppLayout title="Project workdays" description="Review agent workdays, logs, outputs, and capacity usage." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+	{project ? (
+		<section class="ts-control-page" aria-label="Project workdays">
+			<ProjectControlNav projectId={project.id} current="workdays" />
+			<Panel eyebrow="Workdays" title="Agent workdays" description="Daily agent activity grouped by status, task volume, and credit usage.">
+				<button slot="actions" class="ts-button" data-size="sm" type="button" id="request-workday-button">Request local workday</button>
+				<PlainTable columns={[{ key: 'name', label: 'Workday' }, { key: 'state', label: 'State' }, { key: 'agents', label: 'Agents' }, { key: 'tasks', label: 'Tasks' }, { key: 'credits', label: 'Credits' }, { key: 'updated', label: 'Updated' }, { key: 'action', label: 'Action' }]} rows={rows} emptyTitle="No workdays" emptyDescription="Workdays appear after the manager records project activity." interactive={true} pageSize={10} searchLabel="Filter workdays" />
+				<p class="ts-subtle" id="workday-request-status" role="status"></p>
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="Project not found" description="This project is not available." actions={[{ label: 'Back to Projects', href: '/app/projects' }]} />
+	)}
+</TreeseedAppLayout>
+
+<script is:inline define:vars={{ projectId: project?.id ?? '' }}>
+	const button = document.getElementById('request-workday-button');
+	const status = document.getElementById('workday-request-status');
+	button?.addEventListener('click', async () => {
+		if (status) status.textContent = 'Requesting local workday...';
+		const response = await fetch(`/v1/projects/${encodeURIComponent(projectId)}/workday-requests`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ environment: 'local', type: 'one_off_run', reason: 'Requested from project workdays', payload: { source: 'project_workdays_ui' } }),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			if (status) status.textContent = payload?.error ?? 'Workday could not be requested.';
+			return;
+		}
+		window.location.href = `${window.location.pathname}?requested=${Date.now()}`;
+	});
+</script>

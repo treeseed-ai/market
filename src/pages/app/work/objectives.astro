@@ -1,0 +1,37 @@
+---
+import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
+import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../components/app/controls/PlainTable.astro';
+import WorkContentNav from '../../../components/app/controls/WorkContentNav.astro';
+import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../../view-models/shared.js';
+import { loadWorkContentEntries, workContentEntriesFor, workContentRelationSummary } from '../../../view-models/work-content.js';
+
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/work/objectives')}`);
+const [context, contentEntries] = await Promise.all([
+	loadOperationalContext(Astro.locals, Astro),
+	loadWorkContentEntries(),
+]);
+const objectiveEntries = workContentEntriesFor(contentEntries, 'objectives');
+const core = objectiveEntries.find((entry: any) => entry.id === 'core' || entry.id === 'objective:core' || entry.title.toLowerCase().includes('core treeseed objective')) ?? null;
+const orderedObjectives = [...(core ? [core] : []), ...objectiveEntries.filter((entry: any) => entry !== core)];
+const contentRows = orderedObjectives.map((entry: any) => ({
+	id: `objective-content-${esc(entry.id)}`,
+	name: `<strong>${esc(entry.title)}</strong><span>${esc(entry.summary || entry.description)}</span>`,
+	type: esc(entry.type),
+	state: esc(entry.status),
+	related: esc(workContentRelationSummary(entry)),
+	action: `<a class="ts-link-button" href="${esc(entry.href)}">Open</a>`,
+}));
+---
+
+<TreeseedAppLayout title="Objectives" description="List project objectives and workdays." currentPath="/app/work/objectives" teams={context.teams} activeTeam={context.activeTeam}>
+	<section class="ts-control-page" aria-label="Objectives">
+		<WorkContentNav current="objectives" />
+		<Panel eyebrow="Work content" title="Objective records" description="Source content objectives from the active TreeSeed workspace.">
+			<Button slot="actions" href="/app/work/objectives/new" size="sm">New objective</Button>
+			<PlainTable columns={[{ key: 'name', label: 'Objective' }, { key: 'type', label: 'Horizon' }, { key: 'state', label: 'State' }, { key: 'related', label: 'Related' }, { key: 'action', label: 'Action' }]} rows={contentRows} emptyTitle="No objective content yet" emptyDescription="Objective records appear from src/content/objectives." />
+		</Panel>
+	</section>
+</TreeseedAppLayout>

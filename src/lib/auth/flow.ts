@@ -11,6 +11,10 @@ import { createSiteWebSession } from './session-store';
 export const SUPPORTED_AUTH_PROVIDERS = ['github', 'google', 'microsoft', 'apple'] as const;
 export type SupportedAuthProvider = (typeof SUPPORTED_AUTH_PROVIDERS)[number];
 
+const LOCAL_DEV_AUTH_TTL_SECONDS = 365 * 24 * 60 * 60;
+const DEFAULT_AUTH_TTL_SECONDS = 15 * 60;
+const DEFAULT_REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60;
+
 export function isSupportedAuthProvider(value: string | null | undefined): value is SupportedAuthProvider {
 	return Boolean(value && (SUPPORTED_AUTH_PROVIDERS as readonly string[]).includes(value));
 }
@@ -56,6 +60,11 @@ export function createCoreAuthProvider(context: Pick<APIContext, 'locals' | 'url
 	}
 	const siteConfig = getSiteAuthConfig(context);
 	const env = (context.locals.runtime?.env ?? {}) as Record<string, unknown>;
+	const localDevAuth = env.TREESEED_LOCAL_DEV_MODE === 'cloudflare'
+		|| context.url.hostname === '127.0.0.1'
+		|| context.url.hostname === 'localhost';
+	const defaultAccessTokenTtl = localDevAuth ? LOCAL_DEV_AUTH_TTL_SECONDS : DEFAULT_AUTH_TTL_SECONDS;
+	const defaultRefreshTokenTtl = localDevAuth ? LOCAL_DEV_AUTH_TTL_SECONDS : DEFAULT_REFRESH_TTL_SECONDS;
 	return new D1AuthProvider({
 		name: '@treeseed/market/web',
 		host: '127.0.0.1',
@@ -75,8 +84,8 @@ export function createCoreAuthProvider(context: Pick<APIContext, 'locals' | 'url
 			.split(',')
 			.map((entry) => entry.trim().toLowerCase())
 			.filter(Boolean),
-		accessTokenTtlSeconds: Number(env.TREESEED_API_ACCESS_TOKEN_TTL ?? 900),
-		refreshTokenTtlSeconds: Number(env.TREESEED_API_REFRESH_TOKEN_TTL ?? 7 * 24 * 60 * 60),
+		accessTokenTtlSeconds: Number(env.TREESEED_API_ACCESS_TOKEN_TTL ?? defaultAccessTokenTtl),
+		refreshTokenTtlSeconds: Number(env.TREESEED_API_REFRESH_TOKEN_TTL ?? defaultRefreshTokenTtl),
 		deviceCodeTtlSeconds: Number(env.TREESEED_API_DEVICE_CODE_TTL ?? 10 * 60),
 		deviceCodePollIntervalSeconds: Number(env.TREESEED_API_DEVICE_CODE_POLL_INTERVAL ?? 5),
 		providers: {

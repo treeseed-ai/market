@@ -17,14 +17,14 @@ if (!entry) {
 ---
 
 <TreeseedPublicLayout
-	title={`${entry?.title ?? 'Knowledge pack'} | TreeSeed`}
-	description={entry?.summary ?? 'Knowledge pack detail'}
+	title={`${entry?.title ?? 'Knowledge import'} | TreeSeed`}
+	description={entry?.summary ?? 'Knowledge import detail'}
 	currentPath={Astro.url.pathname}
 >
 	<Panel
-		eyebrow="Knowledge pack"
-		title={entry?.title ?? 'Unknown knowledge pack'}
-		description={entry?.summary ?? 'This knowledge pack could not be resolved.'}
+		eyebrow="Knowledge Import"
+		title={entry?.title ?? 'Unknown knowledge import'}
+		description={entry?.summary ?? 'This knowledge import could not be resolved.'}
 	>
 		<div class="ts-badges">
 			{entry ? <Badge tone="muted">{entry.visibility}</Badge> : null}
@@ -42,7 +42,7 @@ if (!entry) {
 				{ key: 'Install strategy', value: String(entry?.metadata?.installStrategy ?? 'import_export') },
 			]} />
 		</Panel>
-		<Panel title="Published artifacts" description="Artifact versions packaged for this knowledge pack.">
+		<Panel title="Published artifacts" description="Artifact versions packaged for this knowledge import.">
 			<ActionList
 				items={artifacts.map((artifact: any) => ({
 					title: artifact.version,

@@ -1,0 +1,51 @@
+---
+import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../../components/app/controls/PlainTable.astro';
+import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../../../view-models/shared.js';
+
+const projectParam = String(Astro.params.projectId ?? '');
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+const projectEntry = context.projects.find((project: any) => project.id === projectParam || project.slug === projectParam || project.handle === projectParam) ?? null;
+const projectId = projectEntry?.id ?? projectParam;
+const details = projectEntry && context.store ? await context.store.getProjectDetails(projectId).catch(() => null) : null;
+if (!projectEntry || !details) Astro.response.status = 404;
+const project = details?.project ?? projectEntry;
+const repositoryRows = [
+	...(Array.isArray(details?.repositories) ? details.repositories : []),
+].map((repo: any, index: number) => ({
+	id: `repo-${esc(repo.id ?? index)}`,
+	name: `<strong>${esc(repo.name ?? repo.fullName ?? repo.repository ?? 'Repository')}</strong><span>${esc(repo.url ?? repo.remoteUrl ?? '')}</span>`,
+	kind: esc(repo.kind ?? repo.type ?? repo.role ?? 'repository'),
+	state: esc(repo.state ?? repo.status ?? 'configured'),
+}));
+const hostRows = [
+	...(Array.isArray(details?.resources) ? details.resources : []),
+	...(Array.isArray(details?.deployments) ? details.deployments : []),
+].map((item: any, index: number) => ({
+	id: `host-${esc(item.id ?? index)}`,
+	name: `<strong>${esc(item.name ?? item.resourceName ?? item.environment ?? 'Host')}</strong><span>${esc(item.provider ?? item.resourceType ?? item.sourceRef ?? '')}</span>`,
+	kind: esc(item.resourceType ?? item.deploymentKind ?? item.kind ?? 'host'),
+	state: esc(item.status ?? item.state ?? 'configured'),
+}));
+---
+
+<TreeseedAppLayout title="Project hosts" description="View one project's repositories and host records." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+	{projectEntry && details ? (
+		<section class="ts-control-page" aria-label="Project hosts">
+			<ProjectControlNav projectId={project.id} current="hosts" />
+			<Panel eyebrow="Projects" title="Repositories" description="Repository records created for this project.">
+				<PlainTable columns={[{ key: 'name', label: 'Repository' }, { key: 'kind', label: 'Kind' }, { key: 'state', label: 'State' }]} rows={repositoryRows} emptyTitle="No repositories recorded" emptyDescription="Repository records appear after project launch completes." />
+			</Panel>
+			<Panel eyebrow="Projects" title="Hosts" description="Host and deployment records for this project.">
+				<PlainTable columns={[{ key: 'name', label: 'Host' }, { key: 'kind', label: 'Kind' }, { key: 'state', label: 'State' }]} rows={hostRows} emptyTitle="No host records" emptyDescription="Host records appear after launch and deployment activity." />
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="Project not found" description="This project is not available." actions={[{ label: 'Back to Projects', href: '/app/projects' }]} />
+	)}
+</TreeseedAppLayout>

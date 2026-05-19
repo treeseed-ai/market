@@ -1,0 +1,18 @@
+---
+id: agent-test:docs-reviewer-basic
+agent: treeseed-docs-reviewer
+kind: handler
+fixture: packages/agent/test/fixtures/agent-tests/docs-reviewer/basic
+trigger:
+  messageType: docs_mutation_completed
+expect:
+  status: waiting
+  messages:
+    - review_failed
+tags:
+  - review
+  - documentation
+---
+
+This test proves the docs reviewer fails visibly when an implementation result
+is missing instead of silently approving a mutation.

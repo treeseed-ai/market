@@ -8,6 +8,7 @@ import {
 	resolveTreeseedManagedCloudflareHostConfigFromConfig,
 	resolveTreeseedManagedProcessingHostConfigFromConfig,
 } from '../../lib/market/managed-hosts';
+import { validateProjectSlug } from '../../api/store.js';
 import { resolveMarketStore } from '../../lib/market/store';
 
 export const prerender = false;
@@ -58,6 +59,15 @@ function encryptedHostPayloadLooksValid(value: any) {
 function decryptedCloudflareConfigSummary(value: any) {
 	if (!value || typeof value !== 'object') return { provided: false, keys: [] };
 	return { provided: true, keys: Object.keys(value).filter(Boolean).sort() };
+}
+
+function optionalTrimmedString(value: unknown) {
+	return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function enumValue(value: unknown, allowed: string[], fallback: string | null = null) {
+	const candidate = typeof value === 'string' ? value.trim() : '';
+	return allowed.includes(candidate) ? candidate : fallback;
 }
 
 function credentialSessionKey(context: APIContext) {
@@ -844,6 +854,47 @@ export const ALL: APIRoute = async (context) => {
 		const access: any = await requireProject(store, auth.principal, id, 'projects:read:team');
 		if (access.response) return access.response;
 		if (method === 'GET' && !third) return json({ ok: true, payload: access.details });
+		if (method === 'PUT' && !third) {
+			const manageAccess: any = await requireProject(store, auth.principal, id, 'projects:manage:team');
+			if (manageAccess.response) return manageAccess.response;
+			const body = await readJson(context);
+			let slug = manageAccess.details.project.slug;
+			if (body.slug != null) {
+				const slugResult = validateProjectSlug(body.slug);
+				if (!slugResult.ok) return error(400, slugResult.message ?? 'Invalid project slug.', { code: slugResult.code });
+				slug = slugResult.slug;
+			}
+			const name = String(body.name ?? manageAccess.details.project.name).trim();
+			if (!name) return error(400, 'Project name is required.', { code: 'missing_name' });
+			const existing = slug === manageAccess.details.project.slug
+				? null
+				: await store.getProjectByTeamAndSlug(manageAccess.details.project.teamId, slug);
+			if (existing && existing.id !== id) {
+				return error(409, 'That project slug is already in use for this team.', { code: 'slug_taken' });
+			}
+			const updated = await store.updateProject(id, {
+				slug,
+				name,
+				description: typeof body.description === 'string' ? body.description.trim() || null : manageAccess.details.project.description ?? null,
+				metadata: {
+					...(manageAccess.details.project.metadata ?? {}),
+					...(body.metadata && typeof body.metadata === 'object' ? body.metadata : {}),
+				},
+			});
+			return json({ ok: true, payload: await store.getProjectDetails(updated.id) });
+		}
+		if (method === 'GET' && third === 'deletion-blockers') {
+			const manageAccess: any = await requireProject(store, auth.principal, id, 'projects:manage:team');
+			if (manageAccess.response) return manageAccess.response;
+			return json({ ok: true, payload: await store.evaluateProjectDeletionBlockers(id) });
+		}
+		if (method === 'DELETE' && !third) {
+			const manageAccess: any = await requireProject(store, auth.principal, id, 'projects:manage:team');
+			if (manageAccess.response) return manageAccess.response;
+			const body = await readJson(context);
+			const result = await store.deleteProject(id, body.confirmation);
+			return json(result, result.ok ? 200 : 400);
+		}
 		if (method === 'GET' && third === 'summary') return json({ ok: true, payload: await store.getProjectSummary(id, auth.principal) });
 		if (method === 'GET' && third === 'direct') return json({ ok: true, payload: await store.getProjectDirectSummary(id, auth.principal) });
 		if (method === 'GET' && third === 'workstreams') return json({ ok: true, payload: await store.getProjectWorkstreamsSummary(id, auth.principal) });
@@ -851,6 +902,46 @@ export const ALL: APIRoute = async (context) => {
 		if (method === 'GET' && third === 'releases') return json({ ok: true, payload: await store.getProjectReleasesSummary(id, auth.principal) });
 		if (method === 'GET' && third === 'share') return json({ ok: true, payload: await store.getProjectShareSummary(id, auth.principal) });
 		if (method === 'GET' && third === 'hosting') return json({ ok: true, payload: await store.getProjectHosting(id) });
+		if (method === 'POST' && third === 'connection') {
+			const manageAccess: any = await requireProject(store, auth.principal, id, 'projects:manage:team');
+			if (manageAccess.response) return manageAccess.response;
+			const body = await readJson(context);
+			const mode = enumValue(body.mode, ['hosted', 'hybrid', 'self_hosted'], body.mode == null ? manageAccess.details.connection?.mode ?? 'self_hosted' : null);
+			if (!mode) return error(400, 'Invalid connection mode.');
+			const executionOwner = enumValue(body.executionOwner, ['project_api', 'project_runner'], body.executionOwner == null ? manageAccess.details.connection?.executionOwner ?? 'project_runner' : null);
+			if (!executionOwner) return error(400, 'Invalid execution owner.');
+			const result = await store.upsertProjectConnection(id, {
+				mode,
+				projectApiBaseUrl: optionalTrimmedString(body.projectApiBaseUrl),
+				executionOwner,
+				metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+				rotateRunnerToken: body.rotateRunnerToken === true,
+			});
+			return json({ ok: true, payload: { connection: result.connection, runnerToken: result.runnerToken } });
+		}
+		if (method === 'PUT' && third === 'hosting') {
+			const manageAccess: any = await requireProject(store, auth.principal, id, 'projects:manage:team');
+			if (manageAccess.response) return manageAccess.response;
+			const body = await readJson(context);
+			const kind = enumValue(body.kind, ['hosted_project', 'self_hosted_project']);
+			if (!kind) return error(400, 'Invalid hosting kind.');
+			const registration = enumValue(body.registration, ['none', 'optional', 'required'], 'none');
+			const executionOwner = enumValue(body.executionOwner, ['project_api', 'project_runner'], null);
+			if (body.executionOwner != null && !executionOwner) return error(400, 'Invalid execution owner.');
+			const payload = await store.upsertProjectHosting(id, {
+				kind,
+				registration,
+				marketBaseUrl: optionalTrimmedString(body.marketBaseUrl),
+				sourceRepoOwner: optionalTrimmedString(body.sourceRepoOwner),
+				sourceRepoName: optionalTrimmedString(body.sourceRepoName),
+				sourceRepoUrl: optionalTrimmedString(body.sourceRepoUrl),
+				sourceRepoWorkflowPath: optionalTrimmedString(body.sourceRepoWorkflowPath),
+				projectApiBaseUrl: optionalTrimmedString(body.projectApiBaseUrl),
+				executionOwner,
+				metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+			});
+			return json({ ok: true, payload });
+		}
 		if (method === 'GET' && third === 'environments') return json({ ok: true, payload: await store.listProjectEnvironments(id) });
 		if (method === 'GET' && third === 'resources') return json({ ok: true, payload: await store.listProjectInfrastructureResources(id) });
 		if (method === 'GET' && third === 'deployments') return json({ ok: true, payload: await store.listProjectDeployments(id) });

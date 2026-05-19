@@ -15,11 +15,11 @@ const result: any = store
 	: { ok: false, message: 'Market storage is unavailable.' };
 
 if (result.ok && result.team) {
-	return Astro.redirect(`/app/teams/${result.team.name}/home?invite=accepted`, 303);
+	return Astro.redirect('/app/?invite=accepted', 303);
 }
 ---
 
-<TreeseedPublicLayout title="Team invite" description="Accept a Treeseed Market team invite." currentPath={Astro.url.pathname}>
+<TreeseedPublicLayout title="Team invite" description="Accept a TreeSeed organization invite." currentPath={Astro.url.pathname}>
 	<main class="ts-section">
 		<section class="ts-panel">
 			<p class="ts-section__eyebrow">Team invite</p>

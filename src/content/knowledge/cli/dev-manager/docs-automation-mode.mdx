@@ -1,0 +1,719 @@
+---
+title: What should `trsd dev:manager` do in local docs automation mode?
+summary: Generated TreeSeed book knowledge for what should `trsd dev:manager` do
+  in local docs automation mode?.
+type: cli
+status: canonical
+generated_by: treeseed-agent
+agent_role: knowledge_generator
+source_question: question:trsd-dev-manager-docs-automation
+source_research:
+  - research:trsd-dev-manager-docs-automation-v1
+review_state: verified_for_staging
+book_target: cli
+section_target: dev-manager
+confidence: high
+source_map:
+  - claim: Context query dev-manager-docs-automation supports research for dev
+      manager docs automation workday startup tasks graph refresh scan codebase
+      documentation surface.
+    sourceFiles:
+      - /knowledge
+    sourceSymbolsOrSections: []
+    evidenceStrength: inferred
+    uncertainty: Graph context may reference content or inferred relationships
+      instead of direct code evidence.
+    lastObservedRef: unknown
+  - claim: Context query
+      dev-manager-docs-automation:code:flow-dev-manager-docs-automation supports
+      research for dev manager docs automation workday startup tasks graph
+      refresh scan codebase documentation surface.
+    sourceFiles:
+      - docs/agent-ai-dev-prompt.md
+      - docs/agent-budget.md
+      - docs/agent-dev.md
+      - docs/agent-docs.md
+      - docs/agent-ops.md
+      - docs/demo.md
+      - docs/knowledge-hub-caching.md
+      - docs/knowledge-hub-hosting-budget.md
+      - docs/market-deploy.md
+      - docs/market_ui_spec.md
+      - docs/purpose.md
+      - docs/seed.md
+      - migrations/0001_subscribers.sql
+      - migrations/0002_agent_runtime.sql
+      - migrations/0003_agent_run_trace.sql
+      - migrations/0004_contact_submissions.sql
+      - migrations/0005_runtime_envelopes.sql
+      - migrations/0006_agent_control_plane.sql
+      - migrations/0007_site_web_sessions.sql
+      - migrations/0008_market_control_plane.sql
+      - migrations/0009_team_content_catalog.sql
+      - migrations/0010_project_hosting_topology.sql
+      - migrations/0011_control_plane_reporting.sql
+      - migrations/0012_knowledge_coop_views.sql
+      - packages/agent/src/agents/adapters/codex-readiness.ts
+      - packages/agent/src/agents/adapters/execution-codex.ts
+      - packages/agent/src/agents/adapters/execution.ts
+      - packages/agent/src/agents/adapters/mutations.ts
+      - packages/agent/src/agents/adapters/notification.ts
+      - packages/agent/src/agents/adapters/operations.ts
+      - packages/agent/src/agents/adapters/repository.ts
+      - packages/agent/src/agents/adapters/research.ts
+      - packages/agent/src/agents/adapters/verification.ts
+      - packages/agent/src/agents/cli-tools.ts
+      - packages/agent/src/agents/cli.ts
+      - packages/agent/src/agents/context/code-context-packs.ts
+      - packages/agent/src/services/.ts-run-1778724155855-8jc6bt47z4w.mjs
+      - packages/agent/src/services/.ts-run-1778724156124-39absm5sr7b.mjs
+      - packages/agent/src/services/.ts-run-1778724515065-r286dezoz3i.mjs
+      - packages/agent/src/services/.ts-run-1778724845757-8n1em4yzzzl.mjs
+      - packages/agent/src/services/.ts-run-1778725032495-kog8jxldat.mjs
+      - packages/agent/src/services/.ts-run-1778725032550-j685g4xdjlq.mjs
+      - packages/agent/src/services/.ts-run-1778731501871-90wxfkb79oe.mjs
+      - packages/agent/src/services/.ts-run-1778731501885-zm4ip06okn.mjs
+      - packages/agent/src/services/.ts-run-1778733332143-zovyqnt8jeb.mjs
+      - packages/agent/src/services/.ts-run-1778733332229-bbo8l6tn28.mjs
+      - packages/agent/src/services/.ts-run-1778741092319-epv9yqo841j.mjs
+      - packages/agent/src/services/.ts-run-1778741092325-3ayg7sm76zr.mjs
+      - packages/cli/src/cli/handlers/audit.ts
+      - packages/cli/src/cli/handlers/auth-login.ts
+      - packages/cli/src/cli/handlers/auth-logout.ts
+      - packages/cli/src/cli/handlers/auth-whoami.ts
+      - packages/cli/src/cli/handlers/capacity.ts
+      - packages/cli/src/cli/handlers/ci.ts
+      - packages/cli/src/cli/handlers/close.ts
+      - packages/cli/src/cli/handlers/config-ui.ts
+      - packages/cli/src/cli/handlers/config.ts
+      - packages/cli/src/cli/handlers/destroy.ts
+      - packages/cli/src/cli/handlers/dev.ts
+      - packages/cli/src/cli/handlers/doctor.ts
+      - packages/sdk/src/.ts-run-1775911544993-md43eh8jqq.mjs
+      - packages/sdk/src/.ts-run-1775911545215-td65nq8esoe.mjs
+      - packages/sdk/src/.ts-run-1775911593087-czgua07y0pf.mjs
+      - packages/sdk/src/.ts-run-1775911614364-zdfn7roiuds.mjs
+      - packages/sdk/src/.ts-run-1775911686249-5z5wldvzd5d.mjs
+      - packages/sdk/src/.ts-run-1775911711165-linrs6z9dkc.mjs
+      - packages/sdk/src/.ts-run-1775912004231-bq2jv49rqrq.mjs
+      - packages/sdk/src/.ts-run-1775912490348-3iqk8h9m0q5.mjs
+      - packages/sdk/src/.ts-run-1775917867106-kgsnznwknu.mjs
+      - packages/sdk/src/.ts-run-1775918140169-i07f8067rd.mjs
+      - packages/sdk/src/.ts-run-1775918381997-ytm4l123gb.mjs
+      - packages/sdk/src/.ts-run-1775919438060-expspixc0fm.mjs
+    sourceSymbolsOrSections:
+      - AGENT_CLI_ALLOW_TOOLS
+      - AGENT_HANDLER_KINDS
+      - AGENT_MESSAGE_KINDS
+      - AGENT_MESSAGE_STATUSES
+      - AGENT_MESSAGE_TYPES
+      - AGENT_OPERATION_MODES
+      - AGENT_OPERATION_NAMES
+      - AGENT_PERMISSION_OPERATIONS
+      - AGENT_POOL_STATUSES
+      - AGENT_RUN_STATUSES
+      - AGENT_TRIGGER_KINDS
+      - AUTHORED_GRAPH_EDGE_TYPES
+      - AdmissionEstimateInput
+      - AgentApprovalDecision
+      - AgentApprovalKind
+      - AgentCliAllowTool
+      - AgentCliOptions
+      - AgentContext
+      - AgentDatabase
+      - AgentDeterministicOperationStep
+      - AgentErrorCategory
+      - AgentExecutionAdapter
+      - AgentExecutionConfig
+      - AgentExecutionResult
+    evidenceStrength: direct
+    uncertainty: Scanner evidence should still be reviewed against current source
+      before promotion.
+    lastObservedRef: local
+  - claim: Context query
+      dev-manager-docs-automation:code:module-packages-agent-src-agents supports
+      research for dev manager docs automation workday startup tasks graph
+      refresh scan codebase documentation surface.
+    sourceFiles:
+      - packages/agent/src/agents/adapters/codex-readiness.ts
+      - packages/agent/src/agents/adapters/execution-codex.ts
+      - packages/agent/src/agents/adapters/execution.ts
+      - packages/agent/src/agents/adapters/mutations.ts
+      - packages/agent/src/agents/adapters/notification.ts
+      - packages/agent/src/agents/adapters/operations.ts
+      - packages/agent/src/agents/adapters/repository.ts
+      - packages/agent/src/agents/adapters/research.ts
+      - packages/agent/src/agents/adapters/verification.ts
+      - packages/agent/src/agents/cli-tools.ts
+      - packages/agent/src/agents/cli.ts
+      - packages/agent/src/agents/context/code-context-packs.ts
+    sourceSymbolsOrSections:
+      - AGENT_MESSAGE_TYPES
+      - AgentContext
+      - AgentErrorCategory
+      - AgentExecutionAdapter
+      - AgentExecutionResult
+      - AgentHandler
+      - AgentKernel
+      - AgentMessageContracts
+      - AgentMessagePayload
+      - AgentMessageType
+      - AgentMutationAdapter
+      - AgentMutationResult
+      - AgentNotificationAdapter
+      - AgentNotificationResult
+      - AgentOperationsAdapter
+      - AgentRepairTaskPayload
+      - AgentRepositoryInspectionAdapter
+      - AgentRepositoryInspectionResult
+      - AgentResearchAdapter
+      - AgentResearchResult
+      - AgentRunTrace
+      - AgentSpecDiagnostic
+      - AgentSpecDiagnosticSeverity
+      - AgentSpecLoadResult
+    evidenceStrength: direct
+    uncertainty: Scanner evidence should still be reviewed against current source
+      before promotion.
+    lastObservedRef: local
+  - claim: Context query
+      dev-manager-docs-automation:code:module-packages-agent-src-api supports
+      research for dev manager docs automation workday startup tasks graph
+      refresh scan codebase documentation surface.
+    sourceFiles:
+      - packages/agent/src/api/agent-artifacts.ts
+      - packages/agent/src/api/agent-routes.ts
+      - packages/agent/src/api/app.ts
+      - packages/agent/src/api/auth/d1-database.ts
+      - packages/agent/src/api/auth/d1-provider.ts
+      - packages/agent/src/api/auth/d1-store.ts
+      - packages/agent/src/api/auth/memory-provider.ts
+      - packages/agent/src/api/auth/rbac.ts
+      - packages/agent/src/api/auth/tokens.ts
+      - packages/agent/src/api/capabilities.ts
+      - packages/agent/src/api/config.ts
+      - packages/agent/src/api/http.ts
+    sourceSymbolsOrSections:
+      - ALL_PERMISSION_RESOURCES
+      - AccessTokenPayload
+      - AgentApprovalDecisionError
+      - AgentApprovalRequestSummary
+      - AgentArtifactApiItem
+      - AgentArtifactApiState
+      - AgentOperationApiState
+      - AgentOperationEventSummary
+      - AgentOperationGrantSummary
+      - AgentOperationLifecycleSummary
+      - ApiAppRuntime
+      - ApiAuthProvider
+      - ApiConfig
+      - ApiContext
+      - ApiCredential
+      - ApiProviderFactory
+      - ApiResolvedSettings
+      - ApiRuntimeProviderSelections
+      - ApiRuntimeProviders
+      - ApiServerOptions
+      - AppVariables
+      - CONTENT_RESOURCES
+      - D1AuthProvider
+      - D1AuthStore
+    evidenceStrength: direct
+    uncertainty: Scanner evidence should still be reviewed against current source
+      before promotion.
+    lastObservedRef: local
+  - claim: Context query
+      dev-manager-docs-automation:code:module-packages-agent-src-index-ts
+      supports research for dev manager docs automation workday startup tasks
+      graph refresh scan codebase documentation surface.
+    sourceFiles:
+      - packages/agent/src/index.ts
+    sourceSymbolsOrSections:
+      - packages/agent/src/index.ts
+      - packages/agent/src/index.ts module surface
+    evidenceStrength: direct
+    uncertainty: Scanner evidence should still be reviewed against current source
+      before promotion.
+    lastObservedRef: local
+  - claim: Context query
+      dev-manager-docs-automation:code:module-packages-agent-src-services
+      supports research for dev manager docs automation workday startup tasks
+      graph refresh scan codebase documentation surface.
+    sourceFiles:
+      - packages/agent/src/services/.ts-run-1778724155855-8jc6bt47z4w.mjs
+      - packages/agent/src/services/.ts-run-1778724156124-39absm5sr7b.mjs
+      - packages/agent/src/services/.ts-run-1778724515065-r286dezoz3i.mjs
+      - packages/agent/src/services/.ts-run-1778724845757-8n1em4yzzzl.mjs
+      - packages/agent/src/services/.ts-run-1778725032495-kog8jxldat.mjs
+      - packages/agent/src/services/.ts-run-1778725032550-j685g4xdjlq.mjs
+      - packages/agent/src/services/.ts-run-1778731501871-90wxfkb79oe.mjs
+      - packages/agent/src/services/.ts-run-1778731501885-zm4ip06okn.mjs
+      - packages/agent/src/services/.ts-run-1778733332143-zovyqnt8jeb.mjs
+      - packages/agent/src/services/.ts-run-1778733332229-bbo8l6tn28.mjs
+      - packages/agent/src/services/.ts-run-1778741092319-epv9yqo841j.mjs
+      - packages/agent/src/services/.ts-run-1778741092325-3ayg7sm76zr.mjs
+    sourceSymbolsOrSections:
+      - AgentApprovalDecision
+      - AgentApprovalKind
+      - AgentMergeToStagingResult
+      - AgentServiceRuntimeMode
+      - AgentWorktreeManager
+      - AgentWorktreeManagerOptions
+      - CODEBASE_DOCUMENTATION_SCAN_TARGETS
+      - CODEBASE_DOCUMENTATION_SCAN_TASK_KIND
+      - CapacityAssuranceResult
+      - CodebaseInventoryArtifact
+      - CollectRuntimeReadinessOptions
+      - DocsAutomationWorkdaySummary
+      - DocsCoverageLink
+      - GeneratedAgentArtifactSummary
+      - HostedControlPlaneAgentSdk
+      - HostedControlPlaneAgentSdkOptions
+      - HostedRunnerControlPlaneClient
+      - HostedRunnerControlPlaneClientOptions
+      - KnowledgeGap
+      - KnowledgePromotionApprovalDecisionRecord
+      - KnowledgePromotionDependencies
+      - KnowledgePromotionTaskInput
+      - KnowledgePromotionToStagingResult
+      - ModuleSurfaceInventory
+    evidenceStrength: direct
+    uncertainty: Scanner evidence should still be reviewed against current source
+      before promotion.
+    lastObservedRef: local
+  - claim: Context query
+      dev-manager-docs-automation:code:module-packages-cli-src-cli supports
+      research for dev manager docs automation workday startup tasks graph
+      refresh scan codebase documentation surface.
+    sourceFiles:
+      - packages/cli/src/cli/handlers/audit.ts
+      - packages/cli/src/cli/handlers/auth-login.ts
+      - packages/cli/src/cli/handlers/auth-logout.ts
+      - packages/cli/src/cli/handlers/auth-whoami.ts
+      - packages/cli/src/cli/handlers/capacity.ts
+      - packages/cli/src/cli/handlers/ci.ts
+      - packages/cli/src/cli/handlers/close.ts
+      - packages/cli/src/cli/handlers/config-ui.ts
+      - packages/cli/src/cli/handlers/config.ts
+      - packages/cli/src/cli/handlers/destroy.ts
+      - packages/cli/src/cli/handlers/dev.ts
+      - packages/cli/src/cli/handlers/doctor.ts
+    sourceSymbolsOrSections:
+      - AppFrame
+      - COMMAND_HANDLERS
+      - ConfigEditorResult
+      - ConfigInputState
+      - ConfigPage
+      - ConfigViewMode
+      - ConfigViewportLayout
+      - ConfigWizardStep
+      - ConfirmDialog
+      - EmptyState
+      - FieldCard
+      - HumanUiSessionResult
+      - InteractiveControlState
+      - PrimaryButton
+      - ScrollPanel
+      - ScrollRegionState
+      - SecondaryButton
+      - SidebarList
+      - StatusBar
+      - TRESEED_COMMAND_SPECS
+      - TRESEED_OPERATION_INDEX
+      - TRESEED_OPERATION_SPECS
+      - TabItem
+      - TerminalMouseEvent
+    evidenceStrength: direct
+    uncertainty: Scanner evidence should still be reviewed against current source
+      before promotion.
+    lastObservedRef: local
+  - claim: Context query dev-manager-docs-automation:code:module-packages-core-src
+      supports research for dev manager docs automation workday startup tasks
+      graph refresh scan codebase documentation surface.
+    sourceFiles:
+      - packages/core/src/components/DevWatchReload.astro
+      - packages/core/src/components/content/ContentStatusLegend.astro
+      - packages/core/src/components/content/StatusBadge.astro
+      - packages/core/src/components/docs/BookFontControls.astro
+      - packages/core/src/components/docs/DesktopSidebarToggle.astro
+      - packages/core/src/components/docs/DownloadBook.astro
+      - packages/core/src/components/docs/Footer.astro
+      - packages/core/src/components/docs/Header.astro
+      - packages/core/src/components/docs/PageFrame.astro
+      - packages/core/src/components/docs/PageSidebar.astro
+      - packages/core/src/components/docs/PageTitle.astro
+      - packages/core/src/components/docs/Sidebar.astro
+    sourceSymbolsOrSections:
+      - AGENT_MODEL_DEFAULTS
+      - BOOKS
+      - BOOKS_LINK
+      - BOOK_MODEL_DEFAULTS
+      - BUILTIN_FORMS_PROVIDERS
+      - BUILT_IN_COLOR_SCHEMES
+      - BuiltInColorSchemeDefinition
+      - ButtonAction
+      - ButtonSize
+      - ButtonVariant
+      - CONTACT_TYPES
+      - CONTACT_TYPE_LABELS
+      - CONTENT_STATUSES
+      - CONTENT_STATUS_META
+      - ContactRecordInput
+      - ContactRoutingMap
+      - ContactSubmission
+      - ContactSubmissionStore
+      - ContactType
+      - ContentStatus
+      - ContributorEntry
+      - DECISION_MODEL_DEFAULTS
+      - EditorialPreviewContextLike
+      - FORM_CODE_PARAM
+    evidenceStrength: direct
+    uncertainty: Scanner evidence should still be reviewed against current source
+      before promotion.
+    lastObservedRef: local
+  - claim: Context query dev-manager-docs-automation:code:module-packages-sdk-src
+      supports research for dev manager docs automation workday startup tasks
+      graph refresh scan codebase documentation surface.
+    sourceFiles:
+      - packages/sdk/src/.ts-run-1775911544993-md43eh8jqq.mjs
+      - packages/sdk/src/.ts-run-1775911545215-td65nq8esoe.mjs
+      - packages/sdk/src/.ts-run-1775911593087-czgua07y0pf.mjs
+      - packages/sdk/src/.ts-run-1775911614364-zdfn7roiuds.mjs
+      - packages/sdk/src/.ts-run-1775911686249-5z5wldvzd5d.mjs
+      - packages/sdk/src/.ts-run-1775911711165-linrs6z9dkc.mjs
+      - packages/sdk/src/.ts-run-1775912004231-bq2jv49rqrq.mjs
+      - packages/sdk/src/.ts-run-1775912490348-3iqk8h9m0q5.mjs
+      - packages/sdk/src/.ts-run-1775917867106-kgsnznwknu.mjs
+      - packages/sdk/src/.ts-run-1775918140169-i07f8067rd.mjs
+      - packages/sdk/src/.ts-run-1775918381997-ytm4l123gb.mjs
+      - packages/sdk/src/.ts-run-1775919438060-expspixc0fm.mjs
+    sourceSymbolsOrSections:
+      - AGENT_CLI_ALLOW_TOOLS
+      - AGENT_HANDLER_KINDS
+      - AGENT_MESSAGE_KINDS
+      - AGENT_MESSAGE_STATUSES
+      - AGENT_OPERATION_MODES
+      - AGENT_OPERATION_NAMES
+      - AGENT_PERMISSION_OPERATIONS
+      - AGENT_POOL_STATUSES
+      - AGENT_RUN_STATUSES
+      - AGENT_TRIGGER_KINDS
+      - AUTHORED_GRAPH_EDGE_TYPES
+      - AdmissionEstimateInput
+      - AgentCliAllowTool
+      - AgentCliOptions
+      - AgentDatabase
+      - AgentDeterministicOperationStep
+      - AgentExecutionConfig
+      - AgentHandlerKind
+      - AgentMessageKind
+      - AgentMessageRecord
+      - AgentMessageStatus
+      - AgentOperationApprovalRef
+      - AgentOperationEvent
+      - AgentOperationGrant
+    evidenceStrength: direct
+    uncertainty: Scanner evidence should still be reviewed against current source
+      before promotion.
+    lastObservedRef: local
+  - claim: Context query dev-manager-docs-automation:code:package-agent supports
+      research for dev manager docs automation workday startup tasks graph
+      refresh scan codebase documentation surface.
+    sourceFiles:
+      - packages/agent/src/agents/adapters/codex-readiness.ts
+      - packages/agent/src/agents/adapters/execution-codex.ts
+      - packages/agent/src/agents/adapters/execution.ts
+      - packages/agent/src/agents/adapters/mutations.ts
+      - packages/agent/src/agents/cli.ts
+      - packages/agent/src/api/agent-artifacts.ts
+      - packages/agent/src/api/agent-routes.ts
+      - packages/agent/src/api/app.ts
+      - packages/agent/src/api/auth/d1-database.ts
+      - packages/agent/src/index.ts
+      - packages/agent/src/services/.ts-run-1778724155855-8jc6bt47z4w.mjs
+      - packages/agent/src/services/.ts-run-1778724156124-39absm5sr7b.mjs
+      - packages/agent/src/services/.ts-run-1778724515065-r286dezoz3i.mjs
+      - packages/agent/src/services/.ts-run-1778724845757-8n1em4yzzzl.mjs
+    sourceSymbolsOrSections:
+      - AGENT_MESSAGE_TYPES
+      - AccessTokenPayload
+      - AgentApprovalDecision
+      - AgentApprovalDecisionError
+      - AgentApprovalKind
+      - AgentApprovalRequestSummary
+      - AgentArtifactApiItem
+      - AgentArtifactApiState
+      - AgentContext
+      - AgentErrorCategory
+      - AgentExecutionAdapter
+      - AgentExecutionResult
+      - AgentHandler
+      - AgentKernel
+      - AgentMergeToStagingResult
+      - AgentMessageContracts
+      - AgentMessagePayload
+      - AgentMessageType
+      - AgentMutationAdapter
+      - AgentMutationResult
+      - AgentNotificationAdapter
+      - AgentNotificationResult
+      - AgentOperationApiState
+      - AgentOperationEventSummary
+    evidenceStrength: direct
+    uncertainty: Scanner evidence should still be reviewed against current source
+      before promotion.
+    lastObservedRef: local
+  - claim: Context query dev-manager-docs-automation:code:package-cli supports
+      research for dev manager docs automation workday startup tasks graph
+      refresh scan codebase documentation surface.
+    sourceFiles:
+      - packages/cli/src/cli/handlers/audit.ts
+      - packages/cli/src/cli/handlers/auth-login.ts
+      - packages/cli/src/cli/handlers/auth-logout.ts
+      - packages/cli/src/cli/handlers/auth-whoami.ts
+    sourceSymbolsOrSections:
+      - AppFrame
+      - COMMAND_HANDLERS
+      - ConfigEditorResult
+      - ConfigInputState
+      - ConfigPage
+      - ConfigViewMode
+      - ConfigViewportLayout
+      - ConfigWizardStep
+      - ConfirmDialog
+      - EmptyState
+      - FieldCard
+      - applyConfigInputInsertion
+      - applyTreeseedSafeRepairs
+      - buildCliConfigPages
+      - buildTreeseedHelpView
+      - clampOffset
+      - colorizeTreeseedCliOutput
+      - computeConfigViewportLayout
+      - computeViewportLayout
+      - containsPoint
+      - copyTreeseedOperationalState
+      - createMarketClientForInvocation
+      - createTreeseedCommandContext
+      - createWorkflowSdk
+    evidenceStrength: direct
+    uncertainty: Scanner evidence should still be reviewed against current source
+      before promotion.
+    lastObservedRef: local
+updated: 2026-05-17
+related:
+  objectives:
+    - objective:tree-seed-agent-self-development
+  questions:
+    - question:trsd-dev-manager-docs-automation
+  proposals: []
+  decisions: []
+---
+
+# What should `trsd dev:manager` do in local docs automation mode?
+
+## What this explains
+
+This draft explains what should `trsd dev:manager` do in local docs automation mode? using the available TreeSeed research note and source map evidence.
+
+## Current implementation
+
+- Context query dev-manager-docs-automation found 0 relevant graph node(s).
+- Context query dev-manager-docs-automation:code:flow-dev-manager-docs-automation found 7 relevant graph node(s).
+- Context query dev-manager-docs-automation:code:module-packages-agent-src-agents found 7 relevant graph node(s).
+- Context query dev-manager-docs-automation:code:module-packages-agent-src-api found 7 relevant graph node(s).
+- Context query dev-manager-docs-automation:code:module-packages-agent-src-index-ts found 2 relevant graph node(s).
+- Context query dev-manager-docs-automation:code:module-packages-agent-src-services found 7 relevant graph node(s).
+- Context query dev-manager-docs-automation:code:module-packages-cli-src-cli found 7 relevant graph node(s).
+- Context query dev-manager-docs-automation:code:module-packages-core-src found 7 relevant graph node(s).
+- Context query dev-manager-docs-automation:code:module-packages-sdk-src found 7 relevant graph node(s).
+- Context query dev-manager-docs-automation:code:package-agent found 7 relevant graph node(s).
+- Context query dev-manager-docs-automation:code:package-cli found 5 relevant graph node(s).
+
+## Main flow
+
+- The generated article should separate current implementation facts from planned architecture. (medium confidence)
+
+## Important files
+
+- /knowledge
+- docs/agent-ai-dev-prompt.md
+- docs/agent-budget.md
+- docs/agent-dev.md
+- docs/agent-docs.md
+- docs/agent-ops.md
+- docs/demo.md
+- docs/knowledge-hub-caching.md
+- docs/knowledge-hub-hosting-budget.md
+- docs/market\_ui\_spec.md
+- docs/market-deploy.md
+- docs/purpose.md
+- docs/seed.md
+- migrations/0001\_subscribers.sql
+- migrations/0002\_agent\_runtime.sql
+- migrations/0003\_agent\_run\_trace.sql
+- migrations/0004\_contact\_submissions.sql
+- migrations/0005\_runtime\_envelopes.sql
+- migrations/0006\_agent\_control\_plane.sql
+- migrations/0007\_site\_web\_sessions.sql
+- migrations/0008\_market\_control\_plane.sql
+- migrations/0009\_team\_content\_catalog.sql
+- migrations/0010\_project\_hosting\_topology.sql
+- migrations/0011\_control\_plane\_reporting.sql
+- migrations/0012\_knowledge\_coop\_views.sql
+- packages/agent/src/agents/adapters/codex-readiness.ts
+- packages/agent/src/agents/adapters/execution-codex.ts
+- packages/agent/src/agents/adapters/execution.ts
+- packages/agent/src/agents/adapters/mutations.ts
+- packages/agent/src/agents/adapters/notification.ts
+- packages/agent/src/agents/adapters/operations.ts
+- packages/agent/src/agents/adapters/repository.ts
+- packages/agent/src/agents/adapters/research.ts
+- packages/agent/src/agents/adapters/verification.ts
+- packages/agent/src/agents/cli-tools.ts
+- packages/agent/src/agents/cli.ts
+- packages/agent/src/agents/context/code-context-packs.ts
+- packages/agent/src/api/agent-artifacts.ts
+- packages/agent/src/api/agent-routes.ts
+- packages/agent/src/api/app.ts
+- packages/agent/src/api/auth/d1-database.ts
+- packages/agent/src/api/auth/d1-provider.ts
+- packages/agent/src/api/auth/d1-store.ts
+- packages/agent/src/api/auth/memory-provider.ts
+- packages/agent/src/api/auth/rbac.ts
+- packages/agent/src/api/auth/tokens.ts
+- packages/agent/src/api/capabilities.ts
+- packages/agent/src/api/config.ts
+- packages/agent/src/api/http.ts
+- packages/agent/src/index.ts
+- packages/agent/src/services/.ts-run-1778724155855-8jc6bt47z4w\.mjs
+- packages/agent/src/services/.ts-run-1778724156124-39absm5sr7b.mjs
+- packages/agent/src/services/.ts-run-1778724515065-r286dezoz3i.mjs
+- packages/agent/src/services/.ts-run-1778724845757-8n1em4yzzzl.mjs
+- packages/agent/src/services/.ts-run-1778725032495-kog8jxldat.mjs
+- packages/agent/src/services/.ts-run-1778725032550-j685g4xdjlq.mjs
+- packages/agent/src/services/.ts-run-1778731501871-90wxfkb79oe.mjs
+- packages/agent/src/services/.ts-run-1778731501885-zm4ip06okn.mjs
+- packages/agent/src/services/.ts-run-1778733332143-zovyqnt8jeb.mjs
+- packages/agent/src/services/.ts-run-1778733332229-bbo8l6tn28.mjs
+- packages/agent/src/services/.ts-run-1778741092319-epv9yqo841j.mjs
+- packages/agent/src/services/.ts-run-1778741092325-3ayg7sm76zr.mjs
+- packages/cli/src/cli/handlers/audit.ts
+- packages/cli/src/cli/handlers/auth-login.ts
+- packages/cli/src/cli/handlers/auth-logout.ts
+- packages/cli/src/cli/handlers/auth-whoami.ts
+- packages/cli/src/cli/handlers/capacity.ts
+- packages/cli/src/cli/handlers/ci.ts
+- packages/cli/src/cli/handlers/close.ts
+- packages/cli/src/cli/handlers/config-ui.ts
+- packages/cli/src/cli/handlers/config.ts
+- packages/cli/src/cli/handlers/destroy.ts
+- packages/cli/src/cli/handlers/dev.ts
+- packages/cli/src/cli/handlers/doctor.ts
+- packages/core/src/components/content/ContentStatusLegend.astro
+- packages/core/src/components/content/StatusBadge.astro
+- packages/core/src/components/DevWatchReload.astro
+- packages/core/src/components/docs/BookFontControls.astro
+- packages/core/src/components/docs/DesktopSidebarToggle.astro
+- packages/core/src/components/docs/DownloadBook.astro
+- packages/core/src/components/docs/Footer.astro
+- packages/core/src/components/docs/Header.astro
+- packages/core/src/components/docs/PageFrame.astro
+- packages/core/src/components/docs/PageSidebar.astro
+- packages/core/src/components/docs/PageTitle.astro
+- packages/core/src/components/docs/Sidebar.astro
+- packages/sdk/src/.ts-run-1775911544993-md43eh8jqq.mjs
+- packages/sdk/src/.ts-run-1775911545215-td65nq8esoe.mjs
+- packages/sdk/src/.ts-run-1775911593087-czgua07y0pf.mjs
+- packages/sdk/src/.ts-run-1775911614364-zdfn7roiuds.mjs
+- packages/sdk/src/.ts-run-1775911686249-5z5wldvzd5d.mjs
+- packages/sdk/src/.ts-run-1775911711165-linrs6z9dkc.mjs
+- packages/sdk/src/.ts-run-1775912004231-bq2jv49rqrq.mjs
+- packages/sdk/src/.ts-run-1775912490348-3iqk8h9m0q5.mjs
+- packages/sdk/src/.ts-run-1775917867106-kgsnznwknu.mjs
+- packages/sdk/src/.ts-run-1775918140169-i07f8067rd.mjs
+- packages/sdk/src/.ts-run-1775918381997-ytm4l123gb.mjs
+- packages/sdk/src/.ts-run-1775919438060-expspixc0fm.mjs
+
+## Source map
+
+- Context query dev-manager-docs-automation supports research for dev manager docs automation workday startup tasks graph refresh scan codebase documentation surface.
+  - evidence: inferred
+  - sources: /knowledge
+  - last observed: unknown
+  - uncertainty: Graph context may reference content or inferred relationships instead of direct code evidence.
+- Context query dev-manager-docs-automation:code:flow-dev-manager-docs-automation supports research for dev manager docs automation workday startup tasks graph refresh scan codebase documentation surface.
+  - evidence: direct
+  - sources: docs/agent-ai-dev-prompt.md, docs/agent-budget.md, docs/agent-dev.md, docs/agent-docs.md, docs/agent-ops.md, docs/demo.md, docs/knowledge-hub-caching.md, docs/knowledge-hub-hosting-budget.md, docs/market-deploy.md, docs/market\_ui\_spec.md, docs/purpose.md, docs/seed.md, migrations/0001\_subscribers.sql, migrations/0002\_agent\_runtime.sql, migrations/0003\_agent\_run\_trace.sql, migrations/0004\_contact\_submissions.sql, migrations/0005\_runtime\_envelopes.sql, migrations/0006\_agent\_control\_plane.sql, migrations/0007\_site\_web\_sessions.sql, migrations/0008\_market\_control\_plane.sql, migrations/0009\_team\_content\_catalog.sql, migrations/0010\_project\_hosting\_topology.sql, migrations/0011\_control\_plane\_reporting.sql, migrations/0012\_knowledge\_coop\_views.sql, packages/agent/src/agents/adapters/codex-readiness.ts, packages/agent/src/agents/adapters/execution-codex.ts, packages/agent/src/agents/adapters/execution.ts, packages/agent/src/agents/adapters/mutations.ts, packages/agent/src/agents/adapters/notification.ts, packages/agent/src/agents/adapters/operations.ts, packages/agent/src/agents/adapters/repository.ts, packages/agent/src/agents/adapters/research.ts, packages/agent/src/agents/adapters/verification.ts, packages/agent/src/agents/cli-tools.ts, packages/agent/src/agents/cli.ts, packages/agent/src/agents/context/code-context-packs.ts, packages/agent/src/services/.ts-run-1778724155855-8jc6bt47z4w\.mjs, packages/agent/src/services/.ts-run-1778724156124-39absm5sr7b.mjs, packages/agent/src/services/.ts-run-1778724515065-r286dezoz3i.mjs, packages/agent/src/services/.ts-run-1778724845757-8n1em4yzzzl.mjs, packages/agent/src/services/.ts-run-1778725032495-kog8jxldat.mjs, packages/agent/src/services/.ts-run-1778725032550-j685g4xdjlq.mjs, packages/agent/src/services/.ts-run-1778731501871-90wxfkb79oe.mjs, packages/agent/src/services/.ts-run-1778731501885-zm4ip06okn.mjs, packages/agent/src/services/.ts-run-1778733332143-zovyqnt8jeb.mjs, packages/agent/src/services/.ts-run-1778733332229-bbo8l6tn28.mjs, packages/agent/src/services/.ts-run-1778741092319-epv9yqo841j.mjs, packages/agent/src/services/.ts-run-1778741092325-3ayg7sm76zr.mjs, packages/cli/src/cli/handlers/audit.ts, packages/cli/src/cli/handlers/auth-login.ts, packages/cli/src/cli/handlers/auth-logout.ts, packages/cli/src/cli/handlers/auth-whoami.ts, packages/cli/src/cli/handlers/capacity.ts, packages/cli/src/cli/handlers/ci.ts, packages/cli/src/cli/handlers/close.ts, packages/cli/src/cli/handlers/config-ui.ts, packages/cli/src/cli/handlers/config.ts, packages/cli/src/cli/handlers/destroy.ts, packages/cli/src/cli/handlers/dev.ts, packages/cli/src/cli/handlers/doctor.ts, packages/sdk/src/.ts-run-1775911544993-md43eh8jqq.mjs, packages/sdk/src/.ts-run-1775911545215-td65nq8esoe.mjs, packages/sdk/src/.ts-run-1775911593087-czgua07y0pf.mjs, packages/sdk/src/.ts-run-1775911614364-zdfn7roiuds.mjs, packages/sdk/src/.ts-run-1775911686249-5z5wldvzd5d.mjs, packages/sdk/src/.ts-run-1775911711165-linrs6z9dkc.mjs, packages/sdk/src/.ts-run-1775912004231-bq2jv49rqrq.mjs, packages/sdk/src/.ts-run-1775912490348-3iqk8h9m0q5.mjs, packages/sdk/src/.ts-run-1775917867106-kgsnznwknu.mjs, packages/sdk/src/.ts-run-1775918140169-i07f8067rd.mjs, packages/sdk/src/.ts-run-1775918381997-ytm4l123gb.mjs, packages/sdk/src/.ts-run-1775919438060-expspixc0fm.mjs
+  - symbols/sections: AGENT\_CLI\_ALLOW\_TOOLS, AGENT\_HANDLER\_KINDS, AGENT\_MESSAGE\_KINDS, AGENT\_MESSAGE\_STATUSES, AGENT\_MESSAGE\_TYPES, AGENT\_OPERATION\_MODES, AGENT\_OPERATION\_NAMES, AGENT\_PERMISSION\_OPERATIONS, AGENT\_POOL\_STATUSES, AGENT\_RUN\_STATUSES, AGENT\_TRIGGER\_KINDS, AUTHORED\_GRAPH\_EDGE\_TYPES, AdmissionEstimateInput, AgentApprovalDecision, AgentApprovalKind, AgentCliAllowTool, AgentCliOptions, AgentContext, AgentDatabase, AgentDeterministicOperationStep, AgentErrorCategory, AgentExecutionAdapter, AgentExecutionConfig, AgentExecutionResult
+  - last observed: local
+  - uncertainty: Scanner evidence should still be reviewed against current source before promotion.
+- Context query dev-manager-docs-automation:code:module-packages-agent-src-agents supports research for dev manager docs automation workday startup tasks graph refresh scan codebase documentation surface.
+  - evidence: direct
+  - sources: packages/agent/src/agents/adapters/codex-readiness.ts, packages/agent/src/agents/adapters/execution-codex.ts, packages/agent/src/agents/adapters/execution.ts, packages/agent/src/agents/adapters/mutations.ts, packages/agent/src/agents/adapters/notification.ts, packages/agent/src/agents/adapters/operations.ts, packages/agent/src/agents/adapters/repository.ts, packages/agent/src/agents/adapters/research.ts, packages/agent/src/agents/adapters/verification.ts, packages/agent/src/agents/cli-tools.ts, packages/agent/src/agents/cli.ts, packages/agent/src/agents/context/code-context-packs.ts
+  - symbols/sections: AGENT\_MESSAGE\_TYPES, AgentContext, AgentErrorCategory, AgentExecutionAdapter, AgentExecutionResult, AgentHandler, AgentKernel, AgentMessageContracts, AgentMessagePayload, AgentMessageType, AgentMutationAdapter, AgentMutationResult, AgentNotificationAdapter, AgentNotificationResult, AgentOperationsAdapter, AgentRepairTaskPayload, AgentRepositoryInspectionAdapter, AgentRepositoryInspectionResult, AgentResearchAdapter, AgentResearchResult, AgentRunTrace, AgentSpecDiagnostic, AgentSpecDiagnosticSeverity, AgentSpecLoadResult
+  - last observed: local
+  - uncertainty: Scanner evidence should still be reviewed against current source before promotion.
+- Context query dev-manager-docs-automation:code:module-packages-agent-src-api supports research for dev manager docs automation workday startup tasks graph refresh scan codebase documentation surface.
+  - evidence: direct
+  - sources: packages/agent/src/api/agent-artifacts.ts, packages/agent/src/api/agent-routes.ts, packages/agent/src/api/app.ts, packages/agent/src/api/auth/d1-database.ts, packages/agent/src/api/auth/d1-provider.ts, packages/agent/src/api/auth/d1-store.ts, packages/agent/src/api/auth/memory-provider.ts, packages/agent/src/api/auth/rbac.ts, packages/agent/src/api/auth/tokens.ts, packages/agent/src/api/capabilities.ts, packages/agent/src/api/config.ts, packages/agent/src/api/http.ts
+  - symbols/sections: ALL\_PERMISSION\_RESOURCES, AccessTokenPayload, AgentApprovalDecisionError, AgentApprovalRequestSummary, AgentArtifactApiItem, AgentArtifactApiState, AgentOperationApiState, AgentOperationEventSummary, AgentOperationGrantSummary, AgentOperationLifecycleSummary, ApiAppRuntime, ApiAuthProvider, ApiConfig, ApiContext, ApiCredential, ApiProviderFactory, ApiResolvedSettings, ApiRuntimeProviderSelections, ApiRuntimeProviders, ApiServerOptions, AppVariables, CONTENT\_RESOURCES, D1AuthProvider, D1AuthStore
+  - last observed: local
+  - uncertainty: Scanner evidence should still be reviewed against current source before promotion.
+- Context query dev-manager-docs-automation:code:module-packages-agent-src-index-ts supports research for dev manager docs automation workday startup tasks graph refresh scan codebase documentation surface.
+  - evidence: direct
+  - sources: packages/agent/src/index.ts
+  - symbols/sections: packages/agent/src/index.ts, packages/agent/src/index.ts module surface
+  - last observed: local
+  - uncertainty: Scanner evidence should still be reviewed against current source before promotion.
+- Context query dev-manager-docs-automation:code:module-packages-agent-src-services supports research for dev manager docs automation workday startup tasks graph refresh scan codebase documentation surface.
+  - evidence: direct
+  - sources: packages/agent/src/services/.ts-run-1778724155855-8jc6bt47z4w\.mjs, packages/agent/src/services/.ts-run-1778724156124-39absm5sr7b.mjs, packages/agent/src/services/.ts-run-1778724515065-r286dezoz3i.mjs, packages/agent/src/services/.ts-run-1778724845757-8n1em4yzzzl.mjs, packages/agent/src/services/.ts-run-1778725032495-kog8jxldat.mjs, packages/agent/src/services/.ts-run-1778725032550-j685g4xdjlq.mjs, packages/agent/src/services/.ts-run-1778731501871-90wxfkb79oe.mjs, packages/agent/src/services/.ts-run-1778731501885-zm4ip06okn.mjs, packages/agent/src/services/.ts-run-1778733332143-zovyqnt8jeb.mjs, packages/agent/src/services/.ts-run-1778733332229-bbo8l6tn28.mjs, packages/agent/src/services/.ts-run-1778741092319-epv9yqo841j.mjs, packages/agent/src/services/.ts-run-1778741092325-3ayg7sm76zr.mjs
+  - symbols/sections: AgentApprovalDecision, AgentApprovalKind, AgentMergeToStagingResult, AgentServiceRuntimeMode, AgentWorktreeManager, AgentWorktreeManagerOptions, CODEBASE\_DOCUMENTATION\_SCAN\_TARGETS, CODEBASE\_DOCUMENTATION\_SCAN\_TASK\_KIND, CapacityAssuranceResult, CodebaseInventoryArtifact, CollectRuntimeReadinessOptions, DocsAutomationWorkdaySummary, DocsCoverageLink, GeneratedAgentArtifactSummary, HostedControlPlaneAgentSdk, HostedControlPlaneAgentSdkOptions, HostedRunnerControlPlaneClient, HostedRunnerControlPlaneClientOptions, KnowledgeGap, KnowledgePromotionApprovalDecisionRecord, KnowledgePromotionDependencies, KnowledgePromotionTaskInput, KnowledgePromotionToStagingResult, ModuleSurfaceInventory
+  - last observed: local
+  - uncertainty: Scanner evidence should still be reviewed against current source before promotion.
+- Context query dev-manager-docs-automation:code:module-packages-cli-src-cli supports research for dev manager docs automation workday startup tasks graph refresh scan codebase documentation surface.
+  - evidence: direct
+  - sources: packages/cli/src/cli/handlers/audit.ts, packages/cli/src/cli/handlers/auth-login.ts, packages/cli/src/cli/handlers/auth-logout.ts, packages/cli/src/cli/handlers/auth-whoami.ts, packages/cli/src/cli/handlers/capacity.ts, packages/cli/src/cli/handlers/ci.ts, packages/cli/src/cli/handlers/close.ts, packages/cli/src/cli/handlers/config-ui.ts, packages/cli/src/cli/handlers/config.ts, packages/cli/src/cli/handlers/destroy.ts, packages/cli/src/cli/handlers/dev.ts, packages/cli/src/cli/handlers/doctor.ts
+  - symbols/sections: AppFrame, COMMAND\_HANDLERS, ConfigEditorResult, ConfigInputState, ConfigPage, ConfigViewMode, ConfigViewportLayout, ConfigWizardStep, ConfirmDialog, EmptyState, FieldCard, HumanUiSessionResult, InteractiveControlState, PrimaryButton, ScrollPanel, ScrollRegionState, SecondaryButton, SidebarList, StatusBar, TRESEED\_COMMAND\_SPECS, TRESEED\_OPERATION\_INDEX, TRESEED\_OPERATION\_SPECS, TabItem, TerminalMouseEvent
+  - last observed: local
+  - uncertainty: Scanner evidence should still be reviewed against current source before promotion.
+- Context query dev-manager-docs-automation:code:module-packages-core-src supports research for dev manager docs automation workday startup tasks graph refresh scan codebase documentation surface.
+  - evidence: direct
+  - sources: packages/core/src/components/DevWatchReload.astro, packages/core/src/components/content/ContentStatusLegend.astro, packages/core/src/components/content/StatusBadge.astro, packages/core/src/components/docs/BookFontControls.astro, packages/core/src/components/docs/DesktopSidebarToggle.astro, packages/core/src/components/docs/DownloadBook.astro, packages/core/src/components/docs/Footer.astro, packages/core/src/components/docs/Header.astro, packages/core/src/components/docs/PageFrame.astro, packages/core/src/components/docs/PageSidebar.astro, packages/core/src/components/docs/PageTitle.astro, packages/core/src/components/docs/Sidebar.astro
+  - symbols/sections: AGENT\_MODEL\_DEFAULTS, BOOKS, BOOKS\_LINK, BOOK\_MODEL\_DEFAULTS, BUILTIN\_FORMS\_PROVIDERS, BUILT\_IN\_COLOR\_SCHEMES, BuiltInColorSchemeDefinition, ButtonAction, ButtonSize, ButtonVariant, CONTACT\_TYPES, CONTACT\_TYPE\_LABELS, CONTENT\_STATUSES, CONTENT\_STATUS\_META, ContactRecordInput, ContactRoutingMap, ContactSubmission, ContactSubmissionStore, ContactType, ContentStatus, ContributorEntry, DECISION\_MODEL\_DEFAULTS, EditorialPreviewContextLike, FORM\_CODE\_PARAM
+  - last observed: local
+  - uncertainty: Scanner evidence should still be reviewed against current source before promotion.
+- Context query dev-manager-docs-automation:code:module-packages-sdk-src supports research for dev manager docs automation workday startup tasks graph refresh scan codebase documentation surface.
+  - evidence: direct
+  - sources: packages/sdk/src/.ts-run-1775911544993-md43eh8jqq.mjs, packages/sdk/src/.ts-run-1775911545215-td65nq8esoe.mjs, packages/sdk/src/.ts-run-1775911593087-czgua07y0pf.mjs, packages/sdk/src/.ts-run-1775911614364-zdfn7roiuds.mjs, packages/sdk/src/.ts-run-1775911686249-5z5wldvzd5d.mjs, packages/sdk/src/.ts-run-1775911711165-linrs6z9dkc.mjs, packages/sdk/src/.ts-run-1775912004231-bq2jv49rqrq.mjs, packages/sdk/src/.ts-run-1775912490348-3iqk8h9m0q5.mjs, packages/sdk/src/.ts-run-1775917867106-kgsnznwknu.mjs, packages/sdk/src/.ts-run-1775918140169-i07f8067rd.mjs, packages/sdk/src/.ts-run-1775918381997-ytm4l123gb.mjs, packages/sdk/src/.ts-run-1775919438060-expspixc0fm.mjs
+  - symbols/sections: AGENT\_CLI\_ALLOW\_TOOLS, AGENT\_HANDLER\_KINDS, AGENT\_MESSAGE\_KINDS, AGENT\_MESSAGE\_STATUSES, AGENT\_OPERATION\_MODES, AGENT\_OPERATION\_NAMES, AGENT\_PERMISSION\_OPERATIONS, AGENT\_POOL\_STATUSES, AGENT\_RUN\_STATUSES, AGENT\_TRIGGER\_KINDS, AUTHORED\_GRAPH\_EDGE\_TYPES, AdmissionEstimateInput, AgentCliAllowTool, AgentCliOptions, AgentDatabase, AgentDeterministicOperationStep, AgentExecutionConfig, AgentHandlerKind, AgentMessageKind, AgentMessageRecord, AgentMessageStatus, AgentOperationApprovalRef, AgentOperationEvent, AgentOperationGrant
+  - last observed: local
+  - uncertainty: Scanner evidence should still be reviewed against current source before promotion.
+- Context query dev-manager-docs-automation:code:package-agent supports research for dev manager docs automation workday startup tasks graph refresh scan codebase documentation surface.
+  - evidence: direct
+  - sources: packages/agent/src/agents/adapters/codex-readiness.ts, packages/agent/src/agents/adapters/execution-codex.ts, packages/agent/src/agents/adapters/execution.ts, packages/agent/src/agents/adapters/mutations.ts, packages/agent/src/agents/cli.ts, packages/agent/src/api/agent-artifacts.ts, packages/agent/src/api/agent-routes.ts, packages/agent/src/api/app.ts, packages/agent/src/api/auth/d1-database.ts, packages/agent/src/index.ts, packages/agent/src/services/.ts-run-1778724155855-8jc6bt47z4w\.mjs, packages/agent/src/services/.ts-run-1778724156124-39absm5sr7b.mjs, packages/agent/src/services/.ts-run-1778724515065-r286dezoz3i.mjs, packages/agent/src/services/.ts-run-1778724845757-8n1em4yzzzl.mjs
+  - symbols/sections: AGENT\_MESSAGE\_TYPES, AccessTokenPayload, AgentApprovalDecision, AgentApprovalDecisionError, AgentApprovalKind, AgentApprovalRequestSummary, AgentArtifactApiItem, AgentArtifactApiState, AgentContext, AgentErrorCategory, AgentExecutionAdapter, AgentExecutionResult, AgentHandler, AgentKernel, AgentMergeToStagingResult, AgentMessageContracts, AgentMessagePayload, AgentMessageType, AgentMutationAdapter, AgentMutationResult, AgentNotificationAdapter, AgentNotificationResult, AgentOperationApiState, AgentOperationEventSummary
+  - last observed: local
+  - uncertainty: Scanner evidence should still be reviewed against current source before promotion.
+- Context query dev-manager-docs-automation:code:package-cli supports research for dev manager docs automation workday startup tasks graph refresh scan codebase documentation surface.
+  - evidence: direct
+  - sources: packages/cli/src/cli/handlers/audit.ts, packages/cli/src/cli/handlers/auth-login.ts, packages/cli/src/cli/handlers/auth-logout.ts, packages/cli/src/cli/handlers/auth-whoami.ts
+  - symbols/sections: AppFrame, COMMAND\_HANDLERS, ConfigEditorResult, ConfigInputState, ConfigPage, ConfigViewMode, ConfigViewportLayout, ConfigWizardStep, ConfirmDialog, EmptyState, FieldCard, applyConfigInputInsertion, applyTreeseedSafeRepairs, buildCliConfigPages, buildTreeseedHelpView, clampOffset, colorizeTreeseedCliOutput, computeConfigViewportLayout, computeViewportLayout, containsPoint, copyTreeseedOperationalState, createMarketClientForInvocation, createTreeseedCommandContext, createWorkflowSdk
+  - last observed: local
+  - uncertainty: Scanner evidence should still be reviewed against current source before promotion.
+
+## Governance and safety boundaries
+
+- Treat this draft as pending review until a human accepts the source map and optimization report.
+- Do not promote canonical documentation when evidence is inferred-only, incomplete, or marked with critical grounding issues.
+
+## Open questions
+
+- This deterministic dogfood pass does not claim human-reviewed completeness.
+
+## Verification notes
+
+- Run the optimizer before promotion.
+- Review every source-map claim against the cited implementation files.
