@@ -1307,6 +1307,15 @@ TREESEED_CODEX_AUTH_FILE=~/.codex/auth.json
 
 For subscription-backed Codex, run Codex login and make sure `~/.codex/auth.json` exists. On a service host, copy that file to a secret-managed location and set `TREESEED_CODEX_AUTH_FILE` when it is not at the default path. Treat `auth.json` like a secret: do not commit it or print it.
 
+For Railway workers, prefer secret bootstrap plus persistent volume storage:
+store `TREESEED_CODEX_AUTH_JSON_B64` as a hosted secret, set
+`TREESEED_CODEX_AUTH_FILE=/data/codex/auth.json`, and let
+`treeseed-processing` write the file only if missing and set `CODEX_HOME` for
+the child Codex process. Use `treeseed config` to store the bootstrap secret and
+sync it to Railway for staging and production. Do not overwrite the file on
+every boot; Codex may refresh `auth.json`, and the refreshed file on `/data` is
+the source of truth until an intentional auth rotation.
+
 Use `CODEX_API_KEY` only when API billing is intended. Create or find an API key at `https://platform.openai.com/api-keys`, store it only in the local/hosting secret environment, and never commit or print it. If this is the first API key on the account, OpenAI may require phone verification before key creation.
 
 Configuration object:
@@ -2526,6 +2535,10 @@ Implemented coverage includes:
 
 * SDK declarative context query contracts, operation-as-agent-tool contracts, provider metadata, and Codex-related environment metadata.
 * Agent context processing, package-owned research/knowledge/optimizer handlers, workday orchestration, runtime readiness, operation adapters, Codex provider readiness/execution, worktree-scoped docs mutation, knowledge promotion, human-gated release approval, artifact APIs, operation observability, reports, and local E2E verification harnesses.
+* Processing parity runtime: `@treeseed/agent` now owns the built Agent API,
+  `treeseed-processing` role dispatcher, bounded manager, worker loop,
+  processing plan/doctor, runtime path resolver, built-in handlers, and
+  package-closure smoke tests.
 * Capacity scheduling runtime from `docs/agent-budget.md`: classify, estimate, route, reserve, execute, reconcile, learn, checkpoint or continue, and preserve idle capacity when no useful admitted work remains.
 * Core integrated dev surface support for `--surface all`.
 * Market API delegation, Work/Knowledge supervision UI for runtime/artifacts/approvals, and Capacity UI for provider readiness, grants, lane pressure, routing decisions, reservations, learned estimates, usage actuals, checkpointed interruptions, approval-required work, and manual budgeted task submission through admission.
@@ -2578,6 +2591,13 @@ The implementation target is complete. Use this checklist before staging or rele
   * `cd packages/sdk && npm run verify:local`
   * `cd packages/core && npm run verify:local`
   * `cd packages/agent && npm run verify:local`
+  * `npm run processing:build`
+  * `npm run processing:test-local`
+  * `npm run test:agent-contracts`
+  * `npm run test:agent-handlers`
+  * `npm run test:agent-message-chains`
+  * `npm run test:manager-worker`
+  * `npm run test:processing-parity-local`
   * `npx vitest run test/api/market-api.test.ts -t "agents"`
   * `npx vitest run test/lib/operational-ia.test.ts`
   * `git diff --check`

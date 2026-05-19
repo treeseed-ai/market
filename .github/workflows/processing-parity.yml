@@ -1,0 +1,45 @@
+name: Processing Parity
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 8 * * *"
+
+jobs:
+  local-parity:
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      TREESEED_PROCESSING_PARITY: "1"
+      TREESEED_DATA_DIR: /data
+      TREESEED_RUNNER_VOLUME_ROOT: /data
+      TREESEED_MANAGER_MODE: reconcile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build processing packages
+        run: |
+          npm -w packages/sdk run build:dist
+          npm -w packages/agent run build:dist
+
+      - name: Run local processing parity
+        run: npm run processing:test-local
+
+      - name: Upload parity reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: processing-parity-reports
+          path: .treeseed/test-reports/**
+          if-no-files-found: ignore

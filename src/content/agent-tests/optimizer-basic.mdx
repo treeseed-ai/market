@@ -1,0 +1,18 @@
+---
+id: agent-test:optimizer-basic
+agent: treeseed-knowledge-optimizer
+kind: handler
+fixture: packages/agent/test/fixtures/agent-tests/knowledge-optimizer/basic
+trigger:
+  messageType: knowledge_draft_created
+expect:
+  status: waiting
+  messages: []
+  artifacts: []
+tags:
+  - documentation
+  - governance
+---
+
+This test proves that the optimizer defers visibly when a draft is missing its
+grounding payload; success-path scoring remains covered by package handler tests.

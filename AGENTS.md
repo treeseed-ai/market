@@ -5,7 +5,8 @@ This repository is the unified development workspace for the Treeseed system and
 ## Package Roles
 
 - `@treeseed/sdk`: platform, config, plugin, data, and shared non-UI runtime substrate
-- `@treeseed/core`: integrated Treeseed platform starter for Astro/Starlight web runtime, Hono API runtime, agent runtime, worker and manager services, integrated local orchestration, content model, and forms
+- `@treeseed/core`: integrated Treeseed platform starter for Astro/Starlight web runtime, Hono API integration surfaces, integrated local orchestration, content model, and forms
+- `@treeseed/agent`: processing runtime, Agent API server, manager, worker, role dispatcher, built-in handlers, agent testing harnesses, and runtime support modules
 - `@treeseed/cli`: operator and developer CLI workflows
 
 ## Boundary Rules
@@ -13,6 +14,7 @@ This repository is the unified development workspace for the Treeseed system and
 - `sdk` must not import from `core`.
 - `core` may depend on `sdk`, not `cli`.
 - `cli` may depend on `sdk` and `core`.
+- `agent` owns runtime processing code and may depend on `sdk`; tenant-specific Market content remains in the top-level app.
 - Shared fixture references do not imply package ownership.
 - Prefer canonical SDK import paths. Do not reintroduce alias exports or compatibility paths in unreleased packages.
 
@@ -99,6 +101,7 @@ Railway worker-runner volumes:
 - `treeseed.site.yaml` defines the logical `workerRunner` role only. Do not add concrete runner service names, volume names, or repeated mount paths to version-controlled config.
 - Treeseed derives runner services as `<project>-worker-runner-01`, `<project>-worker-runner-02`, etc. Each runner service gets one Railway volume named `<runner-service>-data`, mounted at `/data`.
 - Worker repositories must live under the attached volume, specifically `/data/repositories/<repository-id>/bare.git` and `/data/repositories/<repository-id>/worktrees/<task-id>`.
+- Processing services must start through `treeseed-processing` role commands only. Do not reintroduce Railway start commands that chain `npm run build:* && ...`; builds belong in the Docker/build phase.
 - To inspect staging runner services, run `npx trsd railway --environment staging -- service list --json` and look for `*-worker-runner-*`.
 - To inspect attached volumes, run `npx trsd railway --environment staging -- volume list --json`. Railway reports volume attachment metadata and size/capacity in its volume details/dashboard/API output; do not infer volume size from Treeseed YAML.
 - Workday Manager must be started by Railway cron, not by a long-running service process. Inspect schedule reconciliation with `npx trsd railway --environment staging -- service list --json` plus the Treeseed deploy/reconcile output; the cron command should be the real workday manager entrypoint while the service start command is a scheduled-only idle guard.
@@ -107,6 +110,9 @@ Railway worker-runner volumes:
 For agents and automation:
 
 - Start with `npx trsd status --json` to inspect branch role, dirty state, locks, package state, and next safe actions.
+- For processing parity work, use `npm run processing:build`, `npm run processing:test-local`, and the package-local `npm -w packages/agent run verify:local` closure smoke. `processing:test-local` exercises Docker when available and reports when the container was not exercised.
+- The processing image combines `@treeseed/agent` runtime code with Market tenant specs/config. Market owns `src/content/agents` and `src/content/agent-tests`; `@treeseed/agent` owns the code, bins, handlers, manager, worker, API, path resolver, doctor, plan, and test harnesses.
+- `treeseed-processing healthcheck` should pass in a minimal local container when `/data` is writable. Missing Codex auth is a local warning; staging and production doctor checks must fail on missing required hosted credentials or stub providers.
 - For local UI iteration, prefer `npx trsd dev --surfaces web,api --web-runtime local --force --json`. `--web-runtime local` uses the Astro dev server for hot reload instead of rebuilding the Cloudflare/Wrangler runtime, while still sharing the local API/control-plane state. `--force` is intentional for agent/dev loops: it terminates overlapping Treeseed dev supervisors and listeners on required ports before startup. Without `--force`, `trsd dev` and `trsd dev:*` fail with an existing-service warning when required ports are already occupied.
 - Treeseed dev supervisors always mirror their output into `.treeseed/logs/dev-<surfaces>.jsonl`, for example `.treeseed/logs/dev-web-api.jsonl` or `.treeseed/logs/dev-manager-worker.jsonl`. Start them directly or daemonize them with normal shell job control, then follow the stable log path with `tail -f`.
 - Use `npx trsd switch <task-branch> --json`; when the result includes `payload.worktreePath`, run all future commands from that worktree path.

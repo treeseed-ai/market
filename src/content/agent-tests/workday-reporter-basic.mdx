@@ -1,0 +1,18 @@
+---
+id: agent-test:workday-reporter-basic
+agent: treeseed-workday-reporter
+kind: handler
+fixture: packages/agent/test/fixtures/agent-tests/workday-reporter/basic
+trigger:
+  messageType: review_passed
+expect:
+  status: waiting
+  messages:
+    - workday_report_created
+tags:
+  - reporting
+  - workday
+---
+
+This test proves the workday reporter is represented in the transparent catalog
+before full report synthesis runs.

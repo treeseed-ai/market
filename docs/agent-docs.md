@@ -18,6 +18,20 @@ This plan is intentionally scoped to the current TreeSeed repository shape:
 
 The plan does not introduce a separate documentation automation system. It completes the loop around the existing TreeSeed agent runtime, knowledge pipeline, workday services, worktree lifecycle, Codex docs mutation path, content model, and control app.
 
+## Current Processing Parity Note
+
+The hosted/local processing runtime now centers on the `@treeseed/agent`
+package. That package owns the built Agent API, `treeseed-processing` role
+dispatcher, bounded manager, worker loop, processing plan/doctor, runtime path
+resolver, built-in handlers, and testing harnesses. The top-level Market repo
+still owns tenant Markdown specs and executable test catalog entries under
+`src/content/agents` and `src/content/agent-tests`.
+
+Documentation automation work that runs in parity mode should use the
+containerized role commands and `/data` worker layout. `.agent-worktrees` remain
+acceptable only for fast-dev/test harness behavior and should appear as
+non-parity if detected by `parity-plan`.
+
 ---
 
 ## Current Foundation

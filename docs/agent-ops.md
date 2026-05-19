@@ -11,6 +11,29 @@ It is written for two audiences:
 
 The goal is a tight local loop where the operational app, local control plane, seeded TreeSeed portfolio, workday manager, worker runner, capacity providers, and budget records all describe the same system.
 
+## Processing Parity Runtime
+
+For parity with hosted processing, use the `treeseed-processing` role commands
+from `@treeseed/agent`:
+
+```bash
+npm run processing:build
+npm run processing:test-local
+docker run --rm treeseed-processing:local healthcheck
+docker run --rm treeseed-processing:local manager --dry-run --json
+docker run --rm treeseed-processing:local worker --dry-run --json
+```
+
+The processing image combines package-owned runtime code with Market-owned
+tenant specs, seeds, migrations, and deployment config. Runtime services must
+not build before start. Worker repository state in parity mode belongs under
+`/data/repositories/<repository-id>`, runner state under `/data/runners`, and
+temporary state under `/data/tmp`.
+
+Use `npm -w packages/agent run verify:local` after agent package changes. It
+includes a packed-install smoke proving the package can run processing roles
+without workspace source files or source-mode TypeScript loaders.
+
 ## Local Mental Model
 
 Local development should look like production in shape, but with local infrastructure:

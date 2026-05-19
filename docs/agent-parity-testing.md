@@ -9,6 +9,26 @@ This plan implements two related capabilities for TreeSeed Market and the TreeSe
 
 The goal is to make local, staging, and production behave the same for workday automation while giving contributors a readable way to understand, validate, and review what each agent is expected to do.
 
+## Current Implementation Snapshot
+
+As of the current parity hardening pass, the implementation direction is:
+
+* `@treeseed/agent` owns the processing runtime code: Agent API, manager,
+  worker, role dispatcher, built-in handlers, processing plan/doctor, runtime
+  path resolver, and agent testing harnesses.
+* Market owns tenant-specific inputs: top-level agent Markdown specs,
+  Markdown-backed agent test specs, seeds, migrations, and deployment config.
+* `treeseed-processing` is exported as an `@treeseed/agent` package bin and is
+  wrapped by root `bin/treeseed-processing` for the processing image.
+* The processing Docker image builds successfully from `Dockerfile.processing`
+  and smoke-runs `healthcheck`, `parity-plan`, `api --help`,
+  `manager --dry-run --json`, and `worker --dry-run --json`.
+* Package closure is enforced by `packages/agent` package-shape tests and a
+  packed-install smoke in `npm -w packages/agent run verify:local`.
+* `.ts-run-*` source-mode temp modules are skipped by the package dist builder,
+  excluded from the Docker context, and asserted absent from `dist`, `npm pack
+  --dry-run`, and the runtime image.
+
 ## Current Working Assumptions
 
 TreeSeed currently has most of the architectural pieces needed:
@@ -68,10 +88,11 @@ Build one shared processing image from the top-level Market repo.
 
 The image should contain:
 
-* top-level Market API build artifacts needed by the processing API;
+* built Agent API runtime from `@treeseed/agent`;
 * `packages/agent` built distribution;
 * `packages/sdk` built distribution;
-* any required runtime package outputs from `packages/core` or `packages/cli`;
+* runtime package manifests and production dependencies;
+* top-level Market `src` content/config needed by tenant specs and seeds;
 * migrations and seed assets needed for runtime validation;
 * processing role entrypoints;
 * healthcheck/diagnostic commands;
@@ -88,7 +109,9 @@ workday-report
 migrate
 seed
 healthcheck
+doctor
 parity-plan
+parity-diff
 ```
 
 Recommended runtime command shape:
@@ -102,9 +125,14 @@ treeseed-processing workday-report
 treeseed-processing migrate
 treeseed-processing seed
 treeseed-processing healthcheck
+treeseed-processing doctor --role worker --environment local
+treeseed-processing parity-plan --environment local --json
+treeseed-processing parity-diff --from local --to staging
 ```
 
-Implementation may delegate these commands to existing package binaries such as `treeseed-agent-api` and `treeseed-agent-service`, but the public deployment surface should be one role-oriented command family.
+Implementation may delegate these commands to existing package services such as
+the Agent API and worker loop, but the public deployment surface is one
+role-oriented command family.
 
 ## 1.2 Manager Lifecycle Decision
 
@@ -261,15 +289,32 @@ Dockerfile.processing
 Requirements:
 
 * use Node 22;
-* install dependencies reproducibly;
-* build top-level Market API assets required by processing;
+* install dependencies reproducibly with `npm ci --ignore-scripts --no-audit --no-fund --prefer-offline`;
+* use BuildKit npm cache mounts where available;
 * build `packages/sdk`;
 * build `packages/agent`;
+* build top-level Market API assets required by processing;
+* prune development dependencies before the runtime layer is copied;
 * copy only runtime-required files into final image;
 * run as non-root if practical;
 * expose API port through env-driven `PORT`;
 * include healthcheck command;
 * avoid running package prepare scripts unexpectedly at runtime.
+
+The current `Dockerfile.processing` follows this shape and the acceptance smoke
+is:
+
+```bash
+npm run processing:build
+docker run --rm treeseed-processing:local healthcheck
+docker run --rm treeseed-processing:local parity-plan --environment local --json
+docker run --rm treeseed-processing:local api --help
+docker run --rm treeseed-processing:local manager --dry-run --json
+docker run --rm treeseed-processing:local worker --dry-run --json
+```
+
+The runtime image must not contain `.git`, `.treeseed`, package fixtures,
+package source trees, local worktrees, generated caches, or `.ts-run-*` files.
 
 Suggested high-level structure:
 
@@ -281,13 +326,14 @@ COPY packages/sdk/package*.json packages/sdk/
 COPY packages/agent/package*.json packages/agent/
 COPY packages/core/package*.json packages/core/
 COPY packages/cli/package*.json packages/cli/
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts --no-audit --no-fund --prefer-offline
 
 FROM deps AS build
 COPY . .
 RUN npm run build:api
 RUN npm -w packages/sdk run build
 RUN npm -w packages/agent run build
+RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev --ignore-scripts --no-audit --no-fund
 
 FROM node:22-slim AS runtime
 WORKDIR /app
@@ -309,7 +355,7 @@ ENTRYPOINT ["/app/bin/treeseed-processing"]
 CMD ["api"]
 ```
 
-The exact copy list should be verified after inspecting built artifacts. Do not over-copy `.git`, local secrets, `.treeseed/worktrees`, or `.treeseed/exports`.
+The exact copy list should be verified after inspecting built artifacts. Do not over-copy `.git`, local secrets, `.treeseed`, local worktrees, package fixtures, generated caches, or `.treeseed/exports`.
 
 ### Add processing entrypoint
 
@@ -1313,15 +1359,16 @@ bin/treeseed-processing
 ## Package changes
 
 ```text
-packages/agent/src/services/processing-entrypoint.ts
 packages/agent/src/services/processing-plan.ts
 packages/agent/src/services/processing-doctor.ts
-packages/agent/src/services/manager-reconcile.ts
 packages/agent/src/services/runtime-paths.ts
-packages/agent/src/testing/agent-contracts.ts
-packages/agent/src/testing/handler-fixtures.ts
-packages/agent/src/testing/message-chain.ts
-packages/agent/src/testing/workday-dogfood.ts
+packages/agent/src/services/report-paths.ts
+packages/agent/scripts/treeseed-processing.ts
+packages/agent/scripts/test-processing-local.ts
+packages/agent/src/agents/testing/agent-contracts.ts
+packages/agent/src/agents/testing/agent-test-catalog.ts
+packages/agent/src/agents/testing/handler-fixtures.ts
+packages/agent/src/agents/testing/message-chain.ts
 ```
 
 ## Market content changes
@@ -1353,7 +1400,8 @@ packages/agent/test/services/manager-worker-parity.test.ts
     "processing:up": "docker compose -f docker-compose.processing.yml up --build",
     "processing:down": "docker compose -f docker-compose.processing.yml down",
     "processing:logs": "docker compose -f docker-compose.processing.yml logs -f",
-    "processing:parity-plan": "docker run --env-file .env.local.processing treeseed-processing:local parity-plan --environment local",
+    "processing:parity-plan": "docker run --rm --env-file $(test -f .env.local.processing && echo .env.local.processing || echo .env.local.processing.example) treeseed-processing:local parity-plan --environment local",
+    "processing:test-local": "npm -w packages/agent run test:processing-local",
     "test:agent-contracts": "npm -w packages/agent run test:agent-contracts",
     "test:agent-handlers": "npm -w packages/agent run test:agent-handlers",
     "test:agent-message-chains": "npm -w packages/agent run test:agent-message-chains",
@@ -1364,6 +1412,25 @@ packages/agent/test/services/manager-worker-parity.test.ts
   }
 }
 ```
+
+## Agent Package Runtime Closure
+
+The agent package must be installable and runnable without workspace source
+fallbacks. The package-local closure gate is:
+
+```bash
+npm -w packages/agent run build:dist
+npm -w packages/agent run test:unit -- test/package/package-shape.test.ts
+npm -w packages/agent run verify:local
+```
+
+The package-shape tests assert that `dist` and `npm pack --dry-run` contain the
+processing bins, manager, worker, Agent API, processing plan/doctor, runtime
+paths, built-in handler registry, and templates. They also assert no `.ts-run-*`
+files ship. The packed-install smoke installs `@treeseed/agent` into a
+temporary project and runs `treeseed-processing healthcheck`, `api --help`,
+`manager --dry-run --json`, `worker --dry-run --json`, and direct runtime
+imports.
 
 ---
 

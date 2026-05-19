@@ -6,6 +6,21 @@ Last updated: 2026-05-13
 
 ---
 
+## Processing Parity Update
+
+Capacity scheduling now sits behind the same processing role contract used by
+manager and worker parity. `@treeseed/agent` owns the built processing runtime,
+including `treeseed-processing`, manager, worker, runtime paths, doctor, plan,
+and built-in handlers. Market supplies the tenant agent specs and capacity
+configuration consumed by that runtime.
+
+Parity-mode workers must use `/data` storage, including
+`/data/repositories/<repository-id>/bare.git`,
+`/data/repositories/<repository-id>/worktrees/<task-id>`,
+`/data/runners/<runner-id>`, and `/data/tmp`. Loop-mode managers, source-mode
+TypeScript execution, stub providers in hosted environments, and non-`/data`
+worker roots should appear as non-parity behavior in processing reports.
+
 # Purpose
 
 This document defines a coherent implementation plan for evolving TreeSeed into:

@@ -8,6 +8,7 @@ dist/
 .nyc_output/
 .dev.vars
 .env.local
+.env.local.processing
 .local/
 .treeseed/
 .agent-worktrees/
@@ -24,6 +25,7 @@ temp/
 *.sqlite
 *.sqlite3
 *.db
+karyon-docs-site-data/
 scripts/.ts-run-*.mjs
 npm-debug.log*
 public/books/*.md

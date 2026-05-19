@@ -1,0 +1,20 @@
+---
+id: agent-test:codebase-cartographer-basic
+agent: treeseed-codebase-cartographer
+kind: handler
+fixture: packages/agent/test/fixtures/agent-tests/codebase-cartographer/basic
+trigger:
+  messageType: research_task_requested
+expect:
+  status: completed
+  messages:
+    - research_note_created
+  artifacts:
+    - research_note
+tags:
+  - research
+  - source-map
+---
+
+This test proves a documentation research request can become a source-grounded
+research note.

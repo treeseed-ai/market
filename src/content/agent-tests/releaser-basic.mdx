@@ -1,0 +1,19 @@
+---
+id: agent-test:releaser-basic
+agent: treeseed-releaser
+kind: handler
+fixture: packages/agent/test/fixtures/agent-tests/releaser/basic
+trigger:
+  messageType: workday_report_created
+expect:
+  status: waiting
+  messages:
+    - release_waiting_for_approval
+  requiresHumanApproval: true
+tags:
+  - release
+  - governance
+---
+
+This test proves release readiness remains visible while production release
+execution stays human-gated.

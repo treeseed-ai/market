@@ -1,0 +1,21 @@
+---
+id: agent-test:knowledge-generator-basic
+agent: treeseed-knowledge-generator
+kind: handler
+fixture: packages/agent/test/fixtures/agent-tests/knowledge-generator/basic
+trigger:
+  messageType: research_note_created
+expect:
+  status: completed
+  messages:
+    - knowledge_draft_created
+  artifacts:
+    - knowledge_draft
+  requiresSourceMap: true
+tags:
+  - documentation
+  - knowledge
+---
+
+This test proves that a source-mapped research note can become a reviewable
+knowledge draft without promoting canonical content.
