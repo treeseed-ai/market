@@ -50,7 +50,7 @@ const rows = await Promise.all(workdays.map(async (workday: any) => {
 			<ProjectControlNav projectId={project.id} current="workdays" />
 			<Panel eyebrow="Workdays" title="Agent workdays" description="Daily agent activity grouped by status, task volume, and credit usage.">
 				<button slot="actions" class="ts-button" data-size="sm" type="button" id="request-workday-button">Request local workday</button>
-				<PlainTable columns={[{ key: 'name', label: 'Workday' }, { key: 'state', label: 'State' }, { key: 'agents', label: 'Agents' }, { key: 'tasks', label: 'Tasks' }, { key: 'credits', label: 'Credits' }, { key: 'updated', label: 'Updated' }, { key: 'action', label: 'Action' }]} rows={rows} emptyTitle="No workdays" emptyDescription="Workdays appear after the manager records project activity." />
+				<PlainTable columns={[{ key: 'name', label: 'Workday' }, { key: 'state', label: 'State' }, { key: 'agents', label: 'Agents' }, { key: 'tasks', label: 'Tasks' }, { key: 'credits', label: 'Credits' }, { key: 'updated', label: 'Updated' }, { key: 'action', label: 'Action' }]} rows={rows} emptyTitle="No workdays" emptyDescription="Workdays appear after the manager records project activity." interactive={true} pageSize={10} searchLabel="Filter workdays" />
 				<p class="ts-subtle" id="workday-request-status" role="status"></p>
 			</Panel>
 		</section>

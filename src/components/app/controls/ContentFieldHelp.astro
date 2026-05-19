@@ -1,0 +1,148 @@
+---
+interface Props {
+	label: string;
+	purpose?: string;
+	example?: string;
+	editable?: boolean;
+}
+
+const {
+	label,
+	purpose = '',
+	example,
+	editable = true,
+} = Astro.props as Props;
+---
+
+{purpose ? (
+	<details class="ts-content-help" data-content-help>
+		<summary aria-label={`Help for ${label}`} data-content-help-trigger>?</summary>
+		<div class="ts-content-help__panel" data-content-help-panel>
+			<strong>{label}</strong>
+			<p>{purpose}</p>
+			{example ? <p><span>Example:</span> {example}</p> : null}
+			{!editable ? <p><span>Generated:</span> This field is maintained by TreeSeed and is shown for context.</p> : null}
+		</div>
+	</details>
+) : null}
+
+<style>
+	.ts-content-help {
+		display: inline-flex;
+		position: relative;
+	}
+
+	.ts-content-help summary {
+		align-items: center;
+		background: var(--ts-color-surface);
+		border: 1px solid var(--ts-color-border);
+		border-radius: 999px;
+		color: var(--ts-color-text-muted);
+		cursor: pointer;
+		display: inline-flex;
+		font-size: 0.75rem;
+		font-weight: 800;
+		height: 1.35rem;
+		justify-content: center;
+		list-style: none;
+		width: 1.35rem;
+	}
+
+	.ts-content-help summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.ts-content-help[open] summary,
+	.ts-content-help summary:hover {
+		background: var(--ts-color-accent);
+		border-color: var(--ts-color-accent);
+		color: var(--ts-color-accent-text);
+	}
+
+	.ts-content-help__panel {
+		background: var(--ts-color-surface-overlay, var(--ts-color-surface));
+		border: 1px solid var(--ts-color-border);
+		border-radius: var(--ts-radius-md);
+		box-shadow: var(--ts-shadow-lg, 0 16px 40px rgb(15 23 42 / 16%));
+		color: var(--ts-color-text);
+		display: grid;
+		gap: 0.4rem;
+		line-height: 1.45;
+		max-height: min(24rem, calc(100vh - 1rem));
+		overflow: auto;
+		padding: 0.75rem;
+		position: fixed;
+		top: var(--ts-content-help-top, 0.5rem);
+		left: var(--ts-content-help-left, 0.5rem);
+		width: var(--ts-content-help-width, min(22rem, calc(100vw - 1rem)));
+		z-index: 60;
+	}
+
+	.ts-content-help__panel p {
+		margin: 0;
+	}
+
+	.ts-content-help__panel span {
+		color: var(--ts-color-text-muted);
+		font-weight: 700;
+	}
+</style>
+
+<script is:inline>
+	(() => {
+		if (window.__treeseedContentHelpReady) return;
+		window.__treeseedContentHelpReady = true;
+
+		function clamp(value, min, max) {
+			return Math.max(min, Math.min(max, value));
+		}
+
+		function positionHelp(details) {
+			if (!details.open) return;
+			const trigger = details.querySelector('[data-content-help-trigger]');
+			const panel = details.querySelector('[data-content-help-panel]');
+			if (!trigger || !panel) return;
+			const rect = trigger.getBoundingClientRect();
+			const gutter = 8;
+			const width = Math.min(352, window.innerWidth - gutter * 2);
+			const panelHeight = Math.min(panel.scrollHeight, window.innerHeight - gutter * 2);
+			const belowTop = rect.bottom + gutter;
+			const aboveTop = rect.top - panelHeight - gutter;
+			const top = belowTop + panelHeight <= window.innerHeight - gutter
+				? belowTop
+				: Math.max(gutter, aboveTop);
+			const left = clamp(rect.right - width, gutter, window.innerWidth - width - gutter);
+			panel.style.setProperty('--ts-content-help-width', `${width}px`);
+			panel.style.setProperty('--ts-content-help-left', `${left}px`);
+			panel.style.setProperty('--ts-content-help-top', `${top}px`);
+		}
+
+		function closeOtherHelp(active) {
+			document.querySelectorAll('[data-content-help][open]').forEach((details) => {
+				if (details !== active) details.removeAttribute('open');
+			});
+		}
+
+		document.addEventListener('toggle', (event) => {
+			const details = event.target;
+			if (!(details instanceof HTMLDetailsElement) || !details.matches('[data-content-help]')) return;
+			if (details.open) {
+				closeOtherHelp(details);
+				requestAnimationFrame(() => positionHelp(details));
+			}
+		}, true);
+
+		document.addEventListener('click', (event) => {
+			const target = event.target;
+			if (target instanceof Element && target.closest('[data-content-help]')) return;
+			document.querySelectorAll('[data-content-help][open]').forEach((details) => details.removeAttribute('open'));
+		});
+
+		window.addEventListener('resize', () => {
+			document.querySelectorAll('[data-content-help][open]').forEach(positionHelp);
+		});
+		window.addEventListener('scroll', () => {
+			document.querySelectorAll('[data-content-help][open]').forEach(positionHelp);
+		}, true);
+	})();
+</script>

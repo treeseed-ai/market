@@ -39,7 +39,7 @@ const contentRows = agentContent.map((entry: any) => {
 			<ProjectControlNav projectId={project.id} current="agents" />
 			<Panel eyebrow="Agents" title="Agent definitions" description="Configured agents, their handlers, runtime state, and current task.">
 				<Button slot="actions" href={`/app/projects/${encodeURIComponent(project.id)}/agents/new`} size="sm">New agent</Button>
-				<PlainTable columns={[{ key: 'name', label: 'Agent' }, { key: 'handler', label: 'Handler' }, { key: 'status', label: 'Status' }, { key: 'current', label: 'Current task' }, { key: 'action', label: 'Action' }]} rows={contentRows} emptyTitle="No agents" emptyDescription="Create an agent definition under src/content/agents." />
+				<PlainTable columns={[{ key: 'name', label: 'Agent' }, { key: 'handler', label: 'Handler' }, { key: 'status', label: 'Status' }, { key: 'current', label: 'Current task' }, { key: 'action', label: 'Action' }]} rows={contentRows} emptyTitle="No agents" emptyDescription="Create an agent definition under src/content/agents." interactive={true} pageSize={10} searchLabel="Filter agents" />
 			</Panel>
 		</section>
 	) : (

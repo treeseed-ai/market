@@ -14,6 +14,8 @@ interface Props {
 	interactive?: boolean;
 	pageSize?: number;
 	searchLabel?: string;
+	controlMode?: 'sort' | 'filter';
+	filterColumns?: string[];
 }
 
 const {
@@ -24,8 +26,61 @@ const {
 	interactive = false,
 	pageSize = 10,
 	searchLabel = 'Filter',
+	controlMode = 'sort',
+	filterColumns = [],
 } = Astro.props as Props;
 const tableId = `table-${Math.random().toString(36).slice(2)}`;
+const sortableColumns = columns.filter((column) => column.key !== 'action' && column.key !== 'actions' && column.key !== 'select');
+const filterableColumns = (filterColumns.length > 0
+	? columns.filter((column) => filterColumns.includes(column.key))
+	: sortableColumns
+).filter((column) => column.key !== 'action' && column.key !== 'actions' && column.key !== 'select');
+const filterOptions = filterableColumns.map((column) => ({
+	...column,
+	values: [...new Set(rows.map((row) => stripHtml(row[column.key])).filter(Boolean))].sort((left, right) => left.localeCompare(right)),
+})).filter((column) => column.values.length > 0);
+
+function stripHtml(value: unknown): string {
+	return String(value ?? '')
+		.replace(/<script[\s\S]*?<\/script>/giu, '')
+		.replace(/<style[\s\S]*?<\/style>/giu, '')
+		.replace(/<[^>]*>/gu, ' ')
+		.replace(/&nbsp;/gu, ' ')
+		.replace(/&amp;/gu, '&')
+		.replace(/&lt;/gu, '<')
+		.replace(/&gt;/gu, '>')
+		.replace(/&quot;/gu, '"')
+		.replace(/&#39;/gu, "'")
+		.replace(/\s+/gu, ' ')
+		.trim();
+}
+
+function extractStrong(value: unknown): string {
+	const match = String(value ?? '').match(/<strong[^>]*>([\s\S]*?)<\/strong>/iu);
+	return stripHtml(match?.[1] ?? value);
+}
+
+function extractSpan(value: unknown): string {
+	const match = String(value ?? '').match(/<span[^>]*>([\s\S]*?)<\/span>/iu);
+	return stripHtml(match?.[1] ?? '');
+}
+
+function isChipColumn(key: string): boolean {
+	return ['type', 'state', 'status', 'handler', 'kind', 'mode'].includes(key);
+}
+
+function isRelationColumn(key: string): boolean {
+	return ['related', 'links', 'relations', 'proposal', 'proposals'].includes(key);
+}
+
+function rowSortValues(row: Record<string, any>): Record<string, string> {
+	return Object.fromEntries(
+		columns.map((column) => [
+			column.key,
+			String(row[`${column.key}Sort`] ?? stripHtml(row[column.key] ?? '')).toLowerCase(),
+		]),
+	);
+}
 ---
 
 {rows.length > 0 ? (
@@ -36,30 +91,93 @@ const tableId = `table-${Math.random().toString(36).slice(2)}`;
 					<span class="ts-field__label">{searchLabel}</span>
 					<input class="ts-control" type="search" data-table-filter placeholder="Search records" />
 				</label>
+				{controlMode === 'filter' && filterOptions.length > 0 ? (
+					<div class="ts-data-table__sorts" aria-label="Filter records">
+						<span class="ts-data-table__sort-label">Filter</span>
+						{filterOptions.map((column) => (
+							<div class="ts-data-table__filter-group" aria-label={`Filter by ${column.label}`}>
+								<span>{column.label}</span>
+								{column.values.map((value) => (
+									<button class="ts-table-sort" type="button" data-filter-key={column.key} data-filter-value={value}>{value}</button>
+								))}
+							</div>
+						))}
+					</div>
+				) : sortableColumns.length > 0 ? (
+					<div class="ts-data-table__sorts" aria-label="Sort records">
+						<span class="ts-data-table__sort-label">Sort</span>
+						{sortableColumns.map((column) => (
+							<button class="ts-table-sort" type="button" data-sort-key={column.key}>{column.label}</button>
+						))}
+					</div>
+				) : null}
 				<p class="ts-subtle" data-table-summary aria-live="polite"></p>
 			</div>
 		) : null}
-		<div class="ts-plain-table" role="region" aria-label="Records">
-			<table>
-				<thead>
-					<tr>
-						{columns.map((column) => (
-							<th scope="col">
-								{interactive ? <button class="ts-table-sort" type="button" data-sort-key={column.key}>{column.label}</button> : column.label}
-							</th>
-						))}
-					</tr>
-				</thead>
-				<tbody>
-					{rows.map((row) => (
-						<tr id={row.id ? String(row.id) : undefined} data-table-row>
-							{columns.map((column) => (
-								<td data-column={column.key} set:html={String(row[column.key] ?? '')}></td>
-							))}
-						</tr>
-					))}
-				</tbody>
-			</table>
+		<div class="ts-plain-table" role="list" aria-label="Records">
+			{rows.map((row) => {
+				const titleHtml = row.name ?? row.title ?? row.label ?? '';
+				const title = extractStrong(titleHtml) || stripHtml(titleHtml) || 'Untitled record';
+				const summary = stripHtml(row.summary ?? row.description ?? '') || extractSpan(titleHtml);
+				const actionHtml = String(row.action ?? row.actions ?? '');
+				const selectHtml = String(row.select ?? '');
+				const chips = columns.filter((column) => isChipColumn(column.key) && row[column.key]).map((column) => ({ label: column.label, value: stripHtml(row[column.key]) }));
+				const relations = columns.filter((column) => isRelationColumn(column.key) && row[column.key]).map((column) => ({
+					label: column.label,
+					value: stripHtml(row[column.key]),
+					html: String(row[column.key] ?? ''),
+				}));
+				const metadata = columns
+					.filter((column) => !['name', 'title', 'label', 'summary', 'description', 'action', 'actions', 'select'].includes(column.key) && !isChipColumn(column.key) && !isRelationColumn(column.key) && row[column.key])
+					.map((column) => ({ label: column.label, value: stripHtml(row[column.key]) }));
+				const sortValues = rowSortValues(row);
+				return (
+					<article
+						id={row.id ? String(row.id) : undefined}
+						class="ts-record-card"
+						role="listitem"
+						data-table-row
+						data-sort-values={JSON.stringify(sortValues)}
+						data-filter-text={stripHtml(Object.values(row).join(' ')).toLowerCase()}
+					>
+						<div class="ts-record-card__body">
+							<div class="ts-record-card__heading">
+								{selectHtml ? <div class="ts-record-card__select" set:html={selectHtml}></div> : null}
+								<div class="ts-record-card__title-block">
+									<h3>{title}</h3>
+									{summary ? <p>{summary}</p> : null}
+								</div>
+								{chips.length > 0 ? (
+									<div class="ts-record-card__chips" aria-label="Record state">
+										{chips.map((chip) => <span>{chip.value}</span>)}
+									</div>
+								) : null}
+							</div>
+							{metadata.length > 0 ? (
+								<dl class="ts-record-card__meta">
+									{metadata.map((item) => (
+										<div>
+											<dt>{item.label}</dt>
+											<dd>{item.value}</dd>
+										</div>
+									))}
+								</dl>
+							) : null}
+							{relations.length > 0 ? (
+								<div class="ts-record-card__relations" aria-label="Related records">
+									{relations.map((relation) => (
+										<section>
+											<strong>{relation.label}</strong>
+											<div set:html={relation.html}></div>
+										</section>
+									))}
+								</div>
+							) : null}
+						</div>
+						{actionHtml ? <div class="ts-record-card__actions" set:html={actionHtml}></div> : null}
+					</article>
+				);
+			})}
 		</div>
 		{interactive ? (
 			<div class="ts-data-table__pager" data-table-pager>
@@ -77,7 +195,11 @@ const tableId = `table-${Math.random().toString(36).slice(2)}`;
 	<script is:inline>
 		(() => {
 			function textFor(row, key) {
-				return (row.querySelector(`[data-column="${key}"]`)?.textContent || '').trim().toLowerCase();
+				try {
+					return JSON.parse(row.dataset.sortValues || '{}')?.[key] || '';
+				} catch {
+					return '';
+				}
 			}
 			function init(root) {
 				if (!root || root.dataset.tableReady === 'true') return;
@@ -92,9 +214,24 @@ const tableId = `table-${Math.random().toString(36).slice(2)}`;
 				let page = 1;
 				let sortKey = '';
 				let sortDirection = 1;
+				const activeFilters = new Map();
 				function visibleRows() {
 					const needle = (filter?.value || '').trim().toLowerCase();
-					const filtered = rows.filter((row) => !needle || row.textContent.toLowerCase().includes(needle));
+					const filtered = rows.filter((row) => {
+						const haystack = (row.dataset.filterText || row.textContent || '').toLowerCase();
+						if (needle && !haystack.includes(needle)) return false;
+						if (activeFilters.size === 0) return true;
+						let values = {};
+						try {
+							values = JSON.parse(row.dataset.sortValues || '{}');
+						} catch {
+							values = {};
+						}
+						for (const [key, value] of activeFilters) {
+							if ((values[key] || '') !== value) return false;
+						}
+						return true;
+					});
 					if (sortKey) {
 						filtered.sort((left, right) => textFor(left, sortKey).localeCompare(textFor(right, sortKey)) * sortDirection);
 					}
@@ -132,6 +269,22 @@ const tableId = `table-${Math.random().toString(36).slice(2)}`;
 						page = 1;
 						root.querySelectorAll('[data-sort-key]').forEach((item) => item.removeAttribute('aria-sort'));
 						button.setAttribute('aria-sort', sortDirection === 1 ? 'ascending' : 'descending');
+						render();
+					});
+				});
+				root.querySelectorAll('[data-filter-key]').forEach((button) => {
+					button.addEventListener('click', () => {
+						const key = button.getAttribute('data-filter-key') || '';
+						const value = (button.getAttribute('data-filter-value') || '').toLowerCase();
+						const active = activeFilters.get(key) === value;
+						root.querySelectorAll(`[data-filter-key="${key}"]`).forEach((item) => item.removeAttribute('aria-pressed'));
+						if (active) {
+							activeFilters.delete(key);
+						} else {
+							activeFilters.set(key, value);
+							button.setAttribute('aria-pressed', 'true');
+						}
+						page = 1;
 						render();
 					});
 				});

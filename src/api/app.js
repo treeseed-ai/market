@@ -32,8 +32,10 @@ import {
 import { decryptHostConfig } from '../lib/cloudflare-host-crypto.js';
 import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicKey, createVerify, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve, relative } from 'node:path';
+import { parse as parseYaml } from 'yaml';
+import { contentRelationPolicy } from '../lib/market/content-relations.js';
 
 function jsonError(c, status, error, details = {}) {
 	return c.json({
@@ -92,6 +94,9 @@ function enumValue(value, allowed, fallback = null) {
 }
 
 const LOCAL_CONTENT_COLLECTIONS = new Set(['objectives', 'questions', 'notes', 'proposals', 'decisions', 'agents']);
+const LOCAL_WORK_CONTENT_COLLECTIONS = new Set(['objectives', 'questions', 'notes', 'proposals', 'decisions']);
+const LOCAL_DECISION_TYPE_VALUES = ['approved', 'rejected', 'deferred', 'request_changes', 'superseded'];
+const PROPOSAL_VERDICT_DECISION_TYPES = new Set(['approved', 'rejected', 'deferred', 'request_changes']);
 const LOCAL_CONTENT_DEFAULTS = {
 	objectives: {
 		idPrefix: 'objective',
@@ -108,13 +113,13 @@ const LOCAL_CONTENT_DEFAULTS = {
 	notes: {
 		idPrefix: 'note',
 		extension: 'mdx',
-		fields: { author: 'market-steward' },
+		fields: { author: 'market-steward', relatedObjectives: [], relatedQuestions: [], relatedProposals: [], relatedBooks: [] },
 		body: 'Capture the useful context, evidence, and follow-up links for this note.',
 	},
 	proposals: {
 		idPrefix: 'proposal',
 		extension: 'mdx',
-		fields: { proposalType: 'implementation', motivation: '', primaryContributor: 'market-steward', relatedObjectives: [], relatedQuestions: [], relatedNotes: [], relatedBooks: [], supersedes: [] },
+		fields: { proposalType: 'implementation', motivation: '', primaryContributor: 'market-steward', relatedObjectives: [], relatedQuestions: [], relatedNotes: [], relatedBooks: [], decision: '', supersedes: [] },
 		body: 'Describe the proposed change, why it matters, what it affects, and how a reviewer should evaluate it.',
 	},
 	decisions: {
@@ -206,6 +211,20 @@ function normalizeRelationArray(value) {
 	return [];
 }
 
+function uniqueRelationArray(value) {
+	return [...new Set(normalizeRelationArray(value))];
+}
+
+function addRelationValue(frontmatter, field, value, single = false) {
+	const ref = String(value ?? '').trim();
+	if (!field || !ref) return;
+	if (single) {
+		frontmatter[field] = ref;
+		return;
+	}
+	frontmatter[field] = uniqueRelationArray([...(normalizeRelationArray(frontmatter[field])), ref]);
+}
+
 function normalizeLocalContentInput(collection, body) {
 	const defaults = LOCAL_CONTENT_DEFAULTS[collection];
 	const title = optionalTrimmedString(body.title);
@@ -221,7 +240,7 @@ function normalizeLocalContentInput(collection, body) {
 		description,
 		date: optionalTrimmedString(body.date) ?? today,
 		summary,
-		status: enumValue(body.status, ['live', 'in progress', 'exploratory', 'planned', 'speculative'], 'planned'),
+		status: enumValue(body.status, ['recorded', 'live', 'in progress', 'exploratory', 'planned', 'speculative'], 'planned'),
 		...defaults.fields,
 	};
 	if (collection === 'agents') {
@@ -236,15 +255,21 @@ function normalizeLocalContentInput(collection, body) {
 		delete frontmatter.status;
 	} else if (collection === 'notes') {
 		frontmatter.author = optionalTrimmedString(body.author) ?? frontmatter.author;
+		frontmatter.relatedObjectives = normalizeRelationArray(body.relatedObjectives);
+		frontmatter.relatedQuestions = normalizeRelationArray(body.relatedQuestions);
+		frontmatter.relatedProposals = normalizeRelationArray(body.relatedProposals);
 	} else if (collection === 'objectives') {
+		frontmatter.primaryContributor = optionalTrimmedString(body.primaryContributor) ?? frontmatter.primaryContributor;
 		frontmatter.timeHorizon = enumValue(body.timeHorizon, ['near-term', 'mid-term', 'long-term'], frontmatter.timeHorizon);
 		frontmatter.motivation = optionalTrimmedString(body.motivation) ?? description;
 		frontmatter.relatedQuestions = normalizeRelationArray(body.relatedQuestions);
 	} else if (collection === 'questions') {
+		frontmatter.primaryContributor = optionalTrimmedString(body.primaryContributor) ?? frontmatter.primaryContributor;
 		frontmatter.questionType = enumValue(body.questionType, ['research', 'implementation', 'strategy', 'evaluation'], frontmatter.questionType);
 		frontmatter.motivation = optionalTrimmedString(body.motivation) ?? description;
 		frontmatter.relatedObjectives = normalizeRelationArray(body.relatedObjectives);
 	} else if (collection === 'proposals') {
+		frontmatter.primaryContributor = optionalTrimmedString(body.primaryContributor) ?? frontmatter.primaryContributor;
 		frontmatter.proposalType = enumValue(body.proposalType, ['strategy', 'policy', 'implementation', 'research'], frontmatter.proposalType);
 		frontmatter.motivation = optionalTrimmedString(body.motivation) ?? description;
 		frontmatter.relatedObjectives = normalizeRelationArray(body.relatedObjectives);
@@ -252,7 +277,8 @@ function normalizeLocalContentInput(collection, body) {
 		frontmatter.relatedNotes = normalizeRelationArray(body.relatedNotes);
 		frontmatter.decision = optionalTrimmedString(body.decision) ?? undefined;
 	} else if (collection === 'decisions') {
-		frontmatter.decisionType = enumValue(body.decisionType, ['approved', 'rejected', 'deferred', 'superseded'], frontmatter.decisionType);
+		frontmatter.primaryContributor = optionalTrimmedString(body.primaryContributor) ?? frontmatter.primaryContributor;
+		frontmatter.decisionType = enumValue(body.decisionType, LOCAL_DECISION_TYPE_VALUES, frontmatter.decisionType);
 		frontmatter.rationale = optionalTrimmedString(body.rationale) ?? description;
 		frontmatter.authority = optionalTrimmedString(body.authority) ?? frontmatter.authority;
 		frontmatter.relatedObjectives = normalizeRelationArray(body.relatedObjectives);
@@ -275,7 +301,12 @@ async function writeLocalContentRecord(collection, input) {
 	const normalized = normalizeLocalContentInput(collection, input);
 	if (normalized.error) return normalized;
 	const root = resolve(process.cwd(), 'src', 'content', collection);
-	const target = resolve(root, `${normalized.slug}.${normalized.extension}`);
+	const existingTarget = input.overwrite === true
+		? [`${normalized.slug}.mdx`, `${normalized.slug}.md`]
+			.map((file) => resolve(root, file))
+			.find((candidate) => existsSync(candidate))
+		: null;
+	const target = existingTarget ?? resolve(root, `${normalized.slug}.${normalized.extension}`);
 	const relativeTarget = relative(root, target);
 	if (relativeTarget.startsWith('..') || relativeTarget.includes('..') || relativeTarget.startsWith('/')) {
 		return { error: 'Unsafe content path.' };
@@ -294,6 +325,184 @@ async function writeLocalContentRecord(collection, input) {
 		href: collection === 'agents'
 			? `/app/projects/${encodeURIComponent(String(input.projectId ?? ''))}/agents/${encodeURIComponent(normalized.slug)}`
 			: `/app/work/${collection}/${encodeURIComponent(normalized.slug)}`,
+	};
+}
+
+function localContentRoot(collection) {
+	return resolve(process.cwd(), 'src', 'content', collection);
+}
+
+function localContentPath(collection, slug, extension = null) {
+	const root = localContentRoot(collection);
+	const safeSlug = slugifyContent(slug);
+	if (!safeSlug || safeSlug !== String(slug ?? '').trim()) return null;
+	const candidates = extension
+		? [resolve(root, `${safeSlug}.${extension}`)]
+		: ['mdx', 'md'].map((ext) => resolve(root, `${safeSlug}.${ext}`));
+	const target = candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
+	const relativeTarget = relative(root, target);
+	if (relativeTarget.startsWith('..') || relativeTarget.includes('..') || relativeTarget.startsWith('/')) return null;
+	return target;
+}
+
+async function readLocalContentRecord(collection, slug) {
+	if (!LOCAL_WORK_CONTENT_COLLECTIONS.has(collection)) return { error: 'Unsupported content collection.' };
+	const safeSlug = slugifyContent(slug);
+	if (!safeSlug || safeSlug !== String(slug ?? '').trim()) return { error: 'Unsafe content slug.' };
+	const target = localContentPath(collection, safeSlug);
+	if (!target || !existsSync(target)) return { error: 'Parent content record was not found.' };
+	const raw = await readFile(target, 'utf8');
+	const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/u);
+	if (!match) return { error: 'Content record is missing frontmatter.' };
+	const frontmatter = parseYaml(match[1]) ?? {};
+	if (!frontmatter || typeof frontmatter !== 'object' || Array.isArray(frontmatter)) {
+		return { error: 'Content frontmatter could not be parsed.' };
+	}
+	return {
+		path: target,
+		slug: safeSlug,
+		extension: target.endsWith('.md') ? 'md' : 'mdx',
+		frontmatter,
+		body: match[2] ?? '',
+	};
+}
+
+async function writeParsedLocalContentRecord(record) {
+	const content = `${serializeFrontmatter(record.frontmatter)}\n\n${String(record.body ?? '').trim()}\n`;
+	await writeFile(record.path, content, 'utf8');
+}
+
+export async function createRelatedLocalContentRecord(parentCollection, parentSlug, targetCollection, input) {
+	if (!LOCAL_WORK_CONTENT_COLLECTIONS.has(parentCollection) || !LOCAL_WORK_CONTENT_COLLECTIONS.has(targetCollection)) {
+		return { error: 'Unsupported content relation collection.' };
+	}
+	const policy = contentRelationPolicy(parentCollection, targetCollection);
+	if (!policy) return { error: `Cannot create related ${targetCollection} from ${parentCollection}.` };
+	const parent = await readLocalContentRecord(parentCollection, parentSlug);
+	if (parent.error) return parent;
+	const normalized = normalizeLocalContentInput(targetCollection, input);
+	if (normalized.error) return normalized;
+	const childTarget = localContentPath(targetCollection, normalized.slug, normalized.extension);
+	if (!childTarget) return { error: 'Unsafe content path.' };
+	if (existsSync(childTarget)) return { error: 'A content record with that slug already exists.' };
+
+	addRelationValue(parent.frontmatter, policy.sourceField, normalized.slug, policy.sourceSingle);
+	addRelationValue(normalized.frontmatter, policy.targetField, parent.slug, policy.targetSingle);
+
+	await mkdir(localContentRoot(targetCollection), { recursive: true });
+	const childRecord = {
+		path: childTarget,
+		frontmatter: normalized.frontmatter,
+		body: normalized.body,
+	};
+	await writeParsedLocalContentRecord(childRecord);
+	try {
+		await writeParsedLocalContentRecord(parent);
+	} catch (error) {
+		await rm(childTarget, { force: true }).catch(() => {});
+		return {
+			error: 'Related content could not be linked to the parent record.',
+			details: error instanceof Error ? error.message : String(error),
+		};
+	}
+	return {
+		parent: {
+			collection: parentCollection,
+			slug: parent.slug,
+			path: relative(process.cwd(), parent.path),
+			href: `/app/work/${parentCollection}/${encodeURIComponent(parent.slug)}`,
+		},
+		child: {
+			collection: targetCollection,
+			slug: normalized.slug,
+			id: normalized.frontmatter.id,
+			path: relative(process.cwd(), childTarget),
+			href: `/app/work/${targetCollection}/${encodeURIComponent(normalized.slug)}`,
+		},
+		relation: {
+			parentField: policy.sourceField,
+			childField: policy.targetField,
+		},
+	};
+}
+
+export async function createDecisionFromProposals(input) {
+	const proposalSlugs = [...new Set(normalizeRelationArray(input.proposalSlugs))];
+	if (proposalSlugs.length === 0) return { error: 'Select at least one proposal.' };
+	for (const slug of proposalSlugs) {
+		if (!slug || slugifyContent(slug) !== slug) return { error: 'Unsafe proposal slug.' };
+	}
+	const decisionType = enumValue(input.decisionType, [...PROPOSAL_VERDICT_DECISION_TYPES], null);
+	if (!decisionType) return { error: 'Unsupported proposal verdict.' };
+	const reason = optionalTrimmedString(input.reason) ?? optionalTrimmedString(input.rationale);
+	if (!reason) return { error: 'A decision reason is required.' };
+	const title = optionalTrimmedString(input.title) ?? `Decision for ${proposalSlugs.length === 1 ? proposalSlugs[0] : `${proposalSlugs.length} proposals`}`;
+	const decisionSlug = slugifyContent(input.slug || title);
+	if (!decisionSlug) return { error: 'A safe decision slug is required.' };
+	const decisionTarget = localContentPath('decisions', decisionSlug, 'mdx');
+	if (!decisionTarget) return { error: 'Unsafe decision path.' };
+	if (existsSync(decisionTarget)) return { error: 'A decision with that slug already exists.' };
+
+	const proposals = [];
+	for (const slug of proposalSlugs) {
+		const proposal = await readLocalContentRecord('proposals', slug);
+		if (proposal.error) return { error: `Proposal ${slug} was not found.` };
+		proposals.push(proposal);
+	}
+
+	const proposalTitles = proposals.map((proposal) => proposal.frontmatter.title ?? proposal.slug);
+	const body = optionalTrimmedString(input.body)
+		?? [
+			`## Verdict`,
+			decisionType.replace(/_/gu, ' '),
+			``,
+			`## Reason`,
+			reason,
+			``,
+			`## Proposals`,
+			...proposalTitles.map((proposalTitle, index) => `- ${proposalTitle} (${proposalSlugs[index]})`),
+		].join('\n');
+	const decisionPayload = await writeLocalContentRecord('decisions', {
+		...input,
+		slug: decisionSlug,
+		title,
+		status: 'live',
+		decisionType,
+		description: optionalTrimmedString(input.description) ?? reason,
+		summary: optionalTrimmedString(input.summary) ?? reason,
+		rationale: reason,
+		relatedProposals: proposalSlugs,
+		body,
+	});
+	if (decisionPayload.error) return decisionPayload;
+
+	const writtenProposals = [];
+	const originalProposals = proposals.map((proposal) => ({
+		...proposal,
+		frontmatter: { ...proposal.frontmatter },
+		body: proposal.body,
+	}));
+	try {
+		for (const proposal of proposals) {
+			proposal.frontmatter.decision = decisionSlug;
+			await writeParsedLocalContentRecord(proposal);
+			writtenProposals.push(proposal);
+		}
+	} catch (error) {
+		await rm(decisionTarget, { force: true }).catch(() => {});
+		for (const original of originalProposals.slice(0, writtenProposals.length)) {
+			await writeParsedLocalContentRecord(original).catch(() => {});
+		}
+		return {
+			error: 'Decision content was created but proposals could not be linked; changes were rolled back.',
+			details: error instanceof Error ? error.message : String(error),
+		};
+	}
+
+	return {
+		decision: decisionPayload,
+		proposals: proposalSlugs.map((slug) => ({ collection: 'proposals', slug, href: `/app/work/proposals/${encodeURIComponent(slug)}` })),
+		href: decisionPayload.href,
 	};
 }
 
@@ -4838,6 +5047,20 @@ export function createMarketApiApp(options = {}) {
 				return c.json({ ok: true, payload: await store.listProjectUpdatePlans(access.details.project.id) });
 			});
 
+			app.post('/v1/projects/:projectId/local-content/decisions/from-proposals', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await readJsonOrFormBody(c);
+				const payload = await createDecisionFromProposals({
+					...body,
+					projectId: access.details.project.id,
+					teamId: access.details.project.teamId,
+					createdBy: access.principal.id,
+				});
+				if (payload.error) return jsonError(c, 400, payload.error, payload.details ? { details: payload.details } : {});
+				return c.json({ ok: true, payload }, { status: 201 });
+			});
+
 			app.post('/v1/projects/:projectId/local-content/:collection', async (c) => {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
 				if (access.response) return access.response;
@@ -4850,6 +5073,28 @@ export function createMarketApiApp(options = {}) {
 					createdBy: access.principal.id,
 				});
 				if (payload.error) return jsonError(c, 400, payload.error);
+				return c.json({ ok: true, payload }, { status: 201 });
+			});
+
+			app.post('/v1/projects/:projectId/local-content/:collection/related', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const routeCollection = String(c.req.param('collection') ?? '');
+				const body = await readJsonOrFormBody(c);
+				const parentCollection = optionalTrimmedString(body.parentCollection) ?? routeCollection;
+				const targetCollection = optionalTrimmedString(body.targetCollection) ?? routeCollection;
+				const parentSlug = optionalTrimmedString(body.parentSlug);
+				if (!parentSlug) return jsonError(c, 400, 'parentSlug is required.');
+				if (targetCollection !== routeCollection) {
+					return jsonError(c, 400, 'Route collection must match targetCollection.');
+				}
+				const payload = await createRelatedLocalContentRecord(parentCollection, parentSlug, targetCollection, {
+					...body,
+					projectId: access.details.project.id,
+					teamId: access.details.project.teamId,
+					createdBy: access.principal.id,
+				});
+				if (payload.error) return jsonError(c, 400, payload.error, payload.details ? { details: payload.details } : {});
 				return c.json({ ok: true, payload }, { status: 201 });
 			});
 

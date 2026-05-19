@@ -58,13 +58,13 @@ const capacity = projection?.capacity ?? {};
 				]} />
 			</Panel>
 			<Panel eyebrow="Agents" title="Agent activity" description="Tasks, completions, and failures grouped by agent for this workday.">
-				<PlainTable columns={[{ key: 'name', label: 'Agent' }, { key: 'tasks', label: 'Tasks' }, { key: 'completed', label: 'Completed' }, { key: 'failed', label: 'Failed' }, { key: 'action', label: 'Action' }]} rows={agentRows} emptyTitle="No agent activity" emptyDescription="Agent activity appears after tasks are recorded for this workday." />
+				<PlainTable columns={[{ key: 'name', label: 'Agent' }, { key: 'tasks', label: 'Tasks' }, { key: 'completed', label: 'Completed' }, { key: 'failed', label: 'Failed' }, { key: 'action', label: 'Action' }]} rows={agentRows} emptyTitle="No agent activity" emptyDescription="Agent activity appears after tasks are recorded for this workday." interactive={true} pageSize={10} searchLabel="Filter agents" />
 			</Panel>
 			<Panel eyebrow="Logs" title="Timeline" description="Recent task, governance, artifact, and knowledge events.">
-				<PlainTable columns={[{ key: 'name', label: 'Event' }, { key: 'phase', label: 'Phase' }, { key: 'state', label: 'State' }, { key: 'time', label: 'Time' }]} rows={timelineRows} emptyTitle="No events" emptyDescription="Task and governance events appear here when the worker records them." />
+				<PlainTable columns={[{ key: 'name', label: 'Event' }, { key: 'phase', label: 'Phase' }, { key: 'state', label: 'State' }, { key: 'time', label: 'Time' }]} rows={timelineRows} emptyTitle="No events" emptyDescription="Task and governance events appear here when the worker records them." interactive={true} pageSize={20} searchLabel="Filter timeline" />
 			</Panel>
 			<Panel eyebrow="Outputs" title="Artifacts" description="Generated notes, drafts, reports, mutation results, and verification artifacts.">
-				<PlainTable columns={[{ key: 'name', label: 'Artifact' }, { key: 'type', label: 'Type' }, { key: 'state', label: 'State' }, { key: 'action', label: 'Action' }]} rows={artifactRows} emptyTitle="No artifacts" emptyDescription="Artifacts appear here when agents write task outputs." />
+				<PlainTable columns={[{ key: 'name', label: 'Artifact' }, { key: 'type', label: 'Type' }, { key: 'state', label: 'State' }, { key: 'action', label: 'Action' }]} rows={artifactRows} emptyTitle="No artifacts" emptyDescription="Artifacts appear here when agents write task outputs." interactive={true} pageSize={10} searchLabel="Filter artifacts" />
 			</Panel>
 		</section>
 	) : (

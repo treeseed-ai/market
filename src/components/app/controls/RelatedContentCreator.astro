@@ -1,0 +1,244 @@
+---
+import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
+import Field from '../../../../packages/core/src/components/ui/forms/Field.astro';
+import Select from '../../../../packages/core/src/components/ui/forms/Select.astro';
+import TextInput from '../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import FormActions from '../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import MarkdownField from './MarkdownField.astro';
+import ContentFieldHelp from './ContentFieldHelp.astro';
+import { WORK_CONTENT_LABELS } from '../../../lib/market/content-relations.js';
+import { contentFieldHelp } from '../../../lib/market/content-form-help.js';
+
+interface Props {
+	projectId: string;
+	parentCollection: string;
+	parentSlug: string;
+	parentTitle: string;
+	actions: Array<{ collection: string; label: string }>;
+}
+
+const {
+	projectId,
+	parentCollection,
+	parentSlug,
+	parentTitle,
+	actions,
+} = Astro.props as Props;
+
+const contentLabels = WORK_CONTENT_LABELS as Record<string, { singular: string; plural: string; title: string }>;
+const json = JSON.stringify({ projectId, parentCollection, parentSlug }).replace(/</gu, '\\u003c');
+const statusOptions = [
+	{ label: 'Planned', value: 'planned' },
+	{ label: 'Live', value: 'live' },
+	{ label: 'In progress', value: 'in progress' },
+	{ label: 'Exploratory', value: 'exploratory' },
+	{ label: 'Speculative', value: 'speculative' },
+];
+const typeOptions: Record<string, Array<{ label: string; value: string }>> = {
+	objectives: [{ label: 'Near-term', value: 'near-term' }, { label: 'Mid-term', value: 'mid-term' }, { label: 'Long-term', value: 'long-term' }],
+	questions: [{ label: 'Strategy', value: 'strategy' }, { label: 'Implementation', value: 'implementation' }, { label: 'Research', value: 'research' }, { label: 'Evaluation', value: 'evaluation' }],
+	proposals: [{ label: 'Implementation', value: 'implementation' }, { label: 'Strategy', value: 'strategy' }, { label: 'Policy', value: 'policy' }, { label: 'Research', value: 'research' }],
+	decisions: [{ label: 'Approved', value: 'approved' }, { label: 'Rejected', value: 'rejected' }, { label: 'Deferred', value: 'deferred' }, { label: 'Request changes', value: 'request_changes' }, { label: 'Superseded', value: 'superseded' }],
+};
+const typeField: Record<string, { name: string; label: string }> = {
+	objectives: { name: 'timeHorizon', label: 'Horizon' },
+	questions: { name: 'questionType', label: 'Question type' },
+	proposals: { name: 'proposalType', label: 'Proposal type' },
+	decisions: { name: 'decisionType', label: 'Decision type' },
+};
+function help(name: string) {
+	return contentFieldHelp(name) ?? { label: name, purpose: '' };
+}
+---
+
+{actions.length > 0 ? (
+	<section class="ts-related-create" aria-label="Create related content" data-related-create>
+		<div class="ts-related-create__header">
+			<div>
+				<p class="ts-section__eyebrow">Related content</p>
+				<h2>Create while viewing this record</h2>
+				<p>Add linked content without leaving <strong>{parentTitle}</strong>. TreeSeed saves the relation on both records.</p>
+			</div>
+			<div class="ts-related-create__actions">
+				{actions.map((action) => (
+					<Button type="button" variant="secondary" size="sm" class="ts-related-create__button" ariaLabel={action.label}>
+						<span data-related-create-open={action.collection}>{action.label}</span>
+					</Button>
+				))}
+			</div>
+		</div>
+		<div class="ts-related-float" data-related-float hidden>
+			<div class="ts-related-float__window" data-related-window style="left: 22rem; top: 7rem; width: min(44rem, calc(100vw - 3rem)); height: min(42rem, calc(100vh - 4rem));">
+				<header class="ts-related-float__bar" data-related-drag-handle>
+					<div>
+						<p class="ts-section__eyebrow">Create related content</p>
+						<h2 data-related-title>New related content</h2>
+					</div>
+					<button class="ts-icon-button" type="button" data-related-close aria-label="Cancel related content creation">Cancel</button>
+				</header>
+				<div class="ts-related-float__body">
+					{actions.map((action) => {
+						const label = contentLabels[action.collection]?.singular ?? 'record';
+						const type = typeField[action.collection];
+						return (
+							<form class="ts-form-stack ts-related-form" data-related-form={action.collection} hidden>
+								<input type="hidden" name="targetCollection" value={action.collection} />
+								<input type="hidden" name="parentCollection" value={parentCollection} />
+								<input type="hidden" name="parentSlug" value={parentSlug} />
+								<div class="ts-form-grid">
+									<Field label="Title" name={`related-${action.collection}-title`} required>
+										<div class="ts-help-row">
+											<TextInput name="title" required />
+											<ContentFieldHelp {...help('title')} />
+										</div>
+									</Field>
+									<Field label="Slug" name={`related-${action.collection}-slug`}>
+										<div class="ts-help-row">
+											<TextInput name="slug" placeholder="Generated from title if empty" />
+											<ContentFieldHelp {...help('slug')} />
+										</div>
+									</Field>
+									<Field label="Status" name={`related-${action.collection}-status`}>
+										<div class="ts-help-row">
+											<Select name="status" options={statusOptions} />
+											<ContentFieldHelp {...help('status')} />
+										</div>
+									</Field>
+									{type ? (
+										<Field label={type.label} name={`related-${action.collection}-${type.name}`}>
+											<div class="ts-help-row">
+												<Select name={type.name} options={typeOptions[action.collection] ?? []} />
+												<ContentFieldHelp {...help(type.name)} />
+											</div>
+										</Field>
+									) : null}
+								</div>
+								<MarkdownField label="Description" name="description" rows={3} required help={help('description').purpose} />
+								<MarkdownField label="Summary" name="summary" rows={3} help={help('summary').purpose} />
+								{action.collection === 'decisions' ? (
+									<MarkdownField label="Rationale" name="rationale" rows={4} help={help('rationale').purpose} />
+								) : action.collection !== 'notes' ? (
+									<MarkdownField label="Motivation" name="motivation" rows={4} help={help('motivation').purpose} />
+								) : (
+									<Field label="Author" name={`related-${action.collection}-author`}>
+										<div class="ts-help-row">
+											<TextInput name="author" value="market-steward" />
+											<ContentFieldHelp {...help('author')} />
+										</div>
+									</Field>
+								)}
+								<MarkdownField label="Body" name="body" rows={8} help={help('body').purpose} />
+								<FormActions align="start">
+									<Button type="submit">Create related {label}</Button>
+									<Button type="button" variant="secondary" class="ts-related-cancel">Cancel</Button>
+									<span class="ts-subtle" data-related-status role="status"></span>
+								</FormActions>
+							</form>
+						);
+					})}
+				</div>
+			</div>
+		</div>
+		<script is:inline type="application/json" id="related-content-data" set:html={json}></script>
+	</section>
+) : null}
+
+<style>
+	.ts-related-create {
+		background: var(--ts-color-surface);
+		border: 1px solid var(--ts-color-border);
+		border-radius: var(--ts-radius-lg);
+		display: grid;
+		gap: var(--ts-space-2);
+		padding: var(--ts-space-3);
+	}
+
+	.ts-related-create__header {
+		align-items: flex-start;
+		display: flex;
+		gap: var(--ts-space-3);
+		justify-content: space-between;
+	}
+
+	.ts-related-create h2,
+	.ts-related-create p {
+		margin: 0;
+	}
+
+	.ts-related-create__actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--ts-space-2);
+		justify-content: flex-end;
+	}
+
+	.ts-related-create__button span {
+		pointer-events: none;
+	}
+
+	.ts-related-float {
+		inset: 0;
+		pointer-events: none;
+		position: fixed;
+		z-index: 80;
+	}
+
+	.ts-related-float__window {
+		background: var(--ts-color-surface-overlay, var(--ts-color-surface));
+		border: 1px solid var(--ts-color-border);
+		border-radius: var(--ts-radius-lg);
+		box-shadow: var(--ts-shadow-lg, 0 24px 60px rgb(15 23 42 / 20%));
+		display: grid;
+		grid-template-rows: auto minmax(0, 1fr);
+		min-height: 24rem;
+		min-width: min(26rem, calc(100vw - 2rem));
+		overflow: hidden;
+		pointer-events: auto;
+		position: fixed;
+		resize: both;
+	}
+
+	.ts-related-float__bar {
+		align-items: center;
+		background: color-mix(in srgb, var(--ts-color-canvas-subtle) 72%, var(--ts-color-surface));
+		border-bottom: 1px solid var(--ts-color-border);
+		cursor: move;
+		display: flex;
+		gap: var(--ts-space-3);
+		justify-content: space-between;
+		padding: var(--ts-space-2) var(--ts-space-3);
+	}
+
+	.ts-related-float__bar h2 {
+		font-size: 1rem;
+		margin: 0;
+	}
+
+	.ts-related-float__body {
+		overflow: auto;
+		padding: var(--ts-space-3);
+	}
+
+	.ts-help-row {
+		align-items: center;
+		display: grid;
+		gap: 0.45rem;
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	@media (max-width: 44rem) {
+		.ts-related-create__header {
+			display: grid;
+		}
+
+		.ts-related-float__window {
+			inset: 1rem !important;
+			width: auto !important;
+		}
+	}
+</style>
+
+<script>
+	import './markdown-field.ts';
+	import './related-content-creator.ts';
+</script>

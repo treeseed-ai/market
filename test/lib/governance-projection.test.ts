@@ -80,4 +80,16 @@ describe('governance projection', () => {
 		expect(detail?.relatedArtifacts.map((artifact) => artifact.title)).toContain('Deployment report');
 		expect(detail?.capacityConstraints.map((item) => item.title)).toContain('Capacity approval required');
 	});
+
+	it('resolves approval detail when UI links normalize separators', async () => {
+		const detail = await buildGovernanceApprovalProjection({
+			store: store(),
+			principal: { id: 'user-1' },
+			teams: [{ id: 'team-1' }],
+			projects: [{ id: 'project-1', name: 'Ops Docs', slug: 'ops-docs' }],
+			approvalId: 'approval:1',
+		});
+
+		expect(detail?.approval).toMatchObject({ approvalId: 'approval-1', title: 'Publish operational report' });
+	});
 });

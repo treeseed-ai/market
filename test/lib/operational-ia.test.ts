@@ -137,4 +137,26 @@ describe('one-purpose control app information architecture', () => {
 			expect(contents, path).not.toMatch(/\sstyle=/u);
 		}
 	});
+
+	it('uses responsive app cards for shared app lists', () => {
+		const plainTable = source('src/components/app/controls/PlainTable.astro');
+		expect(plainTable).toContain('ts-record-card');
+		expect(plainTable).toContain('data-sort-values');
+		expect(plainTable).toContain('data-filter-text');
+		expect(plainTable).not.toContain('<table>');
+		expect(plainTable).not.toContain('<tr');
+		expect(source('src/styles/treeseed.css')).toContain('.ts-record-card__actions');
+	});
+
+	it('splits project decisions into proposal, decision, and review tabs with verdict actions', () => {
+		const decisions = source('src/pages/app/projects/[projectId]/decisions.astro');
+		for (const tab of ['proposals', 'decisions', 'review']) {
+			expect(decisions).toContain(`key: '${tab}'`);
+			expect(decisions).toContain(`?tab=${tab}`);
+		}
+		expect(decisions).toContain('data-proposal-select');
+		expect(decisions).toContain('data-proposal-decide');
+		expect(decisions).toContain('data-final-verdict-open');
+		expect(decisions).toContain('/local-content/decisions/from-proposals');
+	});
 });

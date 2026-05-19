@@ -145,7 +145,11 @@ export async function buildGovernanceProjection(input: GovernanceContextInput): 
 export async function buildGovernanceApprovalProjection(input: GovernanceApprovalInput): Promise<GovernanceApprovalProjection | null> {
 	const bundles = await loadGovernanceBundles(input);
 	const approvals = uniqueApprovals(bundles.flatMap((bundle) => bundle.approvals.map((approval) => ({ ...approval, __bundle: bundle }))));
-	const match = approvals.find((approval) => compact(approval.id) === compact(input.approvalId));
+	const inputApprovalIds = approvalLookupKeys(input.approvalId);
+	const match = approvals.find((approval) => {
+		const keys = approvalLookupKeys(approval.id);
+		return [...inputApprovalIds].some((key) => keys.has(key));
+	});
 	if (!match) return null;
 
 	const bundle = match.__bundle as GovernanceBundle;
@@ -181,6 +185,35 @@ export async function buildGovernanceApprovalProjection(input: GovernanceApprova
 		auditTrail,
 		decisionOptions: approval.decisionOptions,
 	};
+}
+
+function approvalLookupKeys(value: unknown): Set<string> {
+	const raw = compact(value, '');
+	const decoded = decodeValue(raw);
+	const values = new Set<string>();
+	for (const candidate of [raw, decoded]) {
+		if (!candidate) continue;
+		values.add(candidate);
+		values.add(candidate.replace(/^approval-/u, ''));
+		values.add(candidate.replace(/^approval:/u, ''));
+		values.add(candidate.replace(/^approval[-:]/u, 'approval:'));
+		values.add(candidate.replace(/^approval[-:]/u, 'approval-'));
+	}
+	return values;
+}
+
+function decodeValue(value: string): string {
+	let decoded = value;
+	for (let index = 0; index < 2; index += 1) {
+		try {
+			const next = decodeURIComponent(decoded);
+			if (next === decoded) break;
+			decoded = next;
+		} catch {
+			break;
+		}
+	}
+	return decoded;
 }
 
 async function loadGovernanceBundles(input: GovernanceContextInput): Promise<GovernanceBundle[]> {

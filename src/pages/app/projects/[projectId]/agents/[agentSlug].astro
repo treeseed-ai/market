@@ -1,5 +1,5 @@
 ---
-import { getCollection } from 'astro:content';
+import { getCollection, render } from 'astro:content';
 import Badge from '../../../../../../packages/core/src/components/ui/data/Badge.astro';
 import Button from '../../../../../../packages/core/src/components/ui/forms/Button.astro';
 import Field from '../../../../../../packages/core/src/components/ui/forms/Field.astro';
@@ -26,7 +26,7 @@ const [agentEntries, summary] = project ? await Promise.all([
 const entry = agentEntries.find((candidate: any) => String(candidate.data?.slug ?? candidate.id ?? '') === agentSlug || String(candidate.data?.id ?? '').replace(/^agent:/u, '') === agentSlug) ?? null;
 const runtime = (summary?.agents ?? []).find((agent: any) => String(agent.agentSlug ?? agent.slug ?? '') === agentSlug) ?? null;
 if (!project || (!entry && !runtime)) Astro.response.status = 404;
-const rendered = entry ? await entry.render() : null;
+const rendered = entry ? await render(entry) : null;
 const Content = rendered?.Content;
 const data = entry?.data ?? {};
 ---
