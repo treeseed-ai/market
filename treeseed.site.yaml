@@ -80,45 +80,13 @@ services:
       serviceName: treeseed-market-api
       rootDir: .
       buildCommand: npm run build:api
-      startCommand: node ./packages/agent/dist/scripts/treeseed-processing.js api
+      startCommand: node ./src/api/server.js
       healthcheckPath: /healthz
       healthcheckTimeoutSeconds: 120
       runtimeMode: serverless
     environments:
       local:
         baseUrl: http://127.0.0.1:3000
-        railwayEnvironment: local
-      staging:
-        railwayEnvironment: staging
-      prod:
-        railwayEnvironment: prod
-  workdayManager:
-    enabled: true
-    provider: railway
-    railway:
-      projectName: treeseed-market
-      serviceName: treeseed-market-workday-manager
-      rootDir: .
-      buildCommand: npm run build:api
-      startCommand: node ./packages/agent/dist/scripts/treeseed-processing.js manager
-      schedule: 0 9 * * 1-5
-    environments:
-      local:
-        railwayEnvironment: local
-      staging:
-        railwayEnvironment: staging
-      prod:
-        railwayEnvironment: prod
-  workerRunner:
-    enabled: true
-    provider: railway
-    railway:
-      projectName: treeseed-market
-      rootDir: .
-      buildCommand: npm run build:api
-      startCommand: node ./packages/agent/dist/scripts/treeseed-processing.js worker
-    environments:
-      local:
         railwayEnvironment: local
       staging:
         railwayEnvironment: staging

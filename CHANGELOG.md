@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.6.1] - 2026-05-20
+
+### Fixed
+
+- build(deps): tolerate npm scoped package permission 404 (41d103647c7e)
+- build(deps): make package publish tolerate unprovisioned npm scope (1508ae66beaf)
+
+### Infrastructure
+
+- release: sync package staging heads (f1c89426038e)
+
+### Tests
+
+- ci(deps): complete capacity provider migration (281b00de503b)
+
+### Dependencies
+
+- build(deps): release internal packages from stable git tags (62a08bafa440)
+- Release @treeseed/market 0.6.1.
+- Release package @treeseed/agent: 0.9.1.
+- Release package @treeseed/cli: 0.9.1.
+- Release package @treeseed/core: 0.9.2.
+- Release package @treeseed/sdk: 0.10.3.
+
 ## [0.6.0] - 2026-05-19
 
 ### Added

@@ -95,10 +95,10 @@ describe('local seed apply', () => {
 		} as any);
 
 		expect(applied.plan.summary).toMatchObject({
-			create: 10,
+			create: 7,
 			update: 0,
 			unchanged: 0,
-			skip: 7,
+			skip: 2,
 		});
 		expect((applied.result as any).localTeamMemberships).toEqual([
 			expect.objectContaining({
@@ -140,10 +140,10 @@ describe('local seed apply', () => {
 			});
 
 			expect(first.plan.summary).toMatchObject({
-				create: 10,
+				create: 7,
 				update: 0,
 				unchanged: 0,
-				skip: 7,
+				skip: 2,
 			});
 
 			const team = await store.getTeamBySlug('treeseed');
@@ -221,24 +221,21 @@ describe('local seed apply', () => {
 			expect(providerKeys).toHaveLength(1);
 			expect(providerKeys[0]).not.toHaveProperty('plaintextKey');
 			expect(providerKeys[0].scopes).toEqual(expect.arrayContaining([
+				'provider:register',
 				'provider:heartbeat',
-				'provider:registration:complete',
+				'provider:portfolio:read',
+				'provider:tasks:claim',
+				'provider:tasks:update',
+				'provider:usage:report',
+				'provider:reports:write',
+				'provider:capabilities:write',
 			]));
 
 			const lanes = await store.listCapacityProviderLanes(team!.id, provider!.id);
-			expect(lanes.map((lane: any) => lane.name).sort()).toEqual(['local-codex', 'local-worker']);
+			expect(lanes).toHaveLength(0);
 
 			const grants = await store.listCapacityGrants(team!.id, { providerId: provider!.id });
-			expect(grants).toHaveLength(1);
-			expect(grants[0]).toMatchObject({
-				grantScope: 'team',
-				teamId: team!.id,
-				projectId: null,
-				dailyCreditLimit: 10000,
-				monthlyCreditLimit: 100000,
-				overflowPolicy: 'soft_grant',
-			});
-			expect(grants[0].metadata?.seed?.resourceKey).toBe('grant:treeseed/local-dev/all-projects');
+			expect(grants).toHaveLength(0);
 
 			const policy = await store.getProjectWorkPolicy(marketProject!.id, 'local');
 			expect(policy).toMatchObject({
@@ -309,8 +306,8 @@ describe('local seed apply', () => {
 			expect(second.plan.summary).toMatchObject({
 				create: 0,
 				update: 0,
-				unchanged: 10,
-				skip: 7,
+				unchanged: 7,
+				skip: 2,
 			});
 			const secondResult = second.result as any;
 			expect(secondResult.capacityProviderKeys.created).toHaveLength(0);
@@ -344,8 +341,8 @@ describe('local seed apply', () => {
 			expect(repaired.plan.summary).toMatchObject({
 				create: 0,
 				update: 0,
-				unchanged: 10,
-				skip: 7,
+				unchanged: 7,
+				skip: 2,
 			});
 			expect((repaired.result as any).repairs).toEqual([
 				expect.objectContaining({ kind: 'projectHosting', projectId: marketProject!.id }),
@@ -453,10 +450,10 @@ describe('local seed apply', () => {
 			expect(seedPage.selectedSeed).toBe('treeseed');
 			expect(seedPage.selectedEnvironments).toBe('local');
 			expect(seedPage.plan.summary).toMatchObject({
-				create: 9,
+				create: 6,
 				update: 1,
 				unchanged: 0,
-				skip: 7,
+				skip: 2,
 			});
 			expect(await store.listSeedRuns()).toHaveLength(0);
 		} finally {

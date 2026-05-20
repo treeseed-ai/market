@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
@@ -11,6 +11,64 @@ function files(root: string): string[] {
 }
 
 describe('web runtime boundaries', () => {
+	it('keeps public source and docs free of legacy processing compatibility names', () => {
+		const roots = ['AGENTS.md', 'docs', 'src', 'packages/agent', 'packages/cli', 'packages/sdk']
+			.flatMap((root) => existsSync(root) && statSync(root).isDirectory() ? files(root) : [root])
+			.filter((path) => /\.(md|astro|ts|js|json|ya?ml|mjs)$/u.test(path))
+			.filter((path) => !path.includes('/dist/'))
+			.filter((path) => !path.includes('/node_modules/'))
+			.filter((path) => !path.includes('/.treeseed/'))
+			.filter((path) => path !== 'docs/capacity-providers.md')
+			.filter((path) => !path.includes('/test/'))
+			.filter((path) => !path.includes('.test.'));
+		const legacyTerms = [
+			['treeseed', 'processing'].join('-'),
+			'/v1/' + 'processing',
+			['processing', 'host'].join('_'),
+			'helper-' + 'capacity',
+			'deploy-' + 'processing',
+			['processing', 'parity'].join('-'),
+		];
+		const offenders = roots.flatMap((path) => {
+			const source = readFileSync(path, 'utf8');
+			return legacyTerms
+				.filter((term) => source.includes(term))
+				.map((term) => `${path}: ${term}`);
+		});
+		expect(offenders).toEqual([]);
+	});
+
+	it('keeps root Market free of the deleted processing plane', () => {
+		expect(existsSync('Dockerfile.processing')).toBe(false);
+		expect(existsSync('docker-compose.processing.yml')).toBe(false);
+		expect(existsSync('bin/treeseed-processing')).toBe(false);
+		expect(existsSync('.github/workflows/deploy-processing.yml')).toBe(false);
+		expect(existsSync('.github/workflows/processing-parity.yml')).toBe(false);
+
+		const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> };
+		expect(Object.keys(packageJson.scripts ?? {}).filter((name) => name.startsWith('processing:'))).toEqual([]);
+		expect(packageJson.scripts).not.toHaveProperty('test:processing-parity-local');
+		expect(packageJson.scripts).not.toHaveProperty('test:processing-parity-staging');
+
+		const deployWorkflow = readFileSync('.github/workflows/deploy.yml', 'utf8');
+		const verifyWorkflow = readFileSync('.github/workflows/verify.yml', 'utf8');
+		const hostedProjectWorkflow = readFileSync('.github/workflows/hosted-project.yml', 'utf8');
+		expect(`${deployWorkflow}\n${verifyWorkflow}\n${hostedProjectWorkflow}`).not.toMatch(/deploy-processing|processing-parity|deploy_processing/u);
+
+		const siteConfig = readFileSync('treeseed.site.yaml', 'utf8');
+		expect(siteConfig).not.toMatch(/\bworkdayManager:|\bworkerRunner:|treeseed-processing/u);
+	});
+
+	it('keeps root Market source out of agent runtime modules', () => {
+		const sourceFiles = files('src')
+			.filter((path) => /\.(astro|ts|js)$/u.test(path));
+		const offenders = sourceFiles.filter((path) => {
+			const source = readFileSync(path, 'utf8');
+			return /from ['"]@treeseed\/agent|import\(['"]@treeseed\/agent|require\(['"]@treeseed\/agent|treeseed-processing|\/v1\/processing/u.test(source);
+		});
+		expect(offenders).toEqual([]);
+	});
+
 	it('does not call the backend API from market web code', () => {
 		const sourceFiles = files('src')
 			.filter((path) => /\.(astro|ts|js)$/u.test(path))

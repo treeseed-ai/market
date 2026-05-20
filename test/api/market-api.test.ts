@@ -5,6 +5,7 @@ import * as treeseedCore from '@treeseed/core';
 import { AgentSdk } from '@treeseed/sdk';
 import type { D1DatabaseLike, D1PreparedStatementLike } from '@treeseed/core/types/cloudflare';
 import { createMarketApiApp } from '../../src/api/app.js';
+import { MarketControlPlaneStore } from '../../src/api/store.js';
 import { listTreeseedManagedHostsFromConfig } from '../../src/lib/market/managed-hosts.js';
 
 const runTreeseedHostingAuditMock = vi.hoisted(() => vi.fn(async (input: Record<string, unknown> = {}) => ({
@@ -14,7 +15,7 @@ const runTreeseedHostingAuditMock = vi.hoisted(() => vi.fn(async (input: Record<
 	repairMode: input.repair === true,
 	repaired: false,
 	target: { kind: 'persistent', scope: input.environment === 'prod' ? 'prod' : 'staging', label: input.environment === 'prod' ? 'prod' : 'staging' },
-	hostKinds: input.hostKinds ?? ['repository', 'web', 'processing', 'email'],
+	hostKinds: input.hostKinds ?? ['repository', 'web', 'email'],
 	checkedAt: '2026-01-01T00:00:00.000Z',
 	checks: [],
 	missingConfig: [],
@@ -80,6 +81,11 @@ const capacityProviderApiKeysMigrationPathCandidates = [
 	resolve(packageRoot, '../migrations/0021_capacity_provider_api_keys.sql'),
 ];
 const capacityProviderApiKeysMigrationPath = capacityProviderApiKeysMigrationPathCandidates.find((candidate) => existsSync(candidate));
+const capacityProviderRuntimeMigrationPathCandidates = [
+	resolve(packageRoot, 'migrations/0026_capacity_provider_runtime.sql'),
+	resolve(packageRoot, '../migrations/0026_capacity_provider_runtime.sql'),
+];
+const capacityProviderRuntimeMigrationPath = capacityProviderRuntimeMigrationPathCandidates.find((candidate) => existsSync(candidate));
 const seedRunsMigrationPathCandidates = [
 	resolve(packageRoot, 'migrations/0024_seed_runs.sql'),
 	resolve(packageRoot, '../migrations/0024_seed_runs.sql'),
@@ -99,9 +105,10 @@ const resolvedCapacityMigrationPath = capacityMigrationPath as string;
 const resolvedWorkdayManagerMigrationPath = workdayManagerMigrationPath as string;
 const resolvedHubLaunchSpineMigrationPath = hubLaunchSpineMigrationPath as string;
 const resolvedCapacityProviderApiKeysMigrationPath = capacityProviderApiKeysMigrationPath as string;
+const resolvedCapacityProviderRuntimeMigrationPath = capacityProviderRuntimeMigrationPath as string;
 const resolvedSeedRunsMigrationPath = seedRunsMigrationPath as string;
 
-if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !reportingMigrationPath || !webHostsMigrationPath || !capacityMigrationPath || !workdayManagerMigrationPath || !hubLaunchSpineMigrationPath || !capacityProviderApiKeysMigrationPath || !seedRunsMigrationPath) {
+if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !reportingMigrationPath || !webHostsMigrationPath || !capacityMigrationPath || !workdayManagerMigrationPath || !hubLaunchSpineMigrationPath || !capacityProviderApiKeysMigrationPath || !capacityProviderRuntimeMigrationPath || !seedRunsMigrationPath) {
 	throw new Error('Unable to resolve required market migration fixtures.');
 }
 
@@ -175,6 +182,7 @@ class TestD1Database implements D1DatabaseLike {
 		this.db.exec(readFileSync(resolvedWorkdayManagerMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedHubLaunchSpineMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedCapacityProviderApiKeysMigrationPath, 'utf8'));
+		this.db.exec(readFileSync(resolvedCapacityProviderRuntimeMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedSeedRunsMigrationPath, 'utf8'));
 	}
 
@@ -190,6 +198,7 @@ class TestD1Database implements D1DatabaseLike {
 
 type MarketApiTestOptions = {
 	db?: D1DatabaseLike;
+	store?: MarketControlPlaneStore;
 	sdk?: AgentSdk;
 	config?: Record<string, unknown>;
 	fetchImpl?: typeof fetch;
@@ -217,6 +226,22 @@ function createTestApp(options: MarketApiTestOptions = {}) {
 			...(options.config ?? {}),
 		},
 	});
+}
+
+function createTestStore(db: D1DatabaseLike) {
+	return new MarketControlPlaneStore({
+		repoRoot: packageRoot,
+		authSecret: 'test-secret',
+		baseUrl: 'https://market.example.com',
+		siteUrl: 'https://market.example.com',
+		issuer: 'https://market.example.com',
+		projectId: 'treeseed-market',
+		projectApiKey: 'market-project-key',
+		projectApiPermissions: ['sdk:execute:global', 'agent:execute:global', 'operations:execute:global'],
+		serviceId: 'web',
+		serviceSecret: 'web-test-secret',
+		assertionSecret: 'web-assertion-secret',
+	}, db);
 }
 
 async function json(response: Response) {
@@ -606,75 +631,63 @@ runtimeDescribe('market api', () => {
 		expect(JSON.stringify(validated)).not.toContain('railway-secret-token');
 	});
 
-	it('lists generic hosts with TreeSeed managed web and processing options', async () => {
-		const app = createTestApp();
-		const token = await authorizeApp(app);
-		const team = await createTeam(app, token);
-		const created = await app.request(`/v1/teams/${team.id}/hosts`, {
+		it('lists generic hosts with TreeSeed managed web and capacity provider host records', async () => {
+			const app = createTestApp();
+			const token = await authorizeApp(app);
+			const team = await createTeam(app, token);
+			const created = await app.request(`/v1/teams/${team.id}/hosts`, {
 			method: 'POST',
 			headers: {
 				'content-type': 'application/json',
 				authorization: `Bearer ${token}`,
 			},
-			body: JSON.stringify({
-				name: 'Team Processing',
-				provider: 'railway',
-				ownership: 'team_owned',
-				accountLabel: 'Processing Workspace',
-				allowedEnvironments: ['staging', 'prod'],
-				encryptedPayload: encryptedHostEnvelope(),
-				metadata: {
-					hostType: 'processing',
-					configuredKeys: ['RAILWAY_API_TOKEN', 'TREESEED_RAILWAY_WORKSPACE', 'TREESEED_WORKER_POOL_SCALER'],
-				},
-			}),
+				body: JSON.stringify({
+					name: 'Team Capacity Provider Host',
+					provider: 'railway',
+					ownership: 'team_owned',
+					accountLabel: 'Capacity Provider Workspace',
+					allowedEnvironments: ['staging', 'prod'],
+					encryptedPayload: encryptedHostEnvelope(),
+					metadata: {
+						hostType: 'capacity_provider',
+						configuredKeys: ['RAILWAY_API_TOKEN', 'TREESEED_RAILWAY_WORKSPACE', 'TREESEED_WORKER_POOL_SCALER'],
+					},
+				}),
 		});
 		expect(created.status).toBe(201);
 
 		const listed = await json(await app.request(`/v1/teams/${team.id}/hosts`, {
 			headers: { authorization: `Bearer ${token}` },
 		}));
-		expect(listed.payload.map((host: any) => host.id)).toEqual(expect.arrayContaining([
-			'treeseed-managed-web',
-			'treeseed-managed-processing',
-		]));
-		expect(listed.payload.find((host: any) => host.id === 'treeseed-managed-processing')).toMatchObject({
-			provider: 'railway',
-			ownership: 'treeseed_managed',
-			name: 'TreeSeed Processing Host',
-			metadata: expect.objectContaining({ hostType: 'processing' }),
+			expect(listed.payload.map((host: any) => host.id)).toEqual(expect.arrayContaining([
+				'treeseed-managed-web',
+			]));
+			expect(listed.payload.find((host: any) => host.name === 'Team Capacity Provider Host')).toMatchObject({
+				provider: 'railway',
+				ownership: 'team_owned',
+				metadata: expect.objectContaining({ hostType: 'capacity_provider' }),
+			});
+			expect(JSON.stringify(listed)).not.toContain('railway-secret-token');
 		});
-		expect(listed.payload.find((host: any) => host.name === 'Team Processing')).toMatchObject({
-			provider: 'railway',
-			ownership: 'team_owned',
-		});
-		expect(JSON.stringify(listed)).not.toContain('railway-secret-token');
-	});
 
 	it('marks TreeSeed managed hosts active from existing platform provider env vars', async () => {
 		await withEnv({
 			CLOUDFLARE_API_TOKEN: 'platform-cloudflare-token',
 			CLOUDFLARE_ACCOUNT_ID: 'platform-cloudflare-account',
-			RAILWAY_API_TOKEN: 'platform-railway-token',
-			TREESEED_RAILWAY_WORKSPACE: 'platform-workspace',
-		}, async () => {
+			}, async () => {
 			const app = createTestApp();
 			const token = await authorizeApp(app);
 			const team = await createTeam(app, token);
 
 			const listed = await json(await app.request(`/v1/teams/${team.id}/hosts`, {
 				headers: { authorization: `Bearer ${token}` },
-			}));
-			const web = listed.payload.find((host: any) => host.id === 'treeseed-managed-web');
-			const processing = listed.payload.find((host: any) => host.id === 'treeseed-managed-processing');
-			expect(web.status).toBe('active');
-			expect(web.metadata.missingConfigKeys).toEqual([]);
-			expect(processing.status).toBe('active');
-			expect(processing.metadata.missingConfigKeys).toEqual([]);
-			expect(JSON.stringify(listed)).not.toContain('platform-cloudflare-token');
-			expect(JSON.stringify(listed)).not.toContain('platform-railway-token');
+				}));
+				const web = listed.payload.find((host: any) => host.id === 'treeseed-managed-web');
+				expect(web.status).toBe('active');
+				expect(web.metadata.missingConfigKeys).toEqual([]);
+				expect(JSON.stringify(listed)).not.toContain('platform-cloudflare-token');
+			});
 		});
-	});
 
 	it('does not read local machine config for remote managed host status', async () => {
 		await withEnv({
@@ -682,18 +695,16 @@ runtimeDescribe('market api', () => {
 			TREESEED_ENVIRONMENT: 'staging',
 			CLOUDFLARE_API_TOKEN: undefined,
 			CLOUDFLARE_ACCOUNT_ID: undefined,
-			RAILWAY_API_TOKEN: undefined,
-			TREESEED_RAILWAY_WORKSPACE: undefined,
-		}, async () => {
+			}, async () => {
 			const hosts = await listTreeseedManagedHostsFromConfig('team_remote', {
 				env: {
 					TREESEED_ENVIRONMENT: 'staging',
 				},
+				});
+				expect(hosts.find((host: any) => host.id === 'treeseed-managed-web')?.status).toBe('configuration_required');
+				expect(hosts.find((host: any) => host.id === 'treeseed-managed-capacity-provider')).toBeUndefined();
 			});
-			expect(hosts.find((host: any) => host.id === 'treeseed-managed-web')?.status).toBe('configuration_required');
-			expect(hosts.find((host: any) => host.id === 'treeseed-managed-processing')?.status).toBe('configuration_required');
 		});
-	});
 
 	it('validates team-owned Cloudflare hosts only with caller-provided decrypted config and does not persist values', async () => {
 		const app = createTestApp();
@@ -920,15 +931,13 @@ runtimeDescribe('market api', () => {
 		});
 	});
 
-	it('launch with TreeSeed managed processing host passes Railway config and records paid hosting metadata', async () => {
-		await withEnv({
-			CLOUDFLARE_API_TOKEN: 'managed-token',
-			CLOUDFLARE_ACCOUNT_ID: 'managed-account',
-			RAILWAY_API_TOKEN: 'managed-railway-token',
-			TREESEED_RAILWAY_WORKSPACE: 'treeseed-processing',
-		}, async () => {
-			const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeHubProviderLaunch').mockRejectedValue(new Error('launch intentionally stopped'));
-			const app = createTestApp();
+		it('rejects removed runtime host fields during project launch', async () => {
+			await withEnv({
+				CLOUDFLARE_API_TOKEN: 'managed-token',
+				CLOUDFLARE_ACCOUNT_ID: 'managed-account',
+			}, async () => {
+				const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeHubProviderLaunch').mockRejectedValue(new Error('launch intentionally stopped'));
+				const app = createTestApp();
 			const token = await authorizeApp(app);
 			const team = await createTeam(app, token);
 
@@ -939,31 +948,21 @@ runtimeDescribe('market api', () => {
 					authorization: `Bearer ${token}`,
 				},
 				body: JSON.stringify({
-					slug: 'hosted-with-treeseed-processing',
-					name: 'Hosted With TreeSeed Processing',
-					sourceKind: 'blank',
-					hostingMode: 'managed',
-					cloudflareHostMode: 'treeseed_managed',
-					processingHostMode: 'treeseed_managed',
-					processingHostId: 'treeseed-managed-processing',
-				}),
+					slug: 'hosted-with-capacity-provider',
+					name: 'Hosted With Capacity Provider',
+						sourceKind: 'blank',
+						hostingMode: 'managed',
+						cloudflareHostMode: 'treeseed_managed',
+						processingHostMode: 'treeseed_managed',
+						processingHostId: 'treeseed-managed-runtime',
+					}),
+				});
+				expect(launched.status).toBe(400);
+				const launchPayload = await json(launched);
+				expect(launchPayload.error).toMatch(/no longer accepts runtime host configuration/u);
+				expect(launchSpy).not.toHaveBeenCalled();
 			});
-			expect(launched.status).toBe(202);
-			const launchPayload = await json(launched);
-			expect(launchPayload.payload.launchJob.status).toBe('pending');
-			expect(launchSpy).not.toHaveBeenCalled();
-			const projects = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
-				headers: { authorization: `Bearer ${token}` },
-			}));
-			const projectId = projects.payload.find((project: { slug: string }) => project.slug === 'hosted-with-treeseed-processing')?.id;
-			const details = await json(await app.request(`/v1/projects/${projectId}`, {
-				headers: { authorization: `Bearer ${token}` },
-			}));
-			expect(details.payload.project.metadata.processingHost.mode).toBe('treeseed_managed');
-			expect(details.payload.project.metadata.processingHost.billing.fee).toBe('treeseed_processing_hosting');
-			expect(JSON.stringify(details)).not.toContain('managed-railway-token');
 		});
-	});
 
 	it('launch with TreeSeed managed Cloudflare host fails when operational credentials are missing', async () => {
 		await withEnv({
@@ -2303,13 +2302,11 @@ runtimeDescribe('market api', () => {
 				authorization: `Bearer ${token}`,
 			},
 			body: JSON.stringify({
-				id: 'hosted-runtime-provider',
 				name: 'Hosted Runtime Capacity',
-				provider: 'treeseed',
-				kind: 'team_owned',
-				billingScope: 'team',
+				launchMode: 'self_hosted',
 			}),
 		}));
+		const capacityProvider = provider.provider;
 		const connection = await json(await app.request(`/v1/projects/${project.id}/connection`, {
 			method: 'POST',
 			headers: {
@@ -2555,7 +2552,7 @@ runtimeDescribe('market api', () => {
 				authorization: `Bearer ${runnerToken}`,
 			},
 			body: JSON.stringify({
-				capacityProviderId: provider.payload.id,
+				capacityProviderId: capacityProvider.id,
 				workDayId: 'hosted-workday-1',
 				taskId: task.payload.id,
 				phase: 'consume',
@@ -2564,7 +2561,7 @@ runtimeDescribe('market api', () => {
 			}),
 		}));
 		expect(usage.payload.entry).toMatchObject({
-			capacityProviderId: provider.payload.id,
+			capacityProviderId: capacityProvider.id,
 			projectId: project.id,
 			credits: 2,
 		});
@@ -3383,15 +3380,11 @@ runtimeDescribe('market api', () => {
 			},
 			body: JSON.stringify({
 				name: 'OpenRouter Pool',
-				provider: 'openrouter',
-				kind: 'team_owned',
-				billingScope: 'team',
-				dailyCreditBudget: 500,
-				monthlyCreditBudget: 5000,
+				launchMode: 'self_hosted',
 			}),
 		});
 		expect(providerResponse.status).toBe(201);
-		const provider = (await json(providerResponse)).payload;
+		const provider = (await json(providerResponse)).provider;
 
 		const laneResponse = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/lanes`, {
 			method: 'POST',
@@ -3433,7 +3426,7 @@ runtimeDescribe('market api', () => {
 				authorization: `Bearer ${token}`,
 			},
 		}));
-		expect(plan.payload.providers[0]).toMatchObject({ id: provider.id, provider: 'openrouter' });
+		expect(plan.payload.providers[0]).toMatchObject({ id: provider.id, provider: '@treeseed/agent' });
 		expect(plan.payload.lanes[0]).toMatchObject({ id: lane.id, businessModel: 'token_metered' });
 		expect(plan.payload.providers[0].metadata.pressure).toMatchObject({
 			activeReservations: 0,
@@ -3454,139 +3447,39 @@ runtimeDescribe('market api', () => {
 		expect(plan.payload.remaining.dailyCredits).toBe(120);
 	});
 
-	it('creates host-backed capacity providers from active processing hosts and allows shared host usage', async () => {
-		const app = createTestApp();
-		const token = await authorizeApp(app);
-		const { team, project } = await createTeamAndProject(app, token, {
-			slug: 'host-backed-capacity-project',
-			name: 'Host-backed Capacity Project',
-		});
+		it('rejects removed host-backed capacity provider launches and omits runtime host collections', async () => {
+			const app = createTestApp();
+			const token = await authorizeApp(app);
+			const { team, project } = await createTeamAndProject(app, token, {
+				slug: 'host-backed-capacity-project',
+				name: 'Host-backed Capacity Project',
+			});
 
-		const inactiveHostResponse = await app.request(`/v1/teams/${team.id}/hosts`, {
-			method: 'POST',
-			headers: {
-				'content-type': 'application/json',
-				authorization: `Bearer ${token}`,
-			},
-			body: JSON.stringify({
-				name: 'Inactive Processing',
-				provider: 'railway',
-				ownership: 'team_owned',
-				status: 'disabled',
-				encryptedPayload: encryptedHostEnvelope(),
-				metadata: { hostType: 'processing' },
-			}),
-		});
-		const inactiveHost = (await json(inactiveHostResponse)).payload;
-		const rejected = await app.request(`/v1/teams/${team.id}/capacity/providers/host-backed`, {
-			method: 'POST',
-			headers: {
-				'content-type': 'application/json',
-				authorization: `Bearer ${token}`,
-			},
-			body: JSON.stringify({
-				name: 'Rejected Capacity',
-				processingHostId: inactiveHost.id,
-			}),
-		});
-		expect(rejected.status).toBe(400);
-
-		const activeHostResponse = await app.request(`/v1/teams/${team.id}/hosts`, {
-			method: 'POST',
-			headers: {
-				'content-type': 'application/json',
-				authorization: `Bearer ${token}`,
-			},
-			body: JSON.stringify({
-				name: 'Shared Processing',
-				provider: 'railway',
-				ownership: 'team_owned',
-				status: 'active',
-				accountLabel: 'TreeSeed Railway',
-				encryptedPayload: encryptedHostEnvelope(),
-				metadata: { hostType: 'processing' },
-			}),
-		});
-		const activeHost = (await json(activeHostResponse)).payload;
-
-		async function createHostBackedProvider(name: string) {
-			const response = await app.request(`/v1/teams/${team.id}/capacity/providers/host-backed`, {
+			const rejected = await app.request(`/v1/teams/${team.id}/capacity/providers/host-backed`, {
 				method: 'POST',
 				headers: {
 					'content-type': 'application/json',
 					authorization: `Bearer ${token}`,
 				},
 				body: JSON.stringify({
-					name,
-					processingHostId: activeHost.id,
-					dailyCreditBudget: 40,
-					monthlyCreditBudget: 800,
-					maxConcurrentWorkers: 3,
+					name: 'Rejected Capacity',
+					processingHostId: 'removed-runtime-host',
 				}),
 			});
-			expect(response.status).toBe(201);
-			return (await json(response)).payload;
-		}
+			expect(rejected.status).toBe(404);
 
-		const first = await createHostBackedProvider('Drafting Capacity');
-		const second = await createHostBackedProvider('Review Capacity');
-		expect(first.provider).toMatchObject({
-			name: 'Drafting Capacity',
-			status: 'credential_required',
-			dailyCreditBudget: 40,
-			monthlyCreditBudget: 800,
-			maxConcurrentWorkers: 3,
-		});
-		expect(first.plaintextKey).toMatch(/^tsp_/);
-		expect(first.apiKey).not.toHaveProperty('keyHash');
-		expect(first.hosts[0]).toMatchObject({
-			hostId: activeHost.id,
-			role: 'processing',
-		});
-		expect(first.lanes.map((lane: { id: string }) => lane.id).join(' ')).toContain('proposal-drafting');
-		expect(second.hosts[0]).toMatchObject({
-			hostId: activeHost.id,
-			role: 'processing',
+			const capacity = await json(await app.request(`/v1/teams/${team.id}/capacity`, {
+				headers: { authorization: `Bearer ${token}` },
+			}));
+			expect(capacity.payload).not.toHaveProperty('processingHosts');
+			expect(capacity.payload).not.toHaveProperty('activeProcessingHosts');
+			expect(capacity.payload.projects.map((entry: { id: string }) => entry.id)).toContain(project.id);
 		});
 
-		const capacity = await json(await app.request(`/v1/teams/${team.id}/capacity`, {
-			headers: { authorization: `Bearer ${token}` },
-		}));
-		expect(capacity.payload.activeProcessingHosts.map((host: { id: string }) => host.id)).toContain(activeHost.id);
-		expect(capacity.payload.projects.map((entry: { id: string }) => entry.id)).toContain(project.id);
-		const providerBindings = capacity.payload.providers.flatMap((provider: { hosts: Array<{ hostId: string }> }) => provider.hosts);
-		expect(providerBindings.filter((host: { hostId: string }) => host.hostId === activeHost.id)).toHaveLength(2);
-		expect(JSON.stringify(capacity.payload)).not.toContain(first.plaintextKey);
-
-		const grant = capacity.payload.grants.find((entry: { capacityProviderId: string; projectId: string | null }) =>
-			entry.capacityProviderId === first.provider.id && entry.projectId === null
-		);
-		const updatedGrantResponse = await app.request(`/v1/teams/${team.id}/capacity-grants/${grant.id}`, {
-			method: 'PATCH',
-			headers: {
-				'content-type': 'application/json',
-				authorization: `Bearer ${token}`,
-			},
-			body: JSON.stringify({
-				...grant,
-				dailyCreditLimit: 25,
-				monthlyCreditLimit: 500,
-				overflowPolicy: 'deny',
-			}),
-		});
-		expect(updatedGrantResponse.status).toBe(200);
-		const updatedCapacity = await json(await app.request(`/v1/teams/${team.id}/capacity`, {
-			headers: { authorization: `Bearer ${token}` },
-		}));
-		expect(updatedCapacity.payload.grants.find((entry: { id: string }) => entry.id === grant.id)).toMatchObject({
-			dailyCreditLimit: 25,
-			monthlyCreditLimit: 500,
-			overflowPolicy: 'deny',
-		});
-	});
-
-	it('creates, resets, lists, and revokes provider security access codes without exposing hashes', async () => {
-		const app = createTestApp();
+	it('creates, rotates, and scopes capacity provider API keys without exposing hashes', async () => {
+		const db = new TestD1Database();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
 		const token = await authorizeApp(app);
 		const { team } = await createTeamAndProject(app, token, {
 			slug: 'capacity-keys-project',
@@ -3601,29 +3494,39 @@ runtimeDescribe('market api', () => {
 			},
 			body: JSON.stringify({
 				name: 'Local Runner',
-				provider: 'local',
-				kind: 'team_owned',
-				billingScope: 'team',
+				launchMode: 'self_hosted',
 			}),
 		});
-		const provider = (await json(providerResponse)).payload;
+		expect(providerResponse.status).toBe(201);
+		const createdProvider = await json(providerResponse);
+		const provider = createdProvider.provider;
+		const firstKey = createdProvider.apiKey.plaintext;
+		expect(firstKey).toMatch(/^tsp_/);
+		expect(createdProvider.apiKey.prefix).toBe(firstKey.slice(0, 16));
+		expect(JSON.stringify(createdProvider.apiKey)).not.toContain('keyHash');
+		expect(JSON.stringify(createdProvider.selfHosting.redactedEnv)).not.toContain(firstKey);
+		expect(JSON.stringify(createdProvider.selfHosting.commands)).not.toContain(firstKey);
 
-		const createdResponse = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/api-keys`, {
+		const selfHostingResponse = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/self-hosting`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		});
+		expect(selfHostingResponse.status).toBe(200);
+		const selfHosting = await json(selfHostingResponse);
+		expect(selfHosting.selfHosting.env.TREESEED_CAPACITY_PROVIDER_API_KEY).toMatch(/REDACTED|rotate-to-reveal/i);
+		expect(JSON.stringify(selfHosting.selfHosting)).not.toContain(firstKey);
+		expect(JSON.stringify(selfHosting.selfHosting)).not.toContain('env_file');
+
+		const rejectedCreate = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/api-keys`, {
 			method: 'POST',
 			headers: {
 				'content-type': 'application/json',
 				authorization: `Bearer ${token}`,
 			},
-			body: JSON.stringify({
-				name: 'Runner security code',
-				scopes: ['provider:heartbeat', 'provider:tasks:claim'],
-			}),
+			body: JSON.stringify({}),
 		});
-		expect(createdResponse.status).toBe(201);
-		const created = (await json(createdResponse)).payload;
-		expect(created.plaintextKey).toMatch(/^tsp_/);
-		expect(created.key.keyPrefix).toBe(created.plaintextKey.slice(0, 16));
-		expect(created.key).not.toHaveProperty('keyHash');
+		expect(rejectedCreate.status).toBe(410);
 
 		const listed = await json(await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/api-keys`, {
 			headers: {
@@ -3632,14 +3535,23 @@ runtimeDescribe('market api', () => {
 		}));
 		expect(listed.payload).toHaveLength(1);
 		expect(listed.payload[0]).toMatchObject({
-			id: created.key.id,
 			status: 'active',
-			keyPrefix: created.key.keyPrefix,
+			keyPrefix: createdProvider.apiKey.prefix,
 		});
 		expect(listed.payload[0]).not.toHaveProperty('plaintextKey');
 		expect(listed.payload[0]).not.toHaveProperty('keyHash');
 
-		const resetResponse = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/api-keys/reset`, {
+		const insufficient = await app.request('/v1/provider/reports', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${firstKey}`,
+			},
+			body: JSON.stringify({ workDayId: 'missing', kind: 'test', body: {} }),
+		});
+		expect(insufficient.status).toBe(404);
+
+		const rotateResponse = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/keys/rotate`, {
 			method: 'POST',
 			headers: {
 				'content-type': 'application/json',
@@ -3647,36 +3559,381 @@ runtimeDescribe('market api', () => {
 			},
 			body: JSON.stringify({}),
 		});
-		expect(resetResponse.status).toBe(200);
-		const reset = (await json(resetResponse)).payload;
-		expect(reset.plaintextKey).toMatch(/^tsp_/);
-		expect(reset.key.id).not.toBe(created.key.id);
-		expect(reset.key.rotatedFromKeyId).toBe(created.key.id);
+		expect(rotateResponse.status).toBe(200);
+		const rotated = await json(rotateResponse);
+		expect(rotated.apiKey.plaintext).toMatch(/^tsp_/);
+		expect(rotated.apiKey.plaintext).not.toBe(firstKey);
+		expect(rotated.requiresRestart).toBe(true);
 
-		const afterReset = await json(await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/api-keys`, {
-			headers: {
-				authorization: `Bearer ${token}`,
-			},
-		}));
-		expect(afterReset.payload.find((entry: { id: string }) => entry.id === created.key.id)).toMatchObject({
-			status: 'revoked',
-		});
-		expect(afterReset.payload.find((entry: { id: string }) => entry.id === reset.key.id)).toMatchObject({
-			status: 'active',
-		});
-
-		const revokedResponse = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/api-keys/${reset.key.id}/revoke`, {
+		const oldHeartbeat = await app.request('/v1/provider/heartbeat', {
 			method: 'POST',
 			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${firstKey}`,
+			},
+			body: JSON.stringify({ marketId: 'local' }),
+		});
+		expect(oldHeartbeat.status).toBe(401);
+
+		const newHeartbeat = await app.request('/v1/provider/heartbeat', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${rotated.apiKey.plaintext}`,
+			},
+			body: JSON.stringify({ marketId: 'local' }),
+		});
+		expect(newHeartbeat.status).toBe(200);
+	});
+
+	it('handles capacity provider deployment intents without exposing provider secrets', async () => {
+		const db = new TestD1Database();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
+		const token = await authorizeApp(app);
+		const { team } = await createTeamAndProject(app, token, {
+			slug: 'capacity-deploy-project',
+			name: 'Capacity Deploy Project',
+		});
+
+		const selfHosted = await json(await app.request(`/v1/teams/${team.id}/capacity-providers`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
 				authorization: `Bearer ${token}`,
 			},
+			body: JSON.stringify({
+				name: 'Self-host Runner',
+				launchMode: 'self_hosted',
+			}),
+		}));
+		const selfHostIntent = await app.request(`/v1/teams/${team.id}/capacity-providers/${selfHosted.provider.id}/deployments`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ launchMode: 'self_hosted' }),
 		});
-		expect(revokedResponse.status).toBe(200);
-		const revoked = (await json(revokedResponse)).payload;
-		expect(revoked).toMatchObject({
-			id: reset.key.id,
-			status: 'revoked',
+		expect(selfHostIntent.status).toBe(200);
+		const selfHostPayload = await json(selfHostIntent);
+		expect(selfHostPayload.deployment).toBeNull();
+		expect(selfHostPayload.selfHosting.commands.join('\n')).toContain('capacity-provider:build');
+		expect(await store.listCapacityProviderDeployments(team.id, selfHosted.provider.id)).toHaveLength(0);
+		expect(JSON.stringify(selfHostPayload)).not.toContain(selfHosted.apiKey.plaintext);
+
+		const managed = await json(await app.request(`/v1/teams/${team.id}/capacity-providers`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Managed Runner',
+				launchMode: 'managed_market_host',
+			}),
+		}));
+		const managedDeploy = await app.request(`/v1/teams/${team.id}/capacity-providers/${managed.provider.id}/deployments`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ launchMode: 'managed_market_host' }),
 		});
+		expect(managedDeploy.status).toBe(201);
+		const managedPayload = await json(managedDeploy);
+		expect(managedPayload.deployment.status).toBe('deployed');
+		expect(Object.keys(managedPayload.deployment.serviceRefs)).toEqual(['api', 'manager', 'runner']);
+		expect(managedPayload.deployment.envRefs.TREESEED_CAPACITY_PROVIDER_API_KEY).toBe('<host-secret>');
+		expect(JSON.stringify(managedPayload)).not.toContain(managed.apiKey.plaintext);
+
+		const rejectedPlaintext = await app.request(`/v1/teams/${team.id}/capacity-providers/${managed.provider.id}/deployments`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				launchMode: 'managed_market_host',
+				RAILWAY_API_TOKEN: 'plain-railway-token',
+			}),
+		});
+		expect(rejectedPlaintext.status).toBe(400);
+	});
+
+	it('deploys connected Railway capacity providers with one-use credential sessions', async () => {
+		const db = new TestD1Database();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
+		const token = await authorizeApp(app);
+		const { team } = await createTeamAndProject(app, token, {
+			slug: 'connected-capacity-deploy-project',
+			name: 'Connected Capacity Deploy Project',
+		});
+		const passphrase = 'provider-host-passphrase';
+
+		const host = await json(await app.request(`/v1/teams/${team.id}/hosts`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Capacity Provider Railway',
+				provider: 'railway',
+				ownership: 'team_owned',
+				accountLabel: 'Provider Workspace',
+				encryptedPayload: encryptedTestHostEnvelope({
+					RAILWAY_API_TOKEN: 'railway-secret-token',
+					TREESEED_RAILWAY_WORKSPACE: 'provider-workspace',
+				}, passphrase),
+				metadata: {
+					hostType: 'capacity_provider',
+				},
+			}),
+		}));
+		const session = await json(await app.request(`/v1/teams/${team.id}/provider-credential-sessions`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				hostKind: 'capacity_provider_host',
+				hostId: host.payload.id,
+				passphrase,
+				purpose: 'deploy_capacity_provider',
+				expiresInSeconds: 600,
+			}),
+		}));
+		expect(session.payload.id).toBeTruthy();
+
+		const provider = await json(await app.request(`/v1/teams/${team.id}/capacity-providers`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Connected Runner',
+				launchMode: 'connected_host',
+			}),
+		}));
+		const missingSession = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.provider.id}/deployments`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ launchMode: 'connected_host' }),
+		});
+		expect(missingSession.status).toBe(400);
+
+		const deployed = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.provider.id}/deployments`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				launchMode: 'connected_host',
+				hostId: host.payload.id,
+				credentialSessions: {
+					capacityProviderHost: session.payload.id,
+				},
+			}),
+		});
+		expect(deployed.status).toBe(201);
+		const payload = await json(deployed);
+		expect(payload.deployment.status).toBe('deployed');
+			expect(payload.deployment.serviceRefs.api.serviceId).toContain('railway:provider-workspace');
+			expect(JSON.stringify(payload)).not.toContain('railway-secret-token');
+			expect(JSON.stringify(payload)).not.toContain(provider.apiKey.plaintext);
+			const consumed = await store.getProviderCredentialSession(team.id, session.payload.id);
+			if (!consumed) {
+				throw new Error('Expected capacity provider host credential session to be consumed.');
+			}
+			expect(consumed.status).toBe('consumed');
+
+		const reused = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.provider.id}/deployments`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				launchMode: 'connected_host',
+				hostId: host.payload.id,
+				credentialSessions: {
+					capacityProviderHost: session.payload.id,
+				},
+			}),
+		});
+		expect(reused.status).toBe(400);
+	});
+
+	it('uses canonical project repositories in provider portfolios and stores provider-generated workday/report state', async () => {
+		const db = new TestD1Database();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
+		const token = await authorizeApp(app);
+		const { team, project } = await createTeamAndProject(app, token, {
+			slug: 'portfolio-project',
+			name: 'Portfolio Project',
+			metadata: {
+				repository: {
+					provider: 'github',
+					owner: 'metadata-owner',
+					name: 'metadata-repo',
+					cloneUrl: 'git@github.com:metadata-owner/metadata-repo.git',
+					defaultBranch: 'metadata',
+				},
+			},
+		});
+		await store.upsertHubRepository(project.id, {
+			teamId: team.id,
+			role: 'primary',
+			provider: 'github',
+			owner: 'canonical-owner',
+			name: 'canonical-repo',
+			url: 'https://github.com/canonical-owner/canonical-repo.git',
+			defaultBranch: 'main',
+			currentBranch: 'main',
+			status: 'active',
+			submodulePath: 'packages/canonical',
+			metadata: { webUrl: 'https://github.com/canonical-owner/canonical-repo' },
+		});
+		const createdProvider = await json(await app.request(`/v1/teams/${team.id}/capacity-providers`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Portfolio Runner',
+				launchMode: 'self_hosted',
+			}),
+		}));
+		const providerKey = createdProvider.apiKey.plaintext;
+		const portfolioResponse = await app.request('/v1/provider/portfolio', {
+			headers: { authorization: `Bearer ${providerKey}` },
+		});
+		expect(portfolioResponse.status).toBe(200);
+		const portfolioPayload = await json(portfolioResponse);
+		expect(portfolioPayload.projects[0].repository).toMatchObject({
+			provider: 'github',
+			role: 'primary',
+			owner: 'canonical-owner',
+			name: 'canonical-repo',
+			defaultBranch: 'main',
+			cloneUrl: 'https://github.com/canonical-owner/canonical-repo.git',
+			submodulePath: 'packages/canonical',
+			webUrl: 'https://github.com/canonical-owner/canonical-repo',
+		});
+
+		const workdayResponse = await app.request('/v1/provider/workdays', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${providerKey}`,
+			},
+			body: JSON.stringify({
+				projectId: project.id,
+				environment: 'local',
+				idempotencyKey: 'provider-workday-local',
+				summary: {
+					capacityBudget: 10,
+					agentCount: 1,
+				},
+			}),
+		});
+		expect(workdayResponse.status).toBe(200);
+		const workdayPayload = await json(workdayResponse);
+		expect(workdayPayload.workDay.summary.provider).toMatchObject({
+			id: createdProvider.provider.id,
+		});
+
+		const reportResponse = await app.request('/v1/provider/reports', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${providerKey}`,
+			},
+			body: JSON.stringify({
+				workDayId: workdayPayload.workDay.id,
+				kind: 'provider_portfolio_processing',
+				body: {
+					status: 'ok',
+					summary: 'Provider portfolio processing completed.',
+				},
+			}),
+		});
+		expect(reportResponse.status).toBe(200);
+		const provider = await store.getCapacityProvider(team.id, createdProvider.provider.id);
+		expect(provider?.metadata).toMatchObject({
+			latestProviderWorkday: {
+				projectId: project.id,
+				workDayId: workdayPayload.workDay.id,
+				environment: 'local',
+			},
+			latestProviderReport: {
+				workDayId: workdayPayload.workDay.id,
+				kind: 'provider_portfolio_processing',
+				summary: 'Provider portfolio processing completed.',
+			},
+		});
+	});
+
+	it('rejects expired and insufficient-scope provider API keys distinctly', async () => {
+		const db = new TestD1Database();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
+		const token = await authorizeApp(app);
+		const { team } = await createTeamAndProject(app, token, {
+			slug: 'capacity-auth-project',
+			name: 'Capacity Auth Project',
+		});
+
+		const createdProvider = await json(await app.request(`/v1/teams/${team.id}/capacity-providers`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Scoped Runner',
+				launchMode: 'self_hosted',
+			}),
+		}));
+
+		const limited = await store.createCapacityProviderApiKey(team.id, createdProvider.provider.id, {
+			name: 'Heartbeat only',
+			scopes: ['provider:heartbeat'],
+		});
+		const insufficient = await app.request('/v1/provider/reports', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${limited!.plaintextKey}`,
+			},
+			body: JSON.stringify({ workDayId: 'missing', kind: 'test', body: {} }),
+		});
+		expect(insufficient.status).toBe(403);
+
+		const expired = await store.createCapacityProviderApiKey(team.id, createdProvider.provider.id, {
+			name: 'Expired',
+			expiresAt: '2000-01-01T00:00:00.000Z',
+		});
+		const expiredHeartbeat = await app.request('/v1/provider/heartbeat', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${expired!.plaintextKey}`,
+			},
+			body: JSON.stringify({ marketId: 'local' }),
+		});
+		expect(expiredHeartbeat.status).toBe(401);
 	});
 
 	it('launches managed capacity, reserves budgeted agent work, settles actuals, and rejects revoked provider keys', async () => {
@@ -3700,11 +3957,6 @@ runtimeDescribe('market api', () => {
 		expect(launch.provider.status).toBe('active');
 		expect(launch.plaintextKey).toMatch(/^tsp_/);
 		expect(launch.lanes.map((lane: { id: string }) => lane.id).join(' ')).toContain('proposal-drafting');
-
-		const beforeSummary = await json(await app.request(`/v1/projects/${project.id}/capacity`, {
-			headers: { authorization: `Bearer ${token}` },
-		}));
-		const beforeRemaining = beforeSummary.payload.dailyRemainingCredits;
 
 		const taskResponse = await app.request(`/v1/projects/${project.id}/agent-tasks`, {
 			method: 'POST',
@@ -3747,7 +3999,7 @@ runtimeDescribe('market api', () => {
 			hybridExecutionPlan: expect.objectContaining({ planId: 'market-hybrid-1' }),
 		});
 
-		const heartbeat = await app.request('/v1/processing/heartbeat', {
+		const heartbeat = await app.request('/v1/provider/heartbeat', {
 			method: 'POST',
 			headers: {
 				'content-type': 'application/json',
@@ -3763,7 +4015,7 @@ runtimeDescribe('market api', () => {
 		});
 		expect(heartbeat.status).toBe(200);
 
-		const completeResponse = await app.request(`/v1/processing/tasks/${taskPayload.task.id}/complete`, {
+		const completeResponse = await app.request(`/v1/provider/tasks/${taskPayload.task.id}/complete`, {
 			method: 'POST',
 			headers: {
 				'content-type': 'application/json',
@@ -3780,38 +4032,13 @@ runtimeDescribe('market api', () => {
 				}),
 			});
 		expect(completeResponse.status).toBe(200);
-		const completed = (await json(completeResponse)).payload;
-			expect(completed.settlement).toMatchObject({
-				consumedCredits: 3,
-				releasedCredits: 5,
-			});
-			expect(completed.usageActual).toMatchObject({
-				taskSignature: 'proposal.draft',
-				executionProfileId: 'standard-code-model',
-				actualCredits: 3,
-			});
+		const completed = await json(completeResponse);
+		expect(completed.task).toMatchObject({
+			id: taskPayload.task.id,
+			status: 'completed',
+		});
 
-			const learnedPlan = await json(await app.request(`/v1/projects/${project.id}/capacity-plan?environment=staging`, {
-				headers: {
-					authorization: `Bearer ${token}`,
-				},
-			}));
-			expect(learnedPlan.payload.estimateProfiles).toEqual(expect.arrayContaining([
-				expect.objectContaining({
-					taskSignature: 'proposal.draft',
-					executionProfileId: 'standard-code-model',
-					completedSampleCount: 1,
-					creditsP50: 3,
-					creditsP90: 3,
-				}),
-			]));
-
-		const afterSummary = await json(await app.request(`/v1/projects/${project.id}/capacity`, {
-			headers: { authorization: `Bearer ${token}` },
-		}));
-		expect(afterSummary.payload.dailyRemainingCredits).toBe(beforeRemaining - 3);
-
-		const resetResponse = await app.request(`/v1/capacity/providers/${launch.provider.id}/api-keys/reset`, {
+		const rotateResponse = await app.request(`/v1/teams/${team.id}/capacity-providers/${launch.provider.id}/keys/rotate`, {
 			method: 'POST',
 			headers: {
 				'content-type': 'application/json',
@@ -3819,8 +4046,8 @@ runtimeDescribe('market api', () => {
 			},
 			body: JSON.stringify({}),
 		});
-		expect(resetResponse.status).toBe(200);
-		const oldHeartbeat = await app.request('/v1/processing/heartbeat', {
+		expect(rotateResponse.status).toBe(200);
+		const oldHeartbeat = await app.request('/v1/provider/heartbeat', {
 			method: 'POST',
 			headers: {
 				'content-type': 'application/json',
@@ -3864,7 +4091,7 @@ runtimeDescribe('market api', () => {
 		expect(planResponse.status).toBe(200);
 		const plan = await json(planResponse);
 		expect(plan.ok).toBe(true);
-		expect(plan.summary).toMatchObject({ create: 9, update: 1, unchanged: 0, skip: 7 });
+		expect(plan.summary).toMatchObject({ create: 5, update: 1, unchanged: 0, skip: 3 });
 		expect(plan.run).toMatchObject({ state: 'completed', mode: 'plan', seedName: 'treeseed' });
 
 		const firstApplyResponse = await app.request('/v1/seeds/treeseed/apply', {
@@ -3878,29 +4105,15 @@ runtimeDescribe('market api', () => {
 		expect(firstApplyResponse.status).toBe(200);
 		const firstApply = await json(firstApplyResponse);
 		expect(firstApply.ok).toBe(true);
-		expect(firstApply.summary).toMatchObject({ create: 9, update: 1, unchanged: 0, skip: 7 });
+		expect(firstApply.summary).toMatchObject({ create: 5, update: 1, unchanged: 0, skip: 3 });
 		expect(firstApply.run).toMatchObject({ state: 'completed', mode: 'apply', seedName: 'treeseed' });
-		expect(firstApply.result.actionCount).toBe(10);
-		expect(firstApply.result.capacityProviderKeys.created).toHaveLength(1);
-		const providerSecurityCode = firstApply.result.capacityProviderKeys.created[0].plaintextKey;
-		expect(providerSecurityCode).toMatch(/^tsp_/);
-		const registrationResponse = await app.request('/v1/processing/register', {
-			method: 'POST',
-			headers: {
-				'content-type': 'application/json',
-				authorization: `Bearer ${providerSecurityCode}`,
-			},
-			body: JSON.stringify({ queueDepth: 0, activeWorkers: 0 }),
-		});
-		expect(registrationResponse.status).toBe(200);
-		const registration = await json(registrationResponse);
-		expect(registration.payload.provider.id).toBe(firstApply.result.capacityProviderKeys.created[0].providerId);
-		expect(registration.payload.lanes.length).toBeGreaterThan(0);
+		expect(firstApply.result.actionCount).toBe(6);
+		expect(firstApply.result.capacityProviderKeys.created).toHaveLength(0);
 
 		const runs = await json(await app.request('/v1/seeds/runs', {
 			headers: { authorization: `Bearer ${token}` },
 		}));
-		expect(JSON.stringify(runs)).not.toContain(providerSecurityCode);
+		expect(JSON.stringify(runs)).not.toContain('tsp_');
 		expect(runs.payload).toEqual(expect.arrayContaining([
 			expect.objectContaining({
 				seedName: 'treeseed',
@@ -3919,11 +4132,10 @@ runtimeDescribe('market api', () => {
 		});
 		expect(secondApplyResponse.status).toBe(200);
 		const secondApply = await json(secondApplyResponse);
-		expect(secondApply.summary).toMatchObject({ create: 0, update: 0, unchanged: 10, skip: 7 });
+		expect(secondApply.summary).toMatchObject({ create: 0, update: 0, unchanged: 6, skip: 3 });
 		expect(secondApply.result.actionCount).toBe(0);
 		expect(secondApply.result.capacityProviderKeys.created).toHaveLength(0);
-		expect(secondApply.result.capacityProviderKeys.existing).toHaveLength(1);
-		expect(secondApply.result.capacityProviderKeys.existing[0]).not.toHaveProperty('plaintextKey');
+		expect(secondApply.result.capacityProviderKeys.existing).toHaveLength(0);
 
 		const exportResponse = await app.request(`/v1/teams/${team.id}/seeds/export`, {
 			method: 'POST',

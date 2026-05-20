@@ -4,9 +4,7 @@ import { loadSiteWebSession } from '../../lib/auth/session-store';
 import { decryptHostConfig } from '../../lib/cloudflare-host-crypto';
 import {
 	listTreeseedManagedHostsFromConfig,
-	managedProcessingConfigMissing,
 	resolveTreeseedManagedCloudflareHostConfigFromConfig,
-	resolveTreeseedManagedProcessingHostConfigFromConfig,
 } from '../../lib/market/managed-hosts';
 import { validateProjectSlug } from '../../api/store.js';
 import { resolveMarketStore } from '../../lib/market/store';
@@ -605,10 +603,10 @@ export const ALL: APIRoute = async (context) => {
 			let host: any = null;
 			if (hostKind === 'repository_host') {
 				host = await store.getRepositoryHost(id, hostId);
-			} else if (hostKind === 'web_host' || hostKind === 'processing_host' || hostKind === 'email_host') {
+			} else if (hostKind === 'web_host' || hostKind === 'capacity_provider_host' || hostKind === 'email_host') {
 				host = await store.getTeamWebHost(id, hostId);
 			} else {
-				return error(400, 'hostKind must be repository_host, web_host, processing_host, or email_host.');
+				return error(400, 'hostKind must be repository_host, web_host, capacity_provider_host, or email_host.');
 			}
 			if (!host || host.teamId !== id || host.ownership !== 'team_owned') {
 				return error(404, 'Selected team-owned provider host is not available for this team.');
@@ -647,10 +645,17 @@ export const ALL: APIRoute = async (context) => {
 			const hostingMode = typeof body.hostingMode === 'string' ? body.hostingMode : 'managed';
 			const cloudflareHostMode = body.cloudflareHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.cloudflareHostMode === 'team_owned' ? 'team_owned' : null;
 			const cloudflareHostId = typeof body.cloudflareHostId === 'string' && body.cloudflareHostId.trim() ? body.cloudflareHostId.trim() : null;
-			const processingHostMode = body.processingHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.processingHostMode === 'team_owned' ? 'team_owned' : null;
-			const processingHostId = typeof body.processingHostId === 'string' && body.processingHostId.trim() ? body.processingHostId.trim() : null;
 			const emailHostMode = body.emailHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.emailHostMode === 'team_owned' ? 'team_owned' : null;
 			const emailHostId = typeof body.emailHostId === 'string' && body.emailHostId.trim() ? body.emailHostId.trim() : null;
+			const removedRuntimeHostFields = [
+				['process', 'ingHostMode'].join(''),
+				['process', 'ingHostId'].join(''),
+				['process', 'ingHostConfig'].join(''),
+			];
+			const removedRuntimeSessionKey = ['process', 'ingHost'].join('');
+			if (removedRuntimeHostFields.some((field) => body[field] !== undefined) || credentialSessions[removedRuntimeSessionKey] !== undefined) {
+				return error(400, 'Project launch no longer accepts runtime host configuration. Create and deploy a capacity provider from the capacity provider lifecycle pages.');
+			}
 			let cloudflareHost = null;
 			if (cloudflareHostMode === 'team_owned') {
 				if (!cloudflareHostId) return error(400, 'cloudflareHostId is required when cloudflareHostMode is team_owned.');
@@ -663,21 +668,6 @@ export const ALL: APIRoute = async (context) => {
 				}
 				if (typeof credentialSessions.webHost !== 'string' || !credentialSessions.webHost.trim()) {
 					return error(400, 'credentialSessions.webHost is required after unlocking a team-owned Cloudflare host.');
-				}
-			}
-			let processingHost = null;
-			if (processingHostMode === 'team_owned') {
-				if (!processingHostId) return error(400, 'processingHostId is required when processingHostMode is team_owned.');
-				processingHost = await store.getTeamWebHost(id, processingHostId);
-				const hostType = processingHost?.metadata?.hostType === 'agent' ? 'processing' : processingHost?.metadata?.hostType;
-				if (!processingHost || processingHost.provider !== 'railway' || processingHost.ownership !== 'team_owned' || hostType !== 'processing') {
-					return error(400, 'Selected team-owned Processing host is not available for this team.');
-				}
-				if (body.processingHostConfig && typeof body.processingHostConfig === 'object') {
-					return error(400, 'Plaintext Processing provider configs are not accepted. Create a provider credential session and pass credentialSessions.processingHost.');
-				}
-				if (typeof credentialSessions.processingHost !== 'string' || !credentialSessions.processingHost.trim()) {
-					return error(400, 'credentialSessions.processingHost is required after unlocking a team-owned Processing host.');
 				}
 			}
 			let emailHost = null;
@@ -698,19 +688,10 @@ export const ALL: APIRoute = async (context) => {
 			const cloudflareLaunchConfig = cloudflareHostMode === 'treeseed_managed'
 					? await resolveTreeseedManagedCloudflareHostConfigFromConfig((context.locals as any).runtime ?? context.locals)
 					: null;
-			const processingLaunchConfig = processingHostMode === 'treeseed_managed'
-					? await resolveTreeseedManagedProcessingHostConfigFromConfig((context.locals as any).runtime ?? context.locals)
-					: null;
 			if (cloudflareHostMode === 'treeseed_managed') {
 				const missingManagedConfig = managedCloudflareConfigMissing(cloudflareLaunchConfig);
 				if (missingManagedConfig.length > 0) {
 					return error(500, 'TreeSeed managed Cloudflare hosting is not configured.', { missing: missingManagedConfig });
-				}
-			}
-			if (processingHostMode === 'treeseed_managed') {
-				const missingManagedConfig = managedProcessingConfigMissing(processingLaunchConfig);
-				if (missingManagedConfig.length > 0) {
-					return error(500, 'TreeSeed managed Processing hosting is not configured.', { missing: missingManagedConfig });
 				}
 			}
 			const targetEnvironments = ['staging', 'prod'];
@@ -723,19 +704,6 @@ export const ALL: APIRoute = async (context) => {
 					targetEnvironments,
 					billing: cloudflareHostMode === 'treeseed_managed'
 						? { fee: 'treeseed_cloudflare_hosting', status: 'pending_activation' }
-						: null,
-				}
-				: null;
-			const processingHostMetadata = processingHostMode
-				? {
-					mode: processingHostMode,
-					hostId: processingHostId,
-					hostName: processingHost?.name ?? (processingHostMode === 'treeseed_managed' ? 'TreeSeed Processing Host' : null),
-					ownership: processingHost?.ownership ?? processingHostMode,
-					provider: processingHost?.provider ?? 'railway',
-					targetEnvironments,
-					billing: processingHostMode === 'treeseed_managed'
-						? { fee: 'treeseed_processing_hosting', status: 'pending_activation' }
 						: null,
 				}
 				: null;
@@ -754,7 +722,6 @@ export const ALL: APIRoute = async (context) => {
 				: null;
 			const hostMetadata = {
 				...(cloudflareHostMetadata ? { cloudflareHost: cloudflareHostMetadata } : {}),
-				...(processingHostMetadata ? { processingHost: processingHostMetadata } : {}),
 				...(emailHostMetadata ? { emailHost: emailHostMetadata } : {}),
 			};
 			const details = await store.createProject(id, {
@@ -773,7 +740,7 @@ export const ALL: APIRoute = async (context) => {
 				},
 				entitlementTier: typeof body.entitlementTier === 'string'
 					? body.entitlementTier
-					: cloudflareHostMode === 'treeseed_managed' || processingHostMode === 'treeseed_managed' || emailHostMode === 'treeseed_managed'
+					: cloudflareHostMode === 'treeseed_managed' || emailHostMode === 'treeseed_managed'
 						? 'paid_hosting'
 						: 'free',
 			});
@@ -809,8 +776,6 @@ export const ALL: APIRoute = async (context) => {
 				repoVisibility: typeof body.repoVisibility === 'string' ? body.repoVisibility : 'private',
 				cloudflareHostMode,
 				cloudflareHostId,
-				processingHostMode,
-				processingHostId,
 				emailHostMode,
 				emailHostId,
 				credentialSessions,

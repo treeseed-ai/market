@@ -96,24 +96,18 @@ Managed executables:
 - Provider wrappers default to `--environment staging`. Pass `--environment local`, `--environment staging`, or `--environment prod` before the forwarded command when you need a specific scope. The Railway wrapper also selects the matching Railway environment (`staging` or `production`) before forwarding the command, so `--environment prod` does not accidentally inspect the locally linked staging environment. Put target CLI flags after `--`, for example `npx trsd railway --environment staging -- status`, `npx trsd railway --environment prod -- status`, `npx trsd railway --environment staging -- whoami`, `npx trsd gh --environment staging -- run view <run-id> --repo <owner/repo> --log-failed`, and `npx trsd wrangler --environment staging -- whoami`.
 - Do not print or echo wrapper environments. The wrappers intentionally pass decrypted values such as `GH_TOKEN`, `RAILWAY_API_TOKEN`, and `CLOUDFLARE_API_TOKEN` only to the child process so provider CLIs can authenticate without exposing secrets in shell history or logs.
 
-Railway worker-runner volumes:
+Capacity provider runtime:
 
-- `treeseed.site.yaml` defines the logical `workerRunner` role only. Do not add concrete runner service names, volume names, or repeated mount paths to version-controlled config.
-- Treeseed derives runner services as `<project>-worker-runner-01`, `<project>-worker-runner-02`, etc. Each runner service gets one Railway volume named `<runner-service>-data`, mounted at `/data`.
-- Worker repositories must live under the attached volume, specifically `/data/repositories/<repository-id>/bare.git` and `/data/repositories/<repository-id>/worktrees/<task-id>`.
-- Processing services must start through `treeseed-processing` role commands only. Do not reintroduce Railway start commands that chain `npm run build:* && ...`; builds belong in the Docker/build phase.
-- To inspect staging runner services, run `npx trsd railway --environment staging -- service list --json` and look for `*-worker-runner-*`.
-- To inspect attached volumes, run `npx trsd railway --environment staging -- volume list --json`. Railway reports volume attachment metadata and size/capacity in its volume details/dashboard/API output; do not infer volume size from Treeseed YAML.
-- Workday Manager must be started by Railway cron, not by a long-running service process. Inspect schedule reconciliation with `npx trsd railway --environment staging -- service list --json` plus the Treeseed deploy/reconcile output; the cron command should be the real workday manager entrypoint while the service start command is a scheduled-only idle guard.
-- Worker runners are cold by default. They are woken by Railway named-runner actions from API enqueue or Workday Manager scaling decisions, then self-exit after `TREESEED_WORKER_IDLE_EXIT_MS` of empty queue polling.
+- Root Market deploys only the Market web/API plane. Capacity-provider runtime, container assets, templates, and lifecycle behavior are owned by `@treeseed/agent`.
+- Use `trsd capacity build`, `trsd capacity up`, `trsd capacity status`, `trsd capacity logs`, `trsd capacity down`, and `trsd capacity test-local` for provider lifecycle work.
+- Provider secrets must be stored through `trsd config` or host secret managers. Do not create plaintext provider env files or render provider API keys into Compose.
+- The package-owned provider image starts `node ./dist/provider/entrypoint.js` with `api`, `manager`, and `runner` roles.
 
 For agents and automation:
 
 - Start with `npx trsd status --json` to inspect branch role, dirty state, locks, package state, and next safe actions.
-- For processing parity work, use `npm run processing:build`, `npm run processing:test-local`, and the package-local `npm -w packages/agent run verify:local` closure smoke. `processing:test-local` exercises Docker when available and reports when the container was not exercised.
-- The processing image combines `@treeseed/agent` runtime code with Market tenant specs/config. Market owns `src/content/agents` and `src/content/agent-tests`; `@treeseed/agent` owns the code, bins, handlers, manager, worker, API, path resolver, doctor, plan, and test harnesses.
-- `treeseed-processing healthcheck` should pass in a minimal local container when `/data` is writable. Missing Codex auth is a local warning; staging and production doctor checks must fail on missing required hosted credentials or stub providers.
-- For local UI iteration, prefer `npx trsd dev --surfaces web,api --web-runtime local --force --json`. `--web-runtime local` uses the Astro dev server for hot reload instead of rebuilding the Cloudflare/Wrangler runtime, while still sharing the local API/control-plane state. `--force` is intentional for agent/dev loops: it terminates overlapping Treeseed dev supervisors and listeners on required ports before startup. Without `--force`, `trsd dev` and `trsd dev:*` fail with an existing-service warning when required ports are already occupied.
+- For provider runtime work, use `npm -w packages/agent run test:capacity-provider-runtime`, `npm -w packages/agent run capacity-provider:test-local`, and the package-local `npm -w packages/agent run verify:local` closure smoke.
+- For local UI iteration, prefer `npx trsd dev --web-runtime local --force --json`. `--web-runtime local` uses the Astro dev server for hot reload instead of rebuilding the Cloudflare/Wrangler runtime, while still sharing the local API/control-plane state. `--force` is intentional for agent/dev loops: it terminates overlapping Treeseed dev supervisors and listeners on required ports before startup.
 - Treeseed dev supervisors always mirror their output into `.treeseed/logs/dev-<surfaces>.jsonl`, for example `.treeseed/logs/dev-web-api.jsonl` or `.treeseed/logs/dev-manager-worker.jsonl`. Start them directly or daemonize them with normal shell job control, then follow the stable log path with `tail -f`.
 - Use `npx trsd switch <task-branch> --json`; when the result includes `payload.worktreePath`, run all future commands from that worktree path.
 - Use `npx trsd save --json` for checkpoints. Save is optimized for fast local iteration by default. Add `--verify-deployed-resources` on staging or production branches when the checkpoint should wait for hosted deploy checks that verify provider resources.

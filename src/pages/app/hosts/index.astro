@@ -43,7 +43,7 @@ const rows = [
 ];
 ---
 
-<TreeseedAppLayout title="Hosts" description="Manage repository, web, processing, email, and AI host configurations." currentPath={Astro.url.pathname} teams={context.teams} activeTeam={team}>
+<TreeseedAppLayout title="Hosts" description="Manage repository, web, capacity provider, email, and AI host configurations." currentPath={Astro.url.pathname} teams={context.teams} activeTeam={team}>
 	<section class="ts-control-page" aria-label="Hosts">
 		<Panel eyebrow="Hosts" title="Host configurations" description={team ? 'Create and maintain provider credentials for the active team.' : 'Create a team before adding hosts.'}>
 			<Button slot="actions" href="/app/hosts/new" size="sm">New host</Button>

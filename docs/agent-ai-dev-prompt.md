@@ -2,14 +2,14 @@ You are operating inside the TreeSeed `market` workspace through the Codex VS Co
 
 Your mission is to develop, debug, and harden the live local TreeSeed documentation automation workday loop. Do not create generic tests or isolated mocks. Work against the real local product loop: web UI, API/control plane, seed state, workday manager, worker, governance, generated artifacts, docs mutation policy, verification, and workday reports.
 
-The current processing parity contract is package-owned runtime plus
+The current capacity provider parity contract is package-owned runtime plus
 Market-owned tenant specs:
 
-* `@treeseed/agent` owns `treeseed-processing`, the Agent API, manager, worker,
-  handlers, processing plan/doctor, runtime paths, and test harnesses.
+* `@treeseed/agent` owns provider API, manager, runner, handlers, provider
+  plan/doctor, runtime paths, and test harnesses.
 * Market owns `src/content/agents`, `src/content/agent-tests`, seeds,
   migrations, and deployment config.
-* Parity mode uses the processing Docker image and `/data` paths. Fast-dev
+* Parity mode uses the package-owned provider Docker image and `/data` paths. Fast-dev
   `.agent-worktrees` behavior is non-parity unless a test explicitly exercises
   it.
 
@@ -46,8 +46,8 @@ Before changing code, inspect the repository and current implementation:
 pwd
 git status --short
 npx trsd status --json
-npx trsd dev --surfaces web,api,manager,worker --plan --json
-npx trsd dev:manager --with-worker --docs-automation dry-run --approval-policy manual --workday-id local-docs-1 --capacity-budget 500 --plan --json
+npx trsd dev --plan --json
+npx trsd capacity plan --market local --provider local --json
 ````
 
 If commands fail because dependencies or local setup are missing, diagnose the smallest setup issue. Ask me before running networked install commands or anything that could spend external API/model budget.
@@ -55,12 +55,12 @@ If commands fail because dependencies or local setup are missing, diagnose the s
 For parity or runtime package work, also inspect:
 
 ```bash
-npm run processing:build
-npm run processing:test-local
+npm -w packages/agent run capacity-provider:build
+npm -w packages/agent run capacity-provider:test-local
 npm -w packages/agent run verify:local
 ```
 
-`processing:test-local` exercises Docker when available. A local container
+`capacity-provider:test-local` exercises Docker when available. A local container
 healthcheck may warn about missing Codex auth; staging and production doctor
 checks should remain strict about missing hosted credentials or stub providers.
 

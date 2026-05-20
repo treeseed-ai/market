@@ -41,13 +41,13 @@ jobs:
       - name: Verify package
         run: npm run verify:direct
 
-      - name: Verify processing parity and transparent agent ladder
+      - name: Verify package-owned provider runtime and transparent agent ladder
         run: |
           npm run test:agent-contracts
           npm run test:agent-handlers
           npm run test:agent-message-chains
           npm run test:manager-worker
-          npm run test:processing-parity-local
+          npm -w packages/agent run test:capacity-provider-runtime
 
       - name: Upload Treeseed test reports
         if: always()
