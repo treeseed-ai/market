@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.2] - 2026-05-20
+
+### Infrastructure
+
+- release: sync package staging heads (d53e9bf4da34)
+
+### Dependencies
+
+- build(deps): create github releases for package publishes (95d82d472a07)
+- Release @treeseed/market 0.6.2.
+- Release package @treeseed/agent: 0.9.2.
+- Release package @treeseed/cli: 0.9.2.
+- Release package @treeseed/core: 0.9.3.
+- Release package @treeseed/sdk: 0.10.4.
+
 ## [0.6.1] - 2026-05-20
 
 ### Fixed
