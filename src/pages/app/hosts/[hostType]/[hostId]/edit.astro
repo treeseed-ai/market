@@ -12,7 +12,7 @@ import { loadOperationalContext } from '../../../../../view-models/shared.js';
 
 const hostType = String(Astro.params.hostType ?? '');
 const hostId = String(Astro.params.hostId ?? '');
-const validTypes = new Set(['repository', 'web', 'processing', 'email', 'ai']);
+const validTypes = new Set(['repository', 'web', 'capacity-provider', 'email', 'ai']);
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 }
@@ -69,7 +69,7 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, hostId, provid
 								<Field label="New Cloudflare API token" name="cloudflareApiToken"><TextInput name="cloudflareApiToken" type="password" autocomplete="new-password" /></Field>
 							</>
 						)}
-						{hostType === 'processing' && (
+						{hostType === 'capacity-provider' && (
 							<>
 								<Field label="New Railway API token" name="railwayApiToken"><TextInput name="railwayApiToken" type="password" autocomplete="new-password" /></Field>
 								<Field label="New Railway workspace" name="railwayWorkspace"><TextInput name="railwayWorkspace" /></Field>
@@ -126,7 +126,7 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, hostId, provid
 			return { GH_TOKEN: token, GITHUB_TOKEN: token, organizationOrOwner: value(formData, 'organizationOrOwner'), owner: value(formData, 'organizationOrOwner') };
 		}
 		if (hostType === 'web') return { CLOUDFLARE_ACCOUNT_ID: value(formData, 'cloudflareAccountId'), CLOUDFLARE_API_TOKEN: value(formData, 'cloudflareApiToken') };
-		if (hostType === 'processing') return { RAILWAY_API_TOKEN: value(formData, 'railwayApiToken'), TREESEED_RAILWAY_WORKSPACE: value(formData, 'railwayWorkspace') };
+		if (hostType === 'capacity-provider') return { RAILWAY_API_TOKEN: value(formData, 'railwayApiToken'), TREESEED_RAILWAY_WORKSPACE: value(formData, 'railwayWorkspace') };
 		if (hostType === 'email') return { SMTP_HOST: value(formData, 'smtpHost'), SMTP_PORT: value(formData, 'smtpPort'), SMTP_USERNAME: value(formData, 'smtpUsername'), SMTP_PASSWORD: value(formData, 'smtpPassword'), SMTP_FROM_EMAIL: value(formData, 'smtpFromEmail'), SMTP_REPLY_TO: value(formData, 'smtpReplyTo'), SMTP_SECURE: value(formData, 'smtpSecure') };
 		return { AI_API_KEY: value(formData, 'aiApiKey'), AI_BASE_URL: value(formData, 'aiBaseUrl'), AI_DEFAULT_MODEL: value(formData, 'aiDefaultModel'), AI_PROVIDER: value(formData, 'provider') };
 	}
@@ -167,7 +167,7 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, hostId, provid
 				provider: value(formData, 'provider') || pageData.provider,
 				ownership: 'team_owned',
 				status: value(formData, 'status') || 'active',
-				metadata: { hostType: pageData.hostType },
+				metadata: { hostType: pageData.hostType === 'capacity-provider' ? 'capacity_provider' : pageData.hostType },
 			});
 		}
 		if (status) status.textContent = 'Saving...';

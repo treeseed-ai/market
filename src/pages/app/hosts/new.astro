@@ -11,7 +11,7 @@ const context = await loadOperationalContext(Astro.locals, Astro);
 const rows = [
 	{ type: '<strong>Repository</strong><span>GitHub organization or owner.</span>', action: '<a class="ts-link-button" href="/app/hosts/repository/new">Create repository host</a>' },
 	{ type: '<strong>Web</strong><span>Cloudflare hosting account.</span>', action: '<a class="ts-link-button" href="/app/hosts/web/new">Create web host</a>' },
-	{ type: '<strong>Processing</strong><span>Railway processing workspace.</span>', action: '<a class="ts-link-button" href="/app/hosts/processing/new">Create processing host</a>' },
+	{ type: '<strong>Capacity provider</strong><span>Railway workspace for standalone provider services.</span>', action: '<a class="ts-link-button" href="/app/hosts/capacity-provider/new">Create capacity provider host</a>' },
 	{ type: '<strong>Email</strong><span>SMTP account.</span>', action: '<a class="ts-link-button" href="/app/hosts/email/new">Create email host</a>' },
 	{ type: '<strong>AI</strong><span>OpenAI, Copilot, OpenRouter, or custom model access.</span>', action: '<a class="ts-link-button" href="/app/hosts/ai/new">Create AI host</a>' },
 ];

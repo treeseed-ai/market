@@ -18,7 +18,7 @@ Ownership is split deliberately:
 * Market owns tenant-readable specs in `src/content/agents` and
   `src/content/agent-tests`.
 * `@treeseed/agent` owns executable runtime code, built-in handlers, manager,
-  worker, Agent API, processing role commands, fake SDK/context test harnesses,
+  runner, provider API, capacity lifecycle commands, fake SDK/context test harnesses,
   and report writers.
 
 Run the lightweight checks with:
@@ -28,7 +28,7 @@ npm run test:agent-contracts
 npm run test:agent-handlers
 npm run test:agent-message-chains
 npm run test:manager-worker
-npm run test:processing-parity-local
+npm -w packages/agent run test:capacity-provider-runtime
 ```
 
 For runtime package closure, run:
@@ -39,12 +39,10 @@ npm -w packages/agent run test:unit -- test/package/package-shape.test.ts
 npm -w packages/agent run verify:local
 ```
 
-The package-shape tests assert that processing bins and support modules are
-present in `dist`, and that `.ts-run-*` source-mode temp files are absent from
-both `dist` and `npm pack --dry-run`. `verify:local` installs the packed package
-into a temporary project and runs `treeseed-processing healthcheck`,
-`api --help`, `manager --dry-run --json`, `worker --dry-run --json`, and direct
-imports for manager, worker, processing plan/doctor, runtime paths, and the
+The package-shape tests assert that provider runtime files are present in
+`dist`, and that `.ts-run-*` source-mode temp files are absent from both `dist`
+and `npm pack --dry-run`. `verify:local` installs the packed package into a
+temporary project and validates the provider entrypoint, runtime paths, and
 built-in handler registry.
 
 ## Markdown Catalog

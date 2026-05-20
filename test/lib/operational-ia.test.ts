@@ -11,6 +11,7 @@ const primaryRoutes = [
 	'src/pages/app/hosts/index.astro',
 	'src/pages/app/projects/index.astro',
 	'src/pages/app/capacity/index.astro',
+	'src/pages/app/capacity/providers/index.astro',
 	'src/pages/app/work/objectives.astro',
 	'src/pages/app/knowledge/artifacts.astro',
 ];
@@ -33,11 +34,7 @@ const onePurposeRoutes = [
 	'src/pages/app/projects/[projectId]/delete.astro',
 	'src/pages/app/capacity/providers/new.astro',
 	'src/pages/app/capacity/providers/[providerId]/edit.astro',
-	'src/pages/app/capacity/providers/[providerId]/lanes.astro',
 	'src/pages/app/capacity/providers/[providerId]/keys.astro',
-	'src/pages/app/capacity/grants/index.astro',
-	'src/pages/app/capacity/grants/new.astro',
-	'src/pages/app/capacity/grants/[grantId]/edit.astro',
 	'src/pages/app/work/objectives/new.astro',
 	'src/pages/app/work/decisions.astro',
 	'src/pages/app/work/decisions/[approvalId].astro',
@@ -62,6 +59,7 @@ describe('one-purpose control app information architecture', () => {
 		}
 		expect(layout).toContain('treeseed_active_team');
 		expect(layout).toContain('href="/app/teams" title="Manage teams"');
+		expect(layout).toContain(`href: '/app/capacity/providers'`);
 	});
 
 	it('keeps primary app routes to one-purpose control entry points', () => {
@@ -79,6 +77,66 @@ describe('one-purpose control app information architecture', () => {
 			'teams',
 			'work',
 		]);
+	});
+
+	it('uses the Phase 5 capacity provider lifecycle UI', () => {
+		const start = source('src/pages/app/index.astro');
+		const redirect = source('src/pages/app/capacity/index.astro');
+		const dashboard = source('src/pages/app/capacity/providers/index.astro');
+		const create = source('src/pages/app/capacity/providers/new.astro');
+		const edit = source('src/pages/app/capacity/providers/[providerId]/edit.astro');
+		const keys = source('src/pages/app/capacity/providers/[providerId]/keys.astro');
+		const hostPicker = source('src/pages/app/hosts/new.astro');
+		const hostCreate = source('src/pages/app/hosts/[hostType]/new.astro');
+		const infrastructureProjection = source('src/lib/market/infrastructure-projection.ts');
+		const deletedRoutes = [
+			'src/pages/app/capacity/providers/[providerId]/lanes.astro',
+			'src/pages/app/capacity/grants/index.astro',
+			'src/pages/app/capacity/grants/new.astro',
+			'src/pages/app/capacity/grants/[grantId]/edit.astro',
+		];
+
+		expect(redirect).toContain("Astro.redirect('/app/capacity/providers')");
+		expect(start).toContain('/app/capacity/providers');
+		expect(start).not.toMatch(/lanes|grants/iu);
+		for (const path of deletedRoutes) {
+			expect(existsSync(resolve(process.cwd(), path)), path).toBe(false);
+		}
+		for (const contents of [dashboard, create, edit, keys, infrastructureProjection]) {
+			expect(contents).not.toContain('/app/capacity/grants');
+			expect(contents).not.toContain('/lanes');
+		}
+		expect(dashboard).toContain('Last heartbeat');
+		expect(dashboard).toContain('Active key');
+		expect(dashboard).toContain('Capabilities');
+		expect(dashboard).toContain('Budget');
+		expect(dashboard).toContain('Deployment');
+		expect(dashboard).not.toContain('Grants');
+		expect(dashboard).not.toContain('Lanes');
+		expect(create).toContain('Launch mode');
+		expect(create).toContain('One-time reveal');
+		expect(create).toContain('Copy key');
+		expect(create).not.toContain('dailyCreditBudget');
+		expect(create).not.toContain('monthlyCreditBudget');
+		expect(create).not.toContain('maxConcurrentWorkers');
+		expect(edit).toContain('Save provider');
+		expect(edit).toContain('Broadcast capabilities');
+		expect(edit).toContain('Broadcast budgets');
+		expect(edit).toContain('Deployment status');
+		expect(edit).toContain('Deploy provider');
+		expect(edit).toContain('capacityProviderHost');
+		expect(edit).toContain('self-hosting');
+		expect(edit).not.toContain('Select name="provider"');
+		expect(keys).toContain('Rotate API key');
+		expect(keys).toContain('Copy key');
+		expect(keys).toContain('Restart the capacity provider');
+		expect(keys).not.toContain('Reset failed');
+		expect(keys).not.toContain('/api-keys/reset');
+		expect(keys).not.toContain('/revoke');
+		expect(hostPicker).toContain('Capacity provider');
+		expect(hostPicker).toContain('/app/hosts/capacity-provider/new');
+		expect(hostPicker).not.toContain('Create processing host');
+		expect(hostCreate).toContain('capacity-provider');
 	});
 
 	it('represents every work content model in the management interface', () => {

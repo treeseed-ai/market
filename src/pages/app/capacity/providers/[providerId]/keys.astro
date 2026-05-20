@@ -1,13 +1,9 @@
 ---
 import Button from '../../../../../../packages/core/src/components/ui/forms/Button.astro';
-import Field from '../../../../../../packages/core/src/components/ui/forms/Field.astro';
 import FormActions from '../../../../../../packages/core/src/components/ui/forms/FormActions.astro';
-import TextInput from '../../../../../../packages/core/src/components/ui/forms/TextInput.astro';
 import EmptyState from '../../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../../../packages/core/src/components/ui/surface/Panel.astro';
-import PlainTable from '../../../../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
-import { escapeHtml as esc } from '../../../../../lib/market/control-ui.js';
 import { loadOperationalContext } from '../../../../../view-models/shared.js';
 
 const providerId = String(Astro.params.providerId ?? '');
@@ -16,73 +12,55 @@ const context = await loadOperationalContext(Astro.locals, Astro);
 const team = context.activeTeam;
 const providers = team && context.store ? await context.store.listTeamCapacityProviders(team.id).catch(() => []) : [];
 const provider = providers.find((entry: any) => entry.id === providerId) ?? null;
-const keys = provider && context.store ? await context.store.listCapacityProviderApiKeys(team.id, provider.id).catch(() => []) : [];
 if (!provider) Astro.response.status = 404;
-const rows = keys.map((key: any) => ({ name: `<strong>${esc(key.name)}</strong><span>${esc(key.keyPrefix ?? '')}</span>`, status: esc(key.status ?? 'active'), expires: esc(key.expiresAt ?? 'never'), action: `<button class="ts-link-button" type="button" data-revoke-key="${esc(key.id)}">Revoke</button>` }));
 ---
 
-<TreeseedAppLayout title="Provider keys" description="Create or revoke provider API keys." currentPath="/app/capacity" teams={context.teams} activeTeam={team}>
+<TreeseedAppLayout title="Provider keys" description="Rotate provider API keys." currentPath="/app/capacity/providers" teams={context.teams} activeTeam={team}>
 	{provider ? (
 		<section class="ts-control-page" aria-label="Provider keys">
-			<Panel eyebrow="Capacity" title={`New key for ${provider.name}`} description="Create one provider key. The full key is shown once by the API response.">
-				<form id="key-form" class="ts-form-stack">
-					<div class="ts-form-grid">
-						<Field label="Name" name="name"><TextInput name="name" placeholder="Default provider key" /></Field>
-						<Field label="Expires at" name="expiresAt"><TextInput name="expiresAt" type="text" placeholder="YYYY-MM-DD or blank" /></Field>
-						<Field label="Scopes" name="scopes" class="ts-field--full"><TextInput name="scopes" value="provider:heartbeat,provider:tasks:claim,provider:tasks:update,provider:usage:report,provider:lanes:read" /></Field>
-					</div>
-					<FormActions align="start"><Button type="submit">Create key</Button><button class="ts-button" data-variant="secondary" type="button" id="reset-key-button">Reset active key</button><Button href="/app/capacity" variant="secondary">Back</Button><span class="ts-subtle" id="key-status" role="status"></span></FormActions>
-				</form>
-			</Panel>
-			<Panel eyebrow="Capacity" title="Keys" description="Existing keys for this provider.">
-				<PlainTable columns={[{ key: 'name', label: 'Key' }, { key: 'status', label: 'Status' }, { key: 'expires', label: 'Expires' }, { key: 'action', label: 'Action' }]} rows={rows} emptyTitle="No keys yet" emptyDescription="Create the first key above." />
+			<Panel eyebrow="Capacity" title={`Rotate key for ${provider.name}`} description="Rotation revokes the old key immediately and reveals the new key once.">
+				<p class="ts-subtle">Restart the capacity provider after rotation. The old key stops working immediately, and the new key is displayed only once.</p>
+				<FormActions align="start"><button class="ts-button" type="button" id="rotate-key-button">Rotate API key</button><button class="ts-button-secondary" type="button" id="copy-key-button" hidden>Copy key</button><Button href="/app/capacity/providers" variant="secondary">Back</Button><span class="ts-subtle" id="key-status" role="status"></span></FormActions>
+				<pre id="key-display" class="ts-code-block" hidden></pre>
 			</Panel>
 		</section>
 	) : (
-		<EmptyState title="Provider not found" description="This provider is not available." actions={[{ label: 'Back to Capacity', href: '/app/capacity' }]} />
+		<EmptyState title="Provider not found" description="This provider is not available." actions={[{ label: 'Back to Capacity', href: '/app/capacity/providers' }]} />
 	)}
 </TreeseedAppLayout>
 
 <script is:inline define:vars={{ teamId: team?.id ?? '', providerId: provider?.id ?? '' }}>
-	const form = document.getElementById('key-form');
 	const status = document.getElementById('key-status');
-	const reset = document.getElementById('reset-key-button');
-	function bodyFromForm() {
-		const data = new FormData(form);
-		return {
-			name: String(data.get('name') ?? '').trim() || undefined,
-			expiresAt: String(data.get('expiresAt') ?? '').trim() || null,
-			scopes: String(data.get('scopes') ?? '').split(',').map((scope) => scope.trim()).filter(Boolean),
-		};
-	}
-	async function post(path, body) {
-		const response = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+	const rotate = document.getElementById('rotate-key-button');
+	const copy = document.getElementById('copy-key-button');
+	const keyDisplay = document.getElementById('key-display');
+	let revealedKey = '';
+	async function post(path) {
+		const response = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) });
 		const payload = await response.json().catch(() => null);
 		if (!response.ok || payload?.ok === false) throw new Error(payload?.error ?? 'Request failed.');
-		return payload.payload;
+		return payload;
 	}
-	form?.addEventListener('submit', async (event) => {
-		event.preventDefault();
-		if (status) status.textContent = 'Creating...';
+	copy?.addEventListener('click', async () => {
+		if (!revealedKey) return;
 		try {
-			const result = await post(`/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/api-keys`, bodyFromForm());
-			if (status) status.textContent = result?.plaintextKey ? `Key: ${result.plaintextKey}` : 'Key created.';
-		} catch (error) { if (status) status.textContent = error instanceof Error ? error.message : 'Key failed.'; }
+			await navigator.clipboard.writeText(revealedKey);
+			if (status) status.textContent = 'Copied. Restart the capacity provider with this key.';
+		} catch {
+			if (status) status.textContent = 'Copy failed. Select the key text manually.';
+		}
 	});
-	reset?.addEventListener('click', async () => {
-		if (status) status.textContent = 'Resetting...';
+	rotate?.addEventListener('click', async () => {
+		if (status) status.textContent = 'Rotating...';
 		try {
-			const result = await post(`/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/api-keys/reset`, bodyFromForm());
-			if (status) status.textContent = result?.plaintextKey ? `Key: ${result.plaintextKey}` : 'Key reset.';
-		} catch (error) { if (status) status.textContent = error instanceof Error ? error.message : 'Reset failed.'; }
-	});
-	document.querySelectorAll('[data-revoke-key]').forEach((button) => {
-		button.addEventListener('click', async () => {
-			const keyId = button.getAttribute('data-revoke-key') ?? '';
-			try {
-				await post(`/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/api-keys/${encodeURIComponent(keyId)}/revoke`);
-				window.location.href = `${window.location.pathname}?revoked=${Date.now()}`;
-			} catch (error) { if (status) status.textContent = error instanceof Error ? error.message : 'Revoke failed.'; }
-		});
+			const result = await post(`/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/keys/rotate`);
+			revealedKey = String(result?.apiKey?.plaintext ?? '');
+			if (status) status.textContent = 'Key rotated. Restart the capacity provider with this key. The old key no longer works.';
+			if (keyDisplay) {
+				keyDisplay.hidden = false;
+				keyDisplay.textContent = `TREESEED_CAPACITY_PROVIDER_API_KEY=${revealedKey}`;
+			}
+			if (copy) copy.hidden = false;
+		} catch (error) { if (status) status.textContent = error instanceof Error ? error.message : 'Rotate failed.'; }
 	});
 </script>

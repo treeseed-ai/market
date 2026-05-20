@@ -8,11 +8,10 @@ Last updated: 2026-05-13
 
 ## Processing Parity Update
 
-Capacity scheduling now sits behind the same processing role contract used by
-manager and worker parity. `@treeseed/agent` owns the built processing runtime,
-including `treeseed-processing`, manager, worker, runtime paths, doctor, plan,
-and built-in handlers. Market supplies the tenant agent specs and capacity
-configuration consumed by that runtime.
+Capacity scheduling now sits behind the package-owned capacity provider
+contract. `@treeseed/agent` owns provider API, manager, runner, runtime paths,
+doctor, plan, and built-in handlers. Market supplies tenant specs, provider
+registry state, tasks, usage, and reports through `/v1/provider/*`.
 
 Parity-mode workers must use `/data` storage, including
 `/data/repositories/<repository-id>/bare.git`,

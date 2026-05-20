@@ -2,7 +2,6 @@
 import Button from '../../../../../../packages/core/src/components/ui/forms/Button.astro';
 import Field from '../../../../../../packages/core/src/components/ui/forms/Field.astro';
 import FormActions from '../../../../../../packages/core/src/components/ui/forms/FormActions.astro';
-import Select from '../../../../../../packages/core/src/components/ui/forms/Select.astro';
 import TextInput from '../../../../../../packages/core/src/components/ui/forms/TextInput.astro';
 import EmptyState from '../../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../../../packages/core/src/components/ui/surface/Panel.astro';
@@ -16,37 +15,97 @@ const team = context.activeTeam;
 const providers = team && context.store ? await context.store.listTeamCapacityProviders(team.id).catch(() => []) : [];
 const provider = providers.find((entry: any) => entry.id === providerId) ?? null;
 if (!provider) Astro.response.status = 404;
+const deployments = provider && team && context.store && typeof context.store.listCapacityProviderDeployments === 'function'
+	? await context.store.listCapacityProviderDeployments(team.id, provider.id).catch(() => [])
+	: [];
+const latestDeployment = deployments[0] ?? null;
+const capabilities = provider?.capabilities ?? {};
+const budgets = provider?.budgets ?? {};
+const deployment = latestDeployment ?? provider?.deployment ?? (Array.isArray(provider?.deployments) ? provider.deployments[0] : null);
+const registration = Array.isArray(provider?.registrations) ? provider.registrations[0] : null;
+const latestWorkday = provider?.metadata?.latestProviderWorkday ?? null;
+const latestReport = provider?.metadata?.latestProviderReport ?? null;
 ---
 
-<TreeseedAppLayout title={provider ? `Edit ${provider.name}` : 'Provider not found'} description="Edit one capacity provider." currentPath="/app/capacity" teams={context.teams} activeTeam={team}>
+<TreeseedAppLayout title={provider ? `Edit ${provider.name}` : 'Provider not found'} description="Edit one capacity provider." currentPath="/app/capacity/providers" teams={context.teams} activeTeam={team}>
 	{provider ? (
 		<section class="ts-control-page" aria-label="Edit provider">
-			<Panel eyebrow="Capacity" title="Edit provider" description="Update one provider's budgets and concurrency.">
+			<Panel eyebrow="Capacity" title="Edit provider" description="Rename this capacity provider. Runtime settings are reported by the provider.">
 				<form id="provider-form" class="ts-form-stack">
 					<div class="ts-form-grid">
 						<Field label="Name" name="name" required><TextInput name="name" required value={provider.name ?? ''} /></Field>
-						<Field label="Provider" name="provider" required><TextInput name="provider" required value={provider.provider ?? 'custom'} /></Field>
-						<Field label="Kind" name="kind"><Select name="kind" value={provider.kind ?? 'team_owned'} options={[{ label: 'Team owned', value: 'team_owned' }, { label: 'Managed', value: 'managed' }, { label: 'Host backed', value: 'host_backed' }]} /></Field>
-						<Field label="Status" name="status"><Select name="status" value={provider.status ?? 'active'} options={[{ label: 'Active', value: 'active' }, { label: 'Paused', value: 'paused' }, { label: 'Draining', value: 'draining' }]} /></Field>
-						<Field label="Billing scope" name="billingScope"><Select name="billingScope" value={provider.billingScope ?? 'team'} options={[{ label: 'Team', value: 'team' }, { label: 'Project', value: 'project' }]} /></Field>
-						<Field label="Daily credit budget" name="dailyCreditBudget"><TextInput name="dailyCreditBudget" type="number" value={provider.dailyCreditBudget ?? 0} /></Field>
-						<Field label="Monthly credit budget" name="monthlyCreditBudget"><TextInput name="monthlyCreditBudget" type="number" value={provider.monthlyCreditBudget ?? 0} /></Field>
-						<Field label="Max concurrent workdays" name="maxConcurrentWorkdays"><TextInput name="maxConcurrentWorkdays" type="number" value={provider.maxConcurrentWorkdays ?? 1} /></Field>
-						<Field label="Max concurrent workers" name="maxConcurrentWorkers"><TextInput name="maxConcurrentWorkers" type="number" value={provider.maxConcurrentWorkers ?? 1} /></Field>
 					</div>
-					<FormActions align="start"><Button type="submit">Save provider</Button><Button href="/app/capacity" variant="secondary">Back</Button><span class="ts-subtle" id="provider-status" role="status"></span></FormActions>
+					<FormActions align="start"><Button type="submit">Save provider</Button><Button href="/app/capacity/providers" variant="secondary">Back</Button><span class="ts-subtle" id="provider-status" role="status"></span></FormActions>
 				</form>
+			</Panel>
+			<Panel eyebrow="Runtime" title="Provider state" description="These values are broadcast by the provider runtime.">
+				<dl class="ts-definition-list">
+					<div><dt>Status</dt><dd>{provider.status ?? 'pending'}</dd></div>
+					<div><dt>Connection</dt><dd>{provider.connectionState ?? provider.metadata?.connectionState ?? 'waiting_for_provider'}</dd></div>
+					<div><dt>Last heartbeat</dt><dd>{provider.lastSeenAt ?? provider.metadata?.lastSeenAt ?? 'never'}</dd></div>
+					<div><dt>Active key prefix</dt><dd>{provider.activeKeyPrefix ?? provider.metadata?.apiKey?.activeKeyPrefix ?? 'none'}</dd></div>
+					<div><dt>Launch mode</dt><dd>{provider.launchMode ?? 'self_hosted'}</dd></div>
+				</dl>
+			</Panel>
+			<Panel eyebrow="Capabilities" title="Broadcast capabilities" description="Provider capabilities are read-only and update after registration.">
+				<pre class="ts-code-block">{JSON.stringify(capabilities, null, 2)}</pre>
+			</Panel>
+			<Panel eyebrow="Budgets" title="Broadcast budgets" description="Provider budgets are read-only and update after registration.">
+				<dl class="ts-definition-list">
+					<div><dt>Daily credits</dt><dd>{budgets.dailyCreditBudget ?? budgets.dailyTaskCreditBudget ?? provider.dailyCreditBudget ?? 0}</dd></div>
+					<div><dt>Monthly credits</dt><dd>{budgets.monthlyCreditBudget ?? provider.monthlyCreditBudget ?? 0}</dd></div>
+					<div><dt>Concurrent runners</dt><dd>{budgets.maxConcurrentRunners ?? budgets.maxConcurrentWorkers ?? provider.maxConcurrentWorkers ?? 0}</dd></div>
+				</dl>
+			</Panel>
+			<Panel eyebrow="Deployment" title="Deployment status" description="Deployment records are owned by provider launch workflows.">
+				<dl class="ts-definition-list">
+					<div><dt>Status</dt><dd>{deployment?.status ?? deployment?.state ?? 'not started'}</dd></div>
+					<div><dt>Kind</dt><dd>{deployment?.deploymentKind ?? deployment?.kind ?? provider.launchMode ?? 'self_hosted'}</dd></div>
+					<div><dt>Updated</dt><dd>{deployment?.updatedAt ?? deployment?.createdAt ?? 'never'}</dd></div>
+					<div><dt>API service</dt><dd>{deployment?.serviceRefs?.api?.serviceName ?? deployment?.serviceRefs?.api?.serviceId ?? 'not provisioned'}</dd></div>
+				</dl>
+			</Panel>
+			<Panel eyebrow="Deploy" title="Launch provider services" description="Self-host returns instructions. Managed and connected deployments provision package-owned api, manager, and runner services.">
+				<form id="provider-deploy-form" class="ts-form-stack">
+					{provider.launchMode === 'connected_host' && (
+						<Field label="Capacity provider host credential session" name="capacityProviderHost">
+							<TextInput name="capacityProviderHost" placeholder="Provider credential session ID" />
+						</Field>
+					)}
+					<FormActions align="start">
+						<Button type="submit">Deploy provider</Button>
+						<span class="ts-subtle" id="provider-deploy-status" role="status"></span>
+					</FormActions>
+				</form>
+				<pre id="provider-deploy-result" class="ts-code-block" hidden></pre>
+			</Panel>
+			<Panel eyebrow="Registration" title="Latest registration" description="Registration and health are reported by the provider runtime.">
+				<pre class="ts-code-block">{JSON.stringify(registration ?? { status: 'not registered' }, null, 2)}</pre>
+			</Panel>
+			<Panel eyebrow="Provider work" title="Latest provider-generated state" description="Workday and report state is generated by the external provider runtime.">
+				<dl class="ts-definition-list">
+					<div><dt>Workday</dt><dd>{latestWorkday?.workDayId ?? 'not reported'}</dd></div>
+					<div><dt>Project</dt><dd>{latestWorkday?.projectId ?? 'not reported'}</dd></div>
+					<div><dt>Report</dt><dd>{latestReport?.summary ?? latestReport?.status ?? 'not reported'}</dd></div>
+					<div><dt>Updated</dt><dd>{latestReport?.createdAt ?? latestWorkday?.updatedAt ?? 'never'}</dd></div>
+				</dl>
+			</Panel>
+			<Panel eyebrow="Self-host" title="Instructions" description="Use trsd config for secrets. Display values are redacted and never include plaintext provider keys.">
+				<pre id="self-hosting-display" class="ts-code-block">Loading self-host instructions...</pre>
 			</Panel>
 		</section>
 	) : (
-		<EmptyState title="Provider not found" description="This capacity provider is not available." actions={[{ label: 'Back to Capacity', href: '/app/capacity' }]} />
+		<EmptyState title="Provider not found" description="This capacity provider is not available." actions={[{ label: 'Back to Capacity', href: '/app/capacity/providers' }]} />
 	)}
 </TreeseedAppLayout>
 
 <script is:inline define:vars={{ teamId: team?.id ?? '', providerId: provider?.id ?? '' }}>
 	const form = document.getElementById('provider-form');
 	const status = document.getElementById('provider-status');
-	function numberValue(data, key) { return Number(data.get(key) ?? 0); }
+	const deployForm = document.getElementById('provider-deploy-form');
+	const deployStatus = document.getElementById('provider-deploy-status');
+	const deployResult = document.getElementById('provider-deploy-result');
+	const selfHostingDisplay = document.getElementById('self-hosting-display');
 	form?.addEventListener('submit', async (event) => {
 		event.preventDefault();
 		const data = new FormData(form);
@@ -56,16 +115,6 @@ if (!provider) Astro.response.status = 404;
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({
 				name: String(data.get('name') ?? '').trim(),
-				provider: String(data.get('provider') ?? 'custom').trim(),
-				kind: String(data.get('kind') ?? 'team_owned'),
-				status: String(data.get('status') ?? 'active'),
-				billingScope: String(data.get('billingScope') ?? 'team'),
-				dailyCreditBudget: numberValue(data, 'dailyCreditBudget'),
-				monthlyCreditBudget: numberValue(data, 'monthlyCreditBudget'),
-				maxConcurrentWorkdays: numberValue(data, 'maxConcurrentWorkdays'),
-				maxConcurrentWorkers: numberValue(data, 'maxConcurrentWorkers'),
-				capacityModel: {},
-				metadata: {},
 			}),
 		});
 		const payload = await response.json().catch(() => null);
@@ -74,5 +123,47 @@ if (!provider) Astro.response.status = 404;
 			return;
 		}
 		if (status) status.textContent = 'Saved.';
+	});
+	if (selfHostingDisplay && teamId && providerId) {
+		fetch(`/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/self-hosting`)
+			.then((response) => response.json())
+			.then((payload) => {
+				if (payload?.ok === false) throw new Error(payload?.error ?? 'Self-host instructions unavailable.');
+				const env = payload?.selfHosting?.env ?? {};
+				const lines = Object.entries(env).map(([key, value]) => `${key}=${value}`);
+				selfHostingDisplay.textContent = [
+					...lines,
+					'',
+					...(payload?.selfHosting?.commands ?? []),
+				].join('\n').trim();
+			})
+			.catch((error) => {
+				selfHostingDisplay.textContent = error instanceof Error ? error.message : 'Self-host instructions unavailable.';
+			});
+	}
+	deployForm?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const data = new FormData(deployForm);
+		if (deployStatus) deployStatus.textContent = 'Starting deployment...';
+		const response = await fetch(`/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/deployments`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				launchMode: String(data.get('launchMode') ?? '') || undefined,
+				credentialSessions: {
+					capacityProviderHost: String(data.get('capacityProviderHost') ?? '').trim() || undefined,
+				},
+			}),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			if (deployStatus) deployStatus.textContent = payload?.error ?? 'Deployment could not be started.';
+			return;
+		}
+		if (deployStatus) deployStatus.textContent = payload?.deployment ? `Deployment ${payload.deployment.status}. Provider registration will update after services start.` : 'Self-host instructions refreshed.';
+		if (deployResult) {
+			deployResult.hidden = false;
+			deployResult.textContent = JSON.stringify(payload.deployment ?? payload.selfHosting ?? {}, null, 2);
+		}
 	});
 </script>

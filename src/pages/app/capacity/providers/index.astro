@@ -1,0 +1,78 @@
+---
+import Button from '../../../../../packages/core/src/components/ui/forms/Button.astro';
+import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../../components/app/controls/PlainTable.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
+import { loadOperationalContext } from '../../../../view-models/shared.js';
+
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/capacity/providers')}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+const team = context.activeTeam;
+const providers = team && context.store ? await context.store.listTeamCapacityProviders(team.id).catch(() => []) : [];
+
+function summarizeCapabilities(provider: any) {
+	const runtimes = Array.isArray(provider.capabilities?.runtimes) ? provider.capabilities.runtimes : [];
+	const handlers = Array.isArray(provider.capabilities?.handlers) ? provider.capabilities.handlers : [];
+	const labels = [...runtimes, ...handlers]
+		.map((entry) => typeof entry === 'string' ? entry : entry?.name ?? entry?.id ?? '')
+		.filter(Boolean);
+	return labels.length > 0 ? labels.slice(0, 3).join(', ') + (labels.length > 3 ? ` +${labels.length - 3}` : '') : 'not reported';
+}
+
+function summarizeBudgets(provider: any) {
+	const budgets = provider.budgets ?? {};
+	const daily = budgets.dailyCreditBudget ?? budgets.dailyTaskCreditBudget ?? provider.dailyCreditBudget ?? 0;
+	const monthly = budgets.monthlyCreditBudget ?? provider.monthlyCreditBudget ?? 0;
+	const runners = budgets.maxConcurrentRunners ?? budgets.maxConcurrentWorkers ?? provider.maxConcurrentWorkers ?? 0;
+	return `${daily} daily / ${monthly} monthly / ${runners} runners`;
+}
+
+function summarizeDeployment(provider: any) {
+	const deployment = provider.deployment ?? (Array.isArray(provider.deployments) ? provider.deployments[0] : null);
+	return deployment?.status ?? deployment?.state ?? provider.launchMode ?? 'not started';
+}
+
+function summarizeProviderWork(provider: any) {
+	const report = provider.metadata?.latestProviderReport;
+	const workday = provider.metadata?.latestProviderWorkday;
+	return report?.status ?? report?.summary ?? workday?.workDayId ?? 'not reported';
+}
+
+const rows = providers.map((provider: any) => ({
+	id: `provider-${esc(provider.id)}`,
+	name: `<strong>${esc(provider.name)}</strong><span>${esc(provider.launchMode ?? 'self_hosted')}</span>`,
+	connection: esc(provider.connectionState ?? provider.metadata?.connectionState ?? 'waiting_for_provider'),
+	heartbeat: esc(provider.lastSeenAt ?? provider.metadata?.lastSeenAt ?? 'never'),
+	key: esc(provider.activeKeyPrefix ?? provider.metadata?.apiKey?.activeKeyPrefix ?? 'none'),
+	capabilities: esc(summarizeCapabilities(provider)),
+	budget: esc(summarizeBudgets(provider)),
+	deployment: esc(summarizeDeployment(provider)),
+	providerWork: esc(summarizeProviderWork(provider)),
+	actions: `<a class="ts-link-button" href="/app/capacity/providers/${encodeURIComponent(provider.id)}/edit">Open</a> <a class="ts-link-button" href="/app/capacity/providers/${encodeURIComponent(provider.id)}/keys">Rotate key</a>`,
+}));
+---
+
+<TreeseedAppLayout title="Capacity providers" description="Manage provider lifecycle and runtime state." currentPath="/app/capacity/providers" teams={context.teams} activeTeam={team}>
+	<section class="ts-control-page" aria-label="Capacity providers">
+		<Panel eyebrow="Capacity" title="Providers" description={team ? 'Create providers, rotate keys, and review provider-reported runtime state.' : 'Create a team before adding capacity.'}>
+			<Button slot="actions" href="/app/capacity/providers/new" size="sm">New provider</Button>
+			{team ? (
+				<PlainTable columns={[
+					{ key: 'name', label: 'Provider' },
+					{ key: 'connection', label: 'Connection' },
+					{ key: 'heartbeat', label: 'Last heartbeat' },
+					{ key: 'key', label: 'Active key' },
+					{ key: 'capabilities', label: 'Capabilities' },
+					{ key: 'budget', label: 'Budget' },
+					{ key: 'deployment', label: 'Deployment' },
+					{ key: 'providerWork', label: 'Provider work' },
+					{ key: 'actions', label: 'Actions' },
+				]} rows={rows} emptyTitle="No providers yet" emptyDescription="Create a provider to make capacity available." />
+			) : (
+				<EmptyState title="No team selected" description="Create or switch to a team first." actions={[{ label: 'Open Team', href: '/app/teams' }]} />
+			)}
+		</Panel>
+	</section>
+</TreeseedAppLayout>

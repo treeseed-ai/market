@@ -23,7 +23,6 @@ on:
         type: choice
         options:
           - deploy_web
-          - deploy_processing
           - publish_content
           - monitor
       project_id:
@@ -41,7 +40,6 @@ jobs:
     outputs:
       scope: ${{ steps.classify.outputs.scope }}
       web_changed: ${{ steps.classify.outputs.web_changed }}
-      processing_changed: ${{ steps.classify.outputs.processing_changed }}
       content_changed: ${{ steps.classify.outputs.content_changed }}
       release_tag: ${{ steps.classify.outputs.release_tag }}
       workflow_action: ${{ steps.classify.outputs.workflow_action }}
@@ -62,7 +60,6 @@ jobs:
             release_tag="false"
             preview_id="${{ inputs.preview_id }}"
             web_changed=$([[ "${workflow_action}" == "deploy_web" || "${workflow_action}" == "publish_content" ]] && echo "true" || echo "false")
-            processing_changed=$([[ "${workflow_action}" == "deploy_processing" ]] && echo "true" || echo "false")
             content_changed=$([[ "${workflow_action}" == "publish_content" ]] && echo "true" || echo "false")
           else
             scope=$([[ "${GITHUB_REF_TYPE}" == "tag" ]] && echo "prod" || echo "staging")
@@ -74,11 +71,9 @@ jobs:
               compare_ref="$(git rev-list --max-count=1 "${GITHUB_SHA}^" 2>/dev/null || true)"
             fi
             web_changed="false"
-            processing_changed="false"
             content_changed="false"
             if [[ -z "${compare_ref}" || "${release_tag}" == "true" ]]; then
               web_changed="true"
-              processing_changed="true"
             else
               while IFS= read -r path; do
                 [[ -z "${path}" ]] && continue
@@ -87,12 +82,11 @@ jobs:
                     content_changed="true"
                     web_changed="true"
                     ;;
-                  packages/agent/*|src/api/*|scripts/build-api.mjs|migrations/*|treeseed.site.yaml|.railwayignore|.gitignore)
-                    processing_changed="true"
+                  src/api/*|scripts/build-api.mjs|migrations/*|treeseed.site.yaml|.railwayignore|.gitignore)
+                    web_changed="true"
                     ;;
                   packages/sdk/*|package.json|package-lock.json|.github/workflows/*)
                     web_changed="true"
-                    processing_changed="true"
                     ;;
                   *)
                     web_changed="true"
@@ -105,7 +99,6 @@ jobs:
           {
             echo "scope=${scope}"
             echo "web_changed=${web_changed}"
-            echo "processing_changed=${processing_changed}"
             echo "content_changed=${content_changed}"
             echo "release_tag=${release_tag}"
             echo "workflow_action=${workflow_action}"
@@ -125,21 +118,6 @@ jobs:
     with:
       environment: ${{ needs.classify.outputs.scope }}
       action_kind: ${{ needs.classify.outputs.workflow_action == 'publish_content' && 'publish_content' || (needs.classify.outputs.workflow_action == 'monitor' && 'monitor' || 'deploy_web') }}
-      project_id: ${{ inputs.project_id || vars.TREESEED_PROJECT_ID }}
-      preview_id: ${{ inputs.preview_id || needs.classify.outputs.preview_id }}
-    secrets: inherit
-
-  deploy-processing:
-    needs: classify
-    if: |
-      needs.classify.outputs.workflow_action == 'deploy_processing' ||
-      needs.classify.outputs.workflow_action == 'monitor' ||
-      needs.classify.outputs.processing_changed == 'true' ||
-      needs.classify.outputs.release_tag == 'true'
-    uses: ./.github/workflows/deploy-processing.yml
-    with:
-      environment: ${{ needs.classify.outputs.scope }}
-      action_kind: ${{ needs.classify.outputs.workflow_action == 'monitor' && 'monitor' || 'deploy_processing' }}
       project_id: ${{ inputs.project_id || vars.TREESEED_PROJECT_ID }}
       preview_id: ${{ inputs.preview_id || needs.classify.outputs.preview_id }}
     secrets: inherit

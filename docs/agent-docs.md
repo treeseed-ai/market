@@ -21,9 +21,8 @@ The plan does not introduce a separate documentation automation system. It compl
 ## Current Processing Parity Note
 
 The hosted/local processing runtime now centers on the `@treeseed/agent`
-package. That package owns the built Agent API, `treeseed-processing` role
-dispatcher, bounded manager, worker loop, processing plan/doctor, runtime path
-resolver, built-in handlers, and testing harnesses. The top-level Market repo
+package. That package owns provider API, manager, runner, provider plan/doctor,
+runtime path resolver, built-in handlers, and testing harnesses. The top-level Market repo
 still owns tenant Markdown specs and executable test catalog entries under
 `src/content/agents` and `src/content/agent-tests`.
 

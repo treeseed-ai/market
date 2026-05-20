@@ -47,12 +47,11 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 									{ label: 'Knowledge pack import', value: 'knowledge_pack' },
 								]} />
 							</Field>
-							<Field label="Repository host" name="repositoryHostId"><Select name="repositoryHostId" options={[]} /></Field>
-							<div class="ts-form-grid">
-								<Field label="Web host" name="cloudflareHostChoice" required><Select name="cloudflareHostChoice" options={[]} required /></Field>
-								<Field label="Processing host" name="processingHostChoice" required><Select name="processingHostChoice" options={[]} required /></Field>
-								<Field label="Email host" name="emailHostChoice" required><Select name="emailHostChoice" options={[]} required /></Field>
-							</div>
+								<Field label="Repository host" name="repositoryHostId"><Select name="repositoryHostId" options={[]} /></Field>
+								<div class="ts-form-grid">
+									<Field label="Web host" name="cloudflareHostChoice" required><Select name="cloudflareHostChoice" options={[]} required /></Field>
+									<Field label="Email host" name="emailHostChoice" required><Select name="emailHostChoice" options={[]} required /></Field>
+								</div>
 							<div class="ts-form-note" id="launch-sensitive-notice" hidden>
 								<strong>Sensitive data unlock required.</strong>
 								<span>Unlock sensitive data from the header before launching with team-owned hosts.</span>
@@ -76,18 +75,14 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 <script>
 	const dataElement = document.getElementById('project-launch-data');
 	const data = dataElement?.textContent ? JSON.parse(dataElement.textContent) : { hosts: [], repositoryHosts: [] };
-	const launchForm = document.getElementById('project-launch-form') as HTMLFormElement | null;
-	const hostSelect = launchForm?.elements.namedItem('cloudflareHostChoice') as HTMLSelectElement | null;
-	const processingHostSelect = launchForm?.elements.namedItem('processingHostChoice') as HTMLSelectElement | null;
-	const emailHostSelect = launchForm?.elements.namedItem('emailHostChoice') as HTMLSelectElement | null;
+		const launchForm = document.getElementById('project-launch-form') as HTMLFormElement | null;
+		const hostSelect = launchForm?.elements.namedItem('cloudflareHostChoice') as HTMLSelectElement | null;
+		const emailHostSelect = launchForm?.elements.namedItem('emailHostChoice') as HTMLSelectElement | null;
 	const repositoryHostSelect = launchForm?.elements.namedItem('repositoryHostId') as HTMLSelectElement | null;
 	const sensitiveNotice = document.getElementById('launch-sensitive-notice');
 	const statusElement = document.getElementById('project-launch-status');
 	function setStatus(message: string) { if (statusElement) statusElement.textContent = message; }
-	function hostType(host: any) {
-		const legacyProcessing = ['ag', 'ent'].join('');
-		return host.metadata?.hostType === legacyProcessing ? 'processing' : (host.metadata?.hostType ?? 'web');
-	}
+		function hostType(host: any) { return host.metadata?.hostType ?? 'web'; }
 	function hostsFor(hostKind: string, provider: string) { return (data.hosts ?? []).filter((host: any) => host.provider === provider && hostType(host) === hostKind); }
 	function refreshOne(select: HTMLSelectElement | null, hostKind: string, provider: string) {
 		if (!select) return;
@@ -112,12 +107,11 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 	}
 	function selectedHostMode(select: HTMLSelectElement | null) { return String(select?.value ?? '').startsWith('team_owned:') ? 'team_owned' : 'treeseed_managed'; }
 	function selectedRepositoryHost() { return (data.repositoryHosts ?? []).find((host: any) => host.id === repositoryHostSelect?.value) ?? null; }
-	function requiresSensitiveUnlock() {
-		return selectedHostMode(hostSelect) === 'team_owned'
-			|| selectedHostMode(processingHostSelect) === 'team_owned'
-			|| selectedHostMode(emailHostSelect) === 'team_owned'
-			|| selectedRepositoryHost()?.ownership === 'team_owned';
-	}
+		function requiresSensitiveUnlock() {
+			return selectedHostMode(hostSelect) === 'team_owned'
+				|| selectedHostMode(emailHostSelect) === 'team_owned'
+				|| selectedRepositoryHost()?.ownership === 'team_owned';
+		}
 	function refreshSensitiveRequirement() { if (sensitiveNotice) sensitiveNotice.hidden = !requiresSensitiveUnlock(); }
 	async function createCredentialSession(request: { hostKind: string; hostId: string; passphrase: string }) {
 		const response = await fetch(`/v1/teams/${encodeURIComponent(data.teamId)}/provider-credential-sessions`, {
@@ -128,13 +122,12 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 		const payload = await response.json().catch(() => null);
 		if (!response.ok || payload?.ok === false) throw new Error(payload?.error ?? `Unable to unlock ${request.hostKind}.`);
 		return payload.payload?.id;
-	}
-	refreshOne(hostSelect, 'web', 'cloudflare');
-	refreshOne(processingHostSelect, 'processing', 'railway');
-	refreshOne(emailHostSelect, 'email', 'smtp');
-	refreshRepositories();
-	refreshSensitiveRequirement();
-	[hostSelect, processingHostSelect, emailHostSelect, repositoryHostSelect].forEach((select) => select?.addEventListener('change', refreshSensitiveRequirement));
+		}
+		refreshOne(hostSelect, 'web', 'cloudflare');
+		refreshOne(emailHostSelect, 'email', 'smtp');
+		refreshRepositories();
+		refreshSensitiveRequirement();
+		[hostSelect, emailHostSelect, repositoryHostSelect].forEach((select) => select?.addEventListener('change', refreshSensitiveRequirement));
 	launchForm?.addEventListener('submit', async (event) => {
 		event.preventDefault();
 		const form = new FormData(launchForm);
@@ -142,15 +135,13 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 		setStatus('Creating project...');
 		try {
 			const passphrase = requiresSensitiveUnlock() ? (window as any).treeseedSensitiveUnlock?.requirePassphrase?.() : null;
-			if (requiresSensitiveUnlock() && !passphrase) throw new Error('Unlock sensitive data from the header before launching with team-owned hosts.');
-			const selectedWebHost: any = selectedHost(hostSelect, 'web', 'cloudflare');
-			const selectedProcessingHost: any = selectedHost(processingHostSelect, 'processing', 'railway');
-			const selectedEmailHost: any = selectedHost(emailHostSelect, 'email', 'smtp');
-			const selectedRepoHost: any = selectedRepositoryHost();
-			if (selectedRepoHost?.ownership === 'team_owned') credentialSessions.repositoryHost = await createCredentialSession({ hostKind: 'repository_host', hostId: selectedRepoHost.id, passphrase });
-			if (selectedHostMode(hostSelect) === 'team_owned') credentialSessions.webHost = await createCredentialSession({ hostKind: 'web_host', hostId: selectedWebHost?.id ?? '', passphrase });
-			if (selectedHostMode(processingHostSelect) === 'team_owned') credentialSessions.processingHost = await createCredentialSession({ hostKind: 'processing_host', hostId: selectedProcessingHost?.id ?? '', passphrase });
-			if (selectedHostMode(emailHostSelect) === 'team_owned') credentialSessions.emailHost = await createCredentialSession({ hostKind: 'email_host', hostId: selectedEmailHost?.id ?? '', passphrase });
+				if (requiresSensitiveUnlock() && !passphrase) throw new Error('Unlock sensitive data from the header before launching with team-owned hosts.');
+				const selectedWebHost: any = selectedHost(hostSelect, 'web', 'cloudflare');
+				const selectedEmailHost: any = selectedHost(emailHostSelect, 'email', 'smtp');
+				const selectedRepoHost: any = selectedRepositoryHost();
+				if (selectedRepoHost?.ownership === 'team_owned') credentialSessions.repositoryHost = await createCredentialSession({ hostKind: 'repository_host', hostId: selectedRepoHost.id, passphrase });
+				if (selectedHostMode(hostSelect) === 'team_owned') credentialSessions.webHost = await createCredentialSession({ hostKind: 'web_host', hostId: selectedWebHost?.id ?? '', passphrase });
+				if (selectedHostMode(emailHostSelect) === 'team_owned') credentialSessions.emailHost = await createCredentialSession({ hostKind: 'email_host', hostId: selectedEmailHost?.id ?? '', passphrase });
 			const slug = String(form.get('slug') ?? '').trim();
 			const response = await fetch(`/v1/teams/${encodeURIComponent(data.teamId)}/projects/launch`, {
 				method: 'POST',
@@ -163,12 +154,10 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 					hostingMode: 'managed',
 					repoProvider: 'github',
 					repoVisibility: 'private',
-					repositoryHostId: String(form.get('repositoryHostId') ?? 'platform:github:hosted-hubs'),
-					cloudflareHostMode: selectedHostMode(hostSelect),
-					cloudflareHostId: selectedWebHost?.id ?? null,
-					processingHostMode: selectedHostMode(processingHostSelect),
-					processingHostId: selectedProcessingHost?.id ?? null,
-					emailHostMode: selectedHostMode(emailHostSelect),
+						repositoryHostId: String(form.get('repositoryHostId') ?? 'platform:github:hosted-hubs'),
+						cloudflareHostMode: selectedHostMode(hostSelect),
+						cloudflareHostId: selectedWebHost?.id ?? null,
+						emailHostMode: selectedHostMode(emailHostSelect),
 					emailHostId: selectedEmailHost?.id ?? null,
 					credentialSessions,
 					publicSite: true,

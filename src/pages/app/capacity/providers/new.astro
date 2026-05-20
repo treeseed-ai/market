@@ -14,24 +14,27 @@ const context = await loadOperationalContext(Astro.locals, Astro);
 const team = context.activeTeam;
 ---
 
-<TreeseedAppLayout title="New capacity provider" description="Create one processing capacity provider." currentPath="/app/capacity" teams={context.teams} activeTeam={team}>
+<TreeseedAppLayout title="New capacity provider" description="Create one capacity provider." currentPath="/app/capacity/providers" teams={context.teams} activeTeam={team}>
 	{team ? (
 		<section class="ts-control-page" aria-label="New capacity provider">
-			<Panel eyebrow="Capacity" title="Create provider" description="Set budgets and concurrency for one provider.">
+			<Panel eyebrow="Capacity" title="Create provider" description="Create a standalone capacity provider and reveal its API key once.">
 				<form id="provider-form" class="ts-form-stack">
 					<div class="ts-form-grid">
 						<Field label="Name" name="name" required><TextInput name="name" required /></Field>
-						<Field label="Provider" name="provider" required><TextInput name="provider" required value="custom" /></Field>
-						<Field label="Kind" name="kind"><Select name="kind" options={[{ label: 'Team owned', value: 'team_owned' }, { label: 'Managed', value: 'managed' }, { label: 'Host backed', value: 'host_backed' }]} /></Field>
-						<Field label="Status" name="status"><Select name="status" options={[{ label: 'Active', value: 'active' }, { label: 'Paused', value: 'paused' }, { label: 'Draining', value: 'draining' }]} /></Field>
-						<Field label="Billing scope" name="billingScope"><Select name="billingScope" options={[{ label: 'Team', value: 'team' }, { label: 'Project', value: 'project' }]} /></Field>
-						<Field label="Daily credit budget" name="dailyCreditBudget"><TextInput name="dailyCreditBudget" type="number" value="0" /></Field>
-						<Field label="Monthly credit budget" name="monthlyCreditBudget"><TextInput name="monthlyCreditBudget" type="number" value="0" /></Field>
-						<Field label="Max concurrent workdays" name="maxConcurrentWorkdays"><TextInput name="maxConcurrentWorkdays" type="number" value="1" /></Field>
-						<Field label="Max concurrent workers" name="maxConcurrentWorkers"><TextInput name="maxConcurrentWorkers" type="number" value="1" /></Field>
+						<Field label="Launch mode" name="launchMode"><Select name="launchMode" options={[{ label: 'Self-host', value: 'self_hosted' }, { label: 'Managed Market host', value: 'managed_market_host' }, { label: 'Connected host', value: 'connected_host' }]} /></Field>
 					</div>
-					<FormActions align="start"><Button type="submit">Create provider</Button><Button href="/app/capacity" variant="secondary">Cancel</Button><span class="ts-subtle" id="provider-status" role="status"></span></FormActions>
+					<FormActions align="start"><Button type="submit">Create provider</Button><Button href="/app/capacity/providers" variant="secondary">Cancel</Button><span class="ts-subtle" id="provider-status" role="status"></span></FormActions>
 				</form>
+			</Panel>
+			<Panel eyebrow="One-time reveal" title="Launch credentials" description="The provider API key is shown once. Store it through trsd config and restart the provider with the new value." >
+				<FormActions align="start">
+					<button class="ts-button-secondary" type="button" id="copy-provider-key" hidden>Copy key</button>
+					<span class="ts-subtle" id="copy-status" role="status"></span>
+				</FormActions>
+				<pre id="provider-key" class="ts-code-block" hidden></pre>
+			</Panel>
+			<Panel eyebrow="Self-host" title="Instructions" description="Use these redacted values with trsd config. Do not write plaintext provider keys into env files.">
+				<pre id="provider-instructions" class="ts-code-block" hidden></pre>
 			</Panel>
 		</section>
 	) : (
@@ -42,7 +45,20 @@ const team = context.activeTeam;
 <script is:inline define:vars={{ teamId: team?.id ?? '' }}>
 	const form = document.getElementById('provider-form');
 	const status = document.getElementById('provider-status');
-	function numberValue(data, key) { return Number(data.get(key) ?? 0); }
+	const keyDisplay = document.getElementById('provider-key');
+	const instructions = document.getElementById('provider-instructions');
+	const copyButton = document.getElementById('copy-provider-key');
+	const copyStatus = document.getElementById('copy-status');
+	let revealedKey = '';
+	copyButton?.addEventListener('click', async () => {
+		if (!revealedKey) return;
+		try {
+			await navigator.clipboard.writeText(revealedKey);
+			if (copyStatus) copyStatus.textContent = 'Copied.';
+		} catch {
+			if (copyStatus) copyStatus.textContent = 'Copy failed. Select the key text manually.';
+		}
+	});
 	form?.addEventListener('submit', async (event) => {
 		event.preventDefault();
 		const data = new FormData(form);
@@ -52,16 +68,7 @@ const team = context.activeTeam;
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({
 				name: String(data.get('name') ?? '').trim(),
-				provider: String(data.get('provider') ?? 'custom').trim(),
-				kind: String(data.get('kind') ?? 'team_owned'),
-				status: String(data.get('status') ?? 'active'),
-				billingScope: String(data.get('billingScope') ?? 'team'),
-				dailyCreditBudget: numberValue(data, 'dailyCreditBudget'),
-				monthlyCreditBudget: numberValue(data, 'monthlyCreditBudget'),
-				maxConcurrentWorkdays: numberValue(data, 'maxConcurrentWorkdays'),
-				maxConcurrentWorkers: numberValue(data, 'maxConcurrentWorkers'),
-				capacityModel: {},
-				metadata: {},
+				launchMode: String(data.get('launchMode') ?? 'self_hosted'),
 			}),
 		});
 		const payload = await response.json().catch(() => null);
@@ -69,6 +76,22 @@ const team = context.activeTeam;
 			if (status) status.textContent = payload?.error ?? 'Provider could not be created.';
 			return;
 		}
-		window.location.href = '/app/capacity';
+		revealedKey = String(payload?.apiKey?.plaintext ?? '');
+		if (status) status.textContent = 'Provider created. Store the revealed key and restart or launch the provider with it.';
+		if (keyDisplay) {
+			keyDisplay.hidden = false;
+			keyDisplay.textContent = `TREESEED_CAPACITY_PROVIDER_API_KEY=${revealedKey}`;
+		}
+		if (copyButton) copyButton.hidden = false;
+		if (instructions) {
+			const redactedEnv = payload?.selfHosting?.redactedEnv ?? payload?.selfHosting?.env ?? {};
+			const envLines = Object.entries(redactedEnv).map(([key, value]) => `${key}=${value}`);
+			instructions.hidden = false;
+			instructions.textContent = [
+				...envLines,
+				'',
+				...(payload?.selfHosting?.commands ?? []),
+			].join('\n').trim();
+		}
 	});
 </script>

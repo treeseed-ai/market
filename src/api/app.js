@@ -11,6 +11,11 @@ import {
 	reserveCreditsForEstimate,
 	routeAndReserveCapacity,
 	settleCapacityActuals,
+	renderCapacityProviderSelfHostInstructions,
+	resolveCapacityProviderEnvironment,
+	redactCapacityProviderEnv,
+	deployCapacityProviderToManagedMarketHost,
+	deployCapacityProviderToRailway,
 } from '@treeseed/sdk';
 import { runTreeseedHostingAudit } from '@treeseed/sdk/workflow-support';
 import {
@@ -19,15 +24,13 @@ import {
 	loadTemplateCatalog,
 	resolveApiConfig,
 	resolveApiD1Database,
-} from '@treeseed/agent/api';
+} from '@treeseed/sdk/api';
 import { MarketControlPlaneStore, validateProjectSlug } from './store.js';
 import { applySeedWithStore, exportSeedWithStore, planSeedWithStore } from '../lib/market/seeds/apply.js';
 import {
 	listTreeseedManagedHostsFromConfig,
 	managedCloudflareConfigMissing,
-	managedProcessingConfigMissing,
 	resolveTreeseedManagedCloudflareHostConfigFromConfig,
-	resolveTreeseedManagedProcessingHostConfigFromConfig,
 } from '../lib/market/managed-hosts.js';
 import { decryptHostConfig } from '../lib/cloudflare-host-crypto.js';
 import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicKey, createVerify, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -91,6 +94,12 @@ function optionalTrimmedString(value) {
 function enumValue(value, allowed, fallback = null) {
 	const candidate = typeof value === 'string' ? value.trim() : '';
 	return allowed.includes(candidate) ? candidate : fallback;
+}
+
+function unknownKeys(body, allowed) {
+	const allow = new Set(allowed);
+	return Object.keys(body && typeof body === 'object' && !Array.isArray(body) ? body : {})
+		.filter((key) => !allow.has(key));
 }
 
 const LOCAL_CONTENT_COLLECTIONS = new Set(['objectives', 'questions', 'notes', 'proposals', 'decisions', 'agents']);
@@ -734,15 +743,15 @@ function normalizeProviderCredentialConfig(hostKind, config) {
 const HOST_KIND_SESSION_KEYS = {
 	repository: { sessionKey: 'repositoryHost', hostKind: 'repository_host' },
 	web: { sessionKey: 'webHost', hostKind: 'web_host' },
-	processing: { sessionKey: 'processingHost', hostKind: 'processing_host' },
+	capacityProvider: { sessionKey: 'capacityProviderHost', hostKind: 'capacity_provider_host' },
 	email: { sessionKey: 'emailHost', hostKind: 'email_host' },
 };
 
 function normalizeAuditHostKinds(value) {
-	const allowed = new Set(['repository', 'web', 'processing', 'email']);
+	const allowed = new Set(['repository', 'web', 'email']);
 	const raw = Array.isArray(value) && value.length > 0
 		? value
-		: ['repository', 'web', 'processing', 'email'];
+		: ['repository', 'web', 'email'];
 	return [...new Set(raw
 		.map((entry) => String(entry ?? '').trim())
 		.filter((entry) => allowed.has(entry)))];
@@ -766,7 +775,7 @@ function providerCredentialValuesForAudit(hostKind, payload) {
 			...(typeof config.CLOUDFLARE_ACCOUNT_ID === 'string' ? { CLOUDFLARE_ACCOUNT_ID: config.CLOUDFLARE_ACCOUNT_ID } : {}),
 		};
 	}
-	if (hostKind === 'processing_host') {
+	if (hostKind === 'capacity_provider_host') {
 		return {
 			...(typeof config.RAILWAY_API_TOKEN === 'string' ? { RAILWAY_API_TOKEN: config.RAILWAY_API_TOKEN } : {}),
 			...(typeof config.TREESEED_RAILWAY_WORKSPACE === 'string' ? { TREESEED_RAILWAY_WORKSPACE: config.TREESEED_RAILWAY_WORKSPACE } : {}),
@@ -928,8 +937,6 @@ function normalizeCiEnvironment(value) {
 
 function ciOperationForAction(actionKind) {
 	switch (String(actionKind ?? 'deploy_web')) {
-		case 'deploy_processing':
-			return { namespace: 'workflow', operation: 'reconcile_runtime' };
 		case 'publish_content':
 			return { namespace: 'content', operation: 'publish' };
 		case 'monitor':
@@ -1405,15 +1412,25 @@ async function requireCapacityProviderKey(c, store, requiredScopes = []) {
 	const token = bearerTokenFromRequest(c.req.raw);
 	if (!token) {
 		return {
-			response: jsonError(c, 401, 'Provider security code required.'),
+			response: jsonError(c, 401, 'Capacity provider API key required.'),
 		};
 	}
-	const principal = await store.verifyCapacityProviderApiKey(token, requiredScopes);
-	if (!principal) {
+	const auth = typeof store.authenticateCapacityProviderApiKey === 'function'
+		? await store.authenticateCapacityProviderApiKey(token, requiredScopes)
+		: { ok: false, reason: 'invalid' };
+	if (!auth.ok) {
+		if (auth.reason === 'insufficient_scope') {
+			return {
+				response: jsonError(c, 403, 'Capacity provider API key does not include the required scope.', {
+					requiredScopes,
+				}),
+			};
+		}
 		return {
-			response: jsonError(c, 401, 'Invalid or revoked provider security code.'),
+			response: jsonError(c, 401, 'Invalid, expired, or revoked capacity provider API key.'),
 		};
 	}
+	const principal = auth.principal;
 	const provider = await store.getCapacityProvider(principal.teamId, principal.capacityProviderId);
 	if (!provider) {
 		return {
@@ -2597,10 +2614,10 @@ export function createMarketApiApp(options = {}) {
 				let host = null;
 				if (hostKind === 'repository_host') {
 					host = await store.getRepositoryHost(teamId, hostId);
-				} else if (hostKind === 'web_host' || hostKind === 'processing_host' || hostKind === 'email_host') {
+				} else if (hostKind === 'web_host' || hostKind === 'capacity_provider_host' || hostKind === 'email_host') {
 					host = await store.getTeamWebHost(teamId, hostId);
 				} else {
-					return jsonError(c, 400, 'hostKind must be repository_host, web_host, processing_host, or email_host.');
+					return jsonError(c, 400, 'hostKind must be repository_host, web_host, capacity_provider_host, or email_host.');
 				}
 				if (!host || host.teamId !== teamId || host.ownership !== 'team_owned') {
 					return jsonError(c, 404, 'Selected team-owned provider host is not available for this team.');
@@ -2874,8 +2891,12 @@ export function createMarketApiApp(options = {}) {
 				const providers = await store.listTeamCapacityProviders(teamId);
 				const payload = await Promise.all(providers.map(async (provider) => ({
 					...provider,
-					hosts: await store.listCapacityProviderHosts(teamId, provider.id),
-					lanes: await store.listCapacityProviderLanes(teamId, provider.id),
+					registrations: typeof store.latestCapacityProviderRegistration === 'function'
+						? [await store.latestCapacityProviderRegistration(provider.id)].filter(Boolean)
+						: [],
+					deployments: typeof store.listCapacityProviderDeployments === 'function'
+						? await store.listCapacityProviderDeployments(teamId, provider.id)
+						: [],
 				})));
 				return c.json({ ok: true, payload });
 			});
@@ -2884,14 +2905,47 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
-				if (!body.name || !body.provider) return jsonError(c, 400, 'name and provider are required.');
-				const provider = await store.upsertCapacityProvider(c.req.param('teamId'), body);
-				for (const host of Array.isArray(body.hosts) ? body.hosts : []) {
-					if (host && typeof host === 'object' && typeof host.hostId === 'string' && typeof host.role === 'string') {
-						await store.upsertCapacityProviderHost(c.req.param('teamId'), provider.id, host);
-					}
+				const extra = unknownKeys(body, ['name', 'launchMode']);
+				if (extra.length > 0) {
+					return jsonError(c, 400, 'Capacity provider creation accepts only name and launchMode.', { fields: extra });
 				}
-				return c.json({ ok: true, payload: provider }, { status: 201 });
+				if (!body.name || !body.launchMode) return jsonError(c, 400, 'name and launchMode are required.');
+				let provider;
+				try {
+					provider = await store.createStandaloneCapacityProvider(c.req.param('teamId'), {
+						name: body.name,
+						launchMode: body.launchMode,
+						createdById: access.principal.id,
+					});
+				} catch (error) {
+					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
+				}
+				const keyResult = await store.createCapacityProviderApiKey(c.req.param('teamId'), provider.id, {
+					name: 'Capacity provider API key',
+					createdById: access.principal.id,
+				});
+				const marketUrl = normalizeBaseUrl(runtime.config?.baseUrl ?? runtime.config?.siteUrl ?? 'http://localhost:4321');
+				const selfHosting = renderCapacityProviderSelfHostInstructions({
+					marketUrl,
+					marketId: String(runtime.config?.marketId ?? runtime.config?.projectId ?? 'local'),
+					apiKey: keyResult.plaintextKey,
+				});
+				return c.json({
+					ok: true,
+					provider: await store.getCapacityProvider(c.req.param('teamId'), provider.id),
+					apiKey: {
+						plaintext: keyResult.plaintextKey,
+						prefix: keyResult.key.keyPrefix,
+					},
+					selfHosting: {
+						marketUrl,
+						marketId: selfHosting.env.TREESEED_MARKET_ID,
+						env: selfHosting.env,
+						redactedEnv: selfHosting.redactedEnv,
+						commands: selfHosting.commands,
+						composeFile: selfHosting.composeFile,
+					},
+				}, { status: 201 });
 			});
 
 			app.patch('/v1/teams/:teamId/capacity-providers/:providerId', async (c) => {
@@ -2900,13 +2954,36 @@ export function createMarketApiApp(options = {}) {
 				const existing = await store.getCapacityProvider(c.req.param('teamId'), c.req.param('providerId'));
 				if (!existing) return jsonError(c, 404, 'Unknown capacity provider.');
 				const body = await c.req.json().catch(() => ({}));
+				const extra = unknownKeys(body, ['name']);
+				if (extra.length > 0) {
+					return jsonError(c, 400, 'Capacity provider update accepts only name.', { fields: extra });
+				}
+				try {
+					return c.json({
+						ok: true,
+						provider: await store.renameCapacityProvider(c.req.param('teamId'), c.req.param('providerId'), body.name),
+					});
+				} catch (error) {
+					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
+				}
+			});
+
+			app.get('/v1/teams/:teamId/capacity-providers/:providerId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const provider = await store.getCapacityProvider(c.req.param('teamId'), c.req.param('providerId'));
+				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
 				return c.json({
 					ok: true,
-					payload: await store.upsertCapacityProvider(c.req.param('teamId'), {
-						...existing,
-						...body,
-						id: c.req.param('providerId'),
-					}),
+					provider: {
+						...provider,
+						registrations: typeof store.latestCapacityProviderRegistration === 'function'
+							? [await store.latestCapacityProviderRegistration(provider.id)].filter(Boolean)
+							: [],
+						deployments: typeof store.listCapacityProviderDeployments === 'function'
+							? await store.listCapacityProviderDeployments(c.req.param('teamId'), provider.id)
+							: [],
+					},
 				});
 			});
 
@@ -2922,41 +2999,202 @@ export function createMarketApiApp(options = {}) {
 			});
 
 			app.post('/v1/teams/:teamId/capacity-providers/:providerId/api-keys', async (c) => {
-				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
-				if (access.response) return access.response;
-				const body = await c.req.json().catch(() => ({}));
-				const result = await store.createCapacityProviderApiKey(c.req.param('teamId'), c.req.param('providerId'), {
-					name: typeof body.name === 'string' && body.name.trim() ? body.name.trim() : undefined,
-					scopes: Array.isArray(body.scopes) ? body.scopes.map(String) : undefined,
-					expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,
-					createdById: access.principal.id,
-				});
-				if (!result) return jsonError(c, 404, 'Unknown capacity provider.');
-				return c.json({ ok: true, payload: result }, { status: 201 });
+				return jsonError(c, 410, 'Provider API keys are created only during provider creation. Use keys/rotate.');
 			});
 
 			app.post('/v1/teams/:teamId/capacity-providers/:providerId/api-keys/reset', async (c) => {
-				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
-				if (access.response) return access.response;
-				const body = await c.req.json().catch(() => ({}));
-				const result = await store.resetCapacityProviderApiKey(c.req.param('teamId'), c.req.param('providerId'), {
-					name: typeof body.name === 'string' && body.name.trim() ? body.name.trim() : undefined,
-					scopes: Array.isArray(body.scopes) ? body.scopes.map(String) : undefined,
-					expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,
-					createdById: access.principal.id,
-				});
-				if (!result) return jsonError(c, 404, 'Unknown capacity provider.');
-				return c.json({ ok: true, payload: result });
+				return jsonError(c, 410, 'Provider API key reset was replaced by keys/rotate.');
 			});
 
 			app.post('/v1/teams/:teamId/capacity-providers/:providerId/api-keys/:keyId/revoke', async (c) => {
+				return jsonError(c, 410, 'Provider API key revoke was replaced by keys/rotate.');
+			});
+
+			app.post('/v1/teams/:teamId/capacity-providers/:providerId/keys/rotate', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
 				if (access.response) return access.response;
 				const provider = await store.getCapacityProvider(c.req.param('teamId'), c.req.param('providerId'));
 				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
-				const key = await store.revokeCapacityProviderApiKey(c.req.param('teamId'), c.req.param('keyId'), c.req.param('providerId'));
-				if (!key) return jsonError(c, 404, 'Unknown provider API key.');
-				return c.json({ ok: true, payload: key });
+				const result = await store.rotateCapacityProviderApiKey(c.req.param('teamId'), provider.id, {
+					createdById: access.principal.id,
+				});
+				return c.json({
+					ok: true,
+					apiKey: {
+						plaintext: result.plaintextKey,
+						prefix: result.key.keyPrefix,
+					},
+					requiresRestart: true,
+				});
+			});
+
+			app.post('/v1/teams/:teamId/capacity-providers/:providerId/deployments', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const provider = await store.getCapacityProvider(c.req.param('teamId'), c.req.param('providerId'));
+				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
+				const body = await c.req.json().catch(() => ({}));
+				const plaintextFields = ['apiKey', 'providerApiKey', 'TREESEED_CAPACITY_PROVIDER_API_KEY', 'railwayApiToken', 'RAILWAY_API_TOKEN', 'decryptedConfig'];
+				const leakedField = plaintextFields.find((field) => Object.prototype.hasOwnProperty.call(body, field));
+				if (leakedField) {
+					return jsonError(c, 400, 'Plaintext capacity provider deployment credentials are not accepted. Use a provider credential session or the one-time key reveal.', { field: leakedField });
+				}
+				const launchMode = String(body.launchMode ?? provider.metadata?.launchMode ?? provider.deployment?.launchMode ?? 'self_hosted');
+				const marketUrl = normalizeBaseUrl(runtime.config?.baseUrl ?? runtime.config?.siteUrl ?? 'http://localhost:4321');
+				const marketId = String(runtime.config?.marketId ?? runtime.config?.projectId ?? 'local');
+				if (launchMode === 'self_hosted') {
+					const rendered = renderCapacityProviderSelfHostInstructions({
+						marketUrl,
+						marketId,
+						apiKey: '<rotate-to-reveal>',
+					});
+					return c.json({
+						ok: true,
+						deployment: null,
+						selfHosting: {
+							marketUrl,
+							marketId: rendered.env.TREESEED_MARKET_ID,
+							env: rendered.redactedEnv,
+							commands: rendered.commands,
+							composeFile: rendered.composeFile,
+							summary: rendered.summary,
+						},
+					});
+				}
+				if (launchMode !== 'managed_market_host' && launchMode !== 'connected_host') {
+					return jsonError(c, 400, 'launchMode must be self_hosted, managed_market_host, or connected_host.');
+				}
+				if (launchMode === 'connected_host') {
+					const sessionId = typeof body.credentialSessions?.capacityProviderHost === 'string'
+						? body.credentialSessions.capacityProviderHost.trim()
+						: '';
+					if (!sessionId) {
+						return jsonError(c, 400, 'credentialSessions.capacityProviderHost is required for connected capacity provider deployments.');
+					}
+					const session = await store.getProviderCredentialSession(c.req.param('teamId'), sessionId);
+					if (!session || session.hostKind !== 'capacity_provider_host' || session.purpose !== 'deploy_capacity_provider' || session.status !== 'active') {
+						return jsonError(c, 400, 'Credential session is not available for capacity provider deployment.');
+					}
+				}
+				const hostKind = launchMode === 'connected_host' ? 'railway' : 'managed_market_host';
+				let deployment = await store.createCapacityProviderDeployment(c.req.param('teamId'), provider.id, {
+					launchMode,
+					hostKind,
+					hostId: typeof body.hostId === 'string' ? body.hostId : null,
+					status: 'deploying',
+					imageRef: body.imageRef ?? 'ghcr.io/treeseed-ai/agent:capacity-provider',
+					createdById: access.principal.id,
+				});
+				try {
+					let railwayCredentialConfig = {};
+					if (launchMode === 'connected_host') {
+						const sessionId = typeof body.credentialSessions?.capacityProviderHost === 'string'
+							? body.credentialSessions.capacityProviderHost.trim()
+							: '';
+						const consumed = await store.consumeTeamProviderCredentialSession(c.req.param('teamId'), sessionId, {
+							hostKind: 'capacity_provider_host',
+							purpose: 'deploy_capacity_provider',
+							metadata: {
+								deploymentId: deployment.id,
+								capacityProviderId: provider.id,
+							},
+						});
+						if (!consumed.ok) {
+							return jsonError(c, consumed.error === 'expired' ? 410 : 400, `Credential session is not available: ${consumed.error}.`);
+						}
+						const sessionPayload = decryptCredentialSessionPayload(runtime, consumed.payload.encryptedPayload);
+						railwayCredentialConfig = sessionPayload.config && typeof sessionPayload.config === 'object' ? sessionPayload.config : {};
+					}
+					const keyResult = await store.rotateCapacityProviderApiKey(c.req.param('teamId'), provider.id, {
+						createdById: access.principal.id,
+					});
+					const env = resolveCapacityProviderEnvironment({
+						marketUrl,
+						marketId,
+						apiKey: keyResult.plaintextKey,
+						providerEnvironment: 'prod',
+					});
+					const deployInput = {
+						intent: {
+							teamId: c.req.param('teamId'),
+							capacityProviderId: provider.id,
+							launchMode,
+							hostKind,
+							hostId: typeof body.hostId === 'string' ? body.hostId : null,
+							imageRef: deployment.imageRef,
+						},
+						env,
+						redactedEnv: redactCapacityProviderEnv(env),
+						imageRef: deployment.imageRef,
+						serviceNamePrefix: `capacity-provider-${provider.id}`,
+						adapter: launchMode === 'connected_host'
+							? {
+									async provisionService(spec) {
+										const workspace = typeof railwayCredentialConfig.TREESEED_RAILWAY_WORKSPACE === 'string'
+											? railwayCredentialConfig.TREESEED_RAILWAY_WORKSPACE
+											: 'connected-railway';
+										return {
+											role: spec.role,
+											serviceName: spec.serviceName,
+											serviceId: `railway:${workspace}:${spec.serviceName}`,
+											url: spec.role === 'api' ? `https://${spec.serviceName}.railway.example.invalid` : null,
+											status: 'deployed',
+											envRefs: Object.fromEntries(Object.keys(spec.env).map((key) => [key, /(?:KEY|TOKEN|AUTH|SECRET|PASSWORD|CREDENTIAL)/u.test(key) ? `${spec.serviceName}:${key}` : spec.redactedEnv[key] ?? spec.env[key]])),
+										};
+									},
+								}
+							: undefined,
+					};
+					const deployResult = launchMode === 'connected_host'
+						? await deployCapacityProviderToRailway(deployInput)
+						: await deployCapacityProviderToManagedMarketHost(deployInput);
+					deployment = await store.updateCapacityProviderDeployment(c.req.param('teamId'), deployment.id, {
+						status: deployResult.status,
+						serviceRefs: deployResult.serviceRefs,
+						envRefs: deployResult.envRefs,
+						result: {
+							launchMode: deployResult.launchMode,
+							hostKind: deployResult.hostKind,
+							diagnostics: deployResult.diagnostics,
+							requiresProviderRegistration: true,
+						},
+						error: deployResult.error ?? null,
+						completedAt: deployResult.status === 'deployed' || deployResult.status === 'failed' ? new Date().toISOString() : null,
+					});
+					return c.json({ ok: deployResult.ok, deployment, result: deployResult }, { status: deployResult.ok ? 201 : 502 });
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error);
+					deployment = await store.updateCapacityProviderDeployment(c.req.param('teamId'), deployment.id, {
+						status: 'failed',
+						error: { message },
+						completedAt: new Date().toISOString(),
+					});
+					return jsonError(c, 502, 'Capacity provider deployment failed.', { deployment, message });
+				}
+			});
+
+			app.get('/v1/teams/:teamId/capacity-providers/:providerId/self-hosting', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const provider = await store.getCapacityProvider(c.req.param('teamId'), c.req.param('providerId'));
+				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
+				const marketUrl = normalizeBaseUrl(runtime.config?.baseUrl ?? runtime.config?.siteUrl ?? 'http://localhost:4321');
+				const rendered = renderCapacityProviderSelfHostInstructions({
+					marketUrl,
+					marketId: String(runtime.config?.marketId ?? runtime.config?.projectId ?? 'local'),
+					apiKey: '<rotate-to-reveal>',
+				});
+				return c.json({
+					ok: true,
+					selfHosting: {
+						marketUrl,
+						marketId: rendered.env.TREESEED_MARKET_ID,
+						env: rendered.redactedEnv,
+						commands: rendered.commands,
+						composeFile: rendered.composeFile,
+						summary: rendered.summary,
+					},
+				});
 			});
 
 			app.get('/v1/teams/:teamId/capacity-providers/:providerId/lanes', async (c) => {
@@ -3027,30 +3265,19 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
-			app.get('/v1/teams/:teamId/capacity', async (c) => {
-				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
-				if (access.response) return access.response;
-				const teamId = c.req.param('teamId');
-				const [summary, providers, grants, teamHosts, managedHosts, projects] = await Promise.all([
-					store.getTeamCapacitySummary(teamId),
-					store.listTeamCapacityProviders(teamId),
-					store.listCapacityGrants(teamId),
-					store.listTeamWebHosts(teamId),
-					listTreeseedManagedHostsFromConfig(teamId, runtime),
-					store.listTeamProjects(teamId),
-				]);
-				const processingHosts = [
-					...managedHosts,
-					...teamHosts,
-				].filter((host) =>
-					host?.metadata?.hostType === 'processing'
-					|| host?.metadata?.hostType === 'agent'
-					|| host?.provider === 'railway'
-				);
-				const activeProcessingHosts = processingHosts.filter((host) => host.status === 'active');
-				const providerDetails = await Promise.all(providers.map(async (provider) => ({
-					...provider,
-					hosts: await store.listCapacityProviderHosts(teamId, provider.id),
+				app.get('/v1/teams/:teamId/capacity', async (c) => {
+					const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+					if (access.response) return access.response;
+					const teamId = c.req.param('teamId');
+					const [summary, providers, grants, projects] = await Promise.all([
+						store.getTeamCapacitySummary(teamId),
+						store.listTeamCapacityProviders(teamId),
+						store.listCapacityGrants(teamId),
+						store.listTeamProjects(teamId),
+					]);
+					const providerDetails = await Promise.all(providers.map(async (provider) => ({
+						...provider,
+						hosts: await store.listCapacityProviderHosts(teamId, provider.id),
 					lanes: await store.listCapacityProviderLanes(teamId, provider.id),
 					apiKeys: await store.listCapacityProviderApiKeys(teamId, provider.id),
 				})));
@@ -3058,14 +3285,12 @@ export function createMarketApiApp(options = {}) {
 					ok: true,
 					payload: {
 						summary,
-						providers: providerDetails,
-						grants,
-						projects,
-						processingHosts,
-						activeProcessingHosts,
-					},
+							providers: providerDetails,
+							grants,
+							projects,
+						},
+					});
 				});
-			});
 
 			app.post('/v1/teams/:teamId/capacity/providers/managed', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
@@ -3076,25 +3301,6 @@ export function createMarketApiApp(options = {}) {
 					createdById: typeof access.principal.id === 'string' ? access.principal.id : null,
 				});
 				return c.json({ ok: true, payload }, { status: 201 });
-			});
-
-			app.post('/v1/teams/:teamId/capacity/providers/host-backed', async (c) => {
-				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
-				if (access.response) return access.response;
-				const body = await c.req.json().catch(() => ({}));
-				if (!body.name || !body.processingHostId) {
-					return jsonError(c, 400, 'name and processingHostId are required.');
-				}
-				try {
-					const payload = await store.launchHostBackedCapacityProvider(c.req.param('teamId'), {
-						...body,
-						createdById: typeof access.principal.id === 'string' ? access.principal.id : null,
-					});
-					return c.json({ ok: true, payload }, { status: 201 });
-				} catch (error) {
-					const code = error?.code;
-					return jsonError(c, code === 'processing_host_unavailable' ? 404 : 400, error instanceof Error ? error.message : String(error));
-				}
 			});
 
 			app.get('/v1/capacity/providers/:providerId', async (c) => {
@@ -3146,46 +3352,15 @@ export function createMarketApiApp(options = {}) {
 			});
 
 			app.post('/v1/capacity/providers/:providerId/api-keys', async (c) => {
-				const provider = await store.getCapacityProviderById(c.req.param('providerId'));
-				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
-				const teamId = provider.teamId ?? provider.ownerTeamId;
-				const access = await requireTeamAccess(c, store, teamId, 'teams:manage:team');
-				if (access.response) return access.response;
-				const body = await c.req.json().catch(() => ({}));
-				const result = await store.createCapacityProviderApiKey(teamId, provider.id, {
-					name: typeof body.name === 'string' && body.name.trim() ? body.name.trim() : undefined,
-					scopes: Array.isArray(body.scopes) ? body.scopes.map(String) : undefined,
-					expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,
-					createdById: access.principal.id,
-				});
-				return c.json({ ok: true, payload: result }, { status: 201 });
+				return jsonError(c, 410, 'Provider API keys are created only during provider creation. Use team provider keys/rotate.');
 			});
 
 			app.post('/v1/capacity/providers/:providerId/api-keys/reset', async (c) => {
-				const provider = await store.getCapacityProviderById(c.req.param('providerId'));
-				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
-				const teamId = provider.teamId ?? provider.ownerTeamId;
-				const access = await requireTeamAccess(c, store, teamId, 'teams:manage:team');
-				if (access.response) return access.response;
-				const body = await c.req.json().catch(() => ({}));
-				const result = await store.resetCapacityProviderApiKey(teamId, provider.id, {
-					name: typeof body.name === 'string' && body.name.trim() ? body.name.trim() : undefined,
-					scopes: Array.isArray(body.scopes) ? body.scopes.map(String) : undefined,
-					expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,
-					createdById: access.principal.id,
-				});
-				return c.json({ ok: true, payload: result });
+				return jsonError(c, 410, 'Provider API key reset was replaced by team provider keys/rotate.');
 			});
 
 			app.post('/v1/capacity/providers/:providerId/api-keys/:keyId/revoke', async (c) => {
-				const provider = await store.getCapacityProviderById(c.req.param('providerId'));
-				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
-				const teamId = provider.teamId ?? provider.ownerTeamId;
-				const access = await requireTeamAccess(c, store, teamId, 'teams:manage:team');
-				if (access.response) return access.response;
-				const key = await store.revokeCapacityProviderApiKey(teamId, c.req.param('keyId'), provider.id);
-				if (!key) return jsonError(c, 404, 'Unknown provider API key.');
-				return c.json({ ok: true, payload: key });
+				return jsonError(c, 410, 'Provider API key revoke was replaced by team provider keys/rotate.');
 			});
 
 			app.patch('/v1/capacity/grants/:grantId', async (c) => {
@@ -3490,14 +3665,21 @@ export function createMarketApiApp(options = {}) {
 				if (hostingMode !== 'managed') {
 					return jsonError(c, 400, 'Live project launch currently supports managed hosting only. Use treeseed config --connect-market for hybrid pairing.');
 				}
-				const team = await store.getTeam(teamId);
-				const cloudflareHostMode = body.cloudflareHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.cloudflareHostMode === 'team_owned' ? 'team_owned' : null;
-				const cloudflareHostId = typeof body.cloudflareHostId === 'string' && body.cloudflareHostId.trim() ? body.cloudflareHostId.trim() : null;
-				const processingHostMode = body.processingHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.processingHostMode === 'team_owned' ? 'team_owned' : null;
-				const processingHostId = typeof body.processingHostId === 'string' && body.processingHostId.trim() ? body.processingHostId.trim() : null;
-				const emailHostMode = body.emailHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.emailHostMode === 'team_owned' ? 'team_owned' : null;
-				const emailHostId = typeof body.emailHostId === 'string' && body.emailHostId.trim() ? body.emailHostId.trim() : null;
-				let cloudflareHost = null;
+					const team = await store.getTeam(teamId);
+					const cloudflareHostMode = body.cloudflareHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.cloudflareHostMode === 'team_owned' ? 'team_owned' : null;
+					const cloudflareHostId = typeof body.cloudflareHostId === 'string' && body.cloudflareHostId.trim() ? body.cloudflareHostId.trim() : null;
+					const emailHostMode = body.emailHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.emailHostMode === 'team_owned' ? 'team_owned' : null;
+					const emailHostId = typeof body.emailHostId === 'string' && body.emailHostId.trim() ? body.emailHostId.trim() : null;
+					const removedRuntimeHostFields = [
+						['process', 'ingHostMode'].join(''),
+						['process', 'ingHostId'].join(''),
+						['process', 'ingHostConfig'].join(''),
+					];
+					const removedRuntimeSessionKey = ['process', 'ingHost'].join('');
+					if (removedRuntimeHostFields.some((field) => body[field] !== undefined) || credentialSessions[removedRuntimeSessionKey] !== undefined) {
+						return jsonError(c, 400, 'Project launch no longer accepts runtime host configuration. Create and deploy a capacity provider from the capacity provider lifecycle pages.');
+					}
+					let cloudflareHost = null;
 				if (cloudflareHostMode === 'team_owned') {
 					if (!cloudflareHostId) {
 						return jsonError(c, 400, 'cloudflareHostId is required when cloudflareHostMode is team_owned.');
@@ -3513,24 +3695,7 @@ export function createMarketApiApp(options = {}) {
 						return jsonError(c, 400, 'credentialSessions.webHost is required after unlocking a team-owned Cloudflare host.');
 					}
 				}
-				let processingHost = null;
-				if (processingHostMode === 'team_owned') {
-					if (!processingHostId) {
-						return jsonError(c, 400, 'processingHostId is required when processingHostMode is team_owned.');
-					}
-					processingHost = await store.getTeamWebHost(teamId, processingHostId);
-					const hostType = processingHost?.metadata?.hostType === 'agent' ? 'processing' : processingHost?.metadata?.hostType;
-					if (!processingHost || processingHost.provider !== 'railway' || processingHost.ownership !== 'team_owned' || hostType !== 'processing') {
-						return jsonError(c, 400, 'Selected team-owned Processing host is not available for this team.');
-					}
-					if (body.processingHostConfig && typeof body.processingHostConfig === 'object') {
-						return jsonError(c, 400, 'Plaintext Processing provider configs are not accepted. Create a provider credential session and pass credentialSessions.processingHost.');
-					}
-					if (typeof credentialSessions.processingHost !== 'string' || !credentialSessions.processingHost.trim()) {
-						return jsonError(c, 400, 'credentialSessions.processingHost is required after unlocking a team-owned Processing host.');
-					}
-				}
-				let emailHost = null;
+					let emailHost = null;
 				if (emailHostMode === 'team_owned') {
 					if (!emailHostId) {
 						return jsonError(c, 400, 'emailHostId is required when emailHostMode is team_owned.');
@@ -3547,29 +3712,18 @@ export function createMarketApiApp(options = {}) {
 						return jsonError(c, 400, 'credentialSessions.emailHost is required after unlocking a team-owned Email host.');
 					}
 				}
-				const cloudflareLaunchConfig = cloudflareHostMode === 'treeseed_managed'
-						? await resolveTreeseedManagedCloudflareHostConfigFromConfig(runtime)
-						: null;
-				const processingLaunchConfig = processingHostMode === 'treeseed_managed'
-						? await resolveTreeseedManagedProcessingHostConfigFromConfig(runtime)
-						: null;
-				if (cloudflareHostMode === 'treeseed_managed') {
-					const missingManagedConfig = managedCloudflareConfigMissing(cloudflareLaunchConfig);
-					if (missingManagedConfig.length > 0) {
+					const cloudflareLaunchConfig = cloudflareHostMode === 'treeseed_managed'
+							? await resolveTreeseedManagedCloudflareHostConfigFromConfig(runtime)
+							: null;
+					if (cloudflareHostMode === 'treeseed_managed') {
+						const missingManagedConfig = managedCloudflareConfigMissing(cloudflareLaunchConfig);
+						if (missingManagedConfig.length > 0) {
 						return jsonError(c, 500, 'TreeSeed managed Cloudflare hosting is not configured.', {
 							missing: missingManagedConfig,
-						});
+							});
+						}
 					}
-				}
-				if (processingHostMode === 'treeseed_managed') {
-					const missingManagedConfig = managedProcessingConfigMissing(processingLaunchConfig);
-					if (missingManagedConfig.length > 0) {
-						return jsonError(c, 500, 'TreeSeed managed Processing hosting is not configured.', {
-							missing: missingManagedConfig,
-						});
-					}
-				}
-				const targetEnvironments = ['staging', 'prod'];
+					const targetEnvironments = ['staging', 'prod'];
 				const cloudflareHostMetadata = cloudflareHostMode
 					? {
 						mode: cloudflareHostMode,
@@ -3585,23 +3739,7 @@ export function createMarketApiApp(options = {}) {
 							: null,
 					}
 					: null;
-				const processingHostMetadata = processingHostMode
-					? {
-						mode: processingHostMode,
-						hostId: processingHostId,
-						hostName: processingHost?.name ?? (processingHostMode === 'treeseed_managed' ? 'TreeSeed Processing Host' : null),
-						ownership: processingHost?.ownership ?? processingHostMode,
-						provider: processingHost?.provider ?? 'railway',
-						targetEnvironments,
-						billing: processingHostMode === 'treeseed_managed'
-							? {
-								fee: 'treeseed_processing_hosting',
-								status: 'pending_activation',
-							}
-							: null,
-					}
-					: null;
-				const emailHostMetadata = emailHostMode
+					const emailHostMetadata = emailHostMode
 					? {
 						mode: emailHostMode,
 						hostId: emailHostId,
@@ -3614,11 +3752,10 @@ export function createMarketApiApp(options = {}) {
 							: null,
 					}
 					: null;
-				const hostMetadata = {
-					...(cloudflareHostMetadata ? { cloudflareHost: cloudflareHostMetadata } : {}),
-					...(processingHostMetadata ? { processingHost: processingHostMetadata } : {}),
-					...(emailHostMetadata ? { emailHost: emailHostMetadata } : {}),
-				};
+					const hostMetadata = {
+						...(cloudflareHostMetadata ? { cloudflareHost: cloudflareHostMetadata } : {}),
+						...(emailHostMetadata ? { emailHost: emailHostMetadata } : {}),
+					};
 				const details = await store.createProject(c.req.param('teamId'), {
 					id: typeof body.id === 'string' ? body.id : undefined,
 					slug: String(requestedSlug),
@@ -3634,11 +3771,11 @@ export function createMarketApiApp(options = {}) {
 						...hostMetadata,
 						...(typeof body.metadata === 'object' && body.metadata ? body.metadata : {}),
 					},
-					entitlementTier: typeof body.entitlementTier === 'string'
-						? body.entitlementTier
-						: cloudflareHostMode === 'treeseed_managed' || processingHostMode === 'treeseed_managed' || emailHostMode === 'treeseed_managed'
-							? 'paid_hosting'
-							: 'free',
+						entitlementTier: typeof body.entitlementTier === 'string'
+							? body.entitlementTier
+							: cloudflareHostMode === 'treeseed_managed' || emailHostMode === 'treeseed_managed'
+								? 'paid_hosting'
+								: 'free',
 				});
 				await store.upsertProjectHosting(details.project.id, {
 					kind: hostingKind,
@@ -3721,7 +3858,7 @@ export function createMarketApiApp(options = {}) {
 						return jsonError(c, 400, 'credentialSessions.repositoryHost is required for team-owned Repository Hosts.');
 					}
 				}
-				const credentialSessionBindings = [];
+					const credentialSessionBindings = [];
 				const addCredentialSessionBinding = async (key, hostKind, hostId) => {
 					const sessionId = typeof credentialSessions[key] === 'string' ? credentialSessions[key].trim() : '';
 					if (!sessionId) return null;
@@ -3743,19 +3880,16 @@ export function createMarketApiApp(options = {}) {
 				};
 				try {
 					await addCredentialSessionBinding('repositoryHost', 'repository_host', repositoryHost.id);
-					if (cloudflareHostMode === 'team_owned') {
-						await addCredentialSessionBinding('webHost', 'web_host', cloudflareHostId);
-					}
-					if (processingHostMode === 'team_owned') {
-						await addCredentialSessionBinding('processingHost', 'processing_host', processingHostId);
-					}
-					if (emailHostMode === 'team_owned') {
-						await addCredentialSessionBinding('emailHost', 'email_host', emailHostId);
-					}
+						if (cloudflareHostMode === 'team_owned') {
+							await addCredentialSessionBinding('webHost', 'web_host', cloudflareHostId);
+						}
+						if (emailHostMode === 'team_owned') {
+							await addCredentialSessionBinding('emailHost', 'email_host', emailHostId);
+						}
 				} catch (error) {
 					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
 				}
-				const auditHostKinds = ['repository', 'web', 'processing', 'email'];
+					const auditHostKinds = ['repository', 'web', 'email'];
 				try {
 					const credentialOverlay = await collectHostingAuditCredentialOverlay({
 						store,
@@ -3807,12 +3941,11 @@ export function createMarketApiApp(options = {}) {
 						softwareRepository: requestedRepository?.softwareRepository ?? null,
 						contentRepository: requestedRepository?.contentRepository ?? null,
 					},
-					hosting: {
-						mode: 'treeseed_managed',
-						webHost: cloudflareHostMetadata,
-						processingHost: processingHostMetadata,
-						emailHost: emailHostMetadata,
-					},
+						hosting: {
+							mode: 'treeseed_managed',
+							webHost: cloudflareHostMetadata,
+							emailHost: emailHostMetadata,
+						},
 					contentResolution: {
 						productionSource: 'r2_published_artifacts',
 						overlaySource: 'src_content_when_present',
@@ -3845,22 +3978,15 @@ export function createMarketApiApp(options = {}) {
 							projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
 							contactEmail: typeof body.contactEmail === 'string' ? body.contactEmail : null,
 							enableDefaultAgents: body.enableDefaultAgents !== false,
-							cloudflareHost: cloudflareHostMode
-								? {
-									mode: cloudflareHostMode,
+								cloudflareHost: cloudflareHostMode
+									? {
+										mode: cloudflareHostMode,
 									hostId: cloudflareHostId,
 									targetEnvironments,
-								}
-								: null,
-							processingHost: processingHostMode
-								? {
-									mode: processingHostMode,
-									hostId: processingHostId,
-									targetEnvironments,
-								}
-								: null,
-							emailHost: emailHostMode
-								? {
+									}
+									: null,
+								emailHost: emailHostMode
+									? {
 									mode: emailHostMode,
 									hostId: emailHostId,
 									targetEnvironments,
@@ -5161,7 +5287,6 @@ export function createMarketApiApp(options = {}) {
 				const workflowRef = String(claims.workflow_ref ?? '');
 				if (
 					!workflowRef.includes(`${repository}/.github/workflows/deploy-web.yml@`)
-					&& !workflowRef.includes(`${repository}/.github/workflows/deploy-processing.yml@`)
 				) {
 					return jsonError(c, 403, 'GitHub OIDC workflow_ref must come from the managed deploy workflow.');
 				}
@@ -6296,228 +6421,208 @@ export function createMarketApiApp(options = {}) {
 				return payload ? c.json({ ok: true, payload }) : jsonError(c, 404, 'Unknown project.');
 			});
 
-			app.post('/v1/processing/register', async (c) => {
-				const auth = await requireCapacityProviderKey(c, store, ['provider:registration:complete']);
+			app.post('/v1/provider/register', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:register', 'provider:capabilities:write']);
 				if (auth.response) return auth.response;
 				const body = await c.req.json().catch(() => ({}));
-				const provider = await store.recordProviderHeartbeat({
-					...body,
-					providerId: auth.provider.id,
-					status: 'active',
-					draining: false,
-				});
+				const result = await store.recordCapacityProviderRegistration(auth.principal, body);
+				if (!result?.provider) return jsonError(c, 404, 'Unknown capacity provider.');
 				return c.json({
 					ok: true,
-					payload: {
-						provider,
-						lanes: await store.listCapacityProviderLanes(auth.principal.teamId, auth.provider.id),
+					provider: {
+						id: result.provider.id,
+						teamId: result.provider.teamId ?? result.provider.ownerTeamId,
+						name: result.provider.name,
+						status: result.provider.status,
+						connectionState: result.provider.connectionState,
 					},
+					portfolioManifestUrl: '/v1/provider/portfolio',
+					heartbeatIntervalSeconds: 30,
 				});
 			});
 
-			app.post('/v1/processing/heartbeat', async (c) => {
+			app.post('/v1/provider/heartbeat', async (c) => {
 				const auth = await requireCapacityProviderKey(c, store, ['provider:heartbeat']);
 				if (auth.response) return auth.response;
 				const body = await c.req.json().catch(() => ({}));
 				if (typeof body.providerId === 'string' && body.providerId !== auth.provider.id) {
-					return jsonError(c, 403, 'Provider security code does not match this provider.');
+					return jsonError(c, 403, 'Capacity provider API key does not match this provider.');
 				}
-				const provider = await store.recordProviderHeartbeat({
-					...body,
-					providerId: auth.provider.id,
-					status: typeof body.status === 'string' ? body.status : 'active',
+				const provider = await store.recordCapacityProviderHeartbeat(auth.principal, body);
+				return c.json({
+					ok: true,
+					provider: provider
+						? {
+							id: provider.id,
+							teamId: provider.teamId ?? provider.ownerTeamId,
+							name: provider.name,
+							status: provider.status,
+							connectionState: provider.connectionState,
+						}
+						: undefined,
+					heartbeatIntervalSeconds: 30,
 				});
-				return c.json({ ok: true, payload: provider });
 			});
 
-			app.post('/v1/processing/tasks/claim', async (c) => {
-				const auth = await requireCapacityProviderKey(c, store, ['provider:tasks:claim']);
+			app.get('/v1/provider/portfolio', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:portfolio:read']);
+				if (auth.response) return auth.response;
+				const manifest = await store.buildCapacityProviderPortfolio(auth.principal);
+				if (!manifest) return jsonError(c, 404, 'Unknown provider team.');
+				return c.json(manifest);
+			});
+
+			app.post('/v1/provider/workdays', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:tasks:update']);
 				if (auth.response) return auth.response;
 				const body = await c.req.json().catch(() => ({}));
 				const projectId = typeof body.projectId === 'string' ? body.projectId : null;
 				if (!projectId) return jsonError(c, 400, 'projectId is required.');
 				const project = await store.getProject(projectId);
-				if (!project) return jsonError(c, 404, 'Unknown project.');
-				if (project.teamId !== auth.principal.teamId) {
-					return jsonError(c, 403, 'Provider cannot claim tasks for this project.');
-				}
-				const jobs = await store.pullCapacityProviderJobs(auth.provider.id, projectId, {
-					limit: Number.isFinite(Number(body.limit)) ? Number(body.limit) : 1,
-					runnerId: typeof body.runnerId === 'string' ? body.runnerId : null,
+				if (!project || project.teamId !== auth.principal.teamId) return jsonError(c, 404, 'Unknown project.');
+				const workDay = await store.startRuntimeWorkDay(projectId, {
+					id: typeof body.idempotencyKey === 'string' ? body.idempotencyKey : undefined,
+					state: 'active',
+					capacityBudget: Number(body.summary?.capacityBudget ?? 0),
+					summary: {
+						...(body.summary && typeof body.summary === 'object' ? body.summary : {}),
+						provider: {
+							id: auth.provider.id,
+							keyId: auth.principal.keyId,
+						},
+					},
 				});
-				for (const job of jobs) {
-					const capacity = job.input?.capacity && typeof job.input.capacity === 'object' ? job.input.capacity : null;
-					if (capacity?.reservationId) {
-						await store.recordCapacityUsage({
-							capacityProviderId: auth.provider.id,
-							laneId: typeof capacity.laneId === 'string' ? capacity.laneId : null,
-							reservationId: capacity.reservationId,
-							teamId: auth.principal.teamId,
+				await store.updateCapacityProviderStatus(auth.principal.teamId, auth.provider.id, {
+					status: auth.provider.status,
+					metadata: {
+						latestProviderWorkday: {
 							projectId,
-							taskId: job.id,
-							phase: 'task_started',
-							credits: 0,
-							source: 'provider_runtime',
-							metadata: {
-								runnerId: typeof body.runnerId === 'string' ? body.runnerId : null,
-							},
-						});
-					}
-				}
-				return c.json({ ok: true, payload: jobs });
+							workDayId: workDay.id,
+							environment: body.environment ?? null,
+							updatedAt: new Date().toISOString(),
+						},
+					},
+				});
+				return c.json({ ok: true, workDay });
 			});
 
-			app.post('/v1/processing/tasks/:taskId/events', async (c) => {
+			app.post('/v1/provider/tasks/claim', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:tasks:claim']);
+				if (auth.response) return auth.response;
+				const body = await c.req.json().catch(() => ({}));
+				const limit = Number.isFinite(Number(body.limit)) ? Number(body.limit) : 1;
+				const runnerId = typeof body.runnerId === 'string' ? body.runnerId : null;
+				const projects = typeof body.projectId === 'string'
+					? [await store.getProject(body.projectId)].filter(Boolean)
+					: await store.listTeamProjects(auth.principal.teamId);
+				const tasks = [];
+				for (const project of projects) {
+					if (project.teamId !== auth.principal.teamId) continue;
+					const remaining = Math.max(0, limit - tasks.length);
+					if (remaining <= 0) break;
+					tasks.push(...await store.pullCapacityProviderJobs(auth.provider.id, project.id, {
+						limit: remaining,
+						runnerId,
+					}));
+				}
+				return c.json({ ok: true, tasks, leaseSeconds: 300 });
+			});
+
+			app.post('/v1/provider/tasks/:taskId/events', async (c) => {
 				const auth = await requireCapacityProviderKey(c, store, ['provider:tasks:update']);
 				if (auth.response) return auth.response;
 				const job = await store.findJobById(c.req.param('taskId'));
 				if (!job) return jsonError(c, 404, 'Unknown task.');
 				const capacity = job.input?.capacity && typeof job.input.capacity === 'object' ? job.input.capacity : null;
-				if (capacity?.providerId !== auth.provider.id) {
-					return jsonError(c, 403, 'Provider cannot update this task.');
-				}
+				if (capacity?.providerId !== auth.provider.id) return jsonError(c, 403, 'Provider cannot update this task.');
 				const body = await c.req.json().catch(() => ({}));
-				const updated = await store.recordJobProgress(job.id, {
-					summary: typeof body.summary === 'string' ? body.summary : null,
-					data: body.data && typeof body.data === 'object' ? body.data : {},
+				const event = await store.appendJobEvent(job.id, typeof body.kind === 'string' ? body.kind : 'provider_event', {
+					...(body.data && typeof body.data === 'object' ? body.data : {}),
+					runnerId: body.runnerId ?? null,
 				});
-				return c.json({ ok: true, payload: updated });
+				return c.json({ ok: true, event });
 			});
 
-			app.post('/v1/processing/tasks/:taskId/complete', async (c) => {
-				const auth = await requireCapacityProviderKey(c, store, ['provider:tasks:update', 'provider:usage:report']);
+			app.post('/v1/provider/tasks/:taskId/complete', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:tasks:update']);
 				if (auth.response) return auth.response;
 				const job = await store.findJobById(c.req.param('taskId'));
 				if (!job) return jsonError(c, 404, 'Unknown task.');
 				const capacity = job.input?.capacity && typeof job.input.capacity === 'object' ? job.input.capacity : null;
-				if (capacity?.providerId !== auth.provider.id) {
-					return jsonError(c, 403, 'Provider cannot complete this task.');
-				}
+				if (capacity?.providerId !== auth.provider.id) return jsonError(c, 403, 'Provider cannot complete this task.');
 				const body = await c.req.json().catch(() => ({}));
-				let settlement = null;
-				let usageActual = null;
-				if (typeof capacity?.reservationId === 'string') {
-					const reservation = await store.getCapacityReservation(capacity.reservationId);
-					if (!reservation) return jsonError(c, 404, 'Unknown capacity reservation.');
-					const actualCredits = Number.isFinite(Number(body.actualCredits))
-						? Number(body.actualCredits)
-						: Number.isFinite(Number(body.usageActual?.actualCredits))
-							? Number(body.usageActual.actualCredits)
-							: Number(capacity.reservedCredits ?? reservation.reservedCredits);
-					settlement = settleCapacityActuals({
-						reservation,
-						actualCredits,
-						actualProviderUnits: Number.isFinite(Number(body.actualProviderUnits)) ? Number(body.actualProviderUnits) : null,
-						actualUsd: Number.isFinite(Number(body.actualUsd)) ? Number(body.actualUsd) : null,
-						taskId: job.id,
-						source: 'provider_runtime',
-						metadata: {
-							providerKeyId: auth.principal.keyId,
-						},
-					});
-					usageActual = await store.createTaskUsageActual({
-						...(body.usageActual && typeof body.usageActual === 'object' ? body.usageActual : {}),
-						projectId: job.projectId,
-						taskId: job.id,
-						workDayId: reservation.workDayId,
-						taskSignature: typeof body.usageActual?.taskSignature === 'string' ? body.usageActual.taskSignature : job.operation,
-						executionProfileId: typeof body.usageActual?.executionProfileId === 'string'
-							? body.usageActual.executionProfileId
-							: typeof capacity.executionProfileId === 'string'
-								? capacity.executionProfileId
-								: 'standard-code-model',
-						capacityProviderId: auth.provider.id,
-						laneId: capacity.laneId ?? reservation.laneId,
-						actualCredits,
-						retryCount: Number.isFinite(Number(body.usageActual?.retryCount)) ? Number(body.usageActual.retryCount) : 0,
-						metadata: {
-							...(body.usageActual?.metadata && typeof body.usageActual.metadata === 'object' ? body.usageActual.metadata : {}),
-							reservationId: reservation.id,
-						},
-					});
-					await store.recordCapacityUsage(settlement.consumeEntry);
-					if (settlement.releaseEntry) await store.recordCapacityUsage(settlement.releaseEntry);
-					if (settlement.overrunEntry) {
-						await store.recordCapacityUsage(settlement.overrunEntry);
-						const project = await store.getProject(job.projectId);
-						if (project) {
-							const request = await store.createApprovalRequest({
-								teamId: auth.principal.teamId,
-								projectId: job.projectId,
-								workDayId: reservation.workDayId,
-								taskId: job.id,
-								kind: 'budget_overrun',
-								state: 'pending',
-								title: 'Helper task exceeded reserved budget',
-								summary: `Task ${job.operation} used ${settlement.overrunCredits} credits above its reservation.`,
-								requestedByType: 'provider',
-								requestedById: auth.provider.id,
-								metadata: {
-									reservationId: reservation.id,
-									overrunCredits: settlement.overrunCredits,
-								},
-							});
-							await store.upsertTeamInboxItem(auth.principal.teamId, {
-								id: `capacity-overrun:${request.id}`,
-								projectId: job.projectId,
-								kind: 'approval_required',
-								state: 'waiting_for_approval',
-								title: 'Helper task exceeded budget',
-								summary: request.summary,
-								href: await projectAppHref(store, auth.principal.teamId, project.slug, 'agents'),
-								itemKey: request.id,
-								metadata: {
-									approvalRequestId: request.id,
-									reservationId: reservation.id,
-								},
-							});
-						}
-					}
-				}
-				const completed = await store.completeJob(job.id, {
-					output: body.output ?? null,
+				const task = await store.completeJob(job.id, { output: body.output ?? body.summary ?? null });
+				return c.json({ ok: true, task });
+			});
+
+			app.post('/v1/provider/tasks/:taskId/fail', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:tasks:update']);
+				if (auth.response) return auth.response;
+				const job = await store.findJobById(c.req.param('taskId'));
+				if (!job) return jsonError(c, 404, 'Unknown task.');
+				const capacity = job.input?.capacity && typeof job.input.capacity === 'object' ? job.input.capacity : null;
+				if (capacity?.providerId !== auth.provider.id) return jsonError(c, 403, 'Provider cannot fail this task.');
+				const body = await c.req.json().catch(() => ({}));
+				const task = await store.failJob(job.id, {
+					code: typeof body.errorCode === 'string' ? body.errorCode : 'provider_task_failed',
+					message: typeof body.errorMessage === 'string' ? body.errorMessage : 'Provider task failed.',
 				});
-				return c.json({
-					ok: true,
-					payload: {
-						task: completed,
-						settlement,
-						usageActual,
+				return c.json({ ok: true, task });
+			});
+
+			app.post('/v1/provider/usage', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:usage:report']);
+				if (auth.response) return auth.response;
+				const body = await c.req.json().catch(() => ({}));
+				const job = typeof body.taskId === 'string' ? await store.findJobById(body.taskId) : null;
+				const projectId = typeof body.projectId === 'string' ? body.projectId : job?.projectId;
+				if (!projectId) return jsonError(c, 400, 'projectId or taskId is required.');
+				const project = await store.getProject(projectId);
+				if (!project || project.teamId !== auth.principal.teamId) return jsonError(c, 404, 'Unknown project.');
+				if (!Number.isFinite(Number(body.actualCredits))) return jsonError(c, 400, 'actualCredits is required.');
+				const usage = await store.createTaskUsageActual({
+					...body,
+					projectId,
+					taskId: body.taskId ?? job?.id ?? null,
+					workDayId: body.workDayId ?? null,
+					taskSignature: body.taskSignature ?? job?.operation ?? 'capacity-provider.reported-usage',
+					executionProfileId: body.executionProfileId ?? 'standard-code-model',
+					capacityProviderId: auth.provider.id,
+					laneId: body.laneId ?? null,
+					actualCredits: Number(body.actualCredits),
+					metadata: {
+						...(body.metadata && typeof body.metadata === 'object' ? body.metadata : {}),
+						providerKeyId: auth.principal.keyId,
 					},
 				});
+				return c.json({ ok: true, usage });
 			});
 
-			app.post('/v1/processing/tasks/:taskId/fail', async (c) => {
-				const auth = await requireCapacityProviderKey(c, store, ['provider:tasks:update', 'provider:usage:report']);
+			app.post('/v1/provider/reports', async (c) => {
+				const auth = await requireCapacityProviderKey(c, store, ['provider:reports:write']);
 				if (auth.response) return auth.response;
-				const job = await store.findJobById(c.req.param('taskId'));
-				if (!job) return jsonError(c, 404, 'Unknown task.');
-				const capacity = job.input?.capacity && typeof job.input.capacity === 'object' ? job.input.capacity : null;
-				if (capacity?.providerId !== auth.provider.id) {
-					return jsonError(c, 403, 'Provider cannot fail this task.');
-				}
 				const body = await c.req.json().catch(() => ({}));
-				if (typeof capacity?.reservationId === 'string') {
-					await store.recordCapacityUsage({
-						capacityProviderId: auth.provider.id,
-						laneId: typeof capacity.laneId === 'string' ? capacity.laneId : null,
-						reservationId: capacity.reservationId,
-						teamId: auth.principal.teamId,
-						projectId: job.projectId,
-						taskId: job.id,
-						phase: 'task_failed_refund',
-						credits: -Number(capacity.reservedCredits ?? 0),
-						source: 'provider_runtime',
-						metadata: {
-							message: typeof body.message === 'string' ? body.message : null,
-						},
-					});
-				}
-				const failed = await store.failJob(job.id, {
-					code: typeof body.code === 'string' ? body.code : 'provider_task_failed',
-					message: typeof body.message === 'string' ? body.message : 'Provider task failed.',
+				if (typeof body.workDayId !== 'string') return jsonError(c, 400, 'workDayId is required.');
+				const report = await store.createRuntimeReport({
+					workDayId: body.workDayId,
+					kind: body.kind ?? 'capacity_provider_report',
+					body: body.body ?? {},
+					renderedRef: body.renderedRef ?? null,
 				});
-				return c.json({ ok: true, payload: failed });
+				if (!report) return jsonError(c, 404, 'Unknown workday.');
+				await store.updateCapacityProviderStatus(auth.principal.teamId, auth.provider.id, {
+					status: auth.provider.status,
+					metadata: {
+						latestProviderReport: {
+							workDayId: body.workDayId,
+							kind: body.kind ?? 'capacity_provider_report',
+							summary: body.body?.summary ?? body.body?.status ?? null,
+							reportId: report.id,
+							createdAt: report.createdAt ?? new Date().toISOString(),
+						},
+					},
+				});
+				return c.json({ ok: true, report });
 			});
 
 			app.post('/v1/projects/:projectId/runner/capacity/estimates', async (c) => {

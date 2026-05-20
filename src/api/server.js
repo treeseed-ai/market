@@ -3,7 +3,7 @@
 import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
-import { resolveApiConfig } from '@treeseed/agent/api';
+import { resolveApiConfig } from '@treeseed/sdk/api';
 import { createMarketApiApp } from './app.js';
 
 function hasRequestBody(method) {

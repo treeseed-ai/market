@@ -38,6 +38,7 @@ const migrationPaths = [
 	'../../migrations/0021_capacity_provider_api_keys.sql',
 	'../../migrations/0022_user_preferences.sql',
 	'../../migrations/0024_seed_runs.sql',
+	'../../migrations/0026_capacity_provider_runtime.sql',
 ];
 
 let cachedMigrationSql = null;
@@ -87,6 +88,24 @@ function equalHash(left, right) {
 
 function tokenPrefix(token) {
 	return token.slice(0, 16);
+}
+
+const PHASE4_CAPACITY_PROVIDER_SCOPES = [
+	'provider:register',
+	'provider:heartbeat',
+	'provider:portfolio:read',
+	'provider:tasks:claim',
+	'provider:tasks:update',
+	'provider:usage:report',
+	'provider:reports:write',
+	'provider:capabilities:write',
+];
+
+const CAPACITY_PROVIDER_LAUNCH_MODES = new Set(['self_hosted', 'managed_market_host', 'connected_host']);
+
+function providerLaunchMode(value) {
+	const mode = typeof value === 'string' ? value.trim() : '';
+	return CAPACITY_PROVIDER_LAUNCH_MODES.has(mode) ? mode : null;
 }
 
 function sumNumbers(values) {
@@ -439,13 +458,6 @@ function serializeTeamWebHost(row) {
 
 const SUPPORTED_TEAM_HOST_PROVIDERS = new Set(['cloudflare', 'railway', 'smtp', 'openai', 'github_copilot', 'openrouter', 'custom']);
 
-function isProcessingTeamHost(host) {
-	if (!host) return false;
-	return host.metadata?.hostType === 'processing'
-		|| host.metadata?.hostType === 'agent'
-		|| host.provider === 'railway';
-}
-
 function defaultCapacityLaneDefinitions(providerId) {
 	return [
 		{
@@ -525,6 +537,7 @@ function defaultCapacityLaneDefinitions(providerId) {
 
 function serializeCapacityProvider(row) {
 	if (!row) return null;
+	const metadata = parseJson(row.metadata_json, {});
 	return {
 		id: row.id,
 		teamId: row.team_id,
@@ -539,7 +552,21 @@ function serializeCapacityProvider(row) {
 		maxConcurrentWorkdays: Number(row.max_concurrent_workdays ?? 1),
 		maxConcurrentWorkers: Number(row.max_concurrent_workers ?? 1),
 		capacityModel: parseJson(row.capacity_model_json, {}),
-		metadata: parseJson(row.metadata_json, {}),
+		launchMode: metadata.launchMode ?? 'self_hosted',
+		connectionState: metadata.connectionState ?? 'waiting_for_provider',
+		lastSeenAt: metadata.lastSeenAt ?? metadata.lastHealth?.checkedAt ?? metadata.apiKey?.lastUsedAt ?? null,
+		activeKeyPrefix: metadata.apiKey?.activeKeyPrefix ?? null,
+		lastRotatedAt: metadata.apiKey?.lastRotatedAt ?? null,
+		rotationRequired: metadata.apiKey?.rotationRequired === true,
+		capabilities: Array.isArray(metadata.capabilities) ? metadata.capabilities : [],
+		budgets: metadata.budgets && typeof metadata.budgets === 'object' ? metadata.budgets : {},
+		deployment: metadata.deployment && typeof metadata.deployment === 'object'
+			? metadata.deployment
+			: {
+				launchMode: metadata.launchMode ?? 'self_hosted',
+				status: 'not_deployed',
+			},
+		metadata,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -562,6 +589,48 @@ function serializeCapacityProviderApiKey(row) {
 		createdById: row.created_by_id,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
+	};
+}
+
+function serializeCapacityProviderRegistration(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		capacityProviderId: row.capacity_provider_id,
+		teamId: row.team_id,
+		runtimeVersion: row.runtime_version,
+		marketId: row.market_id,
+		capabilities: parseJson(row.capabilities_json, []),
+		budgets: parseJson(row.budgets_json, {}),
+		health: parseJson(row.health_json, {}),
+		status: row.status,
+		registeredAt: row.registered_at,
+		lastSeenAt: row.last_seen_at,
+		disconnectedAt: row.disconnected_at,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeCapacityProviderDeployment(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		capacityProviderId: row.capacity_provider_id,
+		launchMode: row.launch_mode,
+		hostKind: row.host_kind,
+		hostId: row.host_id,
+		status: row.status,
+		imageRef: row.image_ref,
+		serviceRefs: parseJson(row.service_refs_json, {}),
+		envRefs: parseJson(row.env_refs_json, {}),
+		result: parseJson(row.result_json, {}),
+		error: parseJson(row.error_json, null),
+		createdById: row.created_by_id,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+		completedAt: row.completed_at,
 	};
 }
 
@@ -831,6 +900,7 @@ function serializeRuntimeWorkDay(row) {
 		capacityBudget: Number(row.capacity_budget ?? 0),
 		capacityUsed: Number(row.capacity_used ?? 0),
 		graphVersion: row.graph_version,
+		summary: parseJson(row.summary_json, {}),
 		summaryJson: row.summary_json,
 		startedAt: row.started_at,
 		endedAt: row.ended_at,
@@ -886,6 +956,19 @@ function serializeRuntimeTaskOutput(row) {
 		taskId: row.task_id,
 		outputJson: row.output_json,
 		outputRef: row.output_ref,
+		createdAt: row.created_at,
+	};
+}
+
+function serializeRuntimeReport(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		workDayId: row.work_day_id,
+		kind: row.kind,
+		body: parseJson(row.body_json, {}),
+		renderedRef: row.rendered_ref,
+		sentAt: row.sent_at,
 		createdAt: row.created_at,
 	};
 }
@@ -2697,7 +2780,7 @@ export class MarketControlPlaneStore {
 		const hostKind = String(input.hostKind ?? '');
 		const hostId = String(input.hostId ?? '');
 		const purpose = String(input.purpose ?? 'launch_project');
-		if (!['repository_host', 'web_host', 'processing_host', 'email_host'].includes(hostKind)) {
+		if (!['repository_host', 'web_host', 'capacity_provider_host', 'email_host'].includes(hostKind)) {
 			throw new Error(`Unsupported credential session hostKind "${hostKind}".`);
 		}
 		if (!hostId) {
@@ -2804,6 +2887,51 @@ export class MarketControlPlaneStore {
 		return {
 			ok: true,
 			payload: await this.findProviderCredentialSession(sessionId, { includeEncryptedPayload: true }),
+		};
+	}
+
+	async consumeTeamProviderCredentialSession(teamId, sessionId, input = {}) {
+		await this.ensureInitialized();
+		await this.markExpiredProviderCredentialSessions();
+		const existing = await this.getProviderCredentialSession(teamId, sessionId, { includeEncryptedPayload: true });
+		if (!existing) {
+			return { ok: false, error: 'not_found' };
+		}
+		if (input.hostKind && existing.hostKind !== input.hostKind) {
+			return { ok: false, error: 'wrong_host_kind' };
+		}
+		if (input.purpose && existing.purpose !== input.purpose) {
+			return { ok: false, error: 'wrong_purpose' };
+		}
+		if (existing.status !== 'active') {
+			return { ok: false, error: 'already_consumed' };
+		}
+		if (new Date(existing.expiresAt).getTime() <= Date.now()) {
+			await this.run(
+				`UPDATE provider_credential_sessions SET status = 'expired', updated_at = ? WHERE id = ? AND team_id = ?`,
+				[isoNow(), sessionId, teamId],
+			);
+			return { ok: false, error: 'expired' };
+		}
+		const timestamp = isoNow();
+		await this.run(
+			`UPDATE provider_credential_sessions
+			 SET status = 'consumed', consumed_at = ?, updated_at = ?, metadata_json = ?
+			 WHERE id = ? AND team_id = ? AND status = 'active'`,
+			[
+				timestamp,
+				timestamp,
+				JSON.stringify({
+					...existing.metadata,
+					...(input.metadata && typeof input.metadata === 'object' ? input.metadata : {}),
+				}),
+				sessionId,
+				teamId,
+			],
+		);
+		return {
+			ok: true,
+			payload: await this.getProviderCredentialSession(teamId, sessionId, { includeEncryptedPayload: true }),
 		};
 	}
 
@@ -2954,6 +3082,53 @@ export class MarketControlPlaneStore {
 		return this.getCapacityProvider(teamId, id);
 	}
 
+	async createStandaloneCapacityProvider(teamId, input = {}) {
+		await this.ensureInitialized();
+		const name = typeof input.name === 'string' ? input.name.trim() : '';
+		const launchMode = providerLaunchMode(input.launchMode);
+		if (!name) throw new Error('name is required.');
+		if (!launchMode) throw new Error('launchMode must be self_hosted, managed_market_host, or connected_host.');
+		return this.upsertCapacityProvider(teamId, {
+			teamId,
+			ownerTeamId: teamId,
+			name,
+			kind: 'team_owned',
+			status: 'pending',
+			provider: '@treeseed/agent',
+			billingScope: 'team',
+			monthlyCreditBudget: 0,
+			dailyCreditBudget: 0,
+			maxConcurrentWorkdays: 1,
+			maxConcurrentWorkers: 1,
+			capacityModel: {},
+			metadata: {
+				launchMode,
+				connectionState: 'waiting_for_provider',
+				rotationRequired: false,
+				capabilities: [],
+				budgets: {},
+				deployment: {
+					launchMode,
+					status: 'not_deployed',
+				},
+				createdById: input.createdById ?? null,
+			},
+		});
+	}
+
+	async renameCapacityProvider(teamId, providerId, name) {
+		await this.ensureInitialized();
+		const provider = await this.getCapacityProvider(teamId, providerId);
+		if (!provider) return null;
+		const trimmed = typeof name === 'string' ? name.trim() : '';
+		if (!trimmed) throw new Error('name is required.');
+		await this.run(
+			`UPDATE capacity_providers SET name = ?, updated_at = ? WHERE id = ? AND (team_id = ? OR owner_team_id = ?)`,
+			[trimmed, isoNow(), providerId, teamId, teamId],
+		);
+		return this.getCapacityProvider(teamId, providerId);
+	}
+
 	async updateCapacityProviderStatus(teamId, providerId, input = {}) {
 		await this.ensureInitialized();
 		const provider = await this.getCapacityProvider(teamId, providerId);
@@ -3096,13 +3271,7 @@ export class MarketControlPlaneStore {
 		const token = `tsp_${randomUUID().replaceAll('-', '')}`;
 		const timestamp = isoNow();
 		const id = input.id ?? randomUUID();
-		const scopes = input.scopes ?? [
-			'provider:heartbeat',
-			'provider:tasks:claim',
-			'provider:tasks:update',
-			'provider:usage:report',
-			'provider:lanes:read',
-		];
+		const scopes = input.scopes ?? PHASE4_CAPACITY_PROVIDER_SCOPES;
 		await this.run(
 			`INSERT INTO capacity_provider_api_keys (
 				id, capacity_provider_id, team_id, name, key_prefix, key_hash, scopes_json, status,
@@ -3167,6 +3336,15 @@ export class MarketControlPlaneStore {
 		return result;
 	}
 
+	async rotateCapacityProviderApiKey(teamId, providerId, input = {}) {
+		return this.resetCapacityProviderApiKey(teamId, providerId, {
+			name: 'Capacity provider API key',
+			scopes: PHASE4_CAPACITY_PROVIDER_SCOPES,
+			expiresAt: null,
+			createdById: input.createdById ?? null,
+		});
+	}
+
 	async revokeCapacityProviderApiKey(teamId, keyId, providerId = null) {
 		await this.ensureInitialized();
 		const row = await this.first(
@@ -3191,19 +3369,32 @@ export class MarketControlPlaneStore {
 
 	async verifyCapacityProviderApiKey(presentedKey, requiredScopes = []) {
 		await this.ensureInitialized();
+		const auth = await this.authenticateCapacityProviderApiKey(presentedKey, requiredScopes);
+		return auth.ok ? auth.principal : null;
+	}
+
+	async authenticateCapacityProviderApiKey(presentedKey, requiredScopes = []) {
+		await this.ensureInitialized();
 		const token = String(presentedKey ?? '');
 		const prefix = tokenPrefix(token);
 		const rows = await this.all(
 			`SELECT * FROM capacity_provider_api_keys
-			 WHERE key_prefix = ? AND status = 'active' AND revoked_at IS NULL`,
+			 WHERE key_prefix = ?`,
 			[prefix],
 		);
+		let matchedInactive = false;
 		for (const row of rows) {
-			if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) continue;
 			if (!equalHash(stableHash(token, this.config.authSecret), row.key_hash)) continue;
+			if (row.status !== 'active' || row.revoked_at) {
+				matchedInactive = true;
+				continue;
+			}
+			if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) {
+				return { ok: false, reason: 'expired' };
+			}
 			const scopes = parseJson(row.scopes_json, []);
 			const hasScopes = requiredScopes.every((scope) => scopes.includes(scope));
-			if (!hasScopes) return null;
+			if (!hasScopes) return { ok: false, reason: 'insufficient_scope', scopes };
 			const timestamp = isoNow();
 			await this.run(
 				`UPDATE capacity_provider_api_keys
@@ -3217,13 +3408,331 @@ export class MarketControlPlaneStore {
 				rotationRequired: false,
 			});
 			return {
-				keyId: row.id,
-				capacityProviderId: row.capacity_provider_id,
-				teamId: row.team_id,
-				scopes,
+				ok: true,
+				principal: {
+					keyId: row.id,
+					capacityProviderId: row.capacity_provider_id,
+					teamId: row.team_id,
+					scopes,
+				},
 			};
 		}
-		return null;
+		return { ok: false, reason: matchedInactive ? 'revoked' : 'invalid' };
+	}
+
+	async latestCapacityProviderRegistration(providerId) {
+		await this.ensureInitialized();
+		return serializeCapacityProviderRegistration(await this.first(
+			`SELECT * FROM capacity_provider_registrations
+			 WHERE capacity_provider_id = ?
+			 ORDER BY last_seen_at DESC LIMIT 1`,
+			[providerId],
+		));
+	}
+
+	async recordCapacityProviderRegistration(principal, input = {}) {
+		await this.ensureInitialized();
+		const provider = await this.getCapacityProvider(principal.teamId, principal.capacityProviderId);
+		if (!provider) return null;
+		const timestamp = isoNow();
+		const runtime = input.runtime && typeof input.runtime === 'object' ? input.runtime : {};
+		const capabilities = Array.isArray(input.capabilities) ? input.capabilities : [];
+		const budgets = input.budgets && typeof input.budgets === 'object' ? input.budgets : {};
+		const health = input.health && typeof input.health === 'object' ? input.health : {};
+		const marketId = typeof input.marketId === 'string' && input.marketId.trim() ? input.marketId.trim() : 'local';
+		const registrationId = randomUUID();
+		await this.run(
+			`INSERT INTO capacity_provider_registrations (
+				id, capacity_provider_id, team_id, runtime_version, market_id, capabilities_json, budgets_json,
+				health_json, status, registered_at, last_seen_at, disconnected_at, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'online', ?, ?, NULL, ?, ?)`,
+			[
+				registrationId,
+				provider.id,
+				principal.teamId,
+				typeof runtime.version === 'string' ? runtime.version : 'unknown',
+				marketId,
+				JSON.stringify(capabilities),
+				JSON.stringify(budgets),
+				JSON.stringify(health),
+				timestamp,
+				timestamp,
+				timestamp,
+				timestamp,
+			],
+		);
+		const metadata = {
+			...(provider.metadata ?? {}),
+			marketId,
+			runtime,
+			capabilities,
+			budgets,
+			health,
+			connectionState: 'connected',
+			lastSeenAt: timestamp,
+			lastRegisteredAt: timestamp,
+			lastRegistrationId: registrationId,
+			deployment: {
+				launchMode: provider.metadata?.deployment?.launchMode ?? provider.metadata?.launchMode ?? 'self_hosted',
+				status: provider.metadata?.deployment?.status ?? 'not_deployed',
+			},
+		};
+		await this.run(
+			`UPDATE capacity_providers
+			 SET status = 'online',
+			     monthly_credit_budget = ?,
+			     daily_credit_budget = ?,
+			     max_concurrent_workdays = ?,
+			     max_concurrent_workers = ?,
+			     metadata_json = ?,
+			     updated_at = ?
+			 WHERE id = ?`,
+			[
+				Number(budgets.monthlyCreditBudget ?? provider.monthlyCreditBudget ?? 0),
+				Number(budgets.dailyCreditBudget ?? provider.dailyCreditBudget ?? 0),
+				Number(budgets.maxConcurrentWorkdays ?? provider.maxConcurrentWorkdays ?? 1),
+				Number(budgets.maxConcurrentRunners ?? provider.maxConcurrentWorkers ?? 1),
+				JSON.stringify(metadata),
+				timestamp,
+				provider.id,
+			],
+		);
+		await this.updateCapacityProviderApiKeyMetadata(principal.teamId, provider.id, {
+			lastUsedAt: timestamp,
+			rotationRequired: false,
+		});
+		return {
+			provider: await this.getCapacityProvider(principal.teamId, provider.id),
+			registration: await this.latestCapacityProviderRegistration(provider.id),
+		};
+	}
+
+	async recordCapacityProviderHeartbeat(principal, input = {}) {
+		await this.ensureInitialized();
+		const provider = await this.getCapacityProvider(principal.teamId, principal.capacityProviderId);
+		if (!provider) return null;
+		const timestamp = isoNow();
+		const health = input.health && typeof input.health === 'object' ? input.health : {};
+		const capabilities = Array.isArray(input.capabilities) ? input.capabilities : provider.capabilities ?? [];
+		const budgets = input.budgets && typeof input.budgets === 'object' ? input.budgets : provider.budgets ?? {};
+		const latest = await this.latestCapacityProviderRegistration(provider.id);
+		if (latest) {
+			await this.run(
+				`UPDATE capacity_provider_registrations
+				 SET health_json = ?, capabilities_json = ?, budgets_json = ?, status = ?, last_seen_at = ?, updated_at = ?
+				 WHERE id = ?`,
+				[
+					JSON.stringify({ ...(latest.health ?? {}), ...health }),
+					JSON.stringify(capabilities),
+					JSON.stringify(budgets),
+					'online',
+					timestamp,
+					timestamp,
+					latest.id,
+				],
+			);
+		}
+		const metadata = {
+			...(provider.metadata ?? {}),
+			health: {
+				...(provider.metadata?.health ?? {}),
+				...health,
+			},
+			capabilities,
+			budgets,
+			connectionState: 'connected',
+			lastSeenAt: timestamp,
+			lastHealth: {
+				ok: input.status !== 'offline',
+				checkedAt: timestamp,
+				...(health ?? {}),
+			},
+		};
+		await this.run(
+			`UPDATE capacity_providers
+			 SET status = ?, metadata_json = ?, updated_at = ?
+			 WHERE id = ?`,
+			[input.status === 'offline' ? 'offline' : 'online', JSON.stringify(metadata), timestamp, provider.id],
+		);
+		await this.updateCapacityProviderApiKeyMetadata(principal.teamId, provider.id, {
+			lastUsedAt: timestamp,
+			rotationRequired: false,
+		});
+		return this.getCapacityProvider(principal.teamId, provider.id);
+	}
+
+	async listCapacityProviderDeployments(teamId, providerId) {
+		await this.ensureInitialized();
+		if (!(await this.getCapacityProvider(teamId, providerId))) return [];
+		const rows = await this.all(
+			`SELECT * FROM capacity_provider_deployments
+			 WHERE team_id = ? AND capacity_provider_id = ?
+			 ORDER BY created_at DESC`,
+			[teamId, providerId],
+		);
+		return rows.map(serializeCapacityProviderDeployment);
+	}
+
+	async createCapacityProviderDeployment(teamId, providerId, input = {}) {
+		await this.ensureInitialized();
+		const provider = await this.getCapacityProvider(teamId, providerId);
+		if (!provider) return null;
+		const launchMode = providerLaunchMode(input.launchMode) ?? provider.metadata?.launchMode ?? 'self_hosted';
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		const status = input.status ?? (launchMode === 'self_hosted' ? 'not_deployed' : 'deploying');
+		await this.run(
+			`INSERT INTO capacity_provider_deployments (
+				id, team_id, capacity_provider_id, launch_mode, host_kind, host_id, status, image_ref,
+				service_refs_json, env_refs_json, result_json, error_json, created_by_id, created_at, updated_at, completed_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				teamId,
+				providerId,
+				launchMode,
+				String(input.hostKind ?? (launchMode === 'self_hosted' ? 'self_hosted' : 'managed')),
+				input.hostId ?? null,
+				status,
+				input.imageRef ?? null,
+				JSON.stringify(input.serviceRefs ?? {}),
+				JSON.stringify(input.envRefs ?? {}),
+				JSON.stringify(input.result ?? {}),
+				input.error ? JSON.stringify(input.error) : null,
+				input.createdById ?? null,
+				timestamp,
+				timestamp,
+				input.completedAt ?? null,
+			],
+		);
+		const deployment = serializeCapacityProviderDeployment(await this.first(`SELECT * FROM capacity_provider_deployments WHERE id = ? LIMIT 1`, [id]));
+		await this.updateCapacityProviderStatus(teamId, providerId, {
+			status: provider.status,
+			metadata: {
+				deployment: {
+					launchMode,
+					status,
+				},
+			},
+		});
+		return deployment;
+	}
+
+	async updateCapacityProviderDeployment(teamId, deploymentId, input = {}) {
+		await this.ensureInitialized();
+		const existing = serializeCapacityProviderDeployment(await this.first(
+			`SELECT * FROM capacity_provider_deployments WHERE id = ? AND team_id = ? LIMIT 1`,
+			[deploymentId, teamId],
+		));
+		if (!existing) return null;
+		const timestamp = isoNow();
+		const status = input.status ?? existing.status;
+		const serviceRefs = input.serviceRefs ?? existing.serviceRefs ?? {};
+		const envRefs = input.envRefs ?? existing.envRefs ?? {};
+		const result = input.result ?? existing.result ?? {};
+		const error = input.error === undefined ? existing.error : input.error;
+		const completedAt = input.completedAt === undefined ? existing.completedAt : input.completedAt;
+		await this.run(
+			`UPDATE capacity_provider_deployments
+			 SET status = ?, service_refs_json = ?, env_refs_json = ?, result_json = ?, error_json = ?, updated_at = ?, completed_at = ?
+			 WHERE id = ? AND team_id = ?`,
+			[
+				status,
+				JSON.stringify(serviceRefs),
+				JSON.stringify(envRefs),
+				JSON.stringify(result),
+				error ? JSON.stringify(error) : null,
+				timestamp,
+				completedAt ?? null,
+				deploymentId,
+				teamId,
+			],
+		);
+		const deployment = serializeCapacityProviderDeployment(await this.first(
+			`SELECT * FROM capacity_provider_deployments WHERE id = ? AND team_id = ? LIMIT 1`,
+			[deploymentId, teamId],
+		));
+		const provider = await this.getCapacityProvider(teamId, deployment.capacityProviderId);
+		await this.updateCapacityProviderStatus(teamId, deployment.capacityProviderId, {
+			status: provider?.status ?? 'pending',
+			metadata: {
+				deployment: {
+					launchMode: deployment.launchMode,
+					status: deployment.status,
+					serviceRefs: deployment.serviceRefs,
+					updatedAt: deployment.updatedAt,
+				},
+			},
+		});
+		return deployment;
+	}
+
+	async buildCapacityProviderPortfolio(principal) {
+		await this.ensureInitialized();
+		const team = await this.getTeam(principal.teamId);
+		if (!team) return null;
+		const projects = await this.listTeamProjects(principal.teamId);
+		const manifestProjects = [];
+		for (const project of projects) {
+			const metadata = project.metadata ?? {};
+			const repositories = await this.listHubRepositories(project.id);
+			const canonicalRepository = repositories.find((entry) => ['primary', 'package', 'software', 'content'].includes(entry.role))
+				?? repositories[0]
+				?? null;
+			const repository = metadata.repository && typeof metadata.repository === 'object'
+				? metadata.repository
+				: {};
+			const policy = await this.getProjectWorkPolicy(project.id, metadata.environment ?? 'staging');
+			manifestProjects.push({
+				id: project.id,
+				slug: project.slug,
+				name: project.name,
+				repository: {
+					provider: String(canonicalRepository?.provider ?? repository.provider ?? 'github'),
+					role: canonicalRepository?.role ?? repository.role ?? null,
+					owner: String(canonicalRepository?.owner ?? repository.owner ?? metadata.repositoryOwner ?? team.slug ?? 'treeseed'),
+					name: String(canonicalRepository?.name ?? repository.name ?? metadata.repositoryName ?? project.slug),
+					defaultBranch: String(canonicalRepository?.defaultBranch ?? repository.defaultBranch ?? metadata.defaultBranch ?? 'staging'),
+					cloneUrl: String(canonicalRepository?.url ?? repository.cloneUrl ?? metadata.cloneUrl ?? metadata.repositoryUrl ?? `git@github.com:${team.slug}/${project.slug}.git`),
+					currentBranch: canonicalRepository?.currentBranch ?? repository.currentBranch ?? null,
+					checkoutPath: repository.checkoutPath ?? metadata.checkoutPath ?? null,
+					submodulePath: canonicalRepository?.submodulePath ?? repository.submodulePath ?? metadata.submodulePath ?? null,
+					webUrl: canonicalRepository?.metadata?.webUrl ?? repository.webUrl ?? null,
+				},
+				agentSpecs: {
+					root: String(metadata.agentSpecs?.root ?? 'src/content/agents'),
+					testsRoot: String(metadata.agentSpecs?.testsRoot ?? 'src/content/agent-tests'),
+				},
+				workPolicy: policy
+					? {
+						enabled: policy.enabled,
+						startCron: policy.startCron,
+						durationMinutes: policy.durationMinutes,
+						dailyCreditBudget: policy.dailyCreditBudget,
+						maxRunners: policy.maxRunners,
+						maxWorkersPerRunner: policy.maxWorkersPerRunner,
+					}
+					: {
+						enabled: true,
+						startCron: '0 9 * * 1-5',
+						durationMinutes: 480,
+						dailyCreditBudget: 0,
+						maxRunners: 1,
+						maxWorkersPerRunner: 4,
+					},
+				metadata: {
+					environment: metadata.environment ?? 'staging',
+				},
+			});
+		}
+		return {
+			team: {
+				id: team.id,
+				slug: team.slug,
+				name: team.name,
+			},
+			projects: manifestProjects,
+		};
 	}
 
 	async upsertCapacityProviderHost(teamId, providerId, input) {
@@ -3469,14 +3978,7 @@ export class MarketControlPlaneStore {
 			? { key: existingActiveKey, plaintextKey: null }
 			: await this.createCapacityProviderApiKey(teamId, provider.id, {
 				name: 'Managed provider security code',
-				scopes: [
-					'provider:heartbeat',
-					'provider:tasks:claim',
-					'provider:tasks:update',
-					'provider:usage:report',
-					'provider:lanes:read',
-					'provider:registration:complete',
-				],
+				scopes: PHASE4_CAPACITY_PROVIDER_SCOPES,
 				createdById: input.createdById ?? null,
 			});
 		await this.upsertTeamInboxItem(teamId, {
@@ -3494,128 +3996,6 @@ export class MarketControlPlaneStore {
 			provider: await this.getCapacityProvider(teamId, provider.id),
 			lanes,
 			grants: [teamGrant, ...projectGrants],
-			apiKey: keyResult?.key ?? null,
-			plaintextKey: keyResult?.plaintextKey ?? null,
-		};
-	}
-
-	async launchHostBackedCapacityProvider(teamId, input = {}) {
-		await this.ensureInitialized();
-		const processingHostId = typeof input.processingHostId === 'string' && input.processingHostId.trim()
-			? input.processingHostId.trim()
-			: '';
-		const processingHost = await this.getTeamWebHost(teamId, processingHostId);
-		if (!processingHost || !isProcessingTeamHost(processingHost)) {
-			const error = new Error('Selected processing host is not available for this team.');
-			error.code = 'processing_host_unavailable';
-			throw error;
-		}
-		if (processingHost.status !== 'active') {
-			const error = new Error('Selected processing host must be active before capacity can use it.');
-			error.code = 'processing_host_inactive';
-			throw error;
-		}
-		const provider = await this.upsertCapacityProvider(teamId, {
-			id: input.providerId,
-			teamId,
-			ownerTeamId: teamId,
-			name: input.name,
-			kind: input.kind ?? 'team_owned',
-			status: input.status ?? 'credential_required',
-			provider: input.provider ?? processingHost.provider ?? 'custom',
-			billingScope: input.billingScope ?? 'team',
-			monthlyCreditBudget: Number(input.monthlyCreditBudget ?? 1000),
-			dailyCreditBudget: Number(input.dailyCreditBudget ?? 50),
-			maxConcurrentWorkdays: Number(input.maxConcurrentWorkdays ?? 1),
-			maxConcurrentWorkers: Number(input.maxConcurrentWorkers ?? 2),
-			capacityModel: input.capacityModel ?? {},
-			metadata: {
-				launchSource: input.launchSource ?? 'team_capacity_page',
-				connectionMode: 'team_owned',
-				providerHostIds: [processingHost.id],
-				processingHostId: processingHost.id,
-				processingHostName: processingHost.name,
-				operationalWarnings: [],
-				...(input.metadata && typeof input.metadata === 'object' ? input.metadata : {}),
-			},
-		});
-		const hostBinding = await this.upsertCapacityProviderHost(teamId, provider.id, {
-			id: `${provider.id}:processing:${processingHost.id}`,
-			hostId: processingHost.id,
-			role: 'processing',
-			required: true,
-			metadata: {
-				hostName: processingHost.name,
-				provider: processingHost.provider,
-				ownership: processingHost.ownership,
-			},
-		});
-		const lanes = [];
-		if (input.createDefaultLanes !== false) {
-			for (const lane of defaultCapacityLaneDefinitions(provider.id)) {
-				lanes.push(await this.upsertCapacityProviderLane(teamId, provider.id, lane));
-			}
-		}
-		const grants = [];
-		const initialGrant = input.initialGrant && typeof input.initialGrant === 'object'
-			? input.initialGrant
-			: {
-				grantScope: 'team',
-				dailyCreditLimit: Number(input.dailyCreditBudget ?? 50),
-				monthlyCreditLimit: Number(input.monthlyCreditBudget ?? 1000),
-				overflowPolicy: 'approval_required',
-			};
-		if (initialGrant !== false) {
-			grants.push(await this.upsertCapacityGrant(teamId, {
-				id: initialGrant.id ?? `${provider.id}:team-grant`,
-				capacityProviderId: provider.id,
-				laneId: initialGrant.laneId ?? null,
-				grantScope: initialGrant.grantScope ?? 'team',
-				teamId,
-				projectId: initialGrant.projectId ?? null,
-				environment: initialGrant.environment ?? null,
-				state: initialGrant.state ?? 'active',
-				dailyCreditLimit: initialGrant.dailyCreditLimit ?? Number(input.dailyCreditBudget ?? 50),
-				monthlyCreditLimit: initialGrant.monthlyCreditLimit ?? Number(input.monthlyCreditBudget ?? 1000),
-				priorityWeight: initialGrant.priorityWeight ?? 1,
-				overflowPolicy: initialGrant.overflowPolicy ?? 'approval_required',
-				metadata: {
-					source: 'host_backed_capacity_launch',
-					processingHostId: processingHost.id,
-					...(initialGrant.metadata && typeof initialGrant.metadata === 'object' ? initialGrant.metadata : {}),
-				},
-			}));
-		}
-		const keyResult = await this.createCapacityProviderApiKey(teamId, provider.id, {
-			name: 'Provider security code',
-			scopes: [
-				'provider:heartbeat',
-				'provider:tasks:claim',
-				'provider:tasks:update',
-				'provider:usage:report',
-				'provider:lanes:read',
-				'provider:registration:complete',
-			],
-			createdById: input.createdById ?? null,
-		});
-		await this.upsertTeamInboxItem(teamId, {
-			kind: 'capacity_connected',
-			state: 'open',
-			title: 'Helper capacity connected',
-			summary: `${provider.name} is connected to ${processingHost.name} and ready for provider registration.`,
-			href: '/app/capacity',
-			itemKey: `capacity-connected:${provider.id}`,
-			metadata: {
-				providerId: provider.id,
-				processingHostId: processingHost.id,
-			},
-		});
-		return {
-			provider: await this.getCapacityProvider(teamId, provider.id),
-			hosts: [hostBinding],
-			processingHost,
-			lanes,
-			grants,
 			apiKey: keyResult?.key ?? null,
 			plaintextKey: keyResult?.plaintextKey ?? null,
 		};
@@ -6247,6 +6627,28 @@ export class MarketControlPlaneStore {
 			[projectId, taskId],
 		);
 		return Promise.all(rows.map((row) => this.resolveRuntimeTaskOutput(row, projectId)));
+	}
+
+	async createRuntimeReport(input) {
+		await this.ensureInitialized();
+		const workDay = await this.first(`SELECT * FROM work_days WHERE id = ? LIMIT 1`, [input.workDayId]);
+		if (!workDay) return null;
+		const id = input.id ?? randomUUID();
+		const timestamp = isoNow();
+		await this.run(
+			`INSERT INTO reports (id, work_day_id, kind, body_json, rendered_ref, sent_at, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				input.workDayId,
+				String(input.kind ?? 'capacity_provider_report'),
+				JSON.stringify(input.body ?? {}),
+				input.renderedRef ?? null,
+				input.sentAt ?? null,
+				timestamp,
+			],
+		);
+		return serializeRuntimeReport(await this.first(`SELECT * FROM reports WHERE id = ? LIMIT 1`, [id]));
 	}
 
 	async getRuntimeManagerContext(projectId, taskId) {

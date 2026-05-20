@@ -66,33 +66,13 @@ export function managedCloudflareConfigMissing(config) {
 	return ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID'].filter((key) => !config?.[key]);
 }
 
-export function resolveTreeseedManagedProcessingHostConfig(runtime, values = {}) {
-	const config = {
-		RAILWAY_API_TOKEN: firstRuntimeEnvValue(runtime, ['RAILWAY_API_TOKEN'], values),
-		TREESEED_RAILWAY_WORKSPACE: firstRuntimeEnvValue(runtime, ['TREESEED_RAILWAY_WORKSPACE'], values),
-		TREESEED_RAILWAY_API_URL: firstRuntimeEnvValue(runtime, ['TREESEED_RAILWAY_API_URL'], values),
-		TREESEED_WORKER_POOL_SCALER: 'railway',
-	};
-	return Object.fromEntries(Object.entries(config).filter(([, value]) => value));
-}
-
-export async function resolveTreeseedManagedProcessingHostConfigFromConfig(runtime, scope = 'prod') {
-	return resolveTreeseedManagedProcessingHostConfig(runtime, await collectLocalTreeseedConfigValues(runtime, scope));
-}
-
-export function managedProcessingConfigMissing(config) {
-	return ['RAILWAY_API_TOKEN', 'TREESEED_RAILWAY_WORKSPACE'].filter((key) => !config?.[key]);
-}
-
 function managedStatus(missing) {
 	return missing.length > 0 ? 'configuration_required' : 'active';
 }
 
 export function listTreeseedManagedHosts(teamId, runtime, values = {}) {
 	const cloudflareConfig = resolveTreeseedManagedCloudflareHostConfig(runtime, values);
-	const railwayConfig = resolveTreeseedManagedProcessingHostConfig(runtime, values);
 	const cloudflareMissing = managedCloudflareConfigMissing(cloudflareConfig);
-	const railwayMissing = managedProcessingConfigMissing(railwayConfig);
 	const now = null;
 	return [
 		{
@@ -113,29 +93,6 @@ export function listTreeseedManagedHosts(teamId, runtime, values = {}) {
 				requiredOperationalKeys: [
 					'CLOUDFLARE_API_TOKEN',
 					'CLOUDFLARE_ACCOUNT_ID',
-				],
-			},
-			createdAt: now,
-			updatedAt: now,
-		},
-		{
-			id: 'treeseed-managed-processing',
-			teamId,
-			provider: 'railway',
-			ownership: 'treeseed_managed',
-			name: 'TreeSeed Processing Host',
-			accountLabel: 'TreeSeed Railway workspace',
-			allowedEnvironments: ['staging', 'prod'],
-			status: managedStatus(railwayMissing),
-			encryptedPayload: null,
-			metadata: {
-				hostType: 'processing',
-				managed: true,
-				configured: railwayMissing.length === 0,
-				missingConfigKeys: railwayMissing,
-				requiredOperationalKeys: [
-					'RAILWAY_API_TOKEN',
-					'TREESEED_RAILWAY_WORKSPACE',
 				],
 			},
 			createdAt: now,

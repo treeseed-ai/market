@@ -216,7 +216,7 @@ function providerItem(provider: any): InfrastructureItem {
 		category: 'infrastructure',
 		state: compact(provider?.status, 'configured'),
 		tone: toneForState(provider?.status ?? 'active'),
-		href: provider?.id ? `/app/capacity/providers/${encodeURIComponent(provider.id)}/edit` : '/app/capacity',
+		href: provider?.id ? `/app/capacity/providers/${encodeURIComponent(provider.id)}/edit` : '/app/capacity/providers',
 		meta: compact(provider?.provider, compact(provider?.kind, 'capacity')),
 		details: {
 			billingScope: compact(provider?.billingScope, 'team'),
@@ -233,7 +233,7 @@ function grantItem(grant: any): InfrastructureItem {
 		category: 'governance',
 		state: compact(grant?.state, 'active'),
 		tone: toneForState(grant?.state ?? 'active'),
-		href: grant?.id ? `/app/capacity/grants/${encodeURIComponent(grant.id)}/edit` : '/app/capacity/grants',
+		href: '/app/capacity/providers',
 		meta: grant?.projectId ? 'project grant' : 'team grant',
 		projectId: compact(grant?.projectId, '') || null,
 	};
@@ -332,7 +332,7 @@ function workerItems(bundle: InfrastructureBundle): InfrastructureItem[] {
 		category: 'execution' as const,
 		state: compact(runner?.state, 'unknown'),
 		tone: toneForState(runner?.state),
-		href: '/app/capacity',
+		href: '/app/capacity/providers',
 		meta: `${Number(runner?.activeLocalWorkers ?? 0)} / ${Number(runner?.maxLocalWorkers ?? 0)} workers`,
 		projectId: compact(bundle.project?.id, '') || null,
 		projectName: projectName(bundle),
