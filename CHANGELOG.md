@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.6.4] - 2026-05-21
+
+### Fixed
+
+- fix(deps): rehearse repair releases against stable dependencies (c2c969f4c4bf)
+- fix(deps): allow release-line repair selector (9aeeb4832f1b)
+- fix(deps): keep release package lines aligned (32a10b53b4a1)
+
+### Infrastructure
+
+- release: sync package staging heads (37d652a03fb1)
+
+### Dependencies
+
+- Release @treeseed/market 0.6.4.
+- Release package @treeseed/agent: 0.10.0.
+- Release package @treeseed/cli: 0.10.0.
+- Release package @treeseed/core: 0.10.0.
+
 ## [0.6.3] - 2026-05-21
 
 ### Infrastructure
