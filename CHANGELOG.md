@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.3] - 2026-05-21
+
+### Infrastructure
+
+- release: sync package staging heads (f2df25db378a)
+
+### Dependencies
+
+- build(deps): record published sdk release pointer (290d9c8aa9b2)
+- build(deps): fail package release when npm publish fails (d8422694bbf8)
+- Release @treeseed/market 0.6.3.
+- Release package @treeseed/agent: 0.9.3.
+- Release package @treeseed/cli: 0.9.3.
+- Release package @treeseed/core: 0.9.4.
+- Release package @treeseed/sdk: 0.10.6.
+
 ## [0.6.2] - 2026-05-20
 
 ### Infrastructure
