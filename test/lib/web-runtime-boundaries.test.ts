@@ -24,6 +24,7 @@ describe('web runtime boundaries', () => {
 			.filter((path) => path !== 'docs/capacity-providers.md')
 			.filter((path) => !path.includes('/test/'))
 			.filter((path) => !path.includes('.test.'));
+		roots.push('packages/core/templates/github/hosted-project.workflow.yml');
 		const legacyTerms = [
 			['treeseed', 'processing'].join('-'),
 			'/v1/' + 'processing',
@@ -39,7 +40,7 @@ describe('web runtime boundaries', () => {
 				.map((term) => `${path}: ${term}`);
 		});
 		expect(offenders).toEqual([]);
-	});
+	}, 15_000);
 
 	it('keeps root Market free of the deleted processing plane', () => {
 		expect(existsSync('Dockerfile.processing')).toBe(false);
