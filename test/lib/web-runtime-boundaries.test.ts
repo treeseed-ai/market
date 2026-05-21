@@ -6,6 +6,9 @@ import { describe, expect, it } from 'vitest';
 function files(root: string): string[] {
 	return readdirSync(root).flatMap((entry) => {
 		const path = join(root, entry);
+		if (statSync(path).isDirectory() && ['.fixtures', '.git', '.treeseed', 'dist', 'node_modules'].includes(entry)) {
+			return [];
+		}
 		return statSync(path).isDirectory() ? files(path) : [path];
 	});
 }
