@@ -71,6 +71,16 @@ surfaces:
       prod:
         domain: api.treeseed.ai
 services:
+  marketDatabase:
+    enabled: true
+    provider: railway
+    railway:
+      resourceType: postgres
+      serviceName: treeseed-market-postgres
+      environmentVariable: TREESEED_MARKET_DATABASE_URL
+      serviceTargets:
+        - api
+        - marketOperationsRunner
   api:
     enabled: true
     provider: railway
@@ -87,6 +97,32 @@ services:
     environments:
       local:
         baseUrl: http://127.0.0.1:3000
+        railwayEnvironment: local
+      staging:
+        railwayEnvironment: staging
+      prod:
+        railwayEnvironment: prod
+  marketOperationsRunner:
+    enabled: true
+    provider: railway
+    rootDir: .
+    railway:
+      projectName: treeseed-market
+      serviceName: treeseed-market-operations-runner
+      rootDir: .
+      buildCommand: npm run build:market-operations-runner
+      startCommand: node ./dist/market-operations-runner/entrypoint.js run
+      healthcheckPath: /healthz
+      healthcheckTimeoutSeconds: 120
+      runtimeMode: service
+      volumeMountPath: /data
+      runnerPool:
+        bootstrapCount: 1
+        maxRunners: 4
+        volumeMountPath: /data
+    environments:
+      local:
+        baseUrl: http://127.0.0.1:3001
         railwayEnvironment: local
       staging:
         railwayEnvironment: staging

@@ -63,6 +63,27 @@ describe('web runtime boundaries', () => {
 		expect(siteConfig).not.toMatch(/\bworkdayManager:|\bworkerRunner:|treeseed-processing/u);
 	});
 
+	it('declares the market operations runner as a separate platform service', () => {
+		const site = parse(readFileSync('treeseed.site.yaml', 'utf8')) as any;
+		expect(site.services?.marketOperationsRunner).toMatchObject({
+			enabled: true,
+			provider: 'railway',
+			railway: {
+				serviceName: 'treeseed-market-operations-runner',
+				buildCommand: 'npm run build:market-operations-runner',
+				startCommand: 'node ./dist/market-operations-runner/entrypoint.js run',
+				volumeMountPath: '/data',
+				runnerPool: {
+					bootstrapCount: 1,
+					maxRunners: 4,
+					volumeMountPath: '/data',
+				},
+			},
+		});
+		const serialized = JSON.stringify(site.services?.marketOperationsRunner ?? {});
+		expect(serialized).not.toMatch(/provider:|capacity|TREESEED_CAPACITY_PROVIDER_API_KEY|provider:tasks|provider:heartbeat/u);
+	});
+
 	it('keeps root Market source out of agent runtime modules', () => {
 		const sourceFiles = files('src')
 			.filter((path) => /\.(astro|ts|js)$/u.test(path));
@@ -71,6 +92,18 @@ describe('web runtime boundaries', () => {
 			return /from ['"]@treeseed\/agent|import\(['"]@treeseed\/agent|require\(['"]@treeseed\/agent|treeseed-processing|\/v1\/processing/u.test(source);
 		});
 		expect(offenders).toEqual([]);
+	});
+
+	it('keeps Market API local content routes job-backed instead of filesystem-backed', () => {
+		const source = readFileSync('src/api/app.js', 'utf8');
+		const routeStart = source.indexOf("app.post('/v1/projects/:projectId/local-content/decisions/from-proposals'");
+		const routeEnd = source.indexOf("app.post('/v1/projects/:projectId/update-plans'", routeStart);
+		expect(routeStart).toBeGreaterThan(-1);
+		expect(routeEnd).toBeGreaterThan(routeStart);
+		const routeBlock = source.slice(routeStart, routeEnd);
+		expect(routeBlock).toContain('createPlatformOperation');
+		expect(routeBlock).not.toMatch(/\bwriteLocalContentRecord\(|\bcreateRelatedLocalContentRecord\(|\bcreateDecisionFromProposals\(/u);
+		expect(routeBlock).not.toMatch(/\bwriteFile\(|process\.cwd\(\).*src.*content/u);
 	});
 
 	it('does not call the backend API from market web code', () => {
@@ -83,6 +116,20 @@ describe('web runtime boundaries', () => {
 		const offenders = sourceFiles.filter((path) => {
 			const source = readFileSync(path, 'utf8');
 			return /callRailwayApi|exchangeSiteSession|TREESEED_API_BASE_URL|config\.apiBaseUrl/u.test(source);
+		});
+		expect(offenders).toEqual([]);
+	});
+
+	it('keeps Market database credentials out of browser and Astro UI code', () => {
+		const sourceFiles = files('src')
+			.filter((path) => /\.(astro|ts|js)$/u.test(path))
+			.filter((path) => path.startsWith('src/pages/') || path.startsWith('src/components/'))
+			.filter((path) => !path.startsWith('src/api/'))
+			.filter((path) => !path.startsWith('src/market-operations-runner/'))
+			.filter((path) => !path.startsWith('src/lib/market/seeds/'));
+		const offenders = sourceFiles.filter((path) => {
+			const source = readFileSync(path, 'utf8');
+			return /TREESEED_MARKET_DATABASE_URL|platform-operation-store|RelationalDatabaseAdapter|MarketControlPlaneStore/u.test(source);
 		});
 		expect(offenders).toEqual([]);
 	});

@@ -217,4 +217,25 @@ describe('one-purpose control app information architecture', () => {
 		expect(decisions).toContain('data-final-verdict-open');
 		expect(decisions).toContain('/local-content/decisions/from-proposals');
 	});
+
+	it('makes local content mutation flows platform-operation aware', () => {
+		const helper = source('src/components/app/controls/platform-operation-status.ts');
+		expect(helper).toContain('submitPlatformOperationForm');
+		expect(helper).toContain('/v1/platform/operations/');
+		expect(helper).toContain('TERMINAL_STATUSES');
+		for (const path of [
+			'src/pages/app/work/[collection]/new.astro',
+			'src/pages/app/work/objectives/new.astro',
+			'src/pages/app/work/[collection]/[slug].astro',
+			'src/pages/app/projects/[projectId]/agents/new.astro',
+			'src/pages/app/projects/[projectId]/agents/[agentSlug].astro',
+			'src/pages/app/projects/[projectId]/decisions.astro',
+			'src/components/app/controls/related-content-creator.ts',
+		]) {
+			const contents = source(path);
+			expect(contents, path).toContain('submitPlatformOperationForm');
+			expect(contents, path).not.toContain('payload?.payload?.href');
+			expect(contents, path).not.toContain('result?.payload?.href');
+		}
+	});
 });

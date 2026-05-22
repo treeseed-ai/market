@@ -16,6 +16,12 @@ import {
 	redactCapacityProviderEnv,
 	deployCapacityProviderToManagedMarketHost,
 	deployCapacityProviderToRailway,
+	derivePlatformOperationNavigation,
+	isPlatformOperationTerminal,
+	normalizePlatformContentInput as normalizeRepositoryContentInput,
+	normalizePlatformRelationArray as normalizeRepositoryRelationArray,
+	platformContentRelationPolicy as repositoryContentRelationPolicy,
+	slugifyPlatformContent as slugifyRepositoryContent,
 } from '@treeseed/sdk';
 import { runTreeseedHostingAudit } from '@treeseed/sdk/workflow-support';
 import {
@@ -26,6 +32,7 @@ import {
 	resolveApiD1Database,
 } from '@treeseed/sdk/api';
 import { MarketControlPlaneStore, validateProjectSlug } from './store.js';
+import { createMarketPostgresD1Database } from './postgres-d1.js';
 import { applySeedWithStore, exportSeedWithStore, planSeedWithStore } from '../lib/market/seeds/apply.js';
 import {
 	listTreeseedManagedHostsFromConfig,
@@ -106,6 +113,18 @@ const LOCAL_CONTENT_COLLECTIONS = new Set(['objectives', 'questions', 'notes', '
 const LOCAL_WORK_CONTENT_COLLECTIONS = new Set(['objectives', 'questions', 'notes', 'proposals', 'decisions']);
 const LOCAL_DECISION_TYPE_VALUES = ['approved', 'rejected', 'deferred', 'request_changes', 'superseded'];
 const PROPOSAL_VERDICT_DECISION_TYPES = new Set(['approved', 'rejected', 'deferred', 'request_changes']);
+const PLATFORM_OPERATION_SCOPES = [
+	'platform:runners:register',
+	'platform:runners:claim',
+	'platform:runners:update',
+	'platform:operations:create',
+	'platform:operations:read',
+	'platform:operations:cancel',
+	'platform:operations:retry',
+	'platform:repository:write',
+	'platform:deploy:write',
+	'platform:database:migrate',
+];
 const LOCAL_CONTENT_DEFAULTS = {
 	objectives: {
 		idPrefix: 'objective',
@@ -1074,6 +1093,134 @@ function decorateJob(baseUrl, job) {
 	};
 }
 
+function safePlatformOperationOutput(value) {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return value ?? null;
+	const output = { ...value };
+	if (typeof output.repositoryPath === 'string') {
+		output.repositoryPath = output.repositoryPath.includes('/repositories/') ? '/data/repositories/<repository>/repo' : '<runner-workspace>';
+	}
+	if (typeof output.workspacePath === 'string') {
+		output.workspacePath = output.workspacePath.includes('/data') ? '/data' : '<runner-workspace>';
+	}
+	if (output.repository && typeof output.repository === 'object' && !Array.isArray(output.repository)) {
+		output.repository = {
+			...output.repository,
+			cloneUrl: typeof output.repository.cloneUrl === 'string' && output.repository.cloneUrl.startsWith('http')
+				? output.repository.cloneUrl.replace(/\/\/[^/@]+@/u, '//<redacted>@')
+				: output.repository.cloneUrl,
+		};
+	}
+	return output;
+}
+
+function decoratePlatformOperation(baseUrl, operation) {
+	if (!operation) return null;
+	const normalizedBaseUrl = normalizeBaseUrl(baseUrl ?? '');
+	const navigation = derivePlatformOperationNavigation(operation);
+	const safeOutput = safePlatformOperationOutput(operation.output);
+	return {
+		...operation,
+		output: safeOutput,
+		pollUrl: `${normalizedBaseUrl}/v1/platform/operations/${operation.id}`,
+		streamUrl: `${normalizedBaseUrl}/v1/platform/operations/${operation.id}/events`,
+		terminal: isPlatformOperationTerminal(operation),
+		navigation,
+		href: navigation.href,
+		changedPaths: navigation.changedPaths,
+		branch: navigation.branch,
+		commitSha: navigation.commitSha,
+	};
+}
+
+function safeTokenEquals(left, right) {
+	if (!left || !right) return false;
+	const leftBuffer = Buffer.from(String(left));
+	const rightBuffer = Buffer.from(String(right));
+	return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function resolvePlatformRunnerSecret(config) {
+	return optionalTrimmedString(config.platformRunnerSecret)
+		?? optionalTrimmedString(config.marketOperationsRunnerSecret)
+		?? optionalTrimmedString(process.env.TREESEED_PLATFORM_RUNNER_SECRET)
+		?? optionalTrimmedString(process.env.TREESEED_MARKET_OPERATIONS_RUNNER_SECRET);
+}
+
+function platformOperationMutationError(c, error) {
+	const status = Number(error?.status ?? 500);
+	if (![400, 404, 409].includes(status)) throw error;
+	return jsonError(c, status, error instanceof Error ? error.message : String(error), error?.details ?? {});
+}
+
+async function requirePlatformRunner(c, config) {
+	const token = bearerTokenFromRequest(c.req.raw);
+	const secret = resolvePlatformRunnerSecret(config);
+	if (!token || !secret) {
+		return {
+			response: jsonError(c, 401, 'Platform runner service credential required.'),
+		};
+	}
+	if (!safeTokenEquals(token, secret)) {
+		return {
+			response: jsonError(c, 401, 'Invalid platform runner service credential.'),
+		};
+	}
+	return {
+		principal: {
+			id: 'platform-runner',
+			roles: ['platform_runner'],
+			permissions: [...PLATFORM_OPERATION_SCOPES],
+			scopes: [...PLATFORM_OPERATION_SCOPES],
+		},
+	};
+}
+
+function resolvePlatformRepositoryDescriptor(config, details, body = {}) {
+	const repositories = Array.isArray(details.repositories) ? details.repositories : [];
+	const canonicalRepository = repositories.find((entry) => ['primary', 'package', 'software', 'content'].includes(entry.role))
+		?? repositories[0]
+		?? null;
+	const metadata = details.project?.metadata && typeof details.project.metadata === 'object' ? details.project.metadata : {};
+	const metadataRepository = metadata.repository && typeof metadata.repository === 'object' ? metadata.repository : {};
+	const configured = body.repository && typeof body.repository === 'object' && !Array.isArray(body.repository) ? body.repository : {};
+	const cloneUrl = optionalTrimmedString(configured.cloneUrl)
+		?? optionalTrimmedString(canonicalRepository?.url)
+		?? optionalTrimmedString(metadataRepository.cloneUrl)
+		?? optionalTrimmedString(metadata.cloneUrl)
+		?? optionalTrimmedString(metadata.repositoryUrl)
+		?? optionalTrimmedString(config.repoRoot);
+	return {
+		provider: optionalTrimmedString(configured.provider)
+			?? optionalTrimmedString(canonicalRepository?.provider)
+			?? optionalTrimmedString(metadataRepository.provider)
+			?? 'local',
+		owner: optionalTrimmedString(configured.owner)
+			?? optionalTrimmedString(canonicalRepository?.owner)
+			?? optionalTrimmedString(metadataRepository.owner)
+			?? optionalTrimmedString(metadata.repositoryOwner)
+			?? details.project.teamId,
+		name: optionalTrimmedString(configured.name)
+			?? optionalTrimmedString(canonicalRepository?.name)
+			?? optionalTrimmedString(metadataRepository.name)
+			?? optionalTrimmedString(metadata.repositoryName)
+			?? details.project.slug,
+		defaultBranch: optionalTrimmedString(configured.defaultBranch)
+			?? optionalTrimmedString(canonicalRepository?.defaultBranch)
+			?? optionalTrimmedString(metadataRepository.defaultBranch)
+			?? optionalTrimmedString(metadata.defaultBranch)
+			?? 'staging',
+		cloneUrl,
+		writeMode: ['workspace', 'branch', 'direct', 'pull_request'].includes(configured.writeMode)
+			? configured.writeMode
+			: 'workspace',
+		branchName: optionalTrimmedString(configured.branchName),
+		push: configured.push === true,
+		pathPolicies: Array.isArray(configured.pathPolicies)
+			? configured.pathPolicies
+			: [{ allow: 'src/content/**' }],
+	};
+}
+
 function mergeCapability(baseCapability, override) {
 	if (!override) {
 		return baseCapability;
@@ -2039,7 +2186,8 @@ export function createMarketApiExtension(options = {}) {
 
 export function createMarketApiApp(options = {}) {
 	const config = defaultConfig(options.config ?? {});
-	const db = options.db ?? resolveApiD1Database(config);
+	const marketDatabaseUrl = config.marketDatabaseUrl ?? process.env.TREESEED_MARKET_DATABASE_URL ?? null;
+	const db = options.db ?? (marketDatabaseUrl ? createMarketPostgresD1Database(marketDatabaseUrl) : resolveApiD1Database(config));
 	const store = options.store ?? new MarketControlPlaneStore({
 		...config,
 		assertionSecret: config.webAssertionSecret,
@@ -2137,6 +2285,248 @@ export function createMarketApiApp(options = {}) {
 				ok: true,
 				payload: centralMarketProfile(runtime.resolved.config.baseUrl),
 			}));
+
+			app.get('/v1/platform/operations', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				if (isTeamApiPrincipal(auth.principal) && !principalHasPermission(auth.principal, 'platform:operations:read')) {
+					return jsonError(c, 403, 'Permission denied.', { permission: 'platform:operations:read' });
+				}
+				const operations = await store.listPlatformOperations({ limit: c.req.query('limit') });
+				return c.json({ ok: true, operations: operations.map((operation) => decoratePlatformOperation(runtime.resolved.config.baseUrl, operation)) });
+			});
+
+			app.post('/v1/platform/operations', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				if (isTeamApiPrincipal(auth.principal) && !principalHasPermission(auth.principal, 'platform:operations:create')) {
+					return jsonError(c, 403, 'Permission denied.', { permission: 'platform:operations:create' });
+				}
+				const body = await c.req.json().catch(() => ({}));
+				const namespace = optionalTrimmedString(body.namespace);
+				const operationName = optionalTrimmedString(body.operation);
+				if (!namespace || !operationName) return jsonError(c, 400, 'namespace and operation are required.');
+				const input = body.input && typeof body.input === 'object' && !Array.isArray(body.input) ? body.input : {};
+				const approvalRequired = input.approvalRequired === true && input.approvalSatisfied !== true;
+				const operation = await store.createPlatformOperation({
+					namespace,
+					operation: operationName,
+					target: optionalTrimmedString(body.target) ?? 'market_operations_runner',
+					status: approvalRequired ? 'waiting_for_approval' : optionalTrimmedString(body.status) ?? 'queued',
+					idempotencyKey: optionalTrimmedString(body.idempotencyKey),
+					input,
+					requestedByType: isTeamApiPrincipal(auth.principal) ? 'team_api_key' : c.get('actorType') === 'service' ? 'service' : 'user',
+					requestedById: auth.principal.id,
+				});
+				return c.json({ ok: true, operation: decoratePlatformOperation(runtime.resolved.config.baseUrl, operation) }, { status: 202 });
+			});
+
+			app.get('/v1/platform/operations/:operationId', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				if (isTeamApiPrincipal(auth.principal) && !principalHasPermission(auth.principal, 'platform:operations:read')) {
+					return jsonError(c, 403, 'Permission denied.', { permission: 'platform:operations:read' });
+				}
+				const operation = await store.findPlatformOperationById(c.req.param('operationId'));
+				if (!operation) return jsonError(c, 404, `Unknown platform operation "${c.req.param('operationId')}".`);
+				return c.json({ ok: true, operation: decoratePlatformOperation(runtime.resolved.config.baseUrl, operation) });
+			});
+
+			app.get('/v1/platform/operations/:operationId/events', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				if (isTeamApiPrincipal(auth.principal) && !principalHasPermission(auth.principal, 'platform:operations:read')) {
+					return jsonError(c, 403, 'Permission denied.', { permission: 'platform:operations:read' });
+				}
+				const operation = await store.findPlatformOperationById(c.req.param('operationId'));
+				if (!operation) return jsonError(c, 404, `Unknown platform operation "${c.req.param('operationId')}".`);
+				return c.json({ ok: true, events: await store.listPlatformOperationEvents(operation.id) });
+			});
+
+			app.post('/v1/platform/operations/:operationId/cancel', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				if (isTeamApiPrincipal(auth.principal) && !principalHasPermission(auth.principal, 'platform:operations:cancel')) {
+					return jsonError(c, 403, 'Permission denied.', { permission: 'platform:operations:cancel' });
+				}
+				const operation = await store.findPlatformOperationById(c.req.param('operationId'));
+				if (!operation) return jsonError(c, 404, `Unknown platform operation "${c.req.param('operationId')}".`);
+				const cancelled = await store.cancelPlatformOperation(operation.id);
+				return c.json({ ok: true, operation: decoratePlatformOperation(runtime.resolved.config.baseUrl, cancelled) });
+			});
+
+			app.post('/v1/platform/operations/:operationId/retry', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				if (isTeamApiPrincipal(auth.principal) && !principalHasPermission(auth.principal, 'platform:operations:retry')) {
+					return jsonError(c, 403, 'Permission denied.', { permission: 'platform:operations:retry' });
+				}
+				const operation = await store.findPlatformOperationById(c.req.param('operationId'));
+				if (!operation) return jsonError(c, 404, `Unknown platform operation "${c.req.param('operationId')}".`);
+				if (!['failed', 'cancelled'].includes(operation.status)) {
+					return jsonError(c, 409, 'Only failed or cancelled platform operations can be retried.', { status: operation.status });
+				}
+				const body = await c.req.json().catch(() => ({}));
+				const retried = await store.retryPlatformOperation(operation.id, {
+					inputPatch: body.inputPatch && typeof body.inputPatch === 'object' ? body.inputPatch : {},
+				});
+				return c.json({ ok: true, operation: decoratePlatformOperation(runtime.resolved.config.baseUrl, retried) }, { status: 202 });
+			});
+
+			app.post('/v1/platform/runners/register', async (c) => {
+				const auth = await requirePlatformRunner(c, runtime.resolved.config);
+				if (auth.response) return auth.response;
+				const body = await c.req.json().catch(() => ({}));
+				const runnerId = optionalTrimmedString(body.runnerId);
+				if (!runnerId) return jsonError(c, 400, 'runnerId is required.');
+				const runner = await store.upsertMarketOperationRunner({
+					runnerId,
+					runnerKey: optionalTrimmedString(body.runnerKey) ?? runnerId,
+					name: optionalTrimmedString(body.name) ?? runnerId,
+					environment: optionalTrimmedString(body.environment) ?? optionalTrimmedString(body.marketId) ?? 'unknown',
+					version: optionalTrimmedString(body.version),
+					capabilities: Array.isArray(body.capabilities) ? body.capabilities.map(String) : [],
+					maxConcurrentJobs: body.maxConcurrentJobs,
+					metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : {},
+				});
+				return c.json({ ok: true, runner });
+			});
+
+			app.post('/v1/platform/runners/heartbeat', async (c) => {
+				const auth = await requirePlatformRunner(c, runtime.resolved.config);
+				if (auth.response) return auth.response;
+				const body = await c.req.json().catch(() => ({}));
+				const runnerId = optionalTrimmedString(body.runnerId);
+				if (!runnerId) return jsonError(c, 400, 'runnerId is required.');
+				const runner = await store.upsertMarketOperationRunner({
+					runnerId,
+					runnerKey: optionalTrimmedString(body.runnerKey) ?? runnerId,
+					name: optionalTrimmedString(body.name) ?? runnerId,
+					environment: optionalTrimmedString(body.environment) ?? optionalTrimmedString(body.marketId) ?? 'unknown',
+					status: optionalTrimmedString(body.status) ?? 'online',
+					version: optionalTrimmedString(body.version),
+					capabilities: Array.isArray(body.capabilities) ? body.capabilities.map(String) : [],
+					activeJobCount: body.activeJobCount,
+					maxConcurrentJobs: body.maxConcurrentJobs,
+					metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : {},
+				});
+				return c.json({ ok: true, runner });
+			});
+
+			app.post('/v1/platform/runners/jobs/claim', async (c) => {
+				const auth = await requirePlatformRunner(c, runtime.resolved.config);
+				if (auth.response) return auth.response;
+				const body = await c.req.json().catch(() => ({}));
+				const runnerId = optionalTrimmedString(body.runnerId);
+				if (!runnerId) return jsonError(c, 400, 'runnerId is required.');
+				const operation = await store.claimPlatformOperation({
+					runnerId,
+					operationId: optionalTrimmedString(body.operationId),
+					limit: body.limit,
+					leaseSeconds: body.leaseSeconds,
+				});
+				return c.json({ ok: true, operation: decoratePlatformOperation(runtime.resolved.config.baseUrl, operation) });
+			});
+
+			app.get('/v1/platform/runners/jobs/:operationId', async (c) => {
+				const auth = await requirePlatformRunner(c, runtime.resolved.config);
+				if (auth.response) return auth.response;
+				const operation = await store.findPlatformOperationById(c.req.param('operationId'));
+				if (!operation) return jsonError(c, 404, `Unknown platform operation "${c.req.param('operationId')}".`);
+				return c.json({ ok: true, operation: decoratePlatformOperation(runtime.resolved.config.baseUrl, operation) });
+			});
+
+			app.post('/v1/platform/runners/jobs/:operationId/events', async (c) => {
+				const auth = await requirePlatformRunner(c, runtime.resolved.config);
+				if (auth.response) return auth.response;
+				const operation = await store.findPlatformOperationById(c.req.param('operationId'));
+				if (!operation) return jsonError(c, 404, `Unknown platform operation "${c.req.param('operationId')}".`);
+				const body = await c.req.json().catch(() => ({}));
+				const runnerId = optionalTrimmedString(body.runnerId);
+				if (runnerId && operation.assignedRunnerId && operation.assignedRunnerId !== runnerId) {
+					return jsonError(c, 409, 'Platform operation is assigned to a different runner.', { assignedRunnerId: operation.assignedRunnerId });
+				}
+				const event = body.event && typeof body.event === 'object' ? body.event : body;
+				const kind = optionalTrimmedString(event.kind) ?? 'runner.event';
+				const data = event.data && typeof event.data === 'object' ? event.data : {};
+				return c.json({ ok: true, event: await store.appendPlatformOperationEvent(operation.id, kind, data) });
+			});
+
+			app.post('/v1/platform/runners/jobs/:operationId/checkpoint', async (c) => {
+				const auth = await requirePlatformRunner(c, runtime.resolved.config);
+				if (auth.response) return auth.response;
+				const operation = await store.findPlatformOperationById(c.req.param('operationId'));
+				if (!operation) return jsonError(c, 404, `Unknown platform operation "${c.req.param('operationId')}".`);
+				const body = await c.req.json().catch(() => ({}));
+				let checkpointed;
+				try {
+					checkpointed = await store.checkpointPlatformOperation(operation.id, {
+						runnerId: optionalTrimmedString(body.runnerId),
+						output: body.output,
+						event: body.event,
+					});
+				} catch (error) {
+					return platformOperationMutationError(c, error);
+				}
+				return c.json({ ok: true, operation: decoratePlatformOperation(runtime.resolved.config.baseUrl, checkpointed) });
+			});
+
+			app.post('/v1/platform/runners/jobs/:operationId/renew-lease', async (c) => {
+				const auth = await requirePlatformRunner(c, runtime.resolved.config);
+				if (auth.response) return auth.response;
+				const operation = await store.findPlatformOperationById(c.req.param('operationId'));
+				if (!operation) return jsonError(c, 404, `Unknown platform operation "${c.req.param('operationId')}".`);
+				const body = await c.req.json().catch(() => ({}));
+				let renewed;
+				try {
+					renewed = await store.renewPlatformOperationLease(operation.id, {
+						runnerId: optionalTrimmedString(body.runnerId),
+						leaseSeconds: body.leaseSeconds,
+						event: body.event,
+					});
+				} catch (error) {
+					return platformOperationMutationError(c, error);
+				}
+				return c.json({ ok: true, operation: decoratePlatformOperation(runtime.resolved.config.baseUrl, renewed) });
+			});
+
+			app.post('/v1/platform/runners/jobs/:operationId/complete', async (c) => {
+				const auth = await requirePlatformRunner(c, runtime.resolved.config);
+				if (auth.response) return auth.response;
+				const operation = await store.findPlatformOperationById(c.req.param('operationId'));
+				if (!operation) return jsonError(c, 404, `Unknown platform operation "${c.req.param('operationId')}".`);
+				const body = await c.req.json().catch(() => ({}));
+				let completed;
+				try {
+					completed = await store.completePlatformOperation(operation.id, {
+						runnerId: optionalTrimmedString(body.runnerId),
+						output: body.output,
+						event: body.event,
+					});
+				} catch (error) {
+					return platformOperationMutationError(c, error);
+				}
+				return c.json({ ok: true, operation: decoratePlatformOperation(runtime.resolved.config.baseUrl, completed) });
+			});
+
+			app.post('/v1/platform/runners/jobs/:operationId/fail', async (c) => {
+				const auth = await requirePlatformRunner(c, runtime.resolved.config);
+				if (auth.response) return auth.response;
+				const operation = await store.findPlatformOperationById(c.req.param('operationId'));
+				if (!operation) return jsonError(c, 404, `Unknown platform operation "${c.req.param('operationId')}".`);
+				const body = await c.req.json().catch(() => ({}));
+				let failed;
+				try {
+					failed = await store.failPlatformOperation(operation.id, {
+						runnerId: optionalTrimmedString(body.runnerId),
+						error: body.error ?? { message: 'Platform operation failed.' },
+						event: body.event,
+					});
+				} catch (error) {
+					return platformOperationMutationError(c, error);
+				}
+				return c.json({ ok: true, operation: decoratePlatformOperation(runtime.resolved.config.baseUrl, failed) });
+			});
 
 			app.post('/v1/auth/device/start', async (c) => {
 				const body = await c.req.json().catch(() => ({}));
@@ -5177,14 +5567,38 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
 				if (access.response) return access.response;
 				const body = await readJsonOrFormBody(c);
-				const payload = await createDecisionFromProposals({
-					...body,
-					projectId: access.details.project.id,
-					teamId: access.details.project.teamId,
-					createdBy: access.principal.id,
+				const repository = resolvePlatformRepositoryDescriptor(runtime.resolved.config, access.details, body);
+				const proposalSlugs = [...new Set(normalizeRepositoryRelationArray(body.proposalSlugs))];
+				if (proposalSlugs.length === 0) return jsonError(c, 400, 'Select at least one proposal.');
+				if (proposalSlugs.some((slug) => !slug || slugifyRepositoryContent(slug) !== slug)) return jsonError(c, 400, 'Unsafe proposal slug.');
+				const decisionType = enumValue(body.decisionType, [...PROPOSAL_VERDICT_DECISION_TYPES], null);
+				if (!decisionType) return jsonError(c, 400, 'Unsupported proposal verdict.');
+				const reason = optionalTrimmedString(body.reason) ?? optionalTrimmedString(body.rationale);
+				if (!reason) return jsonError(c, 400, 'A decision reason is required.');
+				const title = optionalTrimmedString(body.title) ?? `Decision for ${proposalSlugs.length === 1 ? proposalSlugs[0] : `${proposalSlugs.length} proposals`}`;
+				const decisionSlug = slugifyRepositoryContent(body.slug || title);
+				if (!decisionSlug) return jsonError(c, 400, 'A safe decision slug is required.');
+				const job = await store.createPlatformOperation({
+					namespace: 'repository',
+					operation: 'create_decision_from_proposals',
+					target: 'market_operations_runner',
+					idempotencyKey: optionalTrimmedString(body.idempotencyKey),
+					requestedByType: isTeamApiPrincipal(access.principal) ? 'team_api_key' : c.get('actorType') === 'service' ? 'service' : 'user',
+					requestedById: access.principal.id,
+					input: {
+						projectId: access.details.project.id,
+						teamId: access.details.project.teamId,
+						createdBy: access.principal.id,
+						repository,
+						proposalSlugs,
+						decisionType,
+						reason,
+						title,
+						slug: decisionSlug,
+						payload: body,
+					},
 				});
-				if (payload.error) return jsonError(c, 400, payload.error, payload.details ? { details: payload.details } : {});
-				return c.json({ ok: true, payload }, { status: 201 });
+				return c.json({ ok: true, job: decoratePlatformOperation(runtime.resolved.config.baseUrl, job) }, { status: 202 });
 			});
 
 			app.post('/v1/projects/:projectId/local-content/:collection', async (c) => {
@@ -5192,14 +5606,32 @@ export function createMarketApiApp(options = {}) {
 				if (access.response) return access.response;
 				const collection = String(c.req.param('collection') ?? '');
 				const body = await readJsonOrFormBody(c);
-				const payload = await writeLocalContentRecord(collection, {
+				const repository = resolvePlatformRepositoryDescriptor(runtime.resolved.config, access.details, body);
+				const normalized = normalizeRepositoryContentInput(collection, {
 					...body,
 					projectId: access.details.project.id,
 					teamId: access.details.project.teamId,
 					createdBy: access.principal.id,
 				});
-				if (payload.error) return jsonError(c, 400, payload.error);
-				return c.json({ ok: true, payload }, { status: 201 });
+				if (normalized.error) return jsonError(c, 400, normalized.error);
+				const job = await store.createPlatformOperation({
+					namespace: 'repository',
+					operation: 'write_content_record',
+					target: 'market_operations_runner',
+					idempotencyKey: optionalTrimmedString(body.idempotencyKey),
+					requestedByType: isTeamApiPrincipal(access.principal) ? 'team_api_key' : c.get('actorType') === 'service' ? 'service' : 'user',
+					requestedById: access.principal.id,
+					input: {
+						projectId: access.details.project.id,
+						teamId: access.details.project.teamId,
+						createdBy: access.principal.id,
+						repository,
+						collection,
+						normalized,
+						payload: body,
+					},
+				});
+				return c.json({ ok: true, job: decoratePlatformOperation(runtime.resolved.config.baseUrl, job) }, { status: 202 });
 			});
 
 			app.post('/v1/projects/:projectId/local-content/:collection/related', async (c) => {
@@ -5214,14 +5646,40 @@ export function createMarketApiApp(options = {}) {
 				if (targetCollection !== routeCollection) {
 					return jsonError(c, 400, 'Route collection must match targetCollection.');
 				}
-				const payload = await createRelatedLocalContentRecord(parentCollection, parentSlug, targetCollection, {
+				const repository = resolvePlatformRepositoryDescriptor(runtime.resolved.config, access.details, body);
+				const policy = repositoryContentRelationPolicy(parentCollection, targetCollection);
+				if (!policy) return jsonError(c, 400, `Cannot create related ${targetCollection} from ${parentCollection}.`);
+				const normalized = normalizeRepositoryContentInput(targetCollection, {
 					...body,
 					projectId: access.details.project.id,
 					teamId: access.details.project.teamId,
 					createdBy: access.principal.id,
 				});
-				if (payload.error) return jsonError(c, 400, payload.error, payload.details ? { details: payload.details } : {});
-				return c.json({ ok: true, payload }, { status: 201 });
+				if (normalized.error) return jsonError(c, 400, normalized.error);
+				const job = await store.createPlatformOperation({
+					namespace: 'repository',
+					operation: 'create_related_content',
+					target: 'market_operations_runner',
+					idempotencyKey: optionalTrimmedString(body.idempotencyKey),
+					requestedByType: isTeamApiPrincipal(access.principal) ? 'team_api_key' : c.get('actorType') === 'service' ? 'service' : 'user',
+					requestedById: access.principal.id,
+					input: {
+						projectId: access.details.project.id,
+						teamId: access.details.project.teamId,
+						createdBy: access.principal.id,
+						repository,
+						parentCollection,
+						parentSlug,
+						targetCollection,
+						normalized,
+						relation: {
+							parentField: policy.sourceField,
+							childField: policy.targetField,
+						},
+						payload: body,
+					},
+				});
+				return c.json({ ok: true, job: decoratePlatformOperation(runtime.resolved.config.baseUrl, job) }, { status: 202 });
 			});
 
 			app.post('/v1/projects/:projectId/update-plans', async (c) => {

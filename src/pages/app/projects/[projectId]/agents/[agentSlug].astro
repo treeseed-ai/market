@@ -29,6 +29,7 @@ if (!project || (!entry && !runtime)) Astro.response.status = 404;
 const rendered = entry ? await render(entry) : null;
 const Content = rendered?.Content;
 const data = entry?.data ?? {};
+const operationData = JSON.stringify({ projectId: project?.id ?? '', agentSlug }).replace(/</gu, '\\u003c');
 ---
 
 <TreeseedAppLayout title={data.name ?? data.title ?? agentSlug} description={data.description ?? runtime?.lastMessage ?? ''} currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
@@ -73,13 +74,18 @@ const data = entry?.data ?? {};
 	) : (
 		<EmptyState title="Agent not found" description="This agent is not available for the selected project." actions={[{ label: 'Back to Agents', href: project ? `/app/projects/${project.id}/agents` : '/app/projects' }]} />
 	)}
+	<script is:inline type="application/json" id="agent-operation-data" set:html={operationData}></script>
 </TreeseedAppLayout>
 
-<script is:inline define:vars={{ projectId: project?.id ?? '', agentSlug }}>
+<script>
+	import { submitPlatformOperationForm } from '../../../../../components/app/controls/platform-operation-status.ts';
+
+	const operationDataElement = document.getElementById('agent-operation-data');
+	const operationData = operationDataElement?.textContent ? JSON.parse(operationDataElement.textContent) : {};
 	const actionStatus = document.getElementById('agent-action-status');
-	async function postAgentAction(action) {
+	async function postAgentAction(action: string) {
 		if (actionStatus) actionStatus.textContent = `${action} requested...`;
-		const response = await fetch(`/v1/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(agentSlug)}/${action}`, {
+		const response = await fetch(`/v1/projects/${encodeURIComponent(operationData.projectId)}/agents/${encodeURIComponent(operationData.agentSlug)}/${action}`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ environment: 'local', reason: `${action} requested from agent page`, payload: { source: 'project_agent_page' } }),
@@ -95,24 +101,23 @@ const data = entry?.data ?? {};
 	document.getElementById('pause-agent-button')?.addEventListener('click', () => postAgentAction('pause'));
 	document.getElementById('resume-agent-button')?.addEventListener('click', () => postAgentAction('resume'));
 
-	const editForm = document.getElementById('agent-edit-form');
+	const editForm = document.getElementById('agent-edit-form') as HTMLFormElement | null;
 	const editStatus = document.getElementById('agent-edit-status');
 	editForm?.addEventListener('submit', async (event) => {
 		event.preventDefault();
-		const body = Object.fromEntries(new FormData(editForm).entries());
-		body.slug = agentSlug;
+		const body: Record<string, any> = Object.fromEntries(new FormData(editForm).entries());
+		body.slug = operationData.agentSlug;
 		body.overwrite = true;
-		if (editStatus) editStatus.textContent = 'Saving...';
-		const response = await fetch(`/v1/projects/${encodeURIComponent(projectId)}/local-content/agents`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(body),
-		});
-		const payload = await response.json().catch(() => null);
-		if (!response.ok || payload?.ok === false) {
-			if (editStatus) editStatus.textContent = payload?.error ?? 'Agent could not be saved.';
-			return;
+		try {
+			await submitPlatformOperationForm({
+				url: `/v1/projects/${encodeURIComponent(operationData.projectId)}/local-content/agents`,
+				body,
+				statusElement: editStatus,
+				fallbackHref: `${window.location.pathname}?saved=${Date.now()}`,
+				initialMessage: 'Queuing agent save operation...',
+			});
+		} catch (error) {
+			if (editStatus) editStatus.textContent = error instanceof Error ? error.message : 'Agent could not be saved.';
 		}
-		window.location.href = `${window.location.pathname}?saved=${Date.now()}`;
 	});
 </script>

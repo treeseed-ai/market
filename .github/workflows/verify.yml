@@ -43,6 +43,7 @@ jobs:
 
       - name: Verify package-owned provider runtime and transparent agent ladder
         run: |
+          npm run build:market-operations-runner
           npm run test:agent-contracts
           npm run test:agent-handlers
           npm run test:agent-message-chains

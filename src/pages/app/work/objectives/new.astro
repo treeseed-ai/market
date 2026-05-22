@@ -43,6 +43,7 @@ const selectedProjectId = String(Astro.url.searchParams.get('projectId') ?? cont
 
 <script>
 	import '../../../../components/app/controls/markdown-field.ts';
+	import { submitPlatformOperationForm } from '../../../../components/app/controls/platform-operation-status.ts';
 
 	const form = document.getElementById('objective-form') as HTMLFormElement | null;
 	const status = document.getElementById('objective-status');
@@ -50,17 +51,16 @@ const selectedProjectId = String(Astro.url.searchParams.get('projectId') ?? cont
 		event.preventDefault();
 		const formData = new FormData(form);
 		const projectId = String(formData.get('projectId') ?? '');
-		if (status) status.textContent = 'Creating...';
-		const response = await fetch(`/v1/projects/${encodeURIComponent(projectId)}/local-content/objectives`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(Object.fromEntries(formData.entries())),
-		});
-		const payload = await response.json().catch(() => null);
-		if (!response.ok || payload?.ok === false) {
-			if (status) status.textContent = payload?.error ?? 'Objective could not be created.';
-			return;
+		try {
+			await submitPlatformOperationForm({
+				url: `/v1/projects/${encodeURIComponent(projectId)}/local-content/objectives`,
+				body: Object.fromEntries(formData.entries()),
+				statusElement: status,
+				fallbackHref: '/app/work/objectives',
+				initialMessage: 'Queuing objective operation...',
+			});
+		} catch (error) {
+			if (status) status.textContent = error instanceof Error ? error.message : 'Objective could not be created.';
 		}
-		window.location.href = payload?.payload?.href || '/app/work/objectives';
 	});
 </script>
