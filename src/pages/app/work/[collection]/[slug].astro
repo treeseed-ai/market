@@ -538,6 +538,7 @@ const editData = JSON.stringify({ collection, projectId: selectedProjectId }).re
 <script>
 	import '../../../../components/app/controls/markdown-field.ts';
 	import '../../../../components/app/controls/related-content-creator.ts';
+	import { submitPlatformOperationForm } from '../../../../components/app/controls/platform-operation-status.ts';
 
 	const dataElement = document.getElementById('content-edit-data');
 	const pageData = dataElement?.textContent ? JSON.parse(dataElement.textContent) : {};
@@ -550,17 +551,16 @@ const editData = JSON.stringify({ collection, projectId: selectedProjectId }).re
 		const projectId = formValue(formData, 'projectId') || pageData.projectId;
 		const body: any = Object.fromEntries(formData.entries());
 		body.overwrite = true;
-		if (status) status.textContent = 'Saving...';
-		const response = await fetch(`/v1/projects/${encodeURIComponent(projectId)}/local-content/${encodeURIComponent(pageData.collection)}`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(body),
-		});
-		const payload = await response.json().catch(() => null);
-		if (!response.ok || payload?.ok === false) {
-			if (status) status.textContent = payload?.error ?? 'Content could not be saved.';
-			return;
+		try {
+			await submitPlatformOperationForm({
+				url: `/v1/projects/${encodeURIComponent(projectId)}/local-content/${encodeURIComponent(pageData.collection)}`,
+				body,
+				statusElement: status,
+				fallbackHref: `${window.location.pathname}?saved=${Date.now()}`,
+				initialMessage: 'Queuing save operation...',
+			});
+		} catch (error) {
+			if (status) status.textContent = error instanceof Error ? error.message : 'Content could not be saved.';
 		}
-		window.location.href = `${payload?.payload?.href ?? window.location.pathname}?saved=${Date.now()}`;
 	});
 </script>

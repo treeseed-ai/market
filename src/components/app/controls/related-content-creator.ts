@@ -148,18 +148,17 @@ function initializeRelatedContentCreator(root: HTMLElement) {
 			body.parentCollection = body.parentCollection || config.parentCollection || '';
 			body.parentSlug = body.parentSlug || config.parentSlug || '';
 			body.targetCollection = targetCollection;
-			const response = await fetch(`/v1/projects/${encodeURIComponent(projectId)}/local-content/${encodeURIComponent(targetCollection)}/related`, {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify(body),
-			});
-			const payload = await response.json().catch(() => null);
-			if (!response.ok || payload?.ok === false) {
-				setStatus(payload?.error ?? 'Related content could not be created.', form);
-				return;
+			try {
+				await submitPlatformOperationForm({
+					url: `/v1/projects/${encodeURIComponent(projectId)}/local-content/${encodeURIComponent(targetCollection)}/related`,
+					body,
+					statusElement: form.querySelector<HTMLElement>('[data-related-status]'),
+					fallbackHref: `${window.location.pathname}?related=${Date.now()}`,
+					initialMessage: 'Queuing linked content...',
+				});
+			} catch (error) {
+				setStatus(error instanceof Error ? error.message : 'Related content could not be created.', form);
 			}
-			setStatus('Created. Refreshing...', form);
-			window.location.href = `${window.location.pathname}?related=${Date.now()}`;
 		});
 	});
 }
@@ -176,3 +175,4 @@ if (document.readyState === 'loading') {
 	initializeRelatedContentCreators();
 }
 document.addEventListener('astro:page-load', initializeRelatedContentCreators);
+import { submitPlatformOperationForm } from './platform-operation-status.ts';

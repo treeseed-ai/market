@@ -179,6 +179,8 @@ const verdictData = JSON.stringify({ projectId: project?.id ?? projectParam }).r
 
 {canManageProject ? (
 	<script>
+		import { submitPlatformOperationForm } from '../../../../components/app/controls/platform-operation-status.ts';
+
 		(() => {
 			const panel = document.querySelector<HTMLElement>('[data-proposal-verdict]');
 			if (!panel || panel.dataset.ready === 'true') return;
@@ -250,25 +252,24 @@ const verdictData = JSON.stringify({ projectId: project?.id ?? projectParam }).r
 					setStatus('A reason is required before saving a decision.', true);
 					return;
 				}
-				setStatus('Saving decision...');
-				const response = await fetch(`/v1/projects/${encodeURIComponent(context.projectId)}/local-content/decisions/from-proposals`, {
-					method: 'POST',
-					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify({
+				try {
+					await submitPlatformOperationForm({
+						url: `/v1/projects/${encodeURIComponent(context.projectId)}/local-content/decisions/from-proposals`,
+						statusElement: status,
+						fallbackHref: `/app/projects/${encodeURIComponent(context.projectId)}/decisions?tab=decisions`,
+						initialMessage: 'Queuing decision operation...',
+						body: {
 						proposalSlugs: selected.map((proposal) => proposal.slug),
 						decisionType: formData.get('decisionType'),
 						title: formData.get('title'),
 						reason,
 						summary: formData.get('summary'),
 						body: formData.get('body'),
-					}),
-				});
-				const result = await response.json().catch(() => ({}));
-				if (!response.ok || result?.ok === false) {
-					setStatus(result?.error || 'Decision could not be saved.', true);
-					return;
+						},
+					});
+				} catch (error) {
+					setStatus(error instanceof Error ? error.message : 'Decision could not be saved.', true);
 				}
-				window.location.href = result?.payload?.href || `/app/projects/${encodeURIComponent(context.projectId)}/decisions?tab=decisions`;
 			});
 		})();
 	</script>

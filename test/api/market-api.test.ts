@@ -1,12 +1,16 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { createServer } from 'node:http';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as treeseedCore from '@treeseed/core';
-import { AgentSdk } from '@treeseed/sdk';
+import { AgentSdk, PlatformRunnerClient } from '@treeseed/sdk';
 import type { D1DatabaseLike, D1PreparedStatementLike } from '@treeseed/core/types/cloudflare';
 import { createMarketApiApp } from '../../src/api/app.js';
 import { MarketControlPlaneStore } from '../../src/api/store.js';
 import { listTreeseedManagedHostsFromConfig } from '../../src/lib/market/managed-hosts.js';
+import { runOnceWithClient } from '../../src/market-operations-runner/entrypoint.js';
 
 const runTreeseedHostingAuditMock = vi.hoisted(() => vi.fn(async (input: Record<string, unknown> = {}) => ({
 	ok: true,
@@ -86,6 +90,11 @@ const capacityProviderRuntimeMigrationPathCandidates = [
 	resolve(packageRoot, '../migrations/0026_capacity_provider_runtime.sql'),
 ];
 const capacityProviderRuntimeMigrationPath = capacityProviderRuntimeMigrationPathCandidates.find((candidate) => existsSync(candidate));
+const platformOperationsMigrationPathCandidates = [
+	resolve(packageRoot, 'migrations/0027_platform_operations.sql'),
+	resolve(packageRoot, '../migrations/0027_platform_operations.sql'),
+];
+const platformOperationsMigrationPath = platformOperationsMigrationPathCandidates.find((candidate) => existsSync(candidate));
 const seedRunsMigrationPathCandidates = [
 	resolve(packageRoot, 'migrations/0024_seed_runs.sql'),
 	resolve(packageRoot, '../migrations/0024_seed_runs.sql'),
@@ -106,9 +115,10 @@ const resolvedWorkdayManagerMigrationPath = workdayManagerMigrationPath as strin
 const resolvedHubLaunchSpineMigrationPath = hubLaunchSpineMigrationPath as string;
 const resolvedCapacityProviderApiKeysMigrationPath = capacityProviderApiKeysMigrationPath as string;
 const resolvedCapacityProviderRuntimeMigrationPath = capacityProviderRuntimeMigrationPath as string;
+const resolvedPlatformOperationsMigrationPath = platformOperationsMigrationPath as string;
 const resolvedSeedRunsMigrationPath = seedRunsMigrationPath as string;
 
-if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !reportingMigrationPath || !webHostsMigrationPath || !capacityMigrationPath || !workdayManagerMigrationPath || !hubLaunchSpineMigrationPath || !capacityProviderApiKeysMigrationPath || !capacityProviderRuntimeMigrationPath || !seedRunsMigrationPath) {
+if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !reportingMigrationPath || !webHostsMigrationPath || !capacityMigrationPath || !workdayManagerMigrationPath || !hubLaunchSpineMigrationPath || !capacityProviderApiKeysMigrationPath || !capacityProviderRuntimeMigrationPath || !platformOperationsMigrationPath || !seedRunsMigrationPath) {
 	throw new Error('Unable to resolve required market migration fixtures.');
 }
 
@@ -183,6 +193,7 @@ class TestD1Database implements D1DatabaseLike {
 		this.db.exec(readFileSync(resolvedHubLaunchSpineMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedCapacityProviderApiKeysMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedCapacityProviderRuntimeMigrationPath, 'utf8'));
+		this.db.exec(readFileSync(resolvedPlatformOperationsMigrationPath, 'utf8'));
 		this.db.exec(readFileSync(resolvedSeedRunsMigrationPath, 'utf8'));
 	}
 
@@ -246,6 +257,54 @@ function createTestStore(db: D1DatabaseLike) {
 
 async function json(response: Response) {
 	return response.json() as Promise<any>;
+}
+
+function git(cwd: string, args: string[]) {
+	return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+}
+
+async function withHttpMarketApp<T>(app: ReturnType<typeof createTestApp>, action: (baseUrl: string) => Promise<T>) {
+	const server = createServer((request, response) => {
+		void (async () => {
+			const chunks: Buffer[] = [];
+			for await (const chunk of request) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+			const body = chunks.length > 0 ? Buffer.concat(chunks) : undefined;
+			const url = new URL(request.url ?? '/', `http://${request.headers.host ?? '127.0.0.1'}`);
+			const webResponse = await app.fetch(new Request(url, {
+				method: request.method,
+				headers: request.headers as HeadersInit,
+				body,
+			}));
+			response.writeHead(webResponse.status, Object.fromEntries(webResponse.headers.entries()));
+			response.end(Buffer.from(await webResponse.arrayBuffer()));
+		})().catch((error) => {
+			response.writeHead(500, { 'content-type': 'application/json' });
+			response.end(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }));
+		});
+	});
+	await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+	const address = server.address();
+	const baseUrl = typeof address === 'object' && address ? `http://127.0.0.1:${address.port}` : '';
+	try {
+		return await action(baseUrl);
+	} finally {
+		await new Promise<void>((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));
+	}
+}
+
+function createRunnerRepoFixture() {
+	const root = mkdtempSync(resolve(tmpdir(), 'treeseed-market-runner-'));
+	const repo = resolve(root, 'repo');
+	const workspace = resolve(root, 'workspace');
+	mkdirSync(resolve(repo, 'src/content/notes'), { recursive: true });
+	mkdirSync(workspace, { recursive: true });
+	writeFileSync(resolve(repo, 'README.md'), 'runner fixture\n', 'utf8');
+	git(repo, ['init', '-b', 'staging']);
+	git(repo, ['config', 'user.email', 'test@example.com']);
+	git(repo, ['config', 'user.name', 'TreeSeed Test']);
+	git(repo, ['add', '.']);
+	git(repo, ['commit', '-m', 'init']);
+	return { root, repo, workspace };
 }
 
 function unsignedTestJwt(payload: Record<string, unknown>) {
@@ -1807,6 +1866,602 @@ runtimeDescribe('market api', () => {
 			'progress',
 			'completed',
 		]);
+	});
+
+	it('creates platform operations and lets the market operations runner claim and complete them', async () => {
+		const app = createTestApp({
+			config: {
+				platformRunnerSecret: 'platform-runner-secret',
+			},
+		});
+		const token = await authorizeApp(app);
+
+		const created = await json(await app.request('/v1/platform/operations', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				namespace: 'repository',
+				operation: 'write_content_record',
+				idempotencyKey: 'platform-op-one',
+				input: { collection: 'notes', slug: 'hello' },
+			}),
+		}));
+		expect(created.ok).toBe(true);
+		expect(created.operation).toMatchObject({
+			namespace: 'repository',
+			operation: 'write_content_record',
+			status: 'queued',
+			target: 'market_operations_runner',
+		});
+
+		const unauthenticatedClaim = await app.request('/v1/platform/runners/jobs/claim', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ runnerId: 'runner-1' }),
+		});
+		expect(unauthenticatedClaim.status).toBe(401);
+
+		const team = await createTeam(app, token);
+		const providerCreated = await json(await app.request(`/v1/teams/${team.id}/capacity-providers`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Not A Platform Runner',
+				launchMode: 'self_hosted',
+			}),
+		}));
+		const providerClaim = await app.request('/v1/platform/runners/jobs/claim', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${providerCreated.apiKey.plaintext}`,
+			},
+			body: JSON.stringify({ runnerId: 'provider-1' }),
+		});
+		expect(providerClaim.status).toBe(401);
+		for (const path of [
+			`/v1/platform/runners/jobs/${created.operation.id}/renew-lease`,
+			`/v1/platform/runners/jobs/${created.operation.id}/checkpoint`,
+			`/v1/platform/runners/jobs/${created.operation.id}/complete`,
+			`/v1/platform/runners/jobs/${created.operation.id}/fail`,
+		]) {
+			const providerUpdate = await app.request(path, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${providerCreated.apiKey.plaintext}`,
+				},
+				body: JSON.stringify({ runnerId: 'provider-1' }),
+			});
+			expect(providerUpdate.status).toBe(401);
+		}
+
+		const registered = await json(await app.request('/v1/platform/runners/register', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: 'Bearer platform-runner-secret',
+			},
+			body: JSON.stringify({
+				runnerId: 'market-ops-test-1',
+				environment: 'staging',
+				capabilities: ['repository:write_content_record'],
+			}),
+		}));
+		expect(registered.runner).toMatchObject({
+			id: 'market-ops-test-1',
+			environment: 'staging',
+		});
+
+		const claimed = await json(await app.request('/v1/platform/runners/jobs/claim', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: 'Bearer platform-runner-secret',
+			},
+			body: JSON.stringify({ runnerId: 'market-ops-test-1', limit: 1 }),
+		}));
+		expect(claimed.operation.id).toBe(created.operation.id);
+		expect(claimed.operation.status).toBe('leased');
+
+		const staleCheckpoint = await app.request(`/v1/platform/runners/jobs/${created.operation.id}/checkpoint`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: 'Bearer platform-runner-secret',
+			},
+			body: JSON.stringify({
+				runnerId: 'market-ops-other',
+				output: { changedPaths: [] },
+			}),
+		});
+		expect(staleCheckpoint.status).toBe(409);
+
+		const renewed = await json(await app.request(`/v1/platform/runners/jobs/${created.operation.id}/renew-lease`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: 'Bearer platform-runner-secret',
+			},
+			body: JSON.stringify({
+				runnerId: 'market-ops-test-1',
+				leaseSeconds: 600,
+			}),
+		}));
+		expect(renewed.operation.leaseExpiresAt).toEqual(expect.any(String));
+
+		const checkpoint = await json(await app.request(`/v1/platform/runners/jobs/${created.operation.id}/checkpoint`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: 'Bearer platform-runner-secret',
+			},
+			body: JSON.stringify({
+				runnerId: 'market-ops-test-1',
+				output: { changedPaths: [] },
+				event: { kind: 'runner.progress', data: { phase: 'verified' } },
+			}),
+		}));
+		expect(checkpoint.operation.status).toBe('running');
+
+		const completed = await json(await app.request(`/v1/platform/runners/jobs/${created.operation.id}/complete`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: 'Bearer platform-runner-secret',
+			},
+			body: JSON.stringify({
+				runnerId: 'market-ops-test-1',
+				output: { changedPaths: ['src/content/notes/hello.mdx'] },
+			}),
+		}));
+		expect(completed.operation.status).toBe('succeeded');
+
+		const events = await json(await app.request(`/v1/platform/operations/${created.operation.id}/events`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(events.events.map((event: Record<string, unknown>) => event.kind)).toEqual([
+			'created',
+			'claimed',
+			'runner.lease_renewed',
+			'runner.progress',
+			'completed',
+		]);
+	});
+
+	it('tracks platform repository claims with runner ownership and safe release metadata', async () => {
+		const db = new TestD1Database();
+		const store = createTestStore(db);
+		await store.ensureInitialized();
+		await store.upsertMarketOperationRunner({
+			runnerId: 'market-ops-runner-01',
+			environment: 'staging',
+			metadata: { dataDir: '/data' },
+		});
+		const operation = await store.createPlatformOperation({
+			namespace: 'repository',
+			operation: 'write_content_record',
+			input: {
+				repository: {
+					provider: 'local',
+					owner: 'treeseed',
+					name: 'market',
+					defaultBranch: 'staging',
+					cloneUrl: '/tmp/market',
+				},
+			},
+			requestedByType: 'user',
+			requestedById: 'user-1',
+		});
+		expect(operation).not.toBeNull();
+		const claimed = await store.claimPlatformOperation({
+			runnerId: 'market-ops-runner-01',
+			operationId: operation!.id,
+			leaseSeconds: 120,
+		});
+		expect(claimed).not.toBeNull();
+		expect(claimed!.assignedRunnerId).toBe('market-ops-runner-01');
+		const claimRows = await store.all(`SELECT * FROM platform_repository_claims`);
+		expect(claimRows).toHaveLength(1);
+		expect(claimRows[0]).toMatchObject({
+			repository_key: 'local-treeseed-market',
+			runner_id: 'market-ops-runner-01',
+			workspace_path: '/data/repositories/local-treeseed-market/repo',
+			branch: 'staging',
+			claim_state: 'active',
+		});
+		const events = await store.listPlatformOperationEvents(operation!.id);
+		expect(events.map((event: Record<string, unknown>) => event.kind)).toEqual(['created', 'claimed', 'repository.claimed']);
+		await store.renewPlatformOperationLease(operation!.id, {
+			runnerId: 'market-ops-runner-01',
+			leaseSeconds: 240,
+		});
+		const renewed = await store.all(`SELECT * FROM platform_repository_claims`);
+		expect(renewed[0].lease_expires_at).toEqual(expect.any(String));
+		await store.completePlatformOperation(operation!.id, {
+			runnerId: 'market-ops-runner-01',
+			output: {
+				branch: 'treeseed/platform-test',
+				commitSha: 'abcdef1234567890abcdef1234567890abcdef12',
+			},
+		});
+		const released = await store.all(`SELECT * FROM platform_repository_claims`);
+		expect(released[0]).toMatchObject({
+			claim_state: 'released',
+			branch: 'treeseed/platform-test',
+			commit_sha: 'abcdef1234567890abcdef1234567890abcdef12',
+			lease_expires_at: null,
+		});
+	});
+
+	it('skips approval-waiting operations and preserves cancellation/retry safety', async () => {
+		const app = createTestApp({
+			config: {
+				platformRunnerSecret: 'platform-runner-secret',
+			},
+		});
+		const token = await authorizeApp(app);
+		const waiting = await json(await app.request('/v1/platform/operations', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				namespace: 'repository',
+				operation: 'write_content_record',
+				input: {
+					approvalRequired: true,
+					approvalId: 'approval-one',
+					collection: 'notes',
+				},
+			}),
+		}));
+		expect(waiting.operation.status).toBe('waiting_for_approval');
+		const skipped = await json(await app.request('/v1/platform/runners/jobs/claim', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: 'Bearer platform-runner-secret',
+			},
+			body: JSON.stringify({ runnerId: 'market-ops-test-1', operationId: waiting.operation.id }),
+		}));
+		expect(skipped.operation).toBe(null);
+
+		const created = await json(await app.request('/v1/platform/operations', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				namespace: 'market',
+				operation: 'noop',
+				input: {},
+			}),
+		}));
+		await json(await app.request('/v1/platform/runners/jobs/claim', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: 'Bearer platform-runner-secret',
+			},
+			body: JSON.stringify({ runnerId: 'market-ops-test-1', operationId: created.operation.id }),
+		}));
+		const cancelled = await json(await app.request(`/v1/platform/operations/${created.operation.id}/cancel`, {
+			method: 'POST',
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(cancelled.operation.status).toBe('cancelled');
+		const completeAfterCancel = await app.request(`/v1/platform/runners/jobs/${created.operation.id}/complete`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: 'Bearer platform-runner-secret',
+			},
+			body: JSON.stringify({ runnerId: 'market-ops-test-1', output: { late: true } }),
+		});
+		expect(completeAfterCancel.status).toBe(409);
+		const retried = await json(await app.request(`/v1/platform/operations/${created.operation.id}/retry`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ inputPatch: { retry: true } }),
+		}));
+		expect(retried.operation).toMatchObject({
+			status: 'queued',
+			assignedRunnerId: null,
+			leaseExpiresAt: null,
+			input: { retry: true },
+		});
+	});
+
+	it('lets the market operations runner complete a queued noop operation through API service auth', async () => {
+		const app = createTestApp({
+			config: {
+				platformRunnerSecret: 'platform-runner-secret',
+			},
+		});
+		const token = await authorizeApp(app);
+		const created = await json(await app.request('/v1/platform/operations', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				namespace: 'market',
+				operation: 'noop',
+				input: { source: 'runner-integration-test' },
+			}),
+		}));
+		await withHttpMarketApp(app, async (baseUrl) => {
+			const client = new PlatformRunnerClient({
+				marketUrl: baseUrl,
+				marketId: 'local',
+				runnerSecret: 'platform-runner-secret',
+			});
+			const result = await runOnceWithClient({
+				runnerId: 'market-ops-test-1',
+				environment: 'local',
+				dataDir: resolve(packageRoot, '.treeseed/test-market-ops'),
+			}, client, 'test');
+			expect(result).toMatchObject({ ok: true, claimed: true });
+		});
+		const completed = await json(await app.request(`/v1/platform/operations/${created.operation.id}`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(completed.operation).toMatchObject({
+			status: 'succeeded',
+			terminal: true,
+			output: {
+				ok: true,
+				message: 'Market operations runner diagnostic completed.',
+			},
+		});
+	});
+
+	it('converts local content write routes into repository platform operations', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { project } = await createTeamAndProject(app, token, {
+			id: 'platform-content-project',
+			slug: 'platform-content-project',
+			name: 'Platform Content Project',
+		});
+
+		const response = await json(await app.request(`/v1/projects/${project.id}/local-content/notes`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				title: 'Queued note',
+				summary: 'This should become a platform operation.',
+				idempotencyKey: 'note-queued-one',
+			}),
+		}));
+
+		expect(response.ok).toBe(true);
+		expect(response).not.toHaveProperty('payload');
+		expect(response.job).toMatchObject({
+			namespace: 'repository',
+			operation: 'write_content_record',
+			status: 'queued',
+			input: {
+				projectId: project.id,
+				collection: 'notes',
+				repository: {
+					name: 'platform-content-project',
+					cloneUrl: packageRoot,
+					writeMode: 'workspace',
+				},
+			},
+		});
+	});
+
+	it('runs repository content jobs in the runner workspace instead of the API process', async () => {
+		const fixture = createRunnerRepoFixture();
+		try {
+			const app = createTestApp({
+				config: {
+					platformRunnerSecret: 'platform-runner-secret',
+				},
+			});
+			const token = await authorizeApp(app);
+			const { project } = await createTeamAndProject(app, token, {
+				id: 'runner-repository-project',
+				slug: 'runner-repository-project',
+				name: 'Runner Repository Project',
+			});
+			const queued = await json(await app.request(`/v1/projects/${project.id}/local-content/notes`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					title: 'Runner executed note',
+					summary: 'Written by the market operations runner.',
+					repository: {
+						provider: 'local',
+						owner: 'treeseed',
+						name: 'runner-repository-project',
+						defaultBranch: 'staging',
+						cloneUrl: fixture.repo,
+						writeMode: 'workspace',
+					},
+				}),
+			}));
+			await withHttpMarketApp(app, async (baseUrl) => {
+				const client = new PlatformRunnerClient({
+					marketUrl: baseUrl,
+					marketId: 'local',
+					runnerSecret: 'platform-runner-secret',
+				});
+				const result = await runOnceWithClient({
+					runnerId: 'market-ops-test-1',
+					environment: 'local',
+					dataDir: fixture.workspace,
+				}, client, 'test', { operationId: queued.job.id });
+				expect(result).toMatchObject({ ok: true, claimed: true });
+			});
+			const completed = await json(await app.request(`/v1/platform/operations/${queued.job.id}`, {
+				headers: { authorization: `Bearer ${token}` },
+			}));
+			expect(completed.operation).toMatchObject({
+				status: 'succeeded',
+				href: '/app/work/notes/runner-executed-note',
+				changedPaths: ['src/content/notes/runner-executed-note.mdx'],
+				branch: 'staging',
+				commitSha: null,
+				output: {
+					href: '/app/work/notes/runner-executed-note',
+					changedPaths: ['src/content/notes/runner-executed-note.mdx'],
+					baseBranch: 'staging',
+					branch: 'staging',
+					commitSha: null,
+					verification: null,
+					pullRequest: null,
+					workflowRun: null,
+					workspacePath: '<runner-workspace>',
+				},
+			});
+			expect(JSON.stringify(completed.operation.output)).not.toContain(fixture.workspace);
+			expect(existsSync(resolve(fixture.repo, 'src/content/notes/runner-executed-note.mdx'))).toBe(false);
+		} finally {
+			rmSync(fixture.root, { recursive: true, force: true });
+		}
+	});
+
+	it('runs branch-mode repository jobs with verification and fails before commit when verification fails', async () => {
+		const fixture = createRunnerRepoFixture();
+		try {
+			const app = createTestApp({
+				config: {
+					platformRunnerSecret: 'platform-runner-secret',
+				},
+			});
+			const token = await authorizeApp(app);
+			const branchJob = await json(await app.request('/v1/platform/operations', {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					namespace: 'repository',
+					operation: 'write_content_record',
+					input: {
+						projectId: 'runner-branch-project',
+						collection: 'notes',
+						payload: { title: 'Branch verified note' },
+						repository: {
+							provider: 'local',
+							owner: 'treeseed',
+							name: 'runner-branch-project',
+							defaultBranch: 'staging',
+							cloneUrl: fixture.repo,
+							writeMode: 'branch',
+							branchName: 'treeseed/branch-verified',
+							verificationCommands: [{ command: process.execPath, args: ['-e', 'process.exit(0)'] }],
+						},
+					},
+				}),
+			}));
+			await withHttpMarketApp(app, async (baseUrl) => {
+				const client = new PlatformRunnerClient({
+					marketUrl: baseUrl,
+					marketId: 'local',
+					runnerSecret: 'platform-runner-secret',
+				});
+				const result = await runOnceWithClient({
+					runnerId: 'market-ops-runner-01',
+					environment: 'staging',
+					dataDir: fixture.workspace,
+				}, client, 'test', { operationId: branchJob.operation.id });
+				expect(result).toMatchObject({ ok: true, claimed: true });
+			});
+			const completed = await json(await app.request(`/v1/platform/operations/${branchJob.operation.id}`, {
+				headers: { authorization: `Bearer ${token}` },
+			}));
+			expect(completed.operation).toMatchObject({
+				status: 'succeeded',
+				branch: 'treeseed/branch-verified',
+				output: {
+					branch: 'treeseed/branch-verified',
+					operationBranch: 'treeseed/branch-verified',
+					verification: { status: 'passed' },
+					pullRequest: null,
+					workflowRun: null,
+				},
+			});
+			expect(completed.operation.commitSha).toMatch(/^[a-f0-9]{40}$/u);
+			expect(git(fixture.repo, ['branch', '--list', 'treeseed/branch-verified'])).toBe('');
+
+			const failingJob = await json(await app.request('/v1/platform/operations', {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					namespace: 'repository',
+					operation: 'write_content_record',
+					input: {
+						projectId: 'runner-branch-project',
+						collection: 'notes',
+						payload: { title: 'Verification failing note' },
+						repository: {
+							provider: 'local',
+							owner: 'treeseed',
+							name: 'runner-failing-project',
+							defaultBranch: 'staging',
+							cloneUrl: fixture.repo,
+							writeMode: 'branch',
+							branchName: 'treeseed/failing-branch',
+							verificationCommands: [{ command: process.execPath, args: ['-e', 'process.exit(9)'] }],
+						},
+					},
+				}),
+			}));
+			await withHttpMarketApp(app, async (baseUrl) => {
+				const client = new PlatformRunnerClient({
+					marketUrl: baseUrl,
+					marketId: 'local',
+					runnerSecret: 'platform-runner-secret',
+				});
+				const result = await runOnceWithClient({
+					runnerId: 'market-ops-runner-02',
+					environment: 'staging',
+					dataDir: resolve(fixture.root, 'workspace-2'),
+				}, client, 'test', { operationId: failingJob.operation.id });
+				expect(result).toMatchObject({ ok: false, claimed: true });
+			});
+			const failed = await json(await app.request(`/v1/platform/operations/${failingJob.operation.id}`, {
+				headers: { authorization: `Bearer ${token}` },
+			}));
+			expect(failed.operation).toMatchObject({
+				status: 'failed',
+				error: { message: expect.stringContaining('Repository verification failed') },
+			});
+			const events = await json(await app.request(`/v1/platform/operations/${failingJob.operation.id}/events`, {
+				headers: { authorization: `Bearer ${token}` },
+			}));
+			expect(events.events.map((event: Record<string, unknown>) => event.kind)).toContain('repository.verification_failed');
+			expect(git(fixture.repo, ['branch', '--list', 'treeseed/failing-branch'])).toBe('');
+		} finally {
+			rmSync(fixture.root, { recursive: true, force: true });
+		}
 	});
 
 	it('stores project hosting topology and runner-authenticated agent pool registrations', async () => {

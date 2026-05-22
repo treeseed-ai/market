@@ -39,6 +39,7 @@ const migrationPaths = [
 	'../../migrations/0022_user_preferences.sql',
 	'../../migrations/0024_seed_runs.sql',
 	'../../migrations/0026_capacity_provider_runtime.sql',
+	'../../migrations/0027_platform_operations.sql',
 ];
 
 let cachedMigrationSql = null;
@@ -1363,6 +1364,91 @@ function serializeJobEvent(row) {
 		data: parseJson(row.data_json, {}),
 		createdAt: row.created_at,
 	};
+}
+
+function serializePlatformOperation(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		namespace: row.namespace,
+		operation: row.operation,
+		status: row.status,
+		target: row.target,
+		idempotencyKey: row.idempotency_key,
+		input: parseJson(row.input_json, {}),
+		output: parseJson(row.output_json, null),
+		error: parseJson(row.error_json, null),
+		requestedByType: row.requested_by_type,
+		requestedById: row.requested_by_id,
+		assignedRunnerId: row.assigned_runner_id,
+		leaseExpiresAt: row.lease_expires_at,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+		startedAt: row.started_at,
+		finishedAt: row.finished_at,
+		cancelledAt: row.cancelled_at,
+	};
+}
+
+function serializePlatformOperationEvent(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		operationId: row.operation_id,
+		seq: Number(row.seq),
+		kind: row.kind,
+		data: parseJson(row.data_json, {}),
+		createdAt: row.created_at,
+	};
+}
+
+function serializeMarketOperationRunner(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		runnerKey: row.runner_key,
+		name: row.name,
+		environment: row.environment,
+		status: row.status,
+		version: row.version,
+		capabilities: parseJson(row.capabilities_json, []),
+		activeJobCount: Number(row.active_job_count ?? 0),
+		maxConcurrentJobs: Number(row.max_concurrent_jobs ?? 1),
+		heartbeatAt: row.heartbeat_at,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializePlatformRepositoryClaim(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		repositoryKey: row.repository_key,
+		runnerId: row.runner_id,
+		workspacePath: row.workspace_path,
+		branch: row.branch,
+		commitSha: row.commit_sha,
+		claimState: row.claim_state,
+		leaseExpiresAt: row.lease_expires_at,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function platformRepositoryKey(repository = {}) {
+	return [repository.provider ?? 'git', repository.owner ?? 'local', repository.name ?? 'repository']
+		.join('-')
+		.toLowerCase()
+		.replace(/[^a-z0-9.-]+/gu, '-')
+		.replace(/^-+|-+$/gu, '') || 'repository';
+}
+
+function platformRepositoryWorkspacePath(workspaceRoot, repository = {}) {
+	const root = String(workspaceRoot ?? '/data').replace(/\/+$/u, '') || '/data';
+	return `${root}/repositories/${platformRepositoryKey(repository)}/repo`;
 }
 
 function serializeAuditEvent(row) {
@@ -7851,6 +7937,481 @@ export class MarketControlPlaneStore {
 		return rows
 			.map(serializeKnowledgePack)
 			.filter((pack) => pack.visibility === 'public' || principalIsAdmin(principal) || teamIds.includes(pack.teamId));
+	}
+
+	async appendPlatformOperationEvent(operationId, kind, data = {}) {
+		await this.ensureInitialized();
+		const row = await this.first(
+			`SELECT COALESCE(MAX(seq), 0) + 1 AS next_seq FROM platform_operation_events WHERE operation_id = ?`,
+			[operationId],
+		);
+		const seq = Number(row?.next_seq ?? 1);
+		const timestamp = isoNow();
+		const id = randomUUID();
+		await this.run(
+			`INSERT INTO platform_operation_events (id, operation_id, seq, kind, data_json, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			[id, operationId, seq, kind, JSON.stringify(data ?? {}), timestamp],
+		);
+		return serializePlatformOperationEvent(await this.first(`SELECT * FROM platform_operation_events WHERE id = ?`, [id]));
+	}
+
+	async listPlatformOperationEvents(operationId) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM platform_operation_events WHERE operation_id = ? ORDER BY seq ASC`,
+			[operationId],
+		);
+		return rows.map(serializePlatformOperationEvent);
+	}
+
+	async findPlatformOperationById(operationId) {
+		await this.ensureInitialized();
+		return serializePlatformOperation(await this.first(`SELECT * FROM platform_operations WHERE id = ?`, [operationId]));
+	}
+
+	async listPlatformOperations(input = {}) {
+		await this.ensureInitialized();
+		const limit = Math.max(1, Math.min(Number(input.limit ?? 50), 200));
+		const rows = await this.all(
+			`SELECT * FROM platform_operations ORDER BY created_at DESC LIMIT ?`,
+			[limit],
+		);
+		return rows.map(serializePlatformOperation);
+	}
+
+	async createPlatformOperation(input) {
+		await this.ensureInitialized();
+		if (input.idempotencyKey) {
+			const existing = await this.first(
+				`SELECT * FROM platform_operations
+				 WHERE namespace = ? AND operation = ? AND idempotency_key = ?
+				 ORDER BY created_at DESC LIMIT 1`,
+				[input.namespace, input.operation, input.idempotencyKey],
+			);
+			if (existing) {
+				return serializePlatformOperation(existing);
+			}
+		}
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		const status = typeof input.status === 'string' && input.status.trim() ? input.status.trim() : 'queued';
+		await this.run(
+			`INSERT INTO platform_operations (
+				id, namespace, operation, status, target, idempotency_key, input_json, output_json, error_json,
+				requested_by_type, requested_by_id, assigned_runner_id, lease_expires_at,
+				created_at, updated_at, started_at, finished_at, cancelled_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL, ?, ?, NULL, NULL, NULL)`,
+			[
+				id,
+				input.namespace,
+				input.operation,
+				status,
+				input.target ?? 'market_operations_runner',
+				input.idempotencyKey ?? null,
+				JSON.stringify(input.input ?? {}),
+				input.requestedByType ?? input.requestedBy?.type ?? 'service',
+				input.requestedById ?? input.requestedBy?.id ?? null,
+				timestamp,
+				timestamp,
+			],
+		);
+		await this.appendPlatformOperationEvent(id, 'created', {
+			namespace: input.namespace,
+			operation: input.operation,
+			target: input.target ?? 'market_operations_runner',
+			status,
+		});
+		return this.findPlatformOperationById(id);
+	}
+
+	async cancelPlatformOperation(operationId) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		await this.run(
+			`UPDATE platform_operations
+			 SET status = CASE
+			 	WHEN status IN ('succeeded', 'failed', 'cancelled') THEN status
+			 	ELSE 'cancelled'
+			 END,
+			     cancelled_at = CASE
+			     	WHEN status IN ('succeeded', 'failed', 'cancelled') THEN cancelled_at
+			     	ELSE ?
+			     END,
+			     updated_at = ?
+			 WHERE id = ?`,
+			[timestamp, timestamp, operationId],
+		);
+		await this.appendPlatformOperationEvent(operationId, 'cancelled', {});
+		return this.findPlatformOperationById(operationId);
+	}
+
+	async retryPlatformOperation(operationId, input = {}) {
+		await this.ensureInitialized();
+		const existing = await this.findPlatformOperationById(operationId);
+		if (!existing) return null;
+		const timestamp = isoNow();
+		const nextInput = {
+			...(existing.input ?? {}),
+			...(input.inputPatch && typeof input.inputPatch === 'object' ? input.inputPatch : {}),
+		};
+		await this.run(
+			`UPDATE platform_operations
+			 SET status = 'queued',
+			     input_json = ?,
+			     output_json = NULL,
+			     error_json = NULL,
+			     assigned_runner_id = NULL,
+			     lease_expires_at = NULL,
+			     updated_at = ?,
+			     started_at = NULL,
+			     finished_at = NULL,
+			     cancelled_at = NULL
+			 WHERE id = ?`,
+			[JSON.stringify(nextInput), timestamp, operationId],
+		);
+		await this.appendPlatformOperationEvent(operationId, 'retry_queued', {
+			status: 'queued',
+		});
+		return this.findPlatformOperationById(operationId);
+	}
+
+	async assertPlatformOperationRunnerUpdate(operationId, runnerId) {
+		const operation = await this.findPlatformOperationById(operationId);
+		if (!operation) {
+			const error = new Error(`Unknown platform operation "${operationId}".`);
+			error.status = 404;
+			throw error;
+		}
+		if (!runnerId) {
+			const error = new Error('runnerId is required.');
+			error.status = 400;
+			throw error;
+		}
+		if (operation.assignedRunnerId !== runnerId) {
+			const error = new Error('Platform operation is assigned to a different runner.');
+			error.status = 409;
+			error.details = { assignedRunnerId: operation.assignedRunnerId };
+			throw error;
+		}
+		if (['succeeded', 'failed', 'cancelled'].includes(operation.status)) {
+			const error = new Error(`Platform operation is already ${operation.status}.`);
+			error.status = 409;
+			error.details = { status: operation.status };
+			throw error;
+		}
+		return operation;
+	}
+
+	async upsertMarketOperationRunner(input) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const id = input.runnerId ?? input.id;
+		const runnerKey = input.runnerKey ?? id;
+		await this.run(
+			`INSERT INTO market_operation_runners (
+				id, runner_key, name, environment, status, version, capabilities_json,
+				active_job_count, max_concurrent_jobs, heartbeat_at, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(id) DO UPDATE SET
+				runner_key = excluded.runner_key,
+				name = excluded.name,
+				environment = excluded.environment,
+				status = excluded.status,
+				version = excluded.version,
+				capabilities_json = excluded.capabilities_json,
+				active_job_count = excluded.active_job_count,
+				max_concurrent_jobs = excluded.max_concurrent_jobs,
+				heartbeat_at = excluded.heartbeat_at,
+				metadata_json = excluded.metadata_json,
+				updated_at = excluded.updated_at`,
+			[
+				id,
+				runnerKey,
+				input.name ?? id,
+				input.environment ?? 'unknown',
+				input.status ?? 'online',
+				input.version ?? null,
+				JSON.stringify(Array.isArray(input.capabilities) ? input.capabilities : []),
+				Math.max(0, Number(input.activeJobCount ?? 0) || 0),
+				Math.max(1, Number(input.maxConcurrentJobs ?? 1) || 1),
+				input.heartbeatAt ?? timestamp,
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeMarketOperationRunner(await this.first(`SELECT * FROM market_operation_runners WHERE id = ?`, [id]));
+	}
+
+	async findMarketOperationRunnerById(runnerId) {
+		await this.ensureInitialized();
+		return serializeMarketOperationRunner(await this.first(`SELECT * FROM market_operation_runners WHERE id = ?`, [runnerId]));
+	}
+
+	async upsertPlatformRepositoryClaim(input = {}) {
+		await this.ensureInitialized();
+		const repository = input.repository && typeof input.repository === 'object' ? input.repository : {};
+		const repositoryKey = input.repositoryKey ?? platformRepositoryKey(repository);
+		const runnerId = input.runnerId;
+		if (!runnerId) {
+			const error = new Error('runnerId is required for platform repository claims.');
+			error.status = 400;
+			throw error;
+		}
+		const timestamp = isoNow();
+		const leaseSeconds = Math.max(30, Math.min(Number(input.leaseSeconds ?? 300), 3600));
+		const leaseExpiresAt = input.leaseExpiresAt ?? new Date(Date.now() + leaseSeconds * 1000).toISOString();
+		const existing = await this.first(
+			`SELECT * FROM platform_repository_claims
+			 WHERE repository_key = ? AND runner_id = ? AND claim_state = 'active'
+			 LIMIT 1`,
+			[repositoryKey, runnerId],
+		);
+		if (existing) {
+			await this.run(
+				`UPDATE platform_repository_claims
+				 SET workspace_path = ?,
+				     branch = ?,
+				     commit_sha = ?,
+				     lease_expires_at = ?,
+				     metadata_json = ?,
+				     updated_at = ?
+				 WHERE id = ?`,
+				[
+					input.workspacePath ?? existing.workspace_path,
+					input.branch ?? existing.branch,
+					input.commitSha ?? existing.commit_sha,
+					leaseExpiresAt,
+					JSON.stringify(input.metadata ?? parseJson(existing.metadata_json, {})),
+					timestamp,
+					existing.id,
+				],
+			);
+			return serializePlatformRepositoryClaim(await this.first(`SELECT * FROM platform_repository_claims WHERE id = ?`, [existing.id]));
+		}
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO platform_repository_claims (
+				id, repository_key, runner_id, workspace_path, branch, commit_sha,
+				claim_state, lease_expires_at, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)`,
+			[
+				id,
+				repositoryKey,
+				runnerId,
+				input.workspacePath ?? platformRepositoryWorkspacePath(input.workspaceRoot ?? '/data', repository),
+				input.branch ?? repository.defaultBranch ?? null,
+				input.commitSha ?? null,
+				leaseExpiresAt,
+				JSON.stringify(input.metadata ?? {}),
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializePlatformRepositoryClaim(await this.first(`SELECT * FROM platform_repository_claims WHERE id = ?`, [id]));
+	}
+
+	async renewPlatformRepositoryClaimsForRunner(runnerId, leaseSeconds = 300) {
+		await this.ensureInitialized();
+		if (!runnerId) return [];
+		const timestamp = isoNow();
+		const boundedLeaseSeconds = Math.max(30, Math.min(Number(leaseSeconds ?? 300), 3600));
+		const leaseExpiresAt = new Date(Date.now() + boundedLeaseSeconds * 1000).toISOString();
+		await this.run(
+			`UPDATE platform_repository_claims
+			 SET lease_expires_at = ?,
+			     updated_at = ?
+			 WHERE runner_id = ? AND claim_state = 'active'`,
+			[leaseExpiresAt, timestamp, runnerId],
+		);
+		const rows = await this.all(
+			`SELECT * FROM platform_repository_claims WHERE runner_id = ? AND claim_state = 'active' ORDER BY updated_at DESC`,
+			[runnerId],
+		);
+		return rows.map(serializePlatformRepositoryClaim);
+	}
+
+	async releasePlatformRepositoryClaimsForRunner(runnerId, input = {}) {
+		await this.ensureInitialized();
+		if (!runnerId) return [];
+		const timestamp = isoNow();
+		const metadataPatch = input.metadata && typeof input.metadata === 'object' ? input.metadata : {};
+		const rows = await this.all(
+			`SELECT * FROM platform_repository_claims WHERE runner_id = ? AND claim_state = 'active'`,
+			[runnerId],
+		);
+		for (const row of rows) {
+			await this.run(
+				`UPDATE platform_repository_claims
+				 SET claim_state = ?,
+				     branch = COALESCE(?, branch),
+				     commit_sha = COALESCE(?, commit_sha),
+				     lease_expires_at = NULL,
+				     metadata_json = ?,
+				     updated_at = ?
+				 WHERE id = ?`,
+				[
+					input.claimState ?? 'released',
+					input.branch ?? null,
+					input.commitSha ?? null,
+					JSON.stringify({ ...parseJson(row.metadata_json, {}), ...metadataPatch }),
+					timestamp,
+					row.id,
+				],
+			);
+		}
+		return rows.map((row) => serializePlatformRepositoryClaim({ ...row, claim_state: input.claimState ?? 'released', updated_at: timestamp }));
+	}
+
+	async claimPlatformOperation(input = {}) {
+		await this.ensureInitialized();
+		const runnerId = input.runnerId;
+		const limit = Math.max(1, Math.min(Number(input.limit ?? 1), 1));
+		const leaseSeconds = Math.max(30, Math.min(Number(input.leaseSeconds ?? 300), 3600));
+		const now = isoNow();
+		const leaseExpiresAt = new Date(Date.now() + leaseSeconds * 1000).toISOString();
+		const rows = input.operationId
+			? await this.all(
+				`SELECT * FROM platform_operations
+				 WHERE id = ? AND (
+				    status = 'queued'
+				    OR (status = 'leased' AND lease_expires_at IS NOT NULL AND lease_expires_at < ?)
+				 )
+				 ORDER BY created_at ASC LIMIT ?`,
+				[input.operationId, now, limit],
+			)
+			: await this.all(
+				`SELECT * FROM platform_operations
+				 WHERE status = 'queued'
+				    OR (status = 'leased' AND lease_expires_at IS NOT NULL AND lease_expires_at < ?)
+				 ORDER BY created_at ASC LIMIT ?`,
+				[now, limit],
+			);
+		const row = rows[0];
+		if (!row) return null;
+		await this.run(
+			`UPDATE platform_operations
+			 SET status = 'leased',
+			     assigned_runner_id = ?,
+			     lease_expires_at = ?,
+			     started_at = COALESCE(started_at, ?),
+			     updated_at = ?
+			 WHERE id = ?`,
+			[runnerId, leaseExpiresAt, now, now, row.id],
+		);
+		await this.appendPlatformOperationEvent(row.id, 'claimed', {
+			runnerId,
+			leaseExpiresAt,
+		});
+		const operation = await this.findPlatformOperationById(row.id);
+		if (operation?.input?.repository && typeof operation.input.repository === 'object') {
+			const runner = await this.findMarketOperationRunnerById(runnerId);
+			const workspaceRoot = runner?.metadata?.dataDir ?? '/data';
+			const claim = await this.upsertPlatformRepositoryClaim({
+				runnerId,
+				repository: operation.input.repository,
+				workspaceRoot,
+				branch: operation.input.repository.defaultBranch,
+				leaseSeconds,
+				metadata: {
+					operationId: operation.id,
+					namespace: operation.namespace,
+					operation: operation.operation,
+				},
+			});
+			await this.appendPlatformOperationEvent(row.id, 'repository.claimed', {
+				repositoryKey: claim.repositoryKey,
+				runnerId,
+				workspaceRoot: claim.workspacePath.startsWith('/data/') ? '/data' : null,
+			});
+		}
+		return operation;
+	}
+
+	async renewPlatformOperationLease(operationId, input = {}) {
+		await this.ensureInitialized();
+		await this.assertPlatformOperationRunnerUpdate(operationId, input.runnerId);
+		const leaseSeconds = Math.max(30, Math.min(Number(input.leaseSeconds ?? 300), 3600));
+		const timestamp = isoNow();
+		const leaseExpiresAt = new Date(Date.now() + leaseSeconds * 1000).toISOString();
+		await this.run(
+			`UPDATE platform_operations
+			 SET lease_expires_at = ?,
+			     updated_at = ?
+			 WHERE id = ?`,
+			[leaseExpiresAt, timestamp, operationId],
+		);
+		await this.appendPlatformOperationEvent(operationId, input.event?.kind ?? 'runner.lease_renewed', input.event?.data ?? { runnerId: input.runnerId, leaseExpiresAt });
+		await this.renewPlatformRepositoryClaimsForRunner(input.runnerId, leaseSeconds);
+		return this.findPlatformOperationById(operationId);
+	}
+
+	async checkpointPlatformOperation(operationId, input = {}) {
+		await this.ensureInitialized();
+		await this.assertPlatformOperationRunnerUpdate(operationId, input.runnerId);
+		const timestamp = isoNow();
+		await this.run(
+			`UPDATE platform_operations
+			 SET status = 'running',
+			     output_json = ?,
+			     updated_at = ?
+			 WHERE id = ?`,
+			[JSON.stringify(input.output ?? null), timestamp, operationId],
+		);
+		if (input.event) {
+			await this.appendPlatformOperationEvent(operationId, input.event.kind ?? 'checkpoint', input.event.data ?? {});
+		} else {
+			await this.appendPlatformOperationEvent(operationId, 'checkpoint', { runnerId: input.runnerId ?? null });
+		}
+		return this.findPlatformOperationById(operationId);
+	}
+
+	async completePlatformOperation(operationId, input = {}) {
+		await this.ensureInitialized();
+		await this.assertPlatformOperationRunnerUpdate(operationId, input.runnerId);
+		const timestamp = isoNow();
+		await this.run(
+			`UPDATE platform_operations
+			 SET status = 'succeeded',
+			     output_json = ?,
+			     error_json = NULL,
+			     lease_expires_at = NULL,
+			     updated_at = ?,
+			     finished_at = ?
+			 WHERE id = ?`,
+			[JSON.stringify(input.output ?? null), timestamp, timestamp, operationId],
+		);
+		await this.appendPlatformOperationEvent(operationId, input.event?.kind ?? 'completed', input.event?.data ?? {});
+		const output = input.output && typeof input.output === 'object' ? input.output : {};
+		await this.releasePlatformRepositoryClaimsForRunner(input.runnerId, {
+			branch: output.operationBranch ?? output.branch ?? null,
+			commitSha: output.commitSha ?? null,
+			metadata: { operationId, status: 'succeeded' },
+		});
+		return this.findPlatformOperationById(operationId);
+	}
+
+	async failPlatformOperation(operationId, input = {}) {
+		await this.ensureInitialized();
+		await this.assertPlatformOperationRunnerUpdate(operationId, input.runnerId);
+		const timestamp = isoNow();
+		await this.run(
+			`UPDATE platform_operations
+			 SET status = 'failed',
+			     error_json = ?,
+			     lease_expires_at = NULL,
+			     updated_at = ?,
+			     finished_at = ?
+			 WHERE id = ?`,
+			[JSON.stringify(input.error ?? { message: 'Platform operation failed.' }), timestamp, timestamp, operationId],
+		);
+		await this.appendPlatformOperationEvent(operationId, input.event?.kind ?? 'failed', input.event?.data ?? {});
+		await this.releasePlatformRepositoryClaimsForRunner(input.runnerId, {
+			claimState: 'released',
+			metadata: { operationId, status: 'failed' },
+		});
+		return this.findPlatformOperationById(operationId);
 	}
 
 	async appendJobEvent(jobId, kind, data = {}) {

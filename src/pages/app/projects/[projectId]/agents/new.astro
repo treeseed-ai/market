@@ -16,6 +16,7 @@ if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo
 const context = await loadOperationalContext(Astro.locals, Astro);
 const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
 if (!project) Astro.response.status = 404;
+const operationData = JSON.stringify({ projectId: project?.id ?? '' }).replace(/</gu, '\\u003c');
 ---
 
 <TreeseedAppLayout title="New agent" description="Create a local agent definition." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
@@ -41,25 +42,29 @@ if (!project) Astro.response.status = 404;
 	) : (
 		<EmptyState title="Project not found" description="This project is not available." actions={[{ label: 'Back to Projects', href: '/app/projects' }]} />
 	)}
+	<script is:inline type="application/json" id="agent-create-data" set:html={operationData}></script>
 </TreeseedAppLayout>
 
-<script is:inline define:vars={{ projectId: project?.id ?? '' }}>
-	const form = document.getElementById('agent-create-form');
+<script>
+	import { submitPlatformOperationForm } from '../../../../../components/app/controls/platform-operation-status.ts';
+
+	const dataElement = document.getElementById('agent-create-data');
+	const pageData = dataElement?.textContent ? JSON.parse(dataElement.textContent) : {};
+	const form = document.getElementById('agent-create-form') as HTMLFormElement | null;
 	const status = document.getElementById('agent-create-status');
 	form?.addEventListener('submit', async (event) => {
 		event.preventDefault();
-		const body = Object.fromEntries(new FormData(form).entries());
-		if (status) status.textContent = 'Creating...';
-		const response = await fetch(`/v1/projects/${encodeURIComponent(projectId)}/local-content/agents`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(body),
-		});
-		const payload = await response.json().catch(() => null);
-		if (!response.ok || payload?.ok === false) {
-			if (status) status.textContent = payload?.error ?? 'Agent could not be created.';
-			return;
+		const body: Record<string, any> = Object.fromEntries(new FormData(form).entries());
+		try {
+			await submitPlatformOperationForm({
+				url: `/v1/projects/${encodeURIComponent(pageData.projectId)}/local-content/agents`,
+				body,
+				statusElement: status,
+				fallbackHref: `/app/projects/${encodeURIComponent(pageData.projectId)}/agents`,
+				initialMessage: 'Queuing agent operation...',
+			});
+		} catch (error) {
+			if (status) status.textContent = error instanceof Error ? error.message : 'Agent could not be created.';
 		}
-		window.location.href = `/app/projects/${encodeURIComponent(projectId)}/agents`;
 	});
 </script>
