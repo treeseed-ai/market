@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.6.6] - 2026-05-22
+
+### Added
+
+- feat(deps): sync integrated package updates (e2ad4255b222)
+- feat(api): improve postgres translation and route descriptors (6210bdac9816)
+- feat(api): add conflict targets for permissions and roles (036b7be183ec)
+
+### Infrastructure
+
+- release: sync package staging heads (fb84776e286d)
+
+### Tests
+
+- build(deps): sync integrated package updates (3917735f0a89)
+- ci(deps): sync integrated package updates (2c37fe75a267)
+- ci(deps): sync integrated package updates (467738b73979)
+
+### Dependencies
+
+- chore(deps): bump internal packages and add Railway CI env vars (58f1fcd903a3)
+- ci(deploy): update acceptance service credential fallbacks (61b622c569d6)
+- ci(deps): sync integrated package updates (5806fb4c0d7b)
+- Release @treeseed/market 0.6.6.
+- Release package @treeseed/agent: 0.10.2.
+- Release package @treeseed/cli: 0.10.2.
+- Release package @treeseed/core: 0.10.2.
+- Release package @treeseed/sdk: 0.10.8.
+
 ## [0.6.5] - 2026-05-22
 
 ### Infrastructure
