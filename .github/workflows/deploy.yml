@@ -135,9 +135,9 @@ jobs:
       TREESEED_ACCEPTANCE_TEAM_OWNER_TOKEN: ${{ secrets.TREESEED_ACCEPTANCE_TEAM_OWNER_TOKEN }}
       TREESEED_ACCEPTANCE_TEAM_VIEWER_TOKEN: ${{ secrets.TREESEED_ACCEPTANCE_TEAM_VIEWER_TOKEN }}
       TREESEED_ACCEPTANCE_PROVIDER_TOKEN: ${{ secrets.TREESEED_ACCEPTANCE_PROVIDER_TOKEN }}
-      TREESEED_ACCEPTANCE_SERVICE_ID: ${{ secrets.TREESEED_ACCEPTANCE_SERVICE_ID }}
-      TREESEED_ACCEPTANCE_SERVICE_SECRET: ${{ secrets.TREESEED_ACCEPTANCE_SERVICE_SECRET }}
-      TREESEED_MARKET_API_BASE_URL: ${{ vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || (needs.classify.outputs.scope == 'prod' && 'https://api.treeseed.ai' || 'https://api-treeseed-market-staging-ca844c56.treeseed.ai') }}
+      TREESEED_ACCEPTANCE_SERVICE_ID: ${{ secrets.TREESEED_ACCEPTANCE_SERVICE_ID || vars.TREESEED_WEB_SERVICE_ID || 'web' }}
+      TREESEED_ACCEPTANCE_SERVICE_SECRET: ${{ secrets.TREESEED_ACCEPTANCE_SERVICE_SECRET || secrets.TREESEED_WEB_SERVICE_SECRET }}
+      TREESEED_MARKET_API_BASE_URL: ${{ needs.classify.outputs.scope == 'prod' && (vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-market-staging-ca844c56.treeseed.ai') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
