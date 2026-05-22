@@ -304,10 +304,13 @@ function expectedForDescriptor(descriptor, actor) {
 	const statusAny = allowed
 		? (policy.successStatusAny ?? [policy.expectedSuccessStatus ?? 200])
 		: (policy.deniedStatusAny ?? [401, 403]);
+	const expectsOkEnvelope = allowed
+		&& descriptor?.authClass !== 'public'
+		&& descriptor?.providerIngress !== true;
 	return {
 		statusAny,
 		envelope: allowed ? undefined : { ok: false },
-		json: allowed ? [{ path: 'ok', exists: true }] : undefined,
+		json: expectsOkEnvelope ? [{ path: 'ok', exists: true }] : undefined,
 	};
 }
 

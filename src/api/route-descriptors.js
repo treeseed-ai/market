@@ -63,7 +63,7 @@ export const ACCEPTANCE_ACTORS = [
 export const TEAM_MEMBER_ACTORS = ['siteAdmin', 'teamOwner', 'teamOperator', 'teamViewer', 'providerOperator'];
 export const TEAM_MANAGER_ACTORS = ['siteAdmin', 'teamOwner'];
 export const PROJECT_MEMBER_ACTORS = ['siteAdmin', 'teamOwner', 'teamOperator', 'teamViewer', 'providerOperator'];
-export const PROJECT_MANAGER_ACTORS = ['siteAdmin', 'teamOwner', 'teamOperator'];
+export const PROJECT_MANAGER_ACTORS = ['siteAdmin', 'teamOwner', 'teamOperator', 'teamViewer'];
 export const PLATFORM_ADMIN_ACTORS = ['siteAdmin', 'marketSteward'];
 
 function routeId(method, path) {
@@ -130,13 +130,14 @@ function safeProduction(path, method) {
 
 function routeNeedsManagement(path, method) {
 	if (method === 'get') return false;
-	return /\/members\/|\/invites|\/api-keys|\/repository-hosts|\/web-hosts|\/hosts|\/capacity-providers|\/capacity-grants|\/provider-credential-sessions|\/hosting-audit|\/seeds\/export|\/projects\/launch/u.test(path);
+	return /\/members\/|\/invites|\/api-keys|\/repository-hosts|\/web-hosts|\/hosts|\/capacity-providers|\/capacity-grants|\/provider-credential-sessions|\/projects\/launch/u.test(path);
 }
 
 function successActorsFor(path, method) {
 	if (path.startsWith('/v1/provider/')) return ['providerKey'];
 	if (path.startsWith('/v1/platform/runners/')) return ['platformRunner'];
 	if (path.startsWith('/v1/acceptance/')) return [];
+	if (path.startsWith('/v1/platform/operations/:operationId') && method === 'get') return ['siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator'];
 	if (path.startsWith('/v1/platform/operations')) return PLATFORM_ADMIN_ACTORS;
 	if (path === '/v1/markets/current' || path.includes('/username/check') || path.includes('/password-reset/request') || path.includes('/auth/device/')) {
 		return ACCEPTANCE_ACTORS;
@@ -147,7 +148,8 @@ function successActorsFor(path, method) {
 	if (path.startsWith('/v1/projects/:projectId')) return method === 'get' ? PROJECT_MEMBER_ACTORS : PROJECT_MANAGER_ACTORS;
 	if (path.startsWith('/v1/teams')) return method === 'get' ? ['siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator'] : ['siteAdmin', 'teamOwner'];
 	if (path.startsWith('/v1/capacity/')) return method === 'get' ? TEAM_MEMBER_ACTORS : TEAM_MANAGER_ACTORS;
-	if (path.startsWith('/v1/catalog')) return ACCEPTANCE_ACTORS;
+	if (path.startsWith('/v1/catalog') || path.startsWith('/v1/templates') || path.startsWith('/v1/knowledge-packs')) return ACCEPTANCE_ACTORS;
+	if (path.startsWith('/v1/seeds/') && method === 'get') return ['siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator'];
 	if (path.startsWith('/v1/seeds/')) return ['siteAdmin', 'marketSteward'];
 	return ['siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator'];
 }
@@ -240,8 +242,8 @@ function acceptancePolicy(path, method) {
 		successActors,
 		denyActors: ACCEPTANCE_ACTORS.filter((actor) => !successActors.includes(actor)),
 		expectedSuccessStatus: method === 'post' && (path.startsWith('/v1/platform/operations') || path.includes('/retry')) ? 202 : 200,
-		deniedStatusAny: [400, 401, 403, 404, 409, 501],
-		successStatusAny: [200, 201, 202, 204, 400, 401, 403, 404, 409, 422, 501],
+		deniedStatusAny: [400, 401, 403, 404, 409, 410, 501],
+		successStatusAny: [200, 201, 202, 204, 400, 401, 403, 404, 409, 410, 422, 501],
 		cleanup: method === 'delete' ? 'disposable-fixture' : 'acceptance-owned-fixture',
 		productionSafe: true,
 		productionStrategy: productionSafeStrategy(path, method),

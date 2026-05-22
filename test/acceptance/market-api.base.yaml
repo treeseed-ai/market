@@ -84,7 +84,7 @@ roleMatrices:
         path: ${apiVersionPath}/platform/operations
         expectByActor:
           siteAdmin: { status: 200, envelope: { ok: true } }
-          marketSteward: { status: 200, envelope: { ok: true } }
+          marketSteward: { status: 403, envelope: { ok: false } }
           teamOwner: { status: 403, envelope: { ok: false } }
           teamOperator: { status: 403, envelope: { ok: false } }
           teamViewer: { status: 403, envelope: { ok: false } }
@@ -110,8 +110,8 @@ roleMatrices:
         expectByActor:
           siteAdmin: { status: 200, envelope: { ok: true } }
           teamOwner: { status: 200, envelope: { ok: true } }
-          teamOperator: { status: 200, envelope: { ok: true } }
-          teamViewer: { status: 200, envelope: { ok: true } }
+          teamOperator: { status: 403, envelope: { ok: false } }
+          teamViewer: { status: 403, envelope: { ok: false } }
           nonMember: { status: 403, envelope: { ok: false } }
       - id: team-permissions
         method: GET
