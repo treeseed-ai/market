@@ -106,30 +106,39 @@ describe('web runtime boundaries', () => {
 		expect(routeBlock).not.toMatch(/\bwriteFile\(|process\.cwd\(\).*src.*content/u);
 	});
 
-	it('does not call the backend API from market web code', () => {
-		const sourceFiles = files('src')
-			.filter((path) => /\.(astro|ts|js)$/u.test(path))
-			.filter((path) => !path.includes('/api/server.js'))
-			// Device login approval bridges an authenticated web session to the API-owned
-			// device-code store. Keep this exception narrow and explicit.
-			.filter((path) => path !== 'src/pages/auth/device/approve.astro');
-		const offenders = sourceFiles.filter((path) => {
-			const source = readFileSync(path, 'utf8');
-			return /callRailwayApi|exchangeSiteSession|TREESEED_API_BASE_URL|config\.apiBaseUrl/u.test(source);
-		});
-		expect(offenders).toEqual([]);
+	it('routes app, market, and auth session state through the backend Market API facade', () => {
+		const proxy = readFileSync('src/pages/v1/[...all].ts', 'utf8');
+		expect(proxy).toContain('resolveMarketApiBaseUrl');
+		expect(proxy).toContain('marketApiServiceHeaders');
+		expect(proxy).not.toMatch(/resolveMarketStore|loadSiteWebSession|AGENT_WORK_QUEUE|SITE_DATA_DB/u);
+
+		const middleware = readFileSync('src/middleware.ts', 'utf8');
+		expect(middleware).toContain('/v1/me');
+		expect(middleware).toContain('apiAccessTokenFromCookies');
+		expect(middleware).not.toContain('loadSiteWebSession');
 	});
 
 	it('keeps Market database credentials out of browser and Astro UI code', () => {
 		const sourceFiles = files('src')
 			.filter((path) => /\.(astro|ts|js)$/u.test(path))
-			.filter((path) => path.startsWith('src/pages/') || path.startsWith('src/components/'))
+			.filter((path) => path.startsWith('src/pages/app/')
+				|| path.startsWith('src/pages/market/')
+				|| path.startsWith('src/pages/auth/')
+				|| path.startsWith('src/pages/u/')
+				|| path.startsWith('src/pages/t/')
+				|| path.startsWith('src/pages/team-invites/')
+				|| path.startsWith('src/pages/api/')
+				|| path.startsWith('src/components/')
+				|| path.startsWith('src/view-models/')
+				|| path === 'src/middleware.ts'
+				|| path === 'src/lib/market/store.ts'
+				|| path === 'src/lib/market/catalog.ts')
 			.filter((path) => !path.startsWith('src/api/'))
 			.filter((path) => !path.startsWith('src/market-operations-runner/'))
 			.filter((path) => !path.startsWith('src/lib/market/seeds/'));
 		const offenders = sourceFiles.filter((path) => {
 			const source = readFileSync(path, 'utf8');
-			return /TREESEED_MARKET_DATABASE_URL|platform-operation-store|RelationalDatabaseAdapter|MarketControlPlaneStore/u.test(source);
+			return /TREESEED_MARKET_DATABASE_URL|SITE_DATA_DB|platform-operation-store|RelationalDatabaseAdapter|MarketControlPlaneStore|from ['"].*api\/store|from ['"].*auth\/account|from ['"].*auth\/better-auth|from ['"].*auth\/session-store|resolveMarketStore|loadSiteWebSession|createSiteWebSession|createSiteBetterAuth|ensureBetterAuthD1Schema|createCoreAuthProvider/u.test(source);
 		});
 		expect(offenders).toEqual([]);
 	});
@@ -147,15 +156,15 @@ describe('web runtime boundaries', () => {
 	it('keeps device login approval same-origin outside local development', () => {
 		const source = readFileSync('src/pages/auth/device/approve.astro', 'utf8');
 		expect(source).toContain('formAction: `${Astro.url.pathname}${Astro.url.search}`');
-		expect(source).toContain('await createCoreAuthProvider(Astro).approveDeviceFlow(payload)');
 		expect(source).toContain('serverUrls: [`${Astro.url.origin}/v1/auth/device/approve`]');
 		expect(source).toContain("return 'http://127.0.0.1:3000';");
 		expect(source).not.toContain("apiApprovalBaseUrl ? `${apiApprovalBaseUrl}/auth/device/approve`");
+		expect(source).not.toContain('createCoreAuthProvider');
 	});
 
 	it('redirects legacy v1 device approval browser links before auth checks', () => {
 		const source = readFileSync('src/pages/v1/[...all].ts', 'utf8');
-		expect(source).toContain("root === 'auth' && id === 'device' && third === 'approve'");
+		expect(source).toContain('isRedirectedDeviceApproval');
 		expect(source).toContain("new URL('/auth/device/approve', context.url.origin)");
 	});
 

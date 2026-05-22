@@ -10,7 +10,7 @@ import { createMarketTemplateCatalogProvider } from '../../../lib/market/catalog
 const slug = Astro.params.slug ?? '';
 const template = await resolveSiteTemplate(slug, {
 	locals: Astro.locals,
-	catalogProvider: createMarketTemplateCatalogProvider(Astro.locals),
+	catalogProvider: createMarketTemplateCatalogProvider(Astro),
 });
 if (!template.rendered || !template.item) {
 	Astro.response.status = 404;

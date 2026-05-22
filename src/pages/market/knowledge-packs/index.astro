@@ -3,9 +3,9 @@ import TreeseedPublicLayout from '../../../layouts/TreeseedPublicLayout.astro';
 import MarketProductCard from '../../../components/market/MarketProductCard.astro';
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
-import { resolveMarketStore } from '../../../lib/market/store.js';
+import { resolveMarketApi } from '../../../lib/market/store.js';
 
-const store = resolveMarketStore(Astro.locals);
+const store = resolveMarketApi(Astro);
 const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
 ---
 

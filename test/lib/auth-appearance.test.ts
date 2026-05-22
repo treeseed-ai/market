@@ -3,10 +3,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
 	anonymousThemeCookieOptions,
-	loadUserThemePreference,
 	resolveAnonymousThemePreference,
 	resolveUserThemePreference,
-	saveUserThemePreference,
 	setAnonymousThemeCookies,
 	setUserThemeCookies,
 	TREESEED_COLOR_SCHEME_COOKIE,
@@ -14,43 +12,7 @@ import {
 } from '../../src/lib/auth/appearance';
 import { POST as saveAppearanceRoute } from '../../src/pages/auth/appearance';
 
-class FakePreferenceDb {
-	rows = new Map<string, { color_scheme: string; theme_mode: string; created_at: string; updated_at: string }>();
-
-	prepare(sql: string) {
-		const db = this;
-		return {
-			bind(...params: unknown[]) {
-				return {
-					async run() {
-						if (/INSERT INTO user_preferences/u.test(sql)) {
-							const [userId, colorScheme, themeMode, createdAt, updatedAt] = params as string[];
-							const existing = db.rows.get(userId);
-							db.rows.set(userId, {
-								color_scheme: colorScheme,
-								theme_mode: themeMode,
-								created_at: existing?.created_at ?? createdAt,
-								updated_at: updatedAt,
-							});
-						}
-						return { success: true };
-					},
-					async first() {
-						if (/FROM user_preferences/u.test(sql)) {
-							return db.rows.get(String(params[0])) ?? null;
-						}
-						return null;
-					},
-				};
-			},
-			async run() {
-				return { success: true };
-			},
-		};
-	}
-}
-
-function createContext(url = 'https://example.com/auth/register', db?: FakePreferenceDb) {
+function createContext(url = 'https://example.com/auth/register') {
 	const values = new Map<string, string>();
 	const set = vi.fn((name: string, value: string) => {
 		values.set(name, value);
@@ -58,9 +20,7 @@ function createContext(url = 'https://example.com/auth/register', db?: FakePrefe
 	return {
 		url: new URL(url),
 		locals: {
-			runtime: {
-				env: db ? { SITE_DATA_DB: db } : {},
-			},
+			runtime: { env: {} },
 			auth: null,
 		},
 		request: new Request(url),
@@ -74,6 +34,17 @@ function createContext(url = 'https://example.com/auth/register', db?: FakePrefe
 		values,
 		set,
 	};
+}
+
+function withPrincipal(context: ReturnType<typeof createContext>, metadata: Record<string, unknown> = {}) {
+	context.locals.auth = {
+		principal: {
+			id: 'user-1',
+			displayName: 'User One',
+			metadata,
+		},
+	} as any;
+	return context;
 }
 
 describe('anonymous auth appearance', () => {
@@ -133,61 +104,28 @@ describe('anonymous auth appearance', () => {
 		expect(source).not.toContain('includeHiddenFields={true}');
 	});
 
-	it('returns anonymous defaults when no preference database is available', async () => {
+	it('returns anonymous defaults when no market user preference is available', async () => {
 		await expect(resolveUserThemePreference(createContext() as any, 'user-1')).resolves.toEqual({
 			scheme: 'fern',
 			mode: 'system',
 		});
 	});
 
-	it('normalizes invalid saved appearance values', async () => {
-		const db = new FakePreferenceDb();
-		const context = createContext('https://example.com/app/account', db);
-		const preference = await saveUserThemePreference(context as any, 'user-1', {
-			colorScheme: 'Fern Canopy',
-			themeMode: 'sepia',
+	it('resolves market user appearance from principal metadata', async () => {
+		const context = withPrincipal(createContext('https://example.com/app/account'), {
+			appearance: { scheme: 'tidepool', mode: 'dark' },
 		});
-
-		expect(preference).toEqual({ scheme: 'fern', mode: 'system' });
-		await expect(loadUserThemePreference(context as any, 'user-1')).resolves.toEqual({
-			scheme: 'fern',
-			mode: 'system',
-		});
-	});
-
-	it('upserts saved user appearance preferences', async () => {
-		const db = new FakePreferenceDb();
-		const context = createContext('https://example.com/app/account', db);
-		await saveUserThemePreference(context as any, 'user-1', { colorScheme: 'cedar', themeMode: 'dark' });
-		await saveUserThemePreference(context as any, 'user-1', { colorScheme: 'tidepool', themeMode: 'light' });
-
-		await expect(loadUserThemePreference(context as any, 'user-1')).resolves.toEqual({
-			scheme: 'tidepool',
-			mode: 'light',
-		});
-		expect(db.rows).toHaveLength(1);
-	});
-
-	it('seeds missing authenticated preferences from anonymous cookies', async () => {
-		const db = new FakePreferenceDb();
-		const context = createContext('https://example.com/app/account', db);
-		context.values.set(TREESEED_COLOR_SCHEME_COOKIE, 'lichen');
-		context.values.set(TREESEED_THEME_MODE_COOKIE, 'dark');
 
 		await expect(resolveUserThemePreference(context as any, 'user-1')).resolves.toEqual({
-			scheme: 'lichen',
-			mode: 'dark',
-		});
-		await expect(loadUserThemePreference(context as any, 'user-1')).resolves.toEqual({
-			scheme: 'lichen',
+			scheme: 'tidepool',
 			mode: 'dark',
 		});
 	});
 
-	it('mirrors authenticated preferences into universal appearance cookies', async () => {
-		const db = new FakePreferenceDb();
-		const context = createContext('https://example.com/app/account', db);
-		await saveUserThemePreference(context as any, 'user-1', { colorScheme: 'tidepool', themeMode: 'dark' });
+	it('mirrors authenticated market metadata preferences into universal appearance cookies', async () => {
+		const context = withPrincipal(createContext('https://example.com/app/account'), {
+			appearance: { scheme: 'tidepool', mode: 'dark' },
+		});
 
 		await expect(setUserThemeCookies(context as any, 'user-1')).resolves.toEqual({
 			scheme: 'tidepool',
@@ -222,6 +160,7 @@ describe('anonymous auth appearance', () => {
 
 	it('wires successful appearance saves to redirect and cookie sync', () => {
 		const source = readFileSync(resolve(process.cwd(), 'src/pages/auth/appearance.ts'), 'utf8');
+		expect(source).toContain('/v1/auth/web/appearance');
 		expect(source).toContain("accountAppearanceRedirect('updated')");
 		expect(source).toContain('setAnonymousThemeCookies(context, preference)');
 		expect(source).toContain("response.headers.append('set-cookie', cookie)");

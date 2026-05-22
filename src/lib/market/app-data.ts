@@ -1,7 +1,7 @@
-import { loadAccessibleTeams, resolveMarketPrincipal, resolveMarketStore } from './store.js';
+import { loadAccessibleTeams, resolveMarketApi, resolveMarketPrincipal } from './store.js';
 
 export async function loadTeamAppContext(locals: App.Locals, teamName: string) {
-	const store = resolveMarketStore(locals);
+	const store = resolveMarketApi(locals);
 	const principal = resolveMarketPrincipal(locals);
 	if (!store || !principal) {
 		return {

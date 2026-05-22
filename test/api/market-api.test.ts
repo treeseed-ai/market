@@ -424,6 +424,57 @@ runtimeDescribe('market api', () => {
 		vi.restoreAllMocks();
 	});
 
+	it('owns web auth lifecycle and acceptance session seeding in the Market API', async () => {
+		const app = createTestApp();
+		const signup = await json(await app.request('/v1/auth/web/sign-up', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				email: 'api-auth@example.com',
+				username: 'api-auth-user',
+				password: 'TreeSeed-auth-test-123!',
+				name: 'API Auth User',
+			}),
+		}));
+		expect(signup.ok).toBe(true);
+		expect(signup.payload.accessToken).toEqual(expect.any(String));
+		const signin = await json(await app.request('/v1/auth/web/sign-in', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				email: 'api-auth@example.com',
+				password: 'TreeSeed-auth-test-123!',
+			}),
+		}));
+		expect(signin.ok).toBe(true);
+		const sessions = await json(await app.request('/v1/auth/web/sessions', {
+			headers: { authorization: `Bearer ${signin.payload.accessToken}` },
+		}));
+		expect(sessions.ok).toBe(true);
+		expect(sessions.payload.length).toBeGreaterThan(0);
+		const seeded = await json(await app.request('/v1/acceptance/seed', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				'x-treeseed-service-id': 'web',
+				'x-treeseed-service-secret': 'web-test-secret',
+			},
+			body: JSON.stringify({ namespace: 'acceptance-test' }),
+		}));
+		expect(seeded.ok).toBe(true);
+		expect(seeded.payload.actors.siteAdmin.accessToken).toEqual(expect.any(String));
+		expect(seeded.payload.actors.providerKey.accessToken).toEqual(expect.any(String));
+		expect(seeded.payload.fixtures.team.id).toEqual(expect.any(String));
+		expect(seeded.payload.fixtures.project.id).toEqual(expect.any(String));
+		expect(seeded.payload.fixtures.provider.id).toEqual(expect.any(String));
+		expect(seeded.payload.fixtures.platformOperation.id).toEqual(expect.any(String));
+		expect(seeded.payload.fixtures.platformRunner.id).toEqual(expect.any(String));
+		expect(seeded.payload.fixtures.catalogItem.id).toEqual(expect.any(String));
+		expect(seeded.payload.fixtures.catalogArtifact.version).toBe('1.0.0');
+		expect(seeded.payload.fixtures.seedRun.id).toEqual(expect.any(String));
+		expect(seeded.payload.fixtures.passwordReset.token).toEqual(expect.any(String));
+	});
+
 	it('deletes projects and project-owned records through the project API', async () => {
 		const app = createTestApp();
 		const token = await authorizeApp(app);

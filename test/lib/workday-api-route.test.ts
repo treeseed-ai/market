@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const sessionMock = vi.hoisted(() => vi.fn());
 const storeMock = vi.hoisted(() => ({
 	listTeamProjects: vi.fn(),
 	listProjectWorkdaySummaries: vi.fn(),
@@ -17,12 +16,8 @@ const storeMock = vi.hoisted(() => ({
 }));
 const teamsMock = vi.hoisted(() => vi.fn());
 
-vi.mock('../../src/lib/auth/session-store', () => ({
-	loadSiteWebSession: sessionMock,
-}));
-
 vi.mock('../../src/lib/market/store', () => ({
-	resolveMarketStore: () => storeMock,
+	resolveMarketApi: () => storeMock,
 	loadAccessibleTeams: teamsMock,
 }));
 
@@ -31,7 +26,7 @@ const { GET } = await import('../../src/pages/api/workdays/[workdayId].js');
 function context(workdayId = 'workday-1') {
 	return {
 		params: { workdayId },
-		locals: {},
+		locals: { auth: { principal: { id: 'user-1' } } },
 		cookies: { get: vi.fn() },
 		request: new Request(`https://market.example.com/api/workdays/${workdayId}`),
 		url: new URL(`https://market.example.com/api/workdays/${workdayId}`),
@@ -45,7 +40,6 @@ async function json(response: Response) {
 describe('workday aggregate API route', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		sessionMock.mockResolvedValue({ principal: { id: 'user-1' } });
 		teamsMock.mockResolvedValue([{ id: 'team-1', name: 'TreeSeed' }]);
 		storeMock.listTeamProjects.mockResolvedValue([{ id: 'project-1', name: 'Ops Docs', slug: 'ops-docs' }]);
 		storeMock.listProjectWorkdaySummaries.mockResolvedValue([{
@@ -69,8 +63,9 @@ describe('workday aggregate API route', () => {
 	});
 
 	it('requires authentication', async () => {
-		sessionMock.mockResolvedValue(null);
-		const response = await GET(context());
+		const unauthenticated = context();
+		unauthenticated.locals.auth = null;
+		const response = await GET(unauthenticated);
 		expect(response.status).toBe(401);
 		expect(await json(response)).toMatchObject({ ok: false, error: 'Authentication required.' });
 	});

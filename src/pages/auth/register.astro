@@ -6,10 +6,8 @@ import TextInput from '../../../packages/core/src/components/ui/forms/TextInput.
 import Button from '../../../packages/core/src/components/ui/forms/Button.astro';
 import FormActions from '../../../packages/core/src/components/ui/forms/FormActions.astro';
 import PasswordMeter from '../../../packages/core/src/components/ui/forms/PasswordMeter.astro';
-import { authProviderCapabilities, normalizeReturnTo, redirectAuthenticatedToApp, submitBetterAuthEmailFlow } from '../../lib/auth/flow';
-import { getSiteAuthConfig } from '../../lib/auth/config';
-import { authEmailConfigurationMessage, canDeliverAuthEmail } from '../../lib/auth/email';
-import { composeDisplayNameFromParts, isUsernameAvailable, normalizeUsername, validateUsername } from '../../lib/auth/account';
+import { authProviderCapabilities, normalizeReturnTo, redirectAuthenticatedToApp, submitMarketEmailAuthFlow } from '../../lib/auth/flow';
+import { composeDisplayNameFromParts, normalizeUsername, validateUsername } from '../../lib/auth/profile-validation';
 import { passwordMeetsPolicy, passwordPolicyMessage } from '../../lib/auth/password-policy';
 import { resolveAnonymousThemePreference, setAnonymousThemeCookies } from '../../lib/auth/appearance';
 
@@ -48,27 +46,20 @@ if (Astro.request.method === 'POST') {
 		error = 'Passwords do not match.';
 	} else if (!passwordMeetsPolicy(password)) {
 		error = passwordPolicyMessage();
-	} else if (!canDeliverAuthEmail(Astro)) {
-		error = authEmailConfigurationMessage();
-	} else if (!(await isUsernameAvailable(Astro, usernameValidation.username))) {
-		error = 'That username is already taken.';
 	} else {
-		const config = getSiteAuthConfig(Astro);
-		const callbackURL = new URL('/auth/verified', config.siteBaseUrl);
-		callbackURL.searchParams.set('returnTo', returnTo);
-		const result = await submitBetterAuthEmailFlow(Astro, 'sign-up/email', {
+		const result = await submitMarketEmailAuthFlow(Astro, 'sign-up/email', {
 			name,
+			displayName: name,
 			firstName,
 			lastName,
 			username: usernameValidation.username,
 			email,
 			password,
 			rememberMe: true,
-			callbackURL: callbackURL.href,
-		}, { finalize: false });
+		});
 		if (result.ok) {
 			setAnonymousThemeCookies(Astro, appearance);
-			const response = Astro.redirect(`/auth/check-email?kind=verify&email=${encodeURIComponent(email)}&returnTo=${encodeURIComponent(returnTo)}`, 303);
+			const response = Astro.redirect(returnTo, 303);
 			for (const cookie of Astro.cookies.headers()) {
 				response.headers.append('set-cookie', cookie);
 			}

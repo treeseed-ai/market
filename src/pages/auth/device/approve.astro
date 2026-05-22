@@ -5,8 +5,7 @@ import Field from '../../../../packages/core/src/components/ui/forms/Field.astro
 import TextInput from '../../../../packages/core/src/components/ui/forms/TextInput.astro';
 import Button from '../../../../packages/core/src/components/ui/forms/Button.astro';
 import FormActions from '../../../../packages/core/src/components/ui/forms/FormActions.astro';
-import { createCoreAuthProvider } from '../../../lib/auth/flow';
-import { resolveAuthenticatedThemePreference, resolveAnonymousThemePreference } from '../../../lib/auth/appearance';
+import { resolveAnonymousThemePreference } from '../../../lib/auth/appearance';
 
 export const prerender = false;
 
@@ -17,7 +16,7 @@ if (!principal) {
 }
 
 const activePrincipal = principal;
-const appearance = await resolveAuthenticatedThemePreference(Astro).catch(() => resolveAnonymousThemePreference(Astro));
+const appearance = resolveAnonymousThemePreference(Astro);
 let userCode = String(Astro.url.searchParams.get('user_code') ?? '').trim().toUpperCase();
 let error = '';
 let notice = Astro.url.searchParams.get('approved') === '1' ? 'CLI login approved. You can return to your terminal.' : '';
@@ -59,13 +58,6 @@ async function approveThroughApi() {
 		displayName: activePrincipal.displayName ?? activePrincipal.id,
 		metadata: activePrincipal.metadata ?? {},
 	};
-	let runtimeError: unknown = null;
-	try {
-		await createCoreAuthProvider(Astro).approveDeviceFlow(payload);
-		return true;
-	} catch (error) {
-		runtimeError = error;
-	}
 	const errors: string[] = [];
 	for (const url of approvalEndpoints().serverUrls) {
 		const response = await fetch(url, {
@@ -81,9 +73,6 @@ async function approveThroughApi() {
 		if (response.status !== 404) {
 			errors.push(message);
 		}
-	}
-	if (runtimeError instanceof Error) {
-		throw runtimeError;
 	}
 	throw new Error(errors[0] ?? 'Device login approval endpoint was not found.');
 }

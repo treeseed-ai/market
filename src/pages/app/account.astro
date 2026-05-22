@@ -13,21 +13,32 @@ import PasswordMeter from '../../../packages/core/src/components/ui/forms/Passwo
 import Badge from '../../../packages/core/src/components/ui/data/Badge.astro';
 import StatusPill from '../../../packages/core/src/components/ui/data/StatusPill.astro';
 import KeyValueList from '../../../packages/core/src/components/ui/data/KeyValueList.astro';
-import { ensureBetterAuthD1Schema } from '../../lib/auth/better-auth';
-import { listSiteWebSessions } from '../../lib/auth/session-store';
 import { loadAccessibleTeams } from '../../lib/market/store';
-import { DELETE_ACCOUNT_CONFIRMATION, evaluateAccountDeletionBlockers, loadCurrentBetterAuthAccount } from '../../lib/auth/account';
 import { resolveAuthenticatedThemePreference } from '../../lib/auth/appearance';
+
+const DELETE_ACCOUNT_CONFIRMATION = 'DELETE';
 
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/account')}`);
 }
 
-await ensureBetterAuthD1Schema(Astro);
-const teams = await loadAccessibleTeams(Astro.locals);
-const currentAccount = await loadCurrentBetterAuthAccount(Astro);
-const accounts = currentAccount?.accounts ?? [];
-const sessions = await listSiteWebSessions(Astro);
+const teams = await loadAccessibleTeams(Astro);
+const accounts: any[] = [];
+const sessions = Astro.locals.auth?.session
+	? [{
+		id: Astro.locals.auth.session.id,
+		provider: 'market_api',
+		email: Astro.locals.auth.session.email,
+		displayName: Astro.locals.auth.session.displayName,
+		ipAddress: null,
+		userAgent: null,
+		authenticatedAt: null,
+		lastSeenAt: null,
+		expiresAt: Astro.locals.auth.session.expiresAt,
+		revokedAt: null,
+		current: true,
+	}]
+	: [];
 const passwordStatus = Astro.url.searchParams.get('password') ?? '';
 const profileStatus = Astro.url.searchParams.get('profile') ?? '';
 const emailStatus = Astro.url.searchParams.get('email') ?? '';
@@ -39,15 +50,12 @@ const principal = Astro.locals.auth.principal;
 const roles = principal.roles ?? [];
 const permissions = principal.permissions ?? [];
 const isPlatformAdmin = roles.includes('platform_admin') || permissions.includes('*:*:*');
-const deletionBlockers = await evaluateAccountDeletionBlockers(Astro);
-const currentUser = currentAccount?.user;
 const metadataEmail = typeof principal.metadata?.email === 'string' ? principal.metadata.email : '';
-const currentEmail = typeof currentUser?.email === 'string' ? currentUser.email : metadataEmail;
-const currentName = typeof currentUser?.name === 'string' ? currentUser.name : (principal.displayName ?? '');
-const currentImage = typeof currentUser?.image === 'string' ? currentUser.image : '';
-const currentUsername = typeof currentUser?.username === 'string'
-	? currentUser.username
-	: (typeof principal.metadata?.username === 'string' ? principal.metadata.username : '');
+const currentEmail = metadataEmail;
+const currentName = principal.displayName ?? '';
+const currentImage = typeof principal.metadata?.image === 'string' ? principal.metadata.image : '';
+const currentUsername = typeof principal.metadata?.username === 'string' ? principal.metadata.username : '';
+const deletionBlockers: any[] = [];
 const appearance = await resolveAuthenticatedThemePreference(Astro);
 const profileStatusLabels: Record<string, string> = {
 	updated: 'Profile updated',

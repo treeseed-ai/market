@@ -1,4 +1,4 @@
-import { loadAccessibleTeams, resolveMarketPrincipal, resolveMarketStore } from '../lib/market/store.js';
+import { loadAccessibleTeams, resolveMarketApi, resolveMarketPrincipal } from '../lib/market/store.js';
 
 export type OperationalTone = 'default' | 'muted' | 'info' | 'success' | 'warning' | 'danger' | 'accent';
 
@@ -93,9 +93,10 @@ export function describeState(state: unknown, fallback = 'not recorded'): string
 }
 
 export async function loadOperationalContext(locals: App.Locals, astro?: any): Promise<OperationalContext> {
-	const store = resolveMarketStore(locals);
+	const marketContext = astro ?? locals;
+	const store = resolveMarketApi(marketContext);
 	const principal = resolveMarketPrincipal(locals);
-	const teams = await loadAccessibleTeams(locals);
+	const teams = await loadAccessibleTeams(marketContext);
 	const requestedTeamId = compact(astro?.url?.searchParams?.get('teamId'), '');
 	const cookieTeamId = compact(astro?.cookies?.get?.('treeseed_active_team')?.value, '');
 	const activeTeam = teams.find((team: any) => team.id === requestedTeamId || team.slug === requestedTeamId)

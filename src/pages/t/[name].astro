@@ -1,17 +1,16 @@
 ---
 import TreeseedPublicLayout from '../../layouts/TreeseedPublicLayout.astro';
-import { normalizeTeamName, validateTeamName } from '../../api/store.js';
-import { resolveMarketStore } from '../../lib/market/store.js';
+import { resolveMarketApi } from '../../lib/market/store.js';
 
 export const prerender = false;
 
 const requestedName = String(Astro.params.name ?? '');
-const normalizedName = normalizeTeamName(requestedName);
-if (requestedName !== normalizedName && validateTeamName(normalizedName).ok) {
+const normalizedName = requestedName.trim().toLowerCase().replace(/[^a-z0-9-]+/gu, '-').replace(/^-+|-+$/gu, '').slice(0, 63);
+if (requestedName !== normalizedName && normalizedName) {
 	return Astro.redirect(`/t/${normalizedName}`, 301);
 }
 
-const store = resolveMarketStore(Astro.locals);
+const store = resolveMarketApi(Astro);
 const profile = store ? await (store as any).loadTeamProfileByName(normalizedName, Astro.locals.auth?.principal ?? null) : null;
 if (!profile) {
 	return new Response('Not found', { status: 404 });

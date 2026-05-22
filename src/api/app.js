@@ -40,7 +40,7 @@ import {
 	resolveTreeseedManagedCloudflareHostConfigFromConfig,
 } from '../lib/market/managed-hosts.js';
 import { decryptHostConfig } from '../lib/cloudflare-host-crypto.js';
-import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicKey, createVerify, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicKey, createVerify, pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve, relative } from 'node:path';
@@ -81,6 +81,122 @@ async function readJsonOrFormBody(c) {
 	return Object.fromEntries(
 		Object.entries(form).map(([key, value]) => [key, typeof value === 'string' ? value : String(value ?? '')]),
 	);
+}
+
+function normalizeEmail(value) {
+	return String(value ?? '').trim().toLowerCase();
+}
+
+function normalizeUsername(value) {
+	return String(value ?? '').trim().toLowerCase();
+}
+
+function validateMarketPassword(value) {
+	return typeof value === 'string' && value.length >= 12;
+}
+
+function hashMarketPassword(password) {
+	const salt = randomBytes(16).toString('base64url');
+	const iterations = 210000;
+	const digest = pbkdf2Sync(password, salt, iterations, 32, 'sha256').toString('base64url');
+	return `pbkdf2-sha256$${iterations}$${salt}$${digest}`;
+}
+
+function verifyMarketPassword(password, envelope) {
+	const [algorithm, iterationsValue, salt, expected] = String(envelope ?? '').split('$');
+	if (algorithm !== 'pbkdf2-sha256' || !iterationsValue || !salt || !expected) return false;
+	const iterations = Number(iterationsValue);
+	if (!Number.isFinite(iterations) || iterations <= 0) return false;
+	const actual = pbkdf2Sync(password, salt, iterations, 32, 'sha256').toString('base64url');
+	const left = Buffer.from(actual);
+	const right = Buffer.from(expected);
+	return left.length === right.length && timingSafeEqual(left, right);
+}
+
+async function ensureMarketCredentialSchema(store) {
+	await store.run(`CREATE TABLE IF NOT EXISTS market_auth_credentials (
+		user_id TEXT PRIMARY KEY,
+		email TEXT NOT NULL UNIQUE,
+		username TEXT UNIQUE,
+		password_hash TEXT NOT NULL,
+		status TEXT NOT NULL DEFAULT 'active',
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	)`);
+	await store.run(`CREATE INDEX IF NOT EXISTS idx_market_auth_credentials_email ON market_auth_credentials(email)`);
+	await store.run(`CREATE INDEX IF NOT EXISTS idx_market_auth_credentials_username ON market_auth_credentials(username)`);
+	await store.run(`CREATE TABLE IF NOT EXISTS market_auth_password_resets (
+		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL,
+		token_hash TEXT NOT NULL UNIQUE,
+		expires_at TEXT NOT NULL,
+		used_at TEXT,
+		created_at TEXT NOT NULL
+	)`);
+}
+
+async function createMarketWebSession(marketAuthProvider, userId, data = {}, options = {}) {
+	if (typeof marketAuthProvider.issueUserSession === 'function') {
+		return marketAuthProvider.issueUserSession(userId, {
+			sessionType: 'web',
+			data,
+		});
+	}
+	const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+	const token = await marketAuthProvider.createPersonalAccessToken(userId, {
+		name: 'Market web session',
+		scopes: ['auth:me'],
+		expiresAt,
+	});
+	const authenticated = await marketAuthProvider.authenticateBearerToken(token.token);
+	const sessionId = randomUUID();
+	const now = new Date().toISOString();
+	if (options.store?.run) {
+		await options.store.run(
+			`INSERT INTO auth_sessions (id, user_id, session_type, refresh_token_hash, scopes_json, expires_at, revoked_at, data_json, created_at, updated_at)
+			 VALUES (?, ?, 'web', ?, ?, ?, NULL, ?, ?, ?)`,
+			[
+				sessionId,
+				userId,
+				createHash('sha256').update(`${options.authSecret ?? 'market'}:${sessionId}`).digest('hex'),
+				JSON.stringify(['auth:me']),
+				expiresAt,
+				JSON.stringify({ ...data, tokenId: token.id }),
+				now,
+				now,
+			],
+		).catch(() => null);
+	}
+	return {
+		ok: true,
+		status: 'approved',
+		accessToken: token.token,
+		refreshToken: null,
+		tokenType: 'Bearer',
+		expiresAt,
+		expiresInSeconds: 15 * 60,
+		principal: authenticated?.principal ?? { id: userId, type: 'user', roles: [], scopes: ['auth:me'], metadata: { sessionId } },
+	};
+}
+
+function webAuthPayload(session) {
+	return {
+		accessToken: session.accessToken,
+		refreshToken: session.refreshToken,
+		tokenType: session.tokenType,
+		expiresAt: session.expiresAt,
+		expiresInSeconds: session.expiresInSeconds,
+		principal: session.principal,
+	};
+}
+
+function normalizeAppearancePreference(input = {}) {
+	const scheme = optionalTrimmedString(input.colorScheme ?? input.scheme) ?? 'fern';
+	const mode = optionalTrimmedString(input.themeMode ?? input.mode) ?? 'system';
+	return {
+		scheme,
+		mode: ['light', 'dark', 'system'].includes(mode) ? mode : 'system',
+	};
 }
 
 function bearerTokenFromRequest(request) {
@@ -1441,6 +1557,25 @@ async function ensurePrincipal(c) {
 	return { principal };
 }
 
+function requireConfiguredServiceCredential(c, config) {
+	const serviceId = c.req.header('x-treeseed-service-id') ?? '';
+	const serviceSecret = c.req.header('x-treeseed-service-secret') ?? '';
+	if (!config.webServiceId || !config.webServiceSecret || serviceId !== config.webServiceId || serviceSecret !== config.webServiceSecret) {
+		return {
+			response: jsonError(c, 401, 'Trusted Market service credential required.'),
+		};
+	}
+	return { ok: true };
+}
+
+function principalHasGlobalPlatformRole(principal) {
+	return Boolean(
+		principal?.roles?.includes?.('platform_admin')
+		|| principal?.roles?.includes?.('market_admin')
+		|| principal?.permissions?.includes?.('*:*:*')
+	);
+}
+
 async function requireTeamAccess(c, store, teamId, permission = null) {
 	const auth = await ensurePrincipal(c);
 	if (auth.response) {
@@ -2286,10 +2421,278 @@ export function createMarketApiApp(options = {}) {
 				payload: centralMarketProfile(runtime.resolved.config.baseUrl),
 			}));
 
+			app.post('/v1/acceptance/seed', async (c) => {
+				const service = requireConfiguredServiceCredential(c, runtime.resolved.config);
+				if (service.response) return service.response;
+				await ensureMarketCredentialSchema(store);
+				const body = await c.req.json().catch(() => ({}));
+				const namespace = optionalTrimmedString(body.namespace) ?? `acceptance-${runtime.resolved.config.environment ?? 'local'}`;
+				const password = optionalTrimmedString(body.password) ?? `TreeSeed-${namespace}-acceptance-123!`;
+				const actorInputs = body.actors && typeof body.actors === 'object'
+					? body.actors
+					: {
+						siteAdmin: { siteRoles: ['platform_admin'] },
+						marketSteward: { siteRoles: ['market_admin'] },
+						teamOwner: { siteRoles: ['member'], teamRole: 'team_owner' },
+						teamOperator: { siteRoles: ['member'], teamRole: 'contributor' },
+						teamViewer: { siteRoles: ['viewer'], teamRole: 'reviewer' },
+						nonMember: { siteRoles: ['viewer'] },
+						providerOperator: { siteRoles: ['member'] },
+					};
+				const actors = {};
+				for (const [actorId, actorInput] of Object.entries(actorInputs)) {
+					const safeActorId = String(actorId).replace(/[^a-z0-9-]+/giu, '-').replace(/^-+|-+$/gu, '').toLowerCase() || 'actor';
+					const email = normalizeEmail(actorInput.email) || `treeseed+${namespace}-${safeActorId}@treeseed.ai`;
+					const username = normalizeUsername(actorInput.username) || `${namespace}-${safeActorId}`.replace(/[^a-z0-9-]+/gu, '-').slice(0, 39).replace(/^-+|-+$/gu, '') || safeActorId;
+					const displayName = optionalTrimmedString(actorInput.displayName) ?? `Acceptance ${actorId}`;
+					const synced = await marketAuthProvider.syncUserIdentity({
+						provider: 'acceptance',
+						providerSubject: `${namespace}:${actorId}`,
+						email,
+						emailVerified: true,
+						username,
+						displayName,
+						profile: { acceptance: true, namespace, actorId },
+					});
+					if (marketAuthProvider.setUserRoles) {
+						await marketAuthProvider.setUserRoles(synced.principal.id, Array.isArray(actorInput.siteRoles) ? actorInput.siteRoles.map(String) : ['viewer']);
+					}
+					const now = new Date().toISOString();
+					await store.run(`DELETE FROM market_auth_credentials WHERE user_id = ? OR email = ? OR username = ?`, [synced.principal.id, email, username]);
+					await store.run(
+						`INSERT INTO market_auth_credentials (user_id, email, username, password_hash, status, created_at, updated_at)
+						 VALUES (?, ?, ?, ?, 'active', ?, ?)`,
+						[synced.principal.id, email, username, hashMarketPassword(password), now, now],
+					);
+					const session = await createMarketWebSession(marketAuthProvider, synced.principal.id, {
+						source: 'acceptance_seed',
+						namespace,
+						actorId,
+					}, { store, authSecret: runtime.resolved.config.authSecret });
+					actors[actorId] = {
+						userId: synced.principal.id,
+						email,
+						username,
+						accessToken: session.accessToken,
+						sessionId: session.principal?.metadata?.sessionId ?? null,
+						expiresAt: session.expiresAt ?? null,
+					};
+				}
+				let team = null;
+				let project = null;
+				const teamSlug = `${namespace}-team`.replace(/[^a-z0-9-]+/gu, '-').slice(0, 48).replace(/^-+|-+$/gu, '') || 'acceptance-team';
+				const existingTeam = await store.first(`SELECT * FROM teams WHERE slug = ? LIMIT 1`, [teamSlug]).catch(() => null);
+				const owner = actors.teamOwner ?? actors.siteAdmin ?? Object.values(actors)[0];
+				team = existingTeam ?? await store.createTeam({
+					id: `team-${teamSlug}`,
+					name: teamSlug,
+					displayName: `Acceptance ${namespace}`,
+					ownerUserId: owner?.userId,
+					metadata: { acceptance: true, namespace },
+				});
+				for (const [actorId, actorInput] of Object.entries(actorInputs)) {
+					if (!actorInput.teamRole || !actors[actorId]?.userId) continue;
+					await store.upsertTeamMember(team.id, actors[actorId].userId, String(actorInput.teamRole));
+				}
+				const ownerMembership = await store.first(
+					`SELECT * FROM team_memberships WHERE team_id = ? AND user_id = ? LIMIT 1`,
+					[team.id, owner?.userId],
+				).catch(() => null);
+				const projectSlug = `${namespace}-project`.replace(/[^a-z0-9-]+/gu, '-').slice(0, 48).replace(/^-+|-+$/gu, '') || 'acceptance-project';
+				project = await store.first(`SELECT * FROM projects WHERE team_id = ? AND slug = ? LIMIT 1`, [team.id, projectSlug]).catch(() => null);
+				if (!project) {
+					const details = await store.createProject(team.id, {
+						id: `project-${projectSlug}`,
+						slug: projectSlug,
+						name: `Acceptance ${namespace}`,
+						description: 'Reserved live acceptance fixture.',
+						metadata: { acceptance: true, namespace },
+					});
+					project = details.project ?? details;
+				}
+				const provider = await store.upsertCapacityProvider(team.id, {
+					id: `provider-${namespace}`.replace(/[^a-z0-9-]+/giu, '-').slice(0, 96),
+					name: `Acceptance ${namespace} Provider`,
+					kind: 'team_owned',
+					status: 'active',
+					provider: '@treeseed/agent',
+					billingScope: 'team',
+					metadata: {
+						acceptance: true,
+						namespace,
+						launchMode: 'self_hosted',
+						connectionState: 'online',
+					},
+				});
+				const providerKey = await store.rotateCapacityProviderApiKey(team.id, provider.id, {
+					createdById: owner?.userId,
+				});
+				const deployment = await store.createCapacityProviderDeployment(team.id, provider.id, {
+					launchMode: 'self_hosted',
+					status: 'deployed',
+					id: `deployment-${namespace}`.replace(/[^a-z0-9-]+/giu, '-').slice(0, 96),
+					serviceRefs: { api: `acceptance-${namespace}-api`, manager: `acceptance-${namespace}-manager`, runner: `acceptance-${namespace}-runner` },
+					envRefs: { TREESEED_CAPACITY_PROVIDER_API_KEY: { secretRef: 'acceptance-redacted' } },
+					result: { acceptance: true, namespace },
+					completedAt: new Date().toISOString(),
+					createdById: owner?.userId,
+				}).catch(() => null);
+				const workday = await store.startRuntimeWorkDay(project.id, {
+					id: `workday-${namespace}`.replace(/[^a-z0-9-]+/giu, '-').slice(0, 96),
+					state: 'active',
+					summary: { acceptance: true, namespace },
+				}).catch(() => null);
+				const task = workday ? await store.createRuntimeTask(project.id, {
+					id: `task-${namespace}`.replace(/[^a-z0-9-]+/giu, '-').slice(0, 96),
+					workDayId: workday.id,
+					agentId: 'acceptance-agent',
+					type: 'dry_run',
+					state: 'pending',
+					priority: 1,
+					idempotencyKey: `acceptance-${namespace}`,
+					payload: { acceptance: true, dryRun: true },
+				}).catch(() => null) : null;
+				const operation = await store.createPlatformOperation({
+					id: `operation-${namespace}`.replace(/[^a-z0-9-]+/giu, '-').slice(0, 96),
+					namespace: 'market',
+					operation: 'noop',
+					status: 'queued',
+					target: 'market_operations_runner',
+					idempotencyKey: `acceptance-${namespace}`,
+					input: { acceptance: true, namespace },
+					requestedByType: 'service',
+					requestedById: 'acceptance',
+				}).catch(() => null);
+				const platformRunnerId = `market-ops-${namespace}-1`.replace(/[^a-z0-9-]+/giu, '-').slice(0, 96);
+				const platformRunner = await store.upsertMarketOperationRunner({
+					runnerId: platformRunnerId,
+					name: `Acceptance ${namespace} Runner`,
+					environment: runtime.resolved.config.environment ?? 'local',
+					capabilities: ['market:noop'],
+					maxConcurrentJobs: 1,
+					metadata: { acceptance: true, namespace, dataDir: '/data' },
+				}).catch(() => null);
+				const catalogItem = await store.upsertCatalogItem(team.id, {
+					id: `catalog-${namespace}`.replace(/[^a-z0-9-]+/giu, '-').slice(0, 96),
+					kind: 'template',
+					slug: `${namespace}-template`.replace(/[^a-z0-9-]+/gu, '-').slice(0, 64),
+					title: `Acceptance ${namespace} Template`,
+					summary: 'Reserved acceptance catalog fixture.',
+					visibility: 'public',
+					listingEnabled: true,
+					offerMode: 'public',
+					metadata: { acceptance: true, namespace },
+				}).catch(() => null);
+				const catalogArtifact = catalogItem ? await store.upsertCatalogArtifactVersion(team.id, catalogItem.id, {
+					id: `artifact-${namespace}`.replace(/[^a-z0-9-]+/giu, '-').slice(0, 96),
+					kind: 'template',
+					version: '1.0.0',
+					contentKey: `acceptance/${namespace}/template.tgz`,
+					manifestKey: `acceptance/${namespace}/manifest.json`,
+					metadata: { acceptance: true, namespace },
+				}).catch(() => null) : null;
+				const seedRun = await store.first(`SELECT * FROM seed_runs WHERE id = ? LIMIT 1`, [`seed-${namespace}`]).catch(() => null)
+					?? await store.createSeedRun({
+						id: `seed-${namespace}`.replace(/[^a-z0-9-]+/giu, '-').slice(0, 96),
+						seedName: 'acceptance',
+						seedVersion: 1,
+						environments: [runtime.resolved.config.environment ?? 'local'],
+						mode: 'plan',
+						state: 'completed',
+						actorType: 'service',
+						actorId: 'acceptance',
+						manifestHash: `acceptance-${namespace}`,
+						plan: { acceptance: true, namespace },
+						result: { ok: true },
+						completedAt: new Date().toISOString(),
+					}).catch(() => null);
+				const invite = await store.createTeamInvite(team.id, {
+					email: `treeseed+${namespace}-invite@treeseed.ai`,
+					roleKey: 'reviewer',
+					invitedByUserId: owner?.userId,
+					autoAddExisting: false,
+				}).catch(() => null);
+				const approvalRequest = await store.first(`SELECT * FROM approval_requests WHERE id = ? LIMIT 1`, [`approval-${namespace}`]).catch(() => null)
+					?? await store.createApprovalRequest({
+						id: `approval-${namespace}`.replace(/[^a-z0-9-]+/giu, '-').slice(0, 96),
+						teamId: team.id,
+						projectId: project.id,
+						kind: 'acceptance',
+						severity: 'low',
+						requestedByType: 'service',
+						requestedById: 'acceptance',
+						title: 'Acceptance approval request',
+						summary: 'Reserved acceptance approval fixture.',
+						options: [{ id: 'approve', label: 'Approve' }],
+						metadata: { acceptance: true, namespace },
+					}).catch(() => null);
+				const resetToken = `reset_acceptance_${namespace}`;
+				await store.run(
+					`INSERT INTO market_auth_password_resets (id, user_id, token_hash, expires_at, used_at, created_at)
+					 VALUES (?, ?, ?, ?, NULL, ?)
+					 ON CONFLICT(id) DO UPDATE SET token_hash = excluded.token_hash, expires_at = excluded.expires_at, used_at = NULL`,
+					[
+						`reset-${namespace}`,
+						actors.teamOwner?.userId ?? owner?.userId,
+						createHash('sha256').update(resetToken).digest('hex'),
+						new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+						new Date().toISOString(),
+					],
+				).catch(() => null);
+				const platformRunnerSecret = resolvePlatformRunnerSecret(runtime.resolved.config);
+				if (providerKey?.plaintextKey) {
+					actors.providerKey = {
+						userId: null,
+						email: null,
+						username: 'acceptance-provider-key',
+						accessToken: providerKey.plaintextKey,
+						expiresAt: null,
+					};
+				}
+				if (platformRunnerSecret) {
+					actors.platformRunner = {
+						userId: null,
+						email: null,
+						username: platformRunnerId,
+						accessToken: platformRunnerSecret,
+						expiresAt: null,
+					};
+				}
+				return c.json({
+					ok: true,
+					payload: {
+						namespace,
+						password,
+						actors,
+						fixtures: {
+							team: { id: team.id, slug: team.slug ?? teamSlug },
+							project: { id: project.id, slug: project.slug ?? projectSlug },
+							membership: { id: ownerMembership?.id ?? null },
+							session: { id: actors.teamOwner?.sessionId ?? actors.siteAdmin?.sessionId ?? null },
+							provider: { id: provider.id, keyPrefix: providerKey?.key?.keyPrefix ?? null },
+							deployment: { id: deployment?.id ?? null },
+							workday: { id: workday?.id ?? `workday-${namespace}` },
+							task: { id: task?.id ?? `task-${namespace}` },
+							job: { id: operation?.id ?? `operation-${namespace}` },
+							platformOperation: { id: operation?.id ?? `operation-${namespace}` },
+							platformRunner: { id: platformRunner?.id ?? platformRunnerId },
+							catalogItem: { id: catalogItem?.id ?? `catalog-${namespace}`, slug: catalogItem?.slug ?? `${namespace}-template` },
+							catalogArtifact: { id: catalogArtifact?.id ?? `artifact-${namespace}`, version: catalogArtifact?.version ?? '1.0.0' },
+							seedRun: { id: seedRun?.id ?? `seed-${namespace}` },
+							invite: { id: invite?.invite?.id ?? null },
+							approvalRequest: { id: approvalRequest?.id ?? `approval-${namespace}` },
+							passwordReset: { token: resetToken },
+							host: { id: `host-${namespace}` },
+							environment: { id: 'staging' },
+						},
+					},
+				});
+			});
+
 			app.get('/v1/platform/operations', async (c) => {
 				const auth = await ensurePrincipal(c);
 				if (auth.response) return auth.response;
-				if (isTeamApiPrincipal(auth.principal) && !principalHasPermission(auth.principal, 'platform:operations:read')) {
+				if (!principalHasGlobalPlatformRole(auth.principal) && !principalHasPermission(auth.principal, 'platform:operations:read')) {
 					return jsonError(c, 403, 'Permission denied.', { permission: 'platform:operations:read' });
 				}
 				const operations = await store.listPlatformOperations({ limit: c.req.query('limit') });
@@ -2565,6 +2968,293 @@ export function createMarketApiApp(options = {}) {
 				}
 			});
 
+			app.post('/v1/auth/web/sign-up', async (c) => {
+				await ensureMarketCredentialSchema(store);
+				const body = await readJsonOrFormBody(c);
+				const email = normalizeEmail(body.email);
+				const username = normalizeUsername(body.username);
+				const password = String(body.password ?? '');
+				const displayName = String(body.displayName ?? body.name ?? email).trim();
+				if (!email || !email.includes('@')) return jsonError(c, 400, 'A valid email is required.');
+				if (!username || !/^[a-z0-9-]{1,39}$/u.test(username) || username.startsWith('-') || username.endsWith('-') || username.includes('--')) {
+					return jsonError(c, 400, 'A valid username is required.');
+				}
+				if (!validateMarketPassword(password)) return jsonError(c, 400, 'Password must be at least 12 characters.');
+				const existing = await store.first(
+					`SELECT user_id FROM market_auth_credentials WHERE email = ? OR username = ? LIMIT 1`,
+					[email, username],
+				);
+				if (existing) return jsonError(c, 409, 'An account already exists for this email or username.');
+				const synced = await marketAuthProvider.syncUserIdentity({
+					provider: 'credential',
+					providerSubject: email,
+					email,
+					emailVerified: true,
+					username,
+					displayName,
+					profile: {
+						firstName: optionalTrimmedString(body.firstName),
+						lastName: optionalTrimmedString(body.lastName),
+					},
+				});
+				const now = new Date().toISOString();
+				await store.run(
+					`INSERT INTO market_auth_credentials (user_id, email, username, password_hash, status, created_at, updated_at)
+					 VALUES (?, ?, ?, ?, 'active', ?, ?)`,
+					[synced.principal.id, email, username, hashMarketPassword(password), now, now],
+				);
+				const session = await createMarketWebSession(marketAuthProvider, synced.principal.id, { source: 'web_sign_up' }, { store, authSecret: runtime.resolved.config.authSecret });
+				return c.json({ ok: true, payload: webAuthPayload(session) });
+			});
+
+			app.post('/v1/auth/web/sign-in', async (c) => {
+				await ensureMarketCredentialSchema(store);
+				const body = await readJsonOrFormBody(c);
+				const identifier = normalizeEmail(body.email ?? body.login ?? body.username);
+				const password = String(body.password ?? '');
+				if (!identifier || !password) return jsonError(c, 400, 'Email or username and password are required.');
+				const row = await store.first(
+					`SELECT user_id, password_hash, status FROM market_auth_credentials
+					 WHERE email = ? OR username = ? LIMIT 1`,
+					[identifier, identifier],
+				);
+				if (!row || row.status !== 'active' || !verifyMarketPassword(password, row.password_hash)) {
+					return jsonError(c, 401, 'Authentication failed.');
+				}
+				const session = await createMarketWebSession(marketAuthProvider, row.user_id, { source: 'web_sign_in' }, { store, authSecret: runtime.resolved.config.authSecret });
+				return c.json({ ok: true, payload: webAuthPayload(session) });
+			});
+
+			app.get('/v1/auth/oauth/:provider/start', (c) => {
+				const provider = c.req.param('provider');
+				return jsonError(c, 501, `OAuth provider "${provider}" is not configured on the Market API yet.`);
+			});
+
+			app.get('/v1/auth/oauth/:provider/callback', (c) => {
+				const provider = c.req.param('provider');
+				return jsonError(c, 501, `OAuth provider "${provider}" is not configured on the Market API yet.`);
+			});
+
+			app.get('/v1/auth/web/username/check', async (c) => {
+				await ensureMarketCredentialSchema(store);
+				const username = normalizeUsername(c.req.query('username'));
+				const valid = Boolean(username && /^[a-z0-9-]{1,39}$/u.test(username) && !username.startsWith('-') && !username.endsWith('-') && !username.includes('--'));
+				if (!valid) return c.json({ ok: true, payload: { username, available: false, status: username ? 'invalid' : 'empty' } });
+				const row = await store.first(`SELECT user_id FROM market_auth_credentials WHERE username = ? LIMIT 1`, [username]);
+				return c.json({ ok: true, payload: { username, available: !row, status: row ? 'taken' : 'available' } });
+			});
+
+			app.get('/v1/auth/web/sessions', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const sessions = await store.all(
+					`SELECT id, session_type, expires_at, revoked_at, data_json, created_at, updated_at
+					 FROM auth_sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50`,
+					[auth.principal.id],
+				).catch(() => []);
+				return c.json({
+					ok: true,
+					payload: sessions.map((session) => ({
+						id: session.id,
+						provider: session.session_type,
+						expiresAt: session.expires_at,
+						revokedAt: session.revoked_at,
+						authenticatedAt: session.created_at,
+						lastSeenAt: session.updated_at,
+						current: auth.principal.metadata?.sessionId === session.id,
+					})),
+				});
+			});
+
+			app.post('/v1/auth/web/sessions/:sessionId/revoke', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				await store.run(
+					`UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, ?), updated_at = ? WHERE id = ? AND user_id = ?`,
+					[new Date().toISOString(), new Date().toISOString(), c.req.param('sessionId'), auth.principal.id],
+				);
+				return c.json({ ok: true });
+			});
+
+			app.patch('/v1/auth/web/profile', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const body = await readJsonOrFormBody(c);
+				const displayName = String(body.displayName ?? body.name ?? '').trim();
+				const image = optionalTrimmedString(body.image);
+				if (!displayName) return jsonError(c, 400, 'Display name is required.');
+				const metadata = {
+					...(auth.principal.metadata ?? {}),
+					image,
+				};
+				await store.run(`UPDATE users SET display_name = ?, metadata_json = ?, updated_at = ? WHERE id = ?`, [
+					displayName,
+					JSON.stringify(metadata),
+					new Date().toISOString(),
+					auth.principal.id,
+				]);
+				const session = await createMarketWebSession(marketAuthProvider, auth.principal.id, { source: 'profile_update' }, { store, authSecret: runtime.resolved.config.authSecret });
+				return c.json({ ok: true, payload: webAuthPayload(session) });
+			});
+
+			app.get('/v1/auth/web/appearance', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				return c.json({
+					ok: true,
+					payload: normalizeAppearancePreference(auth.principal.metadata?.appearance ?? {}),
+				});
+			});
+
+			app.patch('/v1/auth/web/appearance', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const body = await readJsonOrFormBody(c);
+				const appearance = normalizeAppearancePreference(body);
+				const metadata = {
+					...(auth.principal.metadata ?? {}),
+					appearance,
+				};
+				await store.run(`UPDATE users SET metadata_json = ?, updated_at = ? WHERE id = ?`, [
+					JSON.stringify(metadata),
+					new Date().toISOString(),
+					auth.principal.id,
+				]);
+				return c.json({ ok: true, payload: appearance });
+			});
+
+			app.patch('/v1/auth/web/email', async (c) => {
+				await ensureMarketCredentialSchema(store);
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const body = await readJsonOrFormBody(c);
+				const email = normalizeEmail(body.email ?? body.newEmail);
+				if (!email || !email.includes('@')) return jsonError(c, 400, 'A valid email is required.');
+				const existing = await store.first(
+					`SELECT user_id FROM market_auth_credentials WHERE email = ? AND user_id != ? LIMIT 1`,
+					[email, auth.principal.id],
+				);
+				if (existing) return jsonError(c, 409, 'Email is already in use.');
+				await store.run(`UPDATE users SET email = ?, updated_at = ? WHERE id = ?`, [email, new Date().toISOString(), auth.principal.id]);
+				await store.run(`UPDATE market_auth_credentials SET email = ?, updated_at = ? WHERE user_id = ?`, [email, new Date().toISOString(), auth.principal.id]);
+				const session = await createMarketWebSession(marketAuthProvider, auth.principal.id, { source: 'email_update' }, { store, authSecret: runtime.resolved.config.authSecret });
+				return c.json({ ok: true, payload: webAuthPayload(session) });
+			});
+
+			app.patch('/v1/auth/web/password', async (c) => {
+				await ensureMarketCredentialSchema(store);
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const body = await readJsonOrFormBody(c);
+				const currentPassword = String(body.currentPassword ?? '');
+				const newPassword = String(body.newPassword ?? body.password ?? '');
+				if (!validateMarketPassword(newPassword)) return jsonError(c, 400, 'Password must be at least 12 characters.');
+				const row = await store.first(`SELECT password_hash FROM market_auth_credentials WHERE user_id = ? LIMIT 1`, [auth.principal.id]);
+				if (row && currentPassword && !verifyMarketPassword(currentPassword, row.password_hash)) {
+					return jsonError(c, 401, 'Current password was not accepted.');
+				}
+				if (!row) {
+					const email = normalizeEmail(auth.principal.metadata?.email);
+					const username = normalizeUsername(auth.principal.metadata?.username ?? auth.principal.id);
+					await store.run(
+						`INSERT INTO market_auth_credentials (user_id, email, username, password_hash, status, created_at, updated_at)
+						 VALUES (?, ?, ?, ?, 'active', ?, ?)`,
+						[auth.principal.id, email || `${auth.principal.id}@treeseed.local`, username || null, hashMarketPassword(newPassword), new Date().toISOString(), new Date().toISOString()],
+					);
+				} else {
+					await store.run(`UPDATE market_auth_credentials SET password_hash = ?, updated_at = ? WHERE user_id = ?`, [
+						hashMarketPassword(newPassword),
+						new Date().toISOString(),
+						auth.principal.id,
+					]);
+				}
+				return c.json({ ok: true });
+			});
+
+			app.post('/v1/auth/web/password-reset/request', async (c) => {
+				await ensureMarketCredentialSchema(store);
+				const body = await readJsonOrFormBody(c);
+				const email = normalizeEmail(body.email);
+				const row = email
+					? await store.first(`SELECT user_id FROM market_auth_credentials WHERE email = ? AND status = 'active' LIMIT 1`, [email])
+					: null;
+				let resetToken = null;
+				if (row) {
+					resetToken = `reset_${randomBytes(24).toString('base64url')}`;
+					await store.run(
+						`INSERT INTO market_auth_password_resets (id, user_id, token_hash, expires_at, used_at, created_at)
+						 VALUES (?, ?, ?, ?, NULL, ?)`,
+						[
+							randomUUID(),
+							row.user_id,
+							createHash('sha256').update(resetToken).digest('hex'),
+							new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+							new Date().toISOString(),
+						],
+					);
+				}
+				return c.json({
+					ok: true,
+					payload: {
+						sent: true,
+						resetToken: process.env.NODE_ENV === 'test' || process.env.TREESEED_ACCEPTANCE_EXPOSE_RESET_TOKENS === '1' ? resetToken : undefined,
+					},
+				});
+			});
+
+			app.post('/v1/auth/web/password-reset/complete', async (c) => {
+				await ensureMarketCredentialSchema(store);
+				const body = await readJsonOrFormBody(c);
+				const token = String(body.token ?? '');
+				const newPassword = String(body.newPassword ?? body.password ?? '');
+				if (!token || !validateMarketPassword(newPassword)) return jsonError(c, 400, 'A valid reset token and password are required.');
+				const row = await store.first(
+					`SELECT * FROM market_auth_password_resets WHERE token_hash = ? AND used_at IS NULL LIMIT 1`,
+					[createHash('sha256').update(token).digest('hex')],
+				);
+				if (!row || new Date(row.expires_at).getTime() <= Date.now()) return jsonError(c, 401, 'Password reset token is invalid or expired.');
+				await store.run(`UPDATE market_auth_credentials SET password_hash = ?, updated_at = ? WHERE user_id = ?`, [
+					hashMarketPassword(newPassword),
+					new Date().toISOString(),
+					row.user_id,
+				]);
+				await store.run(`UPDATE market_auth_password_resets SET used_at = ? WHERE id = ?`, [new Date().toISOString(), row.id]);
+				return c.json({ ok: true });
+			});
+
+			app.get('/v1/auth/web/account/deletion-blockers', async (c) => {
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const teams = await store.listTeamsForPrincipal(auth.principal);
+				const blockers = teams
+					.filter((team) => Array.isArray(team.roles) ? team.roles.includes('owner') : team.role === 'owner')
+					.map((team) => ({
+						code: 'team_owner',
+						message: `Transfer or delete team "${team.displayName ?? team.name ?? team.slug}" before deleting this account.`,
+						teamId: team.id,
+						teamSlug: team.slug,
+						teamName: team.displayName ?? team.name ?? team.slug,
+					}));
+				if (auth.principal.roles?.includes?.('platform_admin')) {
+					blockers.push({ code: 'platform_admin', message: 'Remove platform admin role before deleting this account.' });
+				}
+				return c.json({ ok: true, payload: blockers });
+			});
+
+			app.delete('/v1/auth/web/account', async (c) => {
+				await ensureMarketCredentialSchema(store);
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				await store.run(`UPDATE users SET status = 'deleted', updated_at = ? WHERE id = ?`, [new Date().toISOString(), auth.principal.id]);
+				await store.run(`UPDATE market_auth_credentials SET status = 'deleted', updated_at = ? WHERE user_id = ?`, [new Date().toISOString(), auth.principal.id]);
+				await store.run(`UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, ?), updated_at = ? WHERE user_id = ?`, [
+					new Date().toISOString(),
+					new Date().toISOString(),
+					auth.principal.id,
+				]).catch(() => {});
+				return c.json({ ok: true });
+			});
+
 			app.post('/v1/auth/token/refresh', async (c) => {
 				const body = await c.req.json().catch(() => ({}));
 				try {
@@ -2577,6 +3267,13 @@ export function createMarketApiApp(options = {}) {
 			app.post('/v1/auth/logout', async (c) => {
 				const auth = await ensurePrincipal(c);
 				if (auth.response) return auth.response;
+				const sessionId = auth.principal.metadata?.sessionId;
+				if (typeof sessionId === 'string' && sessionId.trim()) {
+					await store.run(
+						`UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, ?), updated_at = ? WHERE id = ? AND user_id = ?`,
+						[new Date().toISOString(), new Date().toISOString(), sessionId, auth.principal.id],
+					).catch(() => {});
+				}
 				return c.json({ ok: true });
 			});
 
@@ -2610,6 +3307,18 @@ export function createMarketApiApp(options = {}) {
 					ok: true,
 					payload: await store.listTeamsForPrincipal(auth.principal),
 				});
+			});
+
+			app.get('/v1/teams/by-name/:name/profile', async (c) => {
+				const profile = await store.loadTeamProfileByName(c.req.param('name'), c.get('principal'));
+				if (!profile) return jsonError(c, 404, 'Unknown team profile.');
+				return c.json({ ok: true, payload: profile });
+			});
+
+			app.get('/v1/users/by-username/:username/profile', async (c) => {
+				const profile = await store.loadUserProfileByUsername(c.req.param('username'), c.get('principal'));
+				if (!profile) return jsonError(c, 404, 'Unknown user profile.');
+				return c.json({ ok: true, payload: profile });
 			});
 
 			app.get('/v1/seeds/runs', async (c) => {

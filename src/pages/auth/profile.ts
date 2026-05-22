@@ -1,48 +1,35 @@
 import type { APIRoute } from 'astro';
-import { createSiteBetterAuth, ensureBetterAuthD1Schema, getBetterAuthSetCookies } from '../../lib/auth/better-auth';
-import { getSiteAuthConfig } from '../../lib/auth/config';
-import {
-	accountStatusRedirect,
-	appendAuthAndMarketCookies,
-	isValidProfileImageUrl,
-	normalizeAccountProfileInput,
-	syncBetterAuthUserToMarketSession,
-} from '../../lib/auth/account';
+import { apiAccessTokenFromCookies, resolveMarketApiBaseUrl, setApiAccessTokenCookie } from '../../lib/market/api-client';
 
 export const prerender = false;
 
+function redirect(status: string) {
+	return `/app/account?profile=${encodeURIComponent(status)}`;
+}
+
 export const POST: APIRoute = async (context) => {
-	if (!context.locals.auth?.principal) {
-		return context.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/account')}`, 303);
-	}
-	await ensureBetterAuthD1Schema(context);
+	const token = apiAccessTokenFromCookies(context);
+	if (!token) return context.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/account')}`, 303);
 	const form = await context.request.formData();
-	const profile = normalizeAccountProfileInput(form);
-	if (!profile.name) {
-		return context.redirect(accountStatusRedirect('profile', 'missing_name'), 303);
+	const name = String(form.get('name') ?? '').trim();
+	const image = String(form.get('image') ?? '').trim();
+	if (!name) return context.redirect(redirect('missing_name'), 303);
+	if (image && !/^https:\/\/.+/u.test(image)) return context.redirect(redirect('invalid_image'), 303);
+	const response = await fetch(`${resolveMarketApiBaseUrl(context.locals)}/v1/auth/web/profile`, {
+		method: 'PATCH',
+		headers: {
+			accept: 'application/json',
+			authorization: `Bearer ${token}`,
+			'content-type': 'application/json',
+		},
+		body: JSON.stringify({ displayName: name, image: image || null }),
+	});
+	const envelope = await response.json().catch(() => null);
+	if (!response.ok || envelope?.ok === false) return context.redirect(redirect('failed'), 303);
+	if (envelope?.payload?.accessToken) {
+		setApiAccessTokenCookie(context, envelope.payload.accessToken, Number(envelope.payload.expiresInSeconds ?? 900));
 	}
-	if (!isValidProfileImageUrl(profile.image)) {
-		return context.redirect(accountStatusRedirect('profile', 'invalid_image'), 303);
-	}
-	const config = getSiteAuthConfig(context);
-	const auth = createSiteBetterAuth(context);
-	const headers = new Headers(context.request.headers);
-	headers.delete('content-length');
-	headers.set('content-type', 'application/json');
-	headers.set('accept', 'application/json');
-	const betterAuthResponse = await auth.handler(new Request(`${config.betterAuthBaseUrl}/update-user`, {
-		method: 'POST',
-		headers,
-		body: JSON.stringify({
-			name: profile.name,
-			image: profile.image,
-		}),
-	}));
-	if (!betterAuthResponse.ok) {
-		return context.redirect(accountStatusRedirect('profile', 'failed'), 303);
-	}
-	const setCookies = getBetterAuthSetCookies(betterAuthResponse);
-	await syncBetterAuthUserToMarketSession(context, { setCookies });
-	const response = context.redirect(accountStatusRedirect('profile', 'updated'), 303);
-	return appendAuthAndMarketCookies(response, context, betterAuthResponse);
+	const next = context.redirect(redirect('updated'), 303);
+	for (const cookie of context.cookies.headers()) next.headers.append('set-cookie', cookie);
+	return next;
 };

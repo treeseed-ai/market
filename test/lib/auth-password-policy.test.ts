@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { createSiteBetterAuth } from '../../src/lib/auth/better-auth';
 import {
 	getSiteAuthConfig,
 	localAuthCanonicalRedirectUrl,
@@ -165,7 +164,7 @@ describe('market auth password policy', () => {
 		)).toBeNull();
 	});
 
-	it('routes mounted BetterAuth email sign-up requests when configured with an origin URL', async () => {
+	it('keeps email sign-up routed to the Market API instead of a local auth handler', async () => {
 		await withEnv({
 			BETTER_AUTH_URL: 'http://127.0.0.1:4321',
 			TREESEED_SITE_URL: undefined,
@@ -176,29 +175,13 @@ describe('market auth password policy', () => {
 			TREESEED_SMTP_PORT: undefined,
 			TREESEED_SMTP_FROM: undefined,
 		}, async () => {
-			const auth = createSiteBetterAuth();
-			const suffix = Date.now().toString(36);
-			const response = await auth.handler(new Request('http://127.0.0.1:4321/api/auth/sign-up/email', {
-				method: 'POST',
-				headers: {
-					accept: 'application/json',
-					'content-type': 'application/json',
-					origin: 'http://127.0.0.1:4321',
-				},
-				body: JSON.stringify({
-					name: 'Debug User',
-					email: `debug-${suffix}@example.com`,
-					password: 'StrongPassword1!',
-					callbackURL: 'http://127.0.0.1:4321/auth/verified?returnTo=%2Fapp%2F',
-				}),
-			}));
-			const payload = await response.json().catch(() => null) as { user?: { email?: string } } | null;
-			expect(response.status).toBe(200);
-			expect(payload?.user?.email).toBe(`debug-${suffix}@example.com`);
+			const config = getSiteAuthConfig();
+			expect(config.betterAuthBaseUrl).toBe('http://127.0.0.1:4321/api/auth');
+			expect(config.apiServiceId).toBeTruthy();
 		});
 	}, 20_000);
 
-	it('routes BetterAuth email sign-up requests with request-origin fallback config', async () => {
+	it('uses request-origin fallback config for Market API-owned auth pages', async () => {
 		await withEnv({
 			BETTER_AUTH_URL: undefined,
 			TREESEED_SITE_URL: undefined,
@@ -210,7 +193,7 @@ describe('market auth password policy', () => {
 			TREESEED_SMTP_FROM: undefined,
 		}, async () => {
 			const origin = 'https://treeseed-market-staging-479e4625.treeseed.ai';
-			const auth = createSiteBetterAuth({
+			const config = getSiteAuthConfig({
 				locals: {
 					runtime: {
 						env: {
@@ -223,24 +206,8 @@ describe('market auth password policy', () => {
 				},
 				url: new URL(`${origin}/auth/register?returnTo=%2Fapp%2F`),
 			} as any);
-			const suffix = Date.now().toString(36);
-			const response = await auth.handler(new Request(`${origin}/api/auth/sign-up/email`, {
-				method: 'POST',
-				headers: {
-					accept: 'application/json',
-					'content-type': 'application/json',
-					origin,
-				},
-				body: JSON.stringify({
-					name: 'Hosted Debug User',
-					email: `hosted-debug-${suffix}@example.com`,
-					password: 'StrongPassword1!',
-					callbackURL: `${origin}/auth/verified?returnTo=%2Fapp%2F`,
-				}),
-			}));
-			const payload = await response.json().catch(() => null) as { user?: { email?: string } } | null;
-			expect(response.status).toBe(200);
-			expect(payload?.user?.email).toBe(`hosted-debug-${suffix}@example.com`);
+			expect(config.siteBaseUrl).toBe(origin);
+			expect(config.betterAuthBaseUrl).toBe(`${origin}/api/auth`);
 		});
 	}, 20_000);
 });

@@ -1,94 +1,25 @@
 ---
 import AuthShell from '../../components/app/auth/AuthShell.astro';
 import AuthCard from '../../components/app/auth/AuthCard.astro';
-import Field from '../../../packages/core/src/components/ui/forms/Field.astro';
-import TextInput from '../../../packages/core/src/components/ui/forms/TextInput.astro';
 import Button from '../../../packages/core/src/components/ui/forms/Button.astro';
 import FormActions from '../../../packages/core/src/components/ui/forms/FormActions.astro';
-import { createSiteBetterAuth, ensureBetterAuthD1Schema } from '../../lib/auth/better-auth';
-import { resolveAnonymousThemePreference, setUserThemeCookies } from '../../lib/auth/appearance';
-import {
-	assignImmutableUsername,
-	deriveAvailableUsernameForAccount,
-	isUsernameAvailable,
-	normalizeUsername,
-	validateUsername,
-} from '../../lib/auth/account';
-import { finalizeBetterAuthSession, normalizeReturnTo } from '../../lib/auth/flow';
+import { resolveAnonymousThemePreference } from '../../lib/auth/appearance';
+import { normalizeReturnTo } from '../../lib/auth/flow';
 
 export const prerender = false;
 
 const returnTo = normalizeReturnTo(Astro);
-await ensureBetterAuthD1Schema(Astro);
-const auth = createSiteBetterAuth(Astro);
-const sessionData = await auth.api.getSession({ headers: Astro.request.headers });
-if (!sessionData?.user || !sessionData?.session) {
-	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`, 302);
-}
-const accounts = await auth.api.listUserAccounts({ headers: Astro.request.headers }).catch(() => []);
-if (normalizeUsername((sessionData.user as any).username)) {
-	return Astro.redirect(returnTo, 302);
-}
-
-let error = '';
-const suggestedUsername = await deriveAvailableUsernameForAccount(Astro, { user: sessionData.user, accounts }) ?? '';
 const appearance = resolveAnonymousThemePreference(Astro);
-
-if (Astro.request.method === 'POST') {
-	const form = await Astro.request.formData();
-	const username = normalizeUsername(String(form.get('username') ?? ''));
-	const validation = validateUsername(username);
-	if (!validation.ok) {
-		error = validation.message;
-	} else if (!(await isUsernameAvailable(Astro, validation.username, { excludeBetterAuthUserId: sessionData.user.id }))) {
-		error = 'That username is already taken.';
-	} else {
-		const assigned = await assignImmutableUsername(Astro, {
-			username: validation.username,
-			betterAuthUserId: sessionData.user.id,
-		});
-		if (!assigned.ok) {
-			error = assigned.message;
-		} else {
-			const account = accounts[0];
-			await finalizeBetterAuthSession(Astro, {
-				provider: account?.providerId ?? 'credential',
-				providerSubject: account?.accountId ?? sessionData.user.id,
-				user: { ...sessionData.user, username: assigned.username },
-				session: sessionData.session,
-			});
-			await setUserThemeCookies(Astro, sessionData.user.id).catch(() => null);
-			const response = Astro.redirect(returnTo, 303);
-			for (const cookie of Astro.cookies.headers()) response.headers.append('set-cookie', cookie);
-			return response;
-		}
-	}
-}
 ---
 
-<AuthShell title="Choose Username | TreeSeed" description="Choose your public TreeSeed username." appearance={appearance}>
+<AuthShell title="Username Managed | TreeSeed" description="Usernames are managed by the Market API." appearance={appearance}>
 	<AuthCard
-		title="Choose username"
-		description="Your username is public, appears in profile URLs, and cannot be changed after registration."
-		error={error}
+		title="Username already configured"
+		description="TreeSeed Market usernames are now assigned during account creation by the backend Market API."
 		appearance={appearance}
 	>
-		<form class="auth-form" method="POST" action={`/auth/username?returnTo=${encodeURIComponent(returnTo)}`}>
-			<Field label="Username" name="username" help="Use letters, numbers, or single hyphens." required>
-				<TextInput
-					name="username"
-					type="text"
-					autocomplete="username"
-					value={suggestedUsername}
-					required
-					minlength={1}
-					maxlength={39}
-					pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?"
-				/>
-			</Field>
-			<FormActions>
-				<Button type="submit">Save username</Button>
-			</FormActions>
-		</form>
+		<FormActions>
+			<Button href={returnTo}>Continue</Button>
+		</FormActions>
 	</AuthCard>
 </AuthShell>

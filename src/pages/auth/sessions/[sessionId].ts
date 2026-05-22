@@ -1,36 +1,28 @@
 import type { APIRoute } from 'astro';
-import { createSiteBetterAuth } from '../../../lib/auth/better-auth';
-import { loadOwnedSiteWebSession, revokeSiteWebSession } from '../../../lib/auth/session-store';
+import { apiAccessTokenFromCookies, clearApiAccessTokenCookie, resolveMarketApiBaseUrl } from '../../../lib/market/api-client';
 
 export const prerender = false;
 
-async function revokeBetterAuthSession(context: Parameters<APIRoute>[0], betterAuthSessionId: string | null) {
-	const db = context.locals.runtime?.env?.SITE_DATA_DB;
-	if (!db || !betterAuthSessionId) return;
-	const auth = createSiteBetterAuth(context);
-	const current = await auth.api.getSession({ headers: context.request.headers }).catch(() => null);
-	if (!current?.user?.id) return;
-	const row = await db.prepare(`
-		SELECT id FROM better_auth_session
-		WHERE id = ? AND userId = ?
-	`).bind(betterAuthSessionId, current.user.id).first<{ id: string }>();
-	if (!row) return;
-	await db.prepare('DELETE FROM better_auth_session WHERE id = ?').bind(betterAuthSessionId).run();
+async function revokeApiSession(context: Parameters<APIRoute>[0]) {
+	const token = apiAccessTokenFromCookies(context);
+	if (!token) return false;
+	const sessionId = context.params.sessionId;
+	const path = sessionId
+		? `/v1/auth/web/sessions/${encodeURIComponent(sessionId)}/revoke`
+		: '/v1/auth/logout';
+	const response = await fetch(`${resolveMarketApiBaseUrl(context.locals)}${path}`, {
+		method: 'POST',
+		headers: {
+			accept: 'application/json',
+			authorization: `Bearer ${token}`,
+		},
+	}).catch(() => null);
+	clearApiAccessTokenCookie(context);
+	return Boolean(response?.ok);
 }
 
 export const DELETE: APIRoute = async (context) => {
-	const sessionId = context.params.sessionId ?? '';
-	if (!sessionId) {
-		return new Response(JSON.stringify({ ok: false, error: 'Session id is required.' }), {
-			status: 400,
-			headers: { 'content-type': 'application/json' },
-		});
-	}
-	const target = await loadOwnedSiteWebSession(context, sessionId);
-	const revoked = await revokeSiteWebSession(context, sessionId);
-	if (revoked) {
-		await revokeBetterAuthSession(context, target?.betterAuthSessionId ?? null);
-	}
+	const revoked = await revokeApiSession(context);
 	return new Response(JSON.stringify({ ok: revoked }), {
 		status: revoked ? 200 : 404,
 		headers: { 'content-type': 'application/json' },
@@ -38,13 +30,6 @@ export const DELETE: APIRoute = async (context) => {
 };
 
 export const POST: APIRoute = async (context) => {
-	const sessionId = context.params.sessionId ?? '';
-	if (sessionId) {
-		const target = await loadOwnedSiteWebSession(context, sessionId);
-		const revoked = await revokeSiteWebSession(context, sessionId);
-		if (revoked) {
-			await revokeBetterAuthSession(context, target?.betterAuthSessionId ?? null);
-		}
-	}
+	await revokeApiSession(context);
 	return context.redirect('/app/account', 303);
 };

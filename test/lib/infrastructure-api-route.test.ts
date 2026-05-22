@@ -1,16 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const sessionMock = vi.hoisted(() => vi.fn());
 const teamsMock = vi.hoisted(() => vi.fn());
 const storeValue = vi.hoisted(() => ({ current: null as any }));
 const seedStateMock = vi.hoisted(() => vi.fn());
 
-vi.mock('../../src/lib/auth/session-store', () => ({
-	loadSiteWebSession: sessionMock,
-}));
-
 vi.mock('../../src/lib/market/store', () => ({
-	resolveMarketStore: () => storeValue.current,
+	resolveMarketApi: () => storeValue.current,
 	loadAccessibleTeams: teamsMock,
 }));
 
@@ -24,7 +19,7 @@ function context(path = '/api/infrastructure') {
 	const url = new URL(`https://market.example.com${path}`);
 	return {
 		params: {},
-		locals: {},
+		locals: { auth: { principal: { id: 'user-1' } } },
 		cookies: { get: vi.fn() },
 		request: new Request(url),
 		url,
@@ -38,7 +33,6 @@ async function json(response: Response) {
 describe('infrastructure API route', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		sessionMock.mockResolvedValue({ principal: { id: 'user-1' } });
 		teamsMock.mockResolvedValue([{ id: 'team-1', name: 'treeseed' }]);
 		seedStateMock.mockResolvedValue({ selectedSeed: 'treeseed', selectedEnvironments: 'local', plan: null, diagnostics: [], runs: [], approvals: [] });
 		storeValue.current = {
@@ -62,8 +56,9 @@ describe('infrastructure API route', () => {
 	});
 
 	it('requires authentication', async () => {
-		sessionMock.mockResolvedValue(null);
-		const response = await route.GET(context());
+		const unauthenticated = context();
+		unauthenticated.locals.auth = null;
+		const response = await route.GET(unauthenticated);
 		expect(response.status).toBe(401);
 		expect(await json(response)).toMatchObject({ ok: false, error: 'Authentication required.' });
 	});
@@ -72,7 +67,7 @@ describe('infrastructure API route', () => {
 		storeValue.current = null;
 		const response = await route.GET(context());
 		expect(response.status).toBe(503);
-		expect(await json(response)).toMatchObject({ ok: false, error: 'SITE_DATA_DB is unavailable.' });
+		expect(await json(response)).toMatchObject({ ok: false, error: 'Market API facade is unavailable.' });
 	});
 
 	it('returns sanitized infrastructure projection', async () => {

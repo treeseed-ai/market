@@ -1,34 +1,38 @@
-import { MarketControlPlaneStore } from '../../api/store.js';
-import { getSiteAuthConfig } from '../auth/config';
+import type { APIContext } from 'astro';
+import { createMarketApiFacade } from './api-client.js';
 
-function resolveRuntime(locals: App.Locals | Record<string, unknown> | null | undefined) {
-	return (locals as App.Locals | undefined)?.runtime;
-}
+type MarketContext = Pick<APIContext, 'locals' | 'cookies' | 'url' | 'request'>;
 
-export function resolveMarketStore(locals: App.Locals | Record<string, unknown> | null | undefined) {
-	const runtime = resolveRuntime(locals);
-	const db = runtime?.env?.SITE_DATA_DB;
-	if (!db) {
-		return null;
+const emptyCookies = {
+	get() {
+		return undefined;
+	},
+	set() {},
+	delete() {},
+} as unknown as APIContext['cookies'];
+
+function toMarketContext(contextOrLocals: MarketContext | App.Locals | Record<string, unknown> | null | undefined): MarketContext {
+	if (contextOrLocals && 'locals' in contextOrLocals) {
+		return contextOrLocals as MarketContext;
 	}
-	const authConfig = getSiteAuthConfig({ locals: locals as App.Locals });
-	return new MarketControlPlaneStore({
-		authSecret: String(runtime.env.TREESEED_EDITORIAL_PREVIEW_SECRET ?? runtime.env.TREESEED_FORM_TOKEN_SECRET ?? 'treeseed-market'),
-		assertionSecret: authConfig.apiAssertionSecret,
-		serviceId: authConfig.apiServiceId,
-		serviceSecret: authConfig.apiServiceSecret,
-		fetchImpl: fetch,
-	}, db as never);
+	return {
+		locals: (contextOrLocals ?? {}) as App.Locals,
+		cookies: emptyCookies,
+		url: new URL('http://localhost/'),
+		request: new Request('http://localhost/'),
+	};
 }
 
-export function resolveMarketPrincipal(locals: App.Locals | Record<string, unknown> | null | undefined) {
+export function resolveMarketApi(contextOrLocals: MarketContext | App.Locals | Record<string, unknown> | null | undefined) {
+	return createMarketApiFacade(toMarketContext(contextOrLocals));
+}
+
+export function resolveMarketPrincipal(contextOrLocals: MarketContext | App.Locals | Record<string, unknown> | null | undefined) {
+	const locals = contextOrLocals && 'locals' in contextOrLocals ? contextOrLocals.locals : contextOrLocals;
 	return (locals as App.Locals | undefined)?.auth?.principal ?? null;
 }
 
-export async function loadAccessibleTeams(locals: App.Locals | Record<string, unknown> | null | undefined) {
-	const store = resolveMarketStore(locals);
-	if (!store) {
-		return [];
-	}
-	return store.listTeamsForPrincipal(resolveMarketPrincipal(locals));
+export async function loadAccessibleTeams(contextOrLocals: MarketContext | App.Locals | Record<string, unknown> | null | undefined) {
+	const store = resolveMarketApi(contextOrLocals);
+	return store.listTeamsForPrincipal().catch(() => []);
 }

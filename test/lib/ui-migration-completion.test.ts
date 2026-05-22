@@ -99,14 +99,18 @@ describe('UI migration completion', () => {
 		expect(themeScript).toContain('document.cookie = `${name}=');
 
 		for (const path of [
-			'src/pages/auth/sign-in.astro',
-			'src/pages/auth/verified.ts',
-			'src/pages/auth/callback/[provider].ts',
-			'src/pages/auth/username.astro',
 			'src/pages/auth/register.astro',
 			'src/pages/auth/appearance.ts',
 		]) {
 			expect(source(path), path).toMatch(/set(?:User|CurrentUser|Anonymous)ThemeCookies/u);
+		}
+		for (const path of [
+			'src/pages/auth/sign-in.astro',
+			'src/pages/auth/verified.ts',
+			'src/pages/auth/callback/[provider].ts',
+			'src/pages/auth/username.astro',
+		]) {
+			expect(source(path), path).not.toMatch(/SITE_DATA_DB|BetterAuth|session-store/u);
 		}
 		for (const path of [
 			'src/layouts/TreeseedAppLayout.astro',

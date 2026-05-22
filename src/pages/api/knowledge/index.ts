@@ -1,7 +1,6 @@
 import type { APIRoute } from 'astro';
-import { loadSiteWebSession } from '../../../lib/auth/session-store';
 import { buildKnowledgeProjection } from '../../../lib/market/knowledge-projection';
-import { loadAccessibleTeams, resolveMarketStore } from '../../../lib/market/store';
+import { loadAccessibleTeams, resolveMarketApi } from '../../../lib/market/store';
 import { loadKnowledgeContentEntries } from '../../../view-models/knowledge-content';
 
 export const prerender = false;
@@ -14,13 +13,11 @@ function json(payload: unknown, status = 200) {
 }
 
 export const GET: APIRoute = async (context) => {
-	const session = await loadSiteWebSession(context);
+	const session = context.locals.auth;
 	if (!session) return json({ ok: false, error: 'Authentication required.' }, 401);
 
-	const store = resolveMarketStore(context.locals);
-	if (!store) return json({ ok: false, error: 'SITE_DATA_DB is unavailable.' }, 503);
-
-	const teams = await loadAccessibleTeams(context.locals);
+	const store = resolveMarketApi(context);
+	const teams = await loadAccessibleTeams(context);
 	const activeTeam = teams[0] ?? null;
 	const projects = activeTeam ? await store.listTeamProjects(activeTeam.id).catch(() => []) : [];
 	const contentEntries = await loadKnowledgeContentEntries().catch(() => []);
