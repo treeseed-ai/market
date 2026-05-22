@@ -1,6 +1,5 @@
 import type { APIRoute } from 'astro';
-import { loadSiteWebSession } from '../../../../lib/auth/session-store';
-import { loadAccessibleTeams, resolveMarketStore } from '../../../../lib/market/store';
+import { loadAccessibleTeams, resolveMarketApi } from '../../../../lib/market/store';
 import { buildGovernanceApprovalProjection } from '../../../../lib/market/governance-projection';
 
 export const prerender = false;
@@ -42,13 +41,11 @@ async function readDecision(request: Request) {
 }
 
 export const POST: APIRoute = async (context) => {
-	const session = await loadSiteWebSession(context);
+	const session = context.locals.auth;
 	if (!session) return json({ ok: false, error: 'Authentication required.' }, 401);
 
-	const store = resolveMarketStore(context.locals);
-	if (!store) return json({ ok: false, error: 'SITE_DATA_DB is unavailable.' }, 503);
-
-	const teams = await loadAccessibleTeams(context.locals);
+	const store = resolveMarketApi(context);
+	const teams = await loadAccessibleTeams(context);
 	const activeTeam = teams[0] ?? null;
 	const projects = activeTeam ? await store.listTeamProjects(activeTeam.id).catch(() => []) : [];
 	const approvalId = decodeApprovalId(context.params.approvalId);

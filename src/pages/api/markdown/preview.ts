@@ -4,7 +4,6 @@ import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import remarkRehype from 'remark-rehype';
 import rehypeStringify from 'rehype-stringify';
-import { loadSiteWebSession } from '../../../lib/auth/session-store';
 
 export const prerender = false;
 
@@ -22,7 +21,7 @@ const markdownPreviewProcessor = unified()
 	.use(rehypeStringify);
 
 export const POST: APIRoute = async (context) => {
-	const session = await loadSiteWebSession(context);
+	const session = context.locals.auth;
 	if (!session) return json({ ok: false, error: 'Authentication required.' }, 401);
 
 	const body = await context.request.json().catch(() => ({}));

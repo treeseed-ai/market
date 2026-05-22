@@ -1,8 +1,9 @@
 import type { APIRoute } from 'astro';
 import {
-	saveCurrentUserThemePreference,
+	resolveAnonymousThemePreference,
 	setAnonymousThemeCookies,
 } from '../../lib/auth/appearance';
+import { apiAccessTokenFromCookies, resolveMarketApiBaseUrl } from '../../lib/market/api-client';
 
 export const prerender = false;
 
@@ -16,12 +17,22 @@ export const POST: APIRoute = async (context) => {
 	}
 	try {
 		const form = await context.request.formData();
-		const preference = await saveCurrentUserThemePreference(context, {
-			colorScheme: form.get('colorScheme'),
-			themeMode: form.get('themeMode'),
-		});
-		if (!preference) {
-			return context.redirect(accountAppearanceRedirect('failed'), 303);
+		const preference = resolveAnonymousThemePreference(context, form);
+		const token = apiAccessTokenFromCookies(context);
+		if (token) {
+			const response = await fetch(`${resolveMarketApiBaseUrl(context.locals)}/v1/auth/web/appearance`, {
+				method: 'PATCH',
+				headers: {
+					accept: 'application/json',
+					authorization: `Bearer ${token}`,
+					'content-type': 'application/json',
+				},
+				body: JSON.stringify({
+					colorScheme: preference.scheme,
+					themeMode: preference.mode,
+				}),
+			});
+			if (!response.ok) throw new Error('Appearance update failed.');
 		}
 		setAnonymousThemeCookies(context, preference);
 		const response = context.redirect(accountAppearanceRedirect('updated'), 303);

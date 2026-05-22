@@ -5238,6 +5238,79 @@ export class MarketControlPlaneStore {
 		};
 	}
 
+	async loadUserProfileByUsername(username, principal = null) {
+		await this.ensureInitialized();
+		const normalized = String(username ?? '').trim().toLowerCase();
+		if (
+			!normalized
+			|| normalized.length > 39
+			|| !/^[a-z0-9-]+$/u.test(normalized)
+			|| normalized.startsWith('-')
+			|| normalized.endsWith('-')
+			|| normalized.includes('--')
+		) {
+			return null;
+		}
+		const row = await this.first(
+			`SELECT users.id, users.email, users.username, users.display_name, users.status, users.created_at,
+			        user_identities.profile_json
+			   FROM users
+			   LEFT JOIN user_identities ON user_identities.user_id = users.id
+			  WHERE LOWER(users.username) = LOWER(?)
+			    AND users.status = 'active'
+			  ORDER BY user_identities.updated_at DESC
+			  LIMIT 1`,
+			[normalized],
+		);
+		if (!row?.id || !row.username) return null;
+		const profile = parseJson(row.profile_json, {});
+		const viewerTeamIds = new Set(await this.teamIdsForPrincipal(principal));
+		const membershipRows = await this.all(
+			`SELECT teams.id, teams.slug, teams.name, teams.display_name, teams.created_at
+			   FROM team_memberships
+			   INNER JOIN teams ON teams.id = team_memberships.team_id
+			  WHERE team_memberships.user_id = ?
+			    AND team_memberships.status = 'active'
+			  ORDER BY teams.created_at ASC`,
+			[row.id],
+		);
+		const profileTeams = membershipRows.map((team) => ({
+			id: team.id,
+			slug: team.slug ?? team.name,
+			name: team.display_name ?? team.name,
+			createdAt: team.created_at,
+		}));
+		const profileTeamIds = new Set(profileTeams.map((team) => team.id));
+		const catalogItems = (await this.listCatalogItems(principal)).filter((item) => profileTeamIds.has(item.teamId));
+		const knowledgePacks = (await this.listKnowledgePacks(principal)).filter((pack) => profileTeamIds.has(pack.teamId));
+		const visibleTeamIds = new Set([
+			...catalogItems.map((item) => item.teamId),
+			...knowledgePacks.map((pack) => pack.teamId),
+			...profileTeams.filter((team) => viewerTeamIds.has(team.id)).map((team) => team.id),
+		]);
+		const projects = [];
+		for (const team of profileTeams) {
+			if (!viewerTeamIds.has(team.id)) continue;
+			projects.push(...await this.listTeamProjects(team.id));
+		}
+		return {
+			user: {
+				id: row.id,
+				username: String(row.username).trim().toLowerCase(),
+				displayName: row.display_name ?? null,
+				email: principal?.id === row.id || principalIsAdmin(principal) ? row.email ?? null : null,
+				image: typeof profile.image === 'string' ? profile.image : null,
+				joinedAt: row.created_at,
+			},
+			activity: {
+				teams: profileTeams.filter((team) => visibleTeamIds.has(team.id)),
+				projects,
+				catalogItems,
+				knowledgePacks,
+			},
+		};
+	}
+
 	async evaluateTeamDeletionBlockers(teamId) {
 		await this.ensureInitialized();
 		const [projects, catalogItems, knowledgePacks, jobs] = await Promise.all([

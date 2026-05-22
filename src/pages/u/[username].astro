@@ -1,15 +1,33 @@
 ---
 import TreeseedPublicLayout from '../../layouts/TreeseedPublicLayout.astro';
-import { loadUserProfileByUsername, normalizeUsername, validateUsername } from '../../lib/auth/account';
+import { normalizeUsername, validateUsername } from '../../lib/auth/profile-validation';
+import { createMarketApiFacade } from '../../lib/market/api-client';
 
 export const prerender = false;
+
+type PublicProfile = {
+	user: {
+		id: string;
+		username: string;
+		displayName: string | null;
+		email: string | null;
+		image: string | null;
+		joinedAt: string;
+	};
+	activity: {
+		teams: Array<{ id: string; slug: string; name: string; createdAt?: string }>;
+		projects: Array<{ id: string; teamId: string; slug: string; name: string; description?: string | null; createdAt?: string }>;
+		catalogItems: Array<{ id: string; teamId: string; kind: string; slug: string; title: string; summary?: string | null; visibility?: string }>;
+		knowledgePacks: Array<{ id: string; teamId: string; slug: string; name: string; summary?: string | null; visibility?: string }>;
+	};
+};
 
 const requestedUsername = String(Astro.params.username ?? '');
 const normalizedUsername = normalizeUsername(requestedUsername);
 if (requestedUsername !== normalizedUsername && validateUsername(normalizedUsername).ok) {
 	return Astro.redirect(`/u/${normalizedUsername}`, 301);
 }
-const profile = await loadUserProfileByUsername(Astro, normalizedUsername, Astro.locals.auth?.principal ?? null);
+const profile = await createMarketApiFacade(Astro).loadUserProfileByUsername(normalizedUsername) as PublicProfile | null;
 if (!profile) {
 	return new Response('Not found', { status: 404 });
 }

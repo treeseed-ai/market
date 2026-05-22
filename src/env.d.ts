@@ -5,7 +5,16 @@ declare namespace App {
 		runtime?: import('@treeseed/core/types/cloudflare').CloudflareRuntime;
 		contentPreview?: import('@treeseed/sdk').EditorialPreviewTokenPayload | null;
 		auth?: {
-			session: import('./lib/auth/session-store').SiteWebSession;
+			session: {
+				id: string;
+				userId: string;
+				provider?: string | null;
+				email?: string | null;
+				displayName?: string | null;
+				identityId?: string | null;
+				authenticatedAt?: string | null;
+				expiresAt?: string | null;
+			};
 			principal: import('@treeseed/sdk/remote').ApiPrincipal;
 		} | null;
 	}

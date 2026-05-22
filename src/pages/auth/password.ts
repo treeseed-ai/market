@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { createSiteBetterAuth, ensureBetterAuthD1Schema } from '../../lib/auth/better-auth';
 import { passwordMeetsPolicy } from '../../lib/auth/password-policy';
+import { apiAccessTokenFromCookies, resolveMarketApiBaseUrl } from '../../lib/market/api-client';
 
 export const prerender = false;
 
@@ -9,39 +9,24 @@ function redirectWithStatus(context: Parameters<APIRoute>[0], status: string) {
 }
 
 export const POST: APIRoute = async (context) => {
-	await ensureBetterAuthD1Schema(context);
+	const token = apiAccessTokenFromCookies(context);
+	if (!token) return context.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/account')}`, 303);
 	const form = await context.request.formData();
 	const newPassword = String(form.get('newPassword') ?? '');
 	const confirmPassword = String(form.get('confirmPassword') ?? '');
 	const currentPassword = String(form.get('currentPassword') ?? '');
-	if (!newPassword || !confirmPassword) {
-		return redirectWithStatus(context, 'missing');
-	}
-	if (newPassword !== confirmPassword) {
-		return redirectWithStatus(context, 'mismatch');
-	}
-	if (!passwordMeetsPolicy(newPassword)) {
-		return redirectWithStatus(context, 'weak');
-	}
-	const auth = createSiteBetterAuth(context);
-	try {
-		if (currentPassword) {
-			await auth.api.changePassword({
-				body: {
-					currentPassword,
-					newPassword,
-					revokeOtherSessions: false,
-				},
-				headers: context.request.headers,
-			});
-		} else {
-			await auth.api.setPassword({
-				body: { newPassword },
-				headers: context.request.headers,
-			});
-		}
-		return redirectWithStatus(context, 'updated');
-	} catch {
-		return redirectWithStatus(context, currentPassword ? 'change_failed' : 'set_failed');
-	}
+	if (!newPassword || !confirmPassword) return redirectWithStatus(context, 'missing');
+	if (newPassword !== confirmPassword) return redirectWithStatus(context, 'mismatch');
+	if (!passwordMeetsPolicy(newPassword)) return redirectWithStatus(context, 'weak');
+	const response = await fetch(`${resolveMarketApiBaseUrl(context.locals)}/v1/auth/web/password`, {
+		method: 'PATCH',
+		headers: {
+			accept: 'application/json',
+			authorization: `Bearer ${token}`,
+			'content-type': 'application/json',
+		},
+		body: JSON.stringify({ currentPassword, newPassword }),
+	});
+	if (!response.ok) return redirectWithStatus(context, currentPassword ? 'change_failed' : 'set_failed');
+	return redirectWithStatus(context, 'updated');
 };

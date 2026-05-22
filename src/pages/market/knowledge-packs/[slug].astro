@@ -4,10 +4,10 @@ import Badge from '../../../../packages/core/src/components/ui/data/Badge.astro'
 import KeyValueList from '../../../../packages/core/src/components/ui/data/KeyValueList.astro';
 import ActionList from '../../../../packages/core/src/components/ui/data/ActionList.astro';
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
-import { resolveMarketStore } from '../../../lib/market/store.js';
+import { resolveMarketApi } from '../../../lib/market/store.js';
 
 const slug = Astro.params.slug ?? '';
-const store = resolveMarketStore(Astro.locals);
+const store = resolveMarketApi(Astro);
 const entry = store ? await store.getCatalogItemBySlug('knowledge_pack', slug) : null;
 const artifacts = entry && store ? await store.listCatalogArtifactVersions(entry.id) : [];
 

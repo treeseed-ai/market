@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const sessionMock = vi.hoisted(() => vi.fn());
 const teamsMock = vi.hoisted(() => vi.fn());
 const storeMock = vi.hoisted(() => ({
 	listTeamProjects: vi.fn(),
@@ -13,12 +12,8 @@ const storeMock = vi.hoisted(() => ({
 }));
 const contentEntriesMock = vi.hoisted(() => vi.fn());
 
-vi.mock('../../src/lib/auth/session-store', () => ({
-	loadSiteWebSession: sessionMock,
-}));
-
 vi.mock('../../src/lib/market/store', () => ({
-	resolveMarketStore: () => storeMock,
+	resolveMarketApi: () => storeMock,
 	loadAccessibleTeams: teamsMock,
 }));
 
@@ -33,7 +28,7 @@ function context(path = '/api/knowledge') {
 	const url = new URL(`https://market.example.com${path}`);
 	return {
 		params: { artifactId: path.split('/')[3] },
-		locals: {},
+		locals: { auth: { principal: { id: 'user-1' } } },
 		cookies: { get: vi.fn() },
 		request: new Request(url),
 		url,
@@ -47,7 +42,6 @@ async function json(response: Response) {
 describe('knowledge API routes', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		sessionMock.mockResolvedValue({ principal: { id: 'user-1' } });
 		teamsMock.mockResolvedValue([{ id: 'team-1' }]);
 		storeMock.listTeamProjects.mockResolvedValue([{ id: 'project-1', name: 'Ops Docs', slug: 'ops-docs' }]);
 		storeMock.getProjectSummary.mockResolvedValue({ repositories: [{ id: 'repo-1', owner: 'treeseed-ai', name: 'market', status: 'active' }] });
@@ -73,8 +67,9 @@ describe('knowledge API routes', () => {
 	});
 
 	it('requires authentication', async () => {
-		sessionMock.mockResolvedValue(null);
-		const response = await listRoute.GET(context());
+		const unauthenticated = context();
+		unauthenticated.locals.auth = null;
+		const response = await listRoute.GET(unauthenticated);
 		expect(response.status).toBe(401);
 		expect(await json(response)).toMatchObject({ ok: false, error: 'Authentication required.' });
 	});

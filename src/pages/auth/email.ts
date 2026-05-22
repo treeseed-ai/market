@@ -1,45 +1,33 @@
 import type { APIRoute } from 'astro';
-import { createSiteBetterAuth, ensureBetterAuthD1Schema } from '../../lib/auth/better-auth';
-import { getSiteAuthConfig } from '../../lib/auth/config';
-import { accountStatusRedirect, appendAuthAndMarketCookies } from '../../lib/auth/account';
-import { authEmailConfigurationMessage, canDeliverAuthEmail } from '../../lib/auth/email';
+import { apiAccessTokenFromCookies, resolveMarketApiBaseUrl, setApiAccessTokenCookie } from '../../lib/market/api-client';
 
 export const prerender = false;
 
+function redirect(status: string, message = '') {
+	return `/app/account?email=${encodeURIComponent(status)}${message ? `&message=${encodeURIComponent(message)}` : ''}`;
+}
+
 export const POST: APIRoute = async (context) => {
-	if (!context.locals.auth?.principal) {
-		return context.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/account')}`, 303);
-	}
+	const token = apiAccessTokenFromCookies(context);
+	if (!token) return context.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/account')}`, 303);
 	const form = await context.request.formData();
 	const email = String(form.get('email') ?? '').trim().toLowerCase();
-	if (!email) {
-		return context.redirect(accountStatusRedirect('email', 'missing'), 303);
+	if (!email) return context.redirect(redirect('missing'), 303);
+	const response = await fetch(`${resolveMarketApiBaseUrl(context.locals)}/v1/auth/web/email`, {
+		method: 'PATCH',
+		headers: {
+			accept: 'application/json',
+			authorization: `Bearer ${token}`,
+			'content-type': 'application/json',
+		},
+		body: JSON.stringify({ email }),
+	});
+	const envelope = await response.json().catch(() => null);
+	if (!response.ok || envelope?.ok === false) return context.redirect(redirect('failed', envelope?.error ?? 'Email update failed.'), 303);
+	if (envelope?.payload?.accessToken) {
+		setApiAccessTokenCookie(context, envelope.payload.accessToken, Number(envelope.payload.expiresInSeconds ?? 900));
 	}
-	if (!canDeliverAuthEmail(context)) {
-		return context.redirect(`${accountStatusRedirect('email', 'not_configured')}&message=${encodeURIComponent(authEmailConfigurationMessage())}`, 303);
-	}
-	await ensureBetterAuthD1Schema(context);
-	const config = getSiteAuthConfig(context);
-	const auth = createSiteBetterAuth(context);
-	const callbackURL = new URL('/auth/verified', config.siteBaseUrl);
-	callbackURL.searchParams.set('returnTo', '/app/account?email=verified');
-	const headers = new Headers(context.request.headers);
-	headers.delete('content-length');
-	headers.set('content-type', 'application/json');
-	headers.set('accept', 'application/json');
-	const betterAuthResponse = await auth.handler(new Request(`${config.betterAuthBaseUrl}/change-email`, {
-		method: 'POST',
-		headers,
-		body: JSON.stringify({
-			newEmail: email,
-			callbackURL: callbackURL.href,
-		}),
-	}));
-	if (!betterAuthResponse.ok) {
-		const payload = await betterAuthResponse.json().catch(() => null) as { message?: string; error?: string } | null;
-		const message = payload?.message ?? payload?.error ?? 'Email update failed.';
-		return context.redirect(`${accountStatusRedirect('email', 'failed')}&message=${encodeURIComponent(message)}`, 303);
-	}
-	const response = context.redirect(accountStatusRedirect('email', 'sent'), 303);
-	return appendAuthAndMarketCookies(response, context, betterAuthResponse);
+	const next = context.redirect(redirect('verified'), 303);
+	for (const cookie of context.cookies.headers()) next.headers.append('set-cookie', cookie);
+	return next;
 };

@@ -1,17 +1,17 @@
 import type { APIRoute } from 'astro';
-import { loadSiteWebSession } from '../../lib/auth/session-store';
 
 export const prerender = false;
 
 export const GET: APIRoute = async (context) => {
-	const session = await loadSiteWebSession(context);
+	const session = context.locals.auth?.session ?? null;
+	const principal = context.locals.auth?.principal ?? null;
 	return new Response(JSON.stringify({
 		ok: true,
-		payload: session
+		payload: session && principal
 			? {
 				sessionId: session.id,
 				userId: session.userId,
-				principal: session.principal,
+				principal,
 				email: session.email,
 				displayName: session.displayName,
 				expiresAt: session.expiresAt,

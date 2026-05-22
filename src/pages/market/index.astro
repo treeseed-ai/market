@@ -6,13 +6,13 @@ import Button from '../../../packages/core/src/components/ui/forms/Button.astro'
 import Panel from '../../../packages/core/src/components/ui/surface/Panel.astro';
 import EmptyState from '../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import { createMarketTemplateCatalogProvider } from '../../lib/market/catalog.js';
-import { resolveMarketStore } from '../../lib/market/store.js';
+import { resolveMarketApi } from '../../lib/market/store.js';
 
 const templateListing = await listSiteTemplates({
 	locals: Astro.locals,
-	catalogProvider: createMarketTemplateCatalogProvider(Astro.locals),
+	catalogProvider: createMarketTemplateCatalogProvider(Astro),
 });
-const store = resolveMarketStore(Astro.locals);
+const store = resolveMarketApi(Astro);
 const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
 ---
 
