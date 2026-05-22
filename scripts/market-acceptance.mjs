@@ -194,7 +194,7 @@ function descriptorPath(descriptor) {
 
 function bodyForFactory(factory, descriptor, actor) {
 	if (!factory || factory === 'empty') return undefined;
-	const stamp = '${seed.namespace}-${environment}';
+	const stamp = 'acc-${runNonce}';
 	const byFactory = {
 		deviceStart: { clientId: 'treeseed-acceptance', scopes: ['auth:me'] },
 		devicePoll: { deviceCode: `acceptance-device-${stamp}` },
@@ -285,7 +285,7 @@ function bodyForFactory(factory, descriptor, actor) {
 		projectResource: { kind: 'repository', name: 'acceptance' },
 		projectEnvironment: { environment: 'staging', provider: 'railway' },
 		workspaceLink: { label: 'Acceptance workspace', href: 'https://example.com/acceptance' },
-		updatePlan: { title: 'Acceptance update plan', steps: [] },
+		updatePlan: { sourceKind: 'acceptance', sourceRef: `plan-${stamp}-${actor}`, plan: { title: 'Acceptance update plan', steps: [] } },
 		shareOperation: { visibility: 'team' },
 		releaseOperation: { version: `0.0.0-${stamp}` },
 		workstreamOperation: { title: 'Acceptance workstream' },
@@ -355,7 +355,7 @@ function expandDescriptorMatrices(spec) {
 }
 
 function sdkArgsForMethod(method) {
-	const stamp = '${seed.namespace}-${environment}';
+	const stamp = 'acc-${runNonce}';
 	const args = {
 		startDeviceLogin: [{ clientId: 'treeseed-acceptance', scopes: ['auth:me'] }],
 		pollDeviceLogin: [{ deviceCode: `acceptance-device-${stamp}` }],
@@ -482,6 +482,7 @@ async function main() {
 	const variables = {
 		environment: args.environment,
 		baseUrl: args.baseUrl.replace(/\/+$/u, ''),
+		runNonce: Date.now().toString(36),
 		...(spec.variables ?? {}),
 	};
 	const actors = Object.fromEntries(Object.entries(spec.actors ?? {}).map(([id, actor]) => [id, { id, ...actor }]));

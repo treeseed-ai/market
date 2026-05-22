@@ -137,9 +137,10 @@ function successActorsFor(path, method) {
 	if (path.startsWith('/v1/provider/')) return ['providerKey'];
 	if (path.startsWith('/v1/platform/runners/')) return ['platformRunner'];
 	if (path.startsWith('/v1/acceptance/')) return [];
-	if (path.startsWith('/v1/platform/operations/:operationId') && method === 'get') return ['siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator'];
+	if (path.startsWith('/v1/platform/operations/:operationId')) return ['siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator'];
+	if (path === '/v1/platform/operations' && method !== 'get') return ['siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator'];
 	if (path.startsWith('/v1/platform/operations')) return PLATFORM_ADMIN_ACTORS;
-	if (path === '/v1/markets/current' || path.includes('/username/check') || path.includes('/password-reset/request') || path.includes('/auth/device/')) {
+	if (path === '/v1/markets/current' || path.includes('/username/check') || path.includes('/password-reset/request') || path.includes('/password-reset/complete') || path.includes('/auth/device/')) {
 		return ACCEPTANCE_ACTORS;
 	}
 	if (path.startsWith('/v1/auth/web/sign-') || path.startsWith('/v1/auth/oauth/')) return ['anonymous'];
@@ -147,6 +148,7 @@ function successActorsFor(path, method) {
 	if (path.startsWith('/v1/teams/:teamId')) return routeNeedsManagement(path, method) ? TEAM_MANAGER_ACTORS : TEAM_MEMBER_ACTORS;
 	if (path.startsWith('/v1/projects/:projectId')) return method === 'get' ? PROJECT_MEMBER_ACTORS : PROJECT_MANAGER_ACTORS;
 	if (path.startsWith('/v1/teams')) return method === 'get' ? ['siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator'] : ['siteAdmin', 'teamOwner'];
+	if (path.startsWith('/v1/capacity/providers/:providerId/heartbeat')) return ['providerKey'];
 	if (path.startsWith('/v1/capacity/')) return method === 'get' ? TEAM_MEMBER_ACTORS : TEAM_MANAGER_ACTORS;
 	if (path.startsWith('/v1/catalog') || path.startsWith('/v1/templates') || path.startsWith('/v1/knowledge-packs')) return ACCEPTANCE_ACTORS;
 	if (path.startsWith('/v1/seeds/') && method === 'get') return ['siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator'];
