@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.6.8] - 2026-05-23
+
+### Added
+
+- feat(acceptance): implement exact status matching and case expansion (ed5dca6578ab)
+
+### Infrastructure
+
+- release: sync package staging heads (52ca12b88d23)
+
+### Tests
+
+- test(acceptance): add completeWebPasswordReset to sdkMethodMatrices (951257ab8cd8)
+
+### Dependencies
+
+- build(build): update package metadata (7b0e16aa1c93)
+- Release @treeseed/market 0.6.8.
+- Release package @treeseed/agent: 0.10.4.
+- Release package @treeseed/cli: 0.10.4.
+- Release package @treeseed/core: 0.10.4.
+- Release package @treeseed/sdk: 0.10.10.
+
 ## [0.6.7] - 2026-05-23
 
 ### Added
