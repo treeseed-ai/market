@@ -35,6 +35,17 @@ describe('build:api wrapper', () => {
 		writeFile(join(root, 'packages/sdk/scripts/build-dist.ts'), 'export {};\n');
 		writeFile(join(root, 'packages/sdk/scripts/verify-driver.mjs'), 'export {};\n');
 		writeFile(join(root, 'packages/sdk/src/index.ts'), 'export {};\n');
+		for (const relativePath of [
+			'src/lib/market/governance-projection.ts',
+			'src/lib/market/infrastructure-projection.ts',
+			'src/lib/market/infrastructure-seeds.ts',
+			'src/lib/market/knowledge-projection.ts',
+			'src/lib/market/operational-artifacts.ts',
+			'src/lib/market/workday-projection.ts',
+			'src/view-models/knowledge-content.ts',
+		]) {
+			writeFile(join(root, relativePath), 'export const fixture = true;\n');
+		}
 		writeFile(fakeNpm, `#!/usr/bin/env node
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
