@@ -133,7 +133,7 @@ const accountTabs = [
 		<div class="account-tab-panels">
 			<section id="account-panel-profile" class="account-tab-panel" role="tabpanel" aria-labelledby="account-tab-profile" data-account-panel="profile" hidden={activeAccountTab !== 'profile'}>
 				<div class="account-two-column">
-					<form method="POST" action="/auth/profile">
+					<form method="POST" action="/v1/auth/web/profile" data-account-api-form="profile" data-method="PATCH" data-success="updated" data-failure="failed" data-redirect="/app/account">
 						<Panel eyebrow="Profile" title="Public account details">
 							<div class="account-form">
 								{profileStatus ? <Badge tone={profileStatus === 'updated' ? 'success' : 'danger'}>{profileStatusLabels[profileStatus] ?? 'Profile update failed'}</Badge> : null}
@@ -159,7 +159,7 @@ const accountTabs = [
 						</Panel>
 					</form>
 
-					<form method="POST" action="/auth/email">
+					<form method="POST" action="/v1/auth/web/email" data-account-api-form="email" data-method="PATCH" data-success="verified" data-failure="failed" data-redirect="/app/account">
 						<Panel eyebrow="Email" title="Verified email">
 							<div class="account-form">
 								{emailStatus ? <Badge tone={emailStatus === 'sent' || emailStatus === 'verified' ? 'success' : 'danger'}>{emailStatusLabels[emailStatus] ?? 'Email update failed'}</Badge> : null}
@@ -193,7 +193,7 @@ const accountTabs = [
 			</section>
 
 			<section id="account-panel-appearance" class="account-tab-panel" role="tabpanel" aria-labelledby="account-tab-appearance" data-account-panel="appearance" hidden={activeAccountTab !== 'appearance'}>
-				<form method="POST" action="/auth/appearance">
+				<form method="POST" action="/v1/auth/web/appearance" data-account-api-form="appearance" data-method="PATCH" data-success="updated" data-failure="failed" data-redirect="/app/account">
 					<Panel eyebrow="Appearance" title="Color scheme and mode" description="Choose the color scheme and light/dark behavior used across TreeSeed.">
 						<div class="account-form">
 							{appearanceStatus ? <Badge tone={appearanceStatus === 'updated' ? 'success' : 'danger'}>{appearanceStatusLabels[appearanceStatus] ?? 'Appearance update failed'}</Badge> : null}
@@ -227,7 +227,7 @@ const accountTabs = [
 						</div>
 					</Panel>
 
-					<form method="POST" action="/auth/password">
+					<form method="POST" action="/v1/auth/web/password" data-account-api-form="password" data-method="PATCH" data-success="updated" data-failure="change_failed" data-redirect="/app/account">
 						<Panel eyebrow="Password" title={hasCredential ? 'Change password' : 'Set password'}>
 							<div class="account-form">
 								{passwordStatus === 'updated' ? <Badge tone="success">Password updated</Badge> : null}
@@ -263,7 +263,7 @@ const accountTabs = [
 								<span>Last seen {session.lastSeenAt ?? session.authenticatedAt}</span>
 								{session.revokedAt ? <span>Revoked {session.revokedAt}</span> : null}
 								{!session.current && !session.revokedAt ? (
-									<form method="POST" action={`/auth/sessions/${session.id}`}>
+									<form method="POST" action={`/v1/auth/web/sessions/${session.id}/revoke`} data-account-api-form="sessions" data-method="POST" data-success="revoked" data-failure="failed" data-redirect="/app/account#sessions">
 										<Button variant="secondary" type="submit">Revoke session</Button>
 									</form>
 								) : null}
@@ -287,7 +287,7 @@ const accountTabs = [
 								))}
 							</div>
 						) : null}
-						<form class="account-form" method="POST" action="/auth/delete-account">
+						<form class="account-form" method="POST" action="/v1/auth/web/account" data-account-api-form="delete" data-method="DELETE" data-success="deleted" data-failure="failed" data-redirect="/">
 							<Field label="Confirmation text" name="confirmation" help={`Type ${DELETE_ACCOUNT_CONFIRMATION} to confirm.`}>
 								<TextInput name="confirmation" type="text" autocomplete="off" />
 							</Field>
@@ -336,6 +336,93 @@ const accountTabs = [
 			if (location.hash.length > 1) {
 				activate(location.hash.slice(1), false);
 			}
+
+			function accountRedirect(form: HTMLFormElement, status: string) {
+				const base = form.getAttribute('data-redirect') || '/app/account';
+				const kind = form.getAttribute('data-account-api-form') || 'profile';
+				if (base === '/') {
+					location.href = status === 'deleted' ? '/?account=deleted' : `/app/account?delete=${encodeURIComponent(status)}#danger`;
+					return;
+				}
+				const [path, hash = ''] = base.split('#');
+				const url = new URL(path || '/app/account', location.origin);
+				if (kind !== 'sessions') url.searchParams.set(kind, status);
+				location.href = `${url.pathname}${url.search}${hash ? `#${hash}` : `#${kind}`}`;
+			}
+
+			function themeCookie(name: string, value: string) {
+				document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
+			}
+
+			function bodyFor(kind: string, formData: FormData) {
+				if (kind === 'profile') {
+					return {
+						displayName: String(formData.get('name') || '').trim(),
+						image: String(formData.get('image') || '').trim() || null,
+					};
+				}
+				if (kind === 'email') {
+					return { email: String(formData.get('email') || '').trim() };
+				}
+				if (kind === 'appearance') {
+					const colorScheme = String(formData.get('colorScheme') || '').trim();
+					const themeMode = String(formData.get('themeMode') || '').trim();
+					themeCookie('treeseed_color_scheme', colorScheme);
+					themeCookie('treeseed_theme_mode', themeMode);
+					return { colorScheme, themeMode };
+				}
+				if (kind === 'password') {
+					const newPassword = String(formData.get('newPassword') || '');
+					const confirmPassword = String(formData.get('confirmPassword') || '');
+					if (!newPassword || !confirmPassword) throw new Error('missing');
+					if (newPassword !== confirmPassword) throw new Error('mismatch');
+					if (newPassword.length < 12) throw new Error('weak');
+					return {
+						currentPassword: String(formData.get('currentPassword') || ''),
+						newPassword,
+					};
+				}
+				if (kind === 'delete') {
+					const confirmation = String(formData.get('confirmation') || '').trim();
+					if (confirmation !== 'DELETE') throw new Error('confirm');
+					return { confirmation };
+				}
+				return {};
+			}
+
+			async function hasDeletionBlockers() {
+				const response = await fetch('/v1/auth/web/account/deletion-blockers', { headers: { accept: 'application/json' } });
+				const envelope = await response.json().catch(() => null);
+				return Array.isArray(envelope?.payload) && envelope.payload.length > 0;
+			}
+
+			root.querySelectorAll<HTMLFormElement>('[data-account-api-form]').forEach((form) => {
+				form.addEventListener('submit', async (event) => {
+					event.preventDefault();
+					const kind = form.getAttribute('data-account-api-form') || '';
+					const failure = form.getAttribute('data-failure') || 'failed';
+					try {
+						const formData = new FormData(form);
+						if (kind === 'delete' && await hasDeletionBlockers()) {
+							accountRedirect(form, 'blocked');
+							return;
+						}
+						const response = await fetch(form.action, {
+							method: form.getAttribute('data-method') || form.method || 'POST',
+							headers: { accept: 'application/json', 'content-type': 'application/json' },
+							body: JSON.stringify(bodyFor(kind, formData)),
+						});
+						const envelope = await response.json().catch(() => null);
+						if (!response.ok || envelope?.ok === false) {
+							accountRedirect(form, envelope?.error ? failure : failure);
+							return;
+						}
+						accountRedirect(form, form.getAttribute('data-success') || 'updated');
+					} catch (error) {
+						accountRedirect(form, error instanceof Error ? error.message : failure);
+					}
+				});
+			});
 		})();
 	</script>
 </TreeseedAppLayout>

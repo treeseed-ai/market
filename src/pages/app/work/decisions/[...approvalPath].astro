@@ -95,7 +95,7 @@ const DecisionContent = decisionContent?.Content;
 					</article>
 				</Panel>
 			) : null}
-			<GovernanceDecisionPanel approval={detail.approval} options={detail.decisionOptions} action={`/api/governance/${encodeURIComponent(detail.approval.approvalId)}/decision`} />
+			<GovernanceDecisionPanel approval={detail.approval} options={detail.decisionOptions} action={`/v1/ui/governance/${encodeURIComponent(detail.approval.approvalId)}/decision`} />
 		</section>
 	) : decisionContent ? (
 		<section class="ts-control-page" aria-label="Decision content">

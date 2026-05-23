@@ -148,7 +148,7 @@ if (Astro.request.method === 'POST') {
 				return;
 			}
 			try {
-				const response = await fetch(`/auth/username/check?username=${encodeURIComponent(value)}`, {
+				const response = await fetch(`/v1/auth/web/username/check?username=${encodeURIComponent(value)}`, {
 					headers: { accept: 'application/json' },
 				});
 				const result = await response.json();

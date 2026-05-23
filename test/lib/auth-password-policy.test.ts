@@ -118,9 +118,9 @@ describe('market auth password policy', () => {
 	});
 
 	it('separates public site URLs from the BetterAuth API mount', () => {
-		expect(normalizeSiteBaseUrl('https://treeseed.ai/api/auth')).toBe('https://treeseed.ai');
-		expect(normalizeBetterAuthBaseUrl('https://treeseed.ai')).toBe('https://treeseed.ai/api/auth');
-		expect(normalizeBetterAuthBaseUrl('https://treeseed.ai/api/auth')).toBe('https://treeseed.ai/api/auth');
+		expect(normalizeSiteBaseUrl('https://treeseed.ai/v1/auth')).toBe('https://treeseed.ai');
+		expect(normalizeBetterAuthBaseUrl('https://treeseed.ai')).toBe('https://treeseed.ai/v1/auth');
+		expect(normalizeBetterAuthBaseUrl('https://treeseed.ai/v1/auth')).toBe('https://treeseed.ai/v1/auth');
 
 		return withEnv({
 			BETTER_AUTH_URL: undefined,
@@ -128,7 +128,7 @@ describe('market auth password policy', () => {
 		}, () => {
 			const config = getSiteAuthConfig();
 			expect(config.siteBaseUrl).toBe('https://treeseed.ai');
-			expect(config.betterAuthBaseUrl).toBe('https://treeseed.ai/api/auth');
+			expect(config.betterAuthBaseUrl).toBe('https://treeseed.ai/v1/auth');
 		});
 	});
 
@@ -143,7 +143,7 @@ describe('market auth password policy', () => {
 			} as any);
 
 			expect(config.siteBaseUrl).toBe('https://treeseed-market-staging-479e4625.treeseed.ai');
-			expect(config.betterAuthBaseUrl).toBe('https://treeseed-market-staging-479e4625.treeseed.ai/api/auth');
+			expect(config.betterAuthBaseUrl).toBe('https://treeseed-market-staging-479e4625.treeseed.ai/v1/auth');
 		});
 	});
 
@@ -176,7 +176,7 @@ describe('market auth password policy', () => {
 			TREESEED_SMTP_FROM: undefined,
 		}, async () => {
 			const config = getSiteAuthConfig();
-			expect(config.betterAuthBaseUrl).toBe('http://127.0.0.1:4321/api/auth');
+			expect(config.betterAuthBaseUrl).toBe('http://127.0.0.1:4321/v1/auth');
 			expect(config.apiServiceId).toBeTruthy();
 		});
 	}, 20_000);
@@ -207,7 +207,7 @@ describe('market auth password policy', () => {
 				url: new URL(`${origin}/auth/register?returnTo=%2Fapp%2F`),
 			} as any);
 			expect(config.siteBaseUrl).toBe(origin);
-			expect(config.betterAuthBaseUrl).toBe(`${origin}/api/auth`);
+			expect(config.betterAuthBaseUrl).toBe(`${origin}/v1/auth`);
 		});
 	}, 20_000);
 });

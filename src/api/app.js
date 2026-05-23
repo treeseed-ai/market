@@ -34,6 +34,12 @@ import {
 import { MarketControlPlaneStore, validateProjectSlug } from './store.js';
 import { createMarketPostgresD1Database } from './postgres-d1.js';
 import { applySeedWithStore, exportSeedWithStore, planSeedWithStore } from '../lib/market/seeds/apply.js';
+import { buildGovernanceApprovalProjection, buildGovernanceProjection } from '../lib/market/governance-projection.js';
+import { buildInfrastructureProjection } from '../lib/market/infrastructure-projection.js';
+import { loadInfrastructureSeedState } from '../lib/market/infrastructure-seeds.js';
+import { buildKnowledgeArtifactProjection, buildKnowledgeProjection } from '../lib/market/knowledge-projection.js';
+import { buildWorkdayProjection } from '../lib/market/workday-projection.js';
+import { loadKnowledgeContentEntries } from '../view-models/knowledge-content.js';
 import {
 	listTreeseedManagedHostsFromConfig,
 	managedCloudflareConfigMissing,
@@ -1555,6 +1561,49 @@ async function ensurePrincipal(c) {
 		};
 	}
 	return { principal };
+}
+
+async function resolveUiProjectionContext(c, store) {
+	const auth = await ensurePrincipal(c);
+	if (auth.response) return auth;
+	const teams = await store.listTeamsForPrincipal(auth.principal).catch(() => []);
+	const activeTeam = teams[0] ?? null;
+	const projects = activeTeam ? await store.listTeamProjects(activeTeam.id).catch(() => []) : [];
+	return {
+		principal: auth.principal,
+		teams,
+		activeTeam,
+		projects,
+	};
+}
+
+function decodeRouteParam(value) {
+	let decoded = String(value ?? '');
+	for (let index = 0; index < 2; index += 1) {
+		try {
+			const next = decodeURIComponent(decoded);
+			if (next === decoded) break;
+			decoded = next;
+		} catch {
+			break;
+		}
+	}
+	return decoded;
+}
+
+function uiRuntimeLocals(config) {
+	return {
+		runtime: {
+			resolved: {
+				config: {
+					repoRoot: config?.repoRoot ?? process.cwd(),
+				},
+			},
+			env: {
+				TREESEED_ENVIRONMENT: config?.environment ?? process.env.TREESEED_ENVIRONMENT ?? 'prod',
+			},
+		},
+	};
 }
 
 function requireConfiguredServiceCredential(c, config) {
@@ -3298,6 +3347,129 @@ export function createMarketApiApp(options = {}) {
 					ok: true,
 					payload: marketProfilesForTeams(teams, runtime.resolved.config.baseUrl),
 				});
+			});
+
+			app.get('/v1/ui/governance', async (c) => {
+				const context = await resolveUiProjectionContext(c, store);
+				if (context.response) return context.response;
+				const projection = await buildGovernanceProjection({
+					store,
+					principal: context.principal,
+					teams: context.teams,
+					projects: context.projects,
+				});
+				return c.json({ ok: true, payload: projection });
+			});
+
+			app.get('/v1/ui/governance/:approvalId', async (c) => {
+				const context = await resolveUiProjectionContext(c, store);
+				if (context.response) return context.response;
+				const detail = await buildGovernanceApprovalProjection({
+					store,
+					principal: context.principal,
+					teams: context.teams,
+					projects: context.projects,
+					approvalId: decodeRouteParam(c.req.param('approvalId')),
+				});
+				if (!detail) return jsonError(c, 404, 'Unknown approval request.');
+				return c.json({ ok: true, payload: detail });
+			});
+
+			app.post('/v1/ui/governance/:approvalId/decision', async (c) => {
+				const context = await resolveUiProjectionContext(c, store);
+				if (context.response) return context.response;
+				const approvalId = decodeRouteParam(c.req.param('approvalId'));
+				const detail = await buildGovernanceApprovalProjection({
+					store,
+					principal: context.principal,
+					teams: context.teams,
+					projects: context.projects,
+					approvalId,
+				});
+				if (!detail) return jsonError(c, 404, 'Unknown approval request.');
+				if (!['pending', 'waiting_for_approval', 'under_review', 'approval_required'].includes(String(detail.approval.state ?? '').toLowerCase())) {
+					return jsonError(c, 409, 'This approval request is not pending.', { state: detail.approval.state });
+				}
+				const body = await readJsonOrFormBody(c);
+				const optionId = typeof body.optionId === 'string' ? body.optionId : typeof body.decision === 'string' ? body.decision : '';
+				const option = detail.decisionOptions.find((entry) => entry.id === optionId) ?? detail.decisionOptions[0];
+				const state = body.state === 'rejected' || option?.state === 'rejected' ? 'rejected' : 'approved';
+				const decided = await store.decideApprovalRequest(detail.approval.approvalId, {
+					state,
+					decidedByType: 'user',
+					decidedById: context.principal.id,
+					decision: {
+						optionId: option?.id ?? (optionId || null),
+						note: typeof body.note === 'string' ? body.note : null,
+					},
+				});
+				if (context.activeTeam && typeof store.deleteTeamInboxItemsByItemKey === 'function') {
+					await store.deleteTeamInboxItemsByItemKey(context.activeTeam.id, detail.approval.approvalId).catch(() => {});
+				}
+				return c.json({ ok: true, payload: decided });
+			});
+
+			app.get('/v1/ui/infrastructure', async (c) => {
+				const context = await resolveUiProjectionContext(c, store);
+				if (context.response) return context.response;
+				const seedState = await loadInfrastructureSeedState({
+					store,
+					team: context.activeTeam,
+					principal: context.principal,
+					locals: uiRuntimeLocals(runtime.resolved.config),
+					url: new URL(c.req.url),
+				}).catch(() => null);
+				const projection = await buildInfrastructureProjection({
+					store,
+					principal: context.principal,
+					team: context.activeTeam,
+					projects: context.projects,
+					seedState,
+				});
+				return c.json({ ok: true, payload: projection });
+			});
+
+			app.get('/v1/ui/knowledge', async (c) => {
+				const context = await resolveUiProjectionContext(c, store);
+				if (context.response) return context.response;
+				const contentEntries = await loadKnowledgeContentEntries().catch(() => []);
+				const projection = await buildKnowledgeProjection({
+					store,
+					principal: context.principal,
+					teams: context.teams,
+					projects: context.projects,
+					contentEntries,
+				});
+				return c.json({ ok: true, payload: projection });
+			});
+
+			app.get('/v1/ui/knowledge/:artifactId', async (c) => {
+				const context = await resolveUiProjectionContext(c, store);
+				if (context.response) return context.response;
+				const contentEntries = await loadKnowledgeContentEntries().catch(() => []);
+				const artifact = await buildKnowledgeArtifactProjection({
+					store,
+					principal: context.principal,
+					teams: context.teams,
+					projects: context.projects,
+					contentEntries,
+					artifactId: decodeRouteParam(c.req.param('artifactId')),
+				});
+				if (!artifact) return jsonError(c, 404, 'Unknown knowledge artifact.');
+				return c.json({ ok: true, payload: artifact });
+			});
+
+			app.get('/v1/ui/workdays/:workdayId', async (c) => {
+				const context = await resolveUiProjectionContext(c, store);
+				if (context.response) return context.response;
+				const projection = await buildWorkdayProjection({
+					store,
+					principal: context.principal,
+					projects: context.projects,
+					workdayId: decodeRouteParam(c.req.param('workdayId')),
+				});
+				if (!projection) return jsonError(c, 404, 'Unknown workday.');
+				return c.json({ ok: true, payload: projection });
 			});
 
 			app.get('/v1/teams', async (c) => {

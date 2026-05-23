@@ -10,7 +10,6 @@ import {
 	TREESEED_COLOR_SCHEME_COOKIE,
 	TREESEED_THEME_MODE_COOKIE,
 } from '../../src/lib/auth/appearance';
-import { POST as saveAppearanceRoute } from '../../src/pages/auth/appearance';
 
 function createContext(url = 'https://example.com/auth/register') {
 	const values = new Map<string, string>();
@@ -138,31 +137,17 @@ describe('anonymous auth appearance', () => {
 	it('renders the account appearance panel wiring', () => {
 		const source = readFileSync(resolve(process.cwd(), 'src/pages/app/account.astro'), 'utf8');
 		expect(source).toContain('Choose the color scheme and light/dark behavior used across TreeSeed.');
-		expect(source).toContain('action="/auth/appearance"');
+		expect(source).toContain('action="/v1/auth/web/appearance"');
+		expect(source).toContain('data-account-api-form="appearance"');
 		expect(source).toContain('includeHiddenFields={true}');
 		expect(source).toContain('schemeFieldName="colorScheme"');
 		expect(source).toContain('modeFieldName="themeMode"');
 	});
 
-	it('rejects anonymous appearance saves', async () => {
-		const context = {
-			...createContext('https://example.com/auth/appearance'),
-			redirect: (path: string, status = 302) => new Response(null, {
-				status,
-				headers: { location: path },
-			}),
-		};
-		const response = await saveAppearanceRoute(context as any);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.get('location')).toBe('/auth/sign-in?returnTo=%2Fapp%2Faccount');
-	});
-
-	it('wires successful appearance saves to redirect and cookie sync', () => {
-		const source = readFileSync(resolve(process.cwd(), 'src/pages/auth/appearance.ts'), 'utf8');
+	it('wires successful appearance saves through the backend API proxy and cookie sync', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/pages/app/account.astro'), 'utf8');
 		expect(source).toContain('/v1/auth/web/appearance');
-		expect(source).toContain("accountAppearanceRedirect('updated')");
-		expect(source).toContain('setAnonymousThemeCookies(context, preference)');
-		expect(source).toContain("response.headers.append('set-cookie', cookie)");
+		expect(source).toContain("themeCookie('treeseed_color_scheme'");
+		expect(source).toContain("themeCookie('treeseed_theme_mode'");
 	});
 });

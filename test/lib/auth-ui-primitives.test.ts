@@ -34,7 +34,8 @@ describe('auth and account UI primitive conversion', () => {
 		expect(register).not.toContain('includeHiddenFields={true}');
 
 		const account = source('src/pages/app/account.astro');
-		expect(account).toContain('action="/auth/appearance"');
+		expect(account).toContain('action="/v1/auth/web/appearance"');
+		expect(account).toContain('data-account-api-form="appearance"');
 		expect(account).toContain('Choose the color scheme and light/dark behavior used across TreeSeed.');
 		expect(account).toContain('schemeFieldName="colorScheme"');
 		expect(account).toContain('modeFieldName="themeMode"');

@@ -83,6 +83,7 @@ function ownerDomain(path) {
 	if (path.startsWith('/v1/provider/')) return 'provider-ingress';
 	if (path.startsWith('/v1/platform/runners/')) return 'platform-runner';
 	if (path.startsWith('/v1/platform/operations')) return 'platform-operation';
+	if (path.startsWith('/v1/ui/')) return 'market-ui';
 	if (path.startsWith('/v1/auth/')) return 'auth';
 	if (path.startsWith('/v1/teams/')) return 'team';
 	if (path.startsWith('/v1/projects/')) return 'project';
@@ -102,6 +103,7 @@ function authClass(path) {
 		return 'public';
 	}
 	if (path.startsWith('/v1/platform/operations')) return 'platform-admin';
+	if (path.startsWith('/v1/ui/')) return 'user';
 	if (path.startsWith('/v1/teams/:teamId')) return 'team-member';
 	if (path.startsWith('/v1/projects/:projectId')) return 'project-member';
 	return 'user';
@@ -185,6 +187,7 @@ function bodyFactoryFor(path, method) {
 	if (path.includes('/auth/web/password-reset/complete')) return 'passwordResetComplete';
 	if (path.includes('/auth/web/password')) return 'webPassword';
 	if (path.includes('/auth/token/refresh')) return 'refreshToken';
+	if (path.startsWith('/v1/ui/governance/') && path.endsWith('/decision')) return 'approvalDecision';
 	if (path.includes('/platform/operations') && path.endsWith('/cancel')) return 'platformOperationCancel';
 	if (path.includes('/platform/operations') && path.endsWith('/retry')) return 'platformOperationRetry';
 	if (path === '/v1/platform/operations') return 'platformOperationCreate';
