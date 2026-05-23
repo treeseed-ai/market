@@ -3229,6 +3229,90 @@
       "providerOperator": 403,
       "providerKey": 401,
       "platformRunner": 401
+    },
+    "get.v1.ui.governance": {
+      "anonymous": 401,
+      "siteAdmin": 200,
+      "marketSteward": 200,
+      "teamOwner": 200,
+      "teamOperator": 200,
+      "teamViewer": 200,
+      "nonMember": 200,
+      "providerOperator": 200,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "get.v1.ui.governance.approvalId": {
+      "anonymous": 401,
+      "siteAdmin": 404,
+      "marketSteward": 404,
+      "teamOwner": 404,
+      "teamOperator": 404,
+      "teamViewer": 404,
+      "nonMember": 404,
+      "providerOperator": 404,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "get.v1.ui.infrastructure": {
+      "anonymous": 401,
+      "siteAdmin": 200,
+      "marketSteward": 200,
+      "teamOwner": 200,
+      "teamOperator": 200,
+      "teamViewer": 200,
+      "nonMember": 200,
+      "providerOperator": 200,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "get.v1.ui.knowledge": {
+      "anonymous": 401,
+      "siteAdmin": 200,
+      "marketSteward": 200,
+      "teamOwner": 200,
+      "teamOperator": 200,
+      "teamViewer": 200,
+      "nonMember": 200,
+      "providerOperator": 200,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "get.v1.ui.knowledge.artifactId": {
+      "anonymous": 401,
+      "siteAdmin": 404,
+      "marketSteward": 404,
+      "teamOwner": 404,
+      "teamOperator": 404,
+      "teamViewer": 404,
+      "nonMember": 404,
+      "providerOperator": 404,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "get.v1.ui.workdays.workdayId": {
+      "anonymous": 401,
+      "siteAdmin": 404,
+      "marketSteward": 404,
+      "teamOwner": 404,
+      "teamOperator": 404,
+      "teamViewer": 404,
+      "nonMember": 404,
+      "providerOperator": 404,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "post.v1.ui.governance.approvalId.decision": {
+      "anonymous": 401,
+      "siteAdmin": 404,
+      "marketSteward": 404,
+      "teamOwner": 404,
+      "teamOperator": 404,
+      "teamViewer": 404,
+      "nonMember": 404,
+      "providerOperator": 404,
+      "providerKey": 401,
+      "platformRunner": 401
     }
   }
 }

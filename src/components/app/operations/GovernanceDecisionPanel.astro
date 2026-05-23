@@ -11,7 +11,7 @@ interface Props {
 const {
 	approval,
 	options = [],
-	action = `/api/governance/${encodeURIComponent(approval?.approvalId ?? approval?.id ?? '')}/decision`,
+	action = `/v1/ui/governance/${encodeURIComponent(approval?.approvalId ?? approval?.id ?? '')}/decision`,
 } = Astro.props as Props;
 const pending = ['pending', 'waiting_for_approval', 'under_review', 'approval_required'].includes(String(approval?.state ?? '').toLowerCase());
 ---
@@ -42,3 +42,25 @@ const pending = ['pending', 'waiting_for_approval', 'under_review', 'approval_re
 		)}
 	</div>
 </Panel>
+
+<script>
+	document.querySelectorAll<HTMLFormElement>('.ts-governance-decision__form').forEach((form) => {
+		form.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			const submitter = event.submitter as HTMLButtonElement | null;
+			const formData = new FormData(form);
+			if (submitter?.name) formData.set(submitter.name, submitter.value);
+			const response = await fetch(form.action, {
+				method: 'POST',
+				headers: { accept: 'application/json', 'content-type': 'application/json' },
+				body: JSON.stringify(Object.fromEntries(formData.entries())),
+			});
+			if (response.ok) {
+				location.reload();
+				return;
+			}
+			const envelope = await response.json().catch(() => null);
+			alert(envelope?.error ?? 'Decision could not be recorded.');
+		});
+	});
+</script>

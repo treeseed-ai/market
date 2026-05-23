@@ -110,12 +110,39 @@ describe('web runtime boundaries', () => {
 		const proxy = readFileSync('src/pages/v1/[...all].ts', 'utf8');
 		expect(proxy).toContain('resolveMarketApiBaseUrl');
 		expect(proxy).toContain('marketApiServiceHeaders');
+		expect(proxy).toContain('setApiAccessTokenCookie');
+		expect(proxy).toContain('redactAuthTokens');
 		expect(proxy).not.toMatch(/resolveMarketStore|loadSiteWebSession|AGENT_WORK_QUEUE|SITE_DATA_DB/u);
 
 		const middleware = readFileSync('src/middleware.ts', 'utf8');
 		expect(middleware).toContain('/v1/me');
 		expect(middleware).toContain('apiAccessTokenFromCookies');
 		expect(middleware).not.toContain('loadSiteWebSession');
+	});
+
+	it('keeps the Astro endpoint surface thin and routes Market APIs through v1', () => {
+		const endpointFiles = files('src/pages')
+			.filter((path) => /\.(ts|js)$/u.test(path))
+			.filter((path) => path.startsWith('src/pages/api/')
+				|| path.startsWith('src/pages/auth/')
+				|| path.startsWith('src/pages/v1/'))
+			.sort();
+		expect(endpointFiles).toEqual([
+			'src/pages/api/form/submit.ts',
+			'src/pages/api/markdown/preview.ts',
+			'src/pages/auth/callback/[provider].ts',
+			'src/pages/v1/[...all].ts',
+		]);
+
+		const runtimeFiles = files('src')
+			.filter((path) => /\.(astro|ts|js)$/u.test(path))
+			.filter((path) => !path.startsWith('src/api/'))
+			.filter((path) => !path.startsWith('src/content/'));
+		const offenders = runtimeFiles.filter((path) => {
+			const source = readFileSync(path, 'utf8');
+			return /(?:["'`]\s*|fetch\(\s*)\/(?:api\/(?:auth|governance|infrastructure|knowledge|me|workdays)|auth\/(?:appearance|delete-account|email|password|profile|providers|session|sessions|sign-out|verified|username\/check))/u.test(source);
+		});
+		expect(offenders).toEqual([]);
 	});
 
 	it('keeps Market database credentials out of browser and Astro UI code', () => {

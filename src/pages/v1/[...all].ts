@@ -1,8 +1,10 @@
 import type { APIRoute } from 'astro';
 import {
 	apiAccessTokenFromCookies,
+	clearApiAccessTokenCookie,
 	marketApiServiceHeaders,
 	resolveMarketApiBaseUrl,
+	setApiAccessTokenCookie,
 } from '../../lib/market/api-client';
 
 export const prerender = false;
@@ -36,6 +38,30 @@ function copyClientHeaders(request: Request) {
 	return headers;
 }
 
+function isAuthPath(path: string) {
+	return path.split('/').filter(Boolean)[0] === 'auth';
+}
+
+function shouldClearAuthCookie(path: string, method: string, ok: boolean) {
+	if (!ok) return false;
+	const parts = path.split('/').filter(Boolean);
+	if (parts[0] !== 'auth') return false;
+	if (parts[1] === 'logout') return true;
+	if (parts[1] === 'web' && parts[2] === 'account' && method === 'DELETE') return true;
+	return false;
+}
+
+function redactAuthTokens(value: unknown): unknown {
+	if (!value || typeof value !== 'object') return value;
+	if (Array.isArray(value)) return value.map(redactAuthTokens);
+	const next: Record<string, unknown> = {};
+	for (const [key, entry] of Object.entries(value)) {
+		if (key === 'accessToken' || key === 'refreshToken') continue;
+		next[key] = redactAuthTokens(entry);
+	}
+	return next;
+}
+
 export const ALL: APIRoute = async (context) => {
 	const path = context.params.all ?? '';
 	if (isRedirectedDeviceApproval(path) && context.request.method.toUpperCase() === 'GET') {
@@ -54,7 +80,11 @@ export const ALL: APIRoute = async (context) => {
 	const token = apiAccessTokenFromCookies(context);
 	if (token) headers.set('authorization', `Bearer ${token}`);
 
-	const method = context.request.method.toUpperCase();
+	let method = context.request.method.toUpperCase();
+	const logoutRedirect = path === 'auth/logout' && method === 'GET'
+		? (context.url.searchParams.get('returnTo') ?? '/')
+		: null;
+	if (logoutRedirect) method = 'POST';
 	const body = ['GET', 'HEAD'].includes(method) ? undefined : await context.request.arrayBuffer();
 	const response = await fetch(upstream, {
 		method,
@@ -66,6 +96,30 @@ export const ALL: APIRoute = async (context) => {
 	const responseHeaders = new Headers();
 	for (const [name, value] of response.headers) {
 		if (!hopByHopHeaders.has(name.toLowerCase())) responseHeaders.set(name, value);
+	}
+	if (isAuthPath(path) && (response.headers.get('content-type') ?? '').includes('application/json')) {
+		const envelope = await response.clone().json().catch(() => null);
+		const token = envelope?.payload?.accessToken;
+		if (response.ok && typeof token === 'string' && token.trim()) {
+			setApiAccessTokenCookie(context, token, Number(envelope.payload.expiresInSeconds ?? 15 * 60));
+		}
+		if (shouldClearAuthCookie(path, method, response.ok)) {
+			clearApiAccessTokenCookie(context);
+		}
+		for (const cookie of context.cookies.headers()) {
+			responseHeaders.append('set-cookie', cookie);
+		}
+		if (envelope && typeof envelope === 'object') {
+			if (logoutRedirect && response.ok) {
+				const target = logoutRedirect.startsWith('/') && !logoutRedirect.startsWith('//') ? logoutRedirect : '/';
+				return context.redirect(target, 303);
+			}
+			return new Response(JSON.stringify(redactAuthTokens(envelope)), {
+				status: response.status,
+				statusText: response.statusText,
+				headers: responseHeaders,
+			});
+		}
 	}
 	return new Response(response.body, {
 		status: response.status,
