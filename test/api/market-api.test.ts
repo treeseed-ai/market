@@ -3719,6 +3719,7 @@ runtimeDescribe('market api', () => {
 			summary: 'Review the generated projection report.',
 			options: [{ id: 'approve', label: 'Approve', state: 'approved' }],
 		});
+		if (!approval) throw new Error('Expected UI projection approval fixture to be created.');
 		await store.createProjectWorkdaySummary(project.id, {
 			id: 'ui-workday-summary-1',
 			environment: 'staging',
