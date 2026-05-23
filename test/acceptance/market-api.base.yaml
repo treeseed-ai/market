@@ -140,6 +140,13 @@ roleMatrices:
           teamViewer: { status: 200, envelope: { ok: true } }
           nonMember: { status: 403, envelope: { ok: false } }
 
+sdkMethodMatrices:
+  - method: completeWebPasswordReset
+    actor: anonymous
+    expect:
+      status: 401
+      envelope: { ok: false }
+
 coverage:
   requireAllDescriptors: true
   requireAllSdkMethods: true
