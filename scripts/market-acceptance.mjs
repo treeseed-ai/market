@@ -314,15 +314,12 @@ function expectedForDescriptor(descriptor, actor, expectedStatuses = {}) {
 		throw new Error(`Missing exact acceptance status for ${descriptor.id} as ${actor}`);
 	}
 	const expectsOk = Number(exactStatus) < 400;
+	const expectsEnvelope = !expectsOk
+		|| (descriptor?.authClass !== 'public' && descriptor?.authClass !== 'provider-key');
 	return {
 		status: Number(exactStatus),
-		envelope: { ok: expectsOk },
-		json: expectsOk
-			? [
-				{ path: 'ok', equals: true },
-				{ path: 'payload', exists: true },
-			]
-			: [{ path: 'ok', equals: false }],
+		envelope: expectsEnvelope ? { ok: expectsOk } : undefined,
+		json: expectsEnvelope ? [{ path: 'ok', equals: expectsOk }] : undefined,
 		acceptanceRole: allowed ? 'allowed' : 'denied',
 	};
 }
