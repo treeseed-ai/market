@@ -1,5 +1,6 @@
 version: 1
 name: market-api-live-acceptance
+expectedStatuses: test/acceptance/market-api.expected-statuses.json
 
 variables:
   apiVersionPath: /v1
@@ -49,8 +50,6 @@ descriptorMatrices:
     actors: [anonymous, siteAdmin, marketSteward, teamOwner, teamOperator, teamViewer, nonMember, providerOperator, providerKey, platformRunner]
     excludeProviderIngress: false
     excludeInternalRunner: false
-    expect:
-      statusAny: [200, 201, 202, 204, 400, 401, 403, 404, 409, 422, 501]
     expectByDescriptor:
       get.v1.auth.web.sessions:
         anonymous: { status: 401, envelope: { ok: false } }
