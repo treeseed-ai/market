@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.6.9] - 2026-05-23
+
+### Added
+
+- feat(api): implement v1/ui projection endpoints and update auth paths (29afa2744b55)
+
+### Infrastructure
+
+- release: sync package staging heads (53899f1cf395)
+
+### Tests
+
+- test(tests): cover workflow behavior (02e524d8e05b)
+- test(tests): cover workflow behavior (77eb9ec0b963)
+- test(api): assert UI projection approval fixture exists (33ae047a97d3)
+
+### Dependencies
+
+- build(source): update package metadata (c9bd84f31d48)
+- Release @treeseed/market 0.6.9.
+- Release package @treeseed/agent: 0.10.5.
+- Release package @treeseed/cli: 0.10.5.
+- Release package @treeseed/core: 0.10.5.
+- Release package @treeseed/sdk: 0.10.11.
+
 ## [0.6.8] - 2026-05-23
 
 ### Added
