@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import ts from 'typescript';
 
 const root = process.cwd();
 const sdkRoot = resolve(root, 'packages/sdk');
@@ -19,6 +20,16 @@ const sdkBuildInputs = [
 	resolve(sdkRoot, 'scripts/build-dist.ts'),
 	resolve(sdkRoot, 'src'),
 ];
+
+const apiRuntimeTsInputs = [
+	'src/lib/market/governance-projection.ts',
+	'src/lib/market/infrastructure-projection.ts',
+	'src/lib/market/infrastructure-seeds.ts',
+	'src/lib/market/knowledge-projection.ts',
+	'src/lib/market/operational-artifacts.ts',
+	'src/lib/market/workday-projection.ts',
+	'src/view-models/knowledge-content.ts',
+].map((relativePath) => resolve(root, relativePath));
 
 function walkFiles(path) {
 	if (!existsSync(path)) return [];
@@ -75,6 +86,26 @@ function ensureWorkspaceSdkPackage() {
 	}
 }
 
+function transpileApiRuntimeTs() {
+	for (const input of apiRuntimeTsInputs) {
+		if (!existsSync(input)) {
+			throw new Error(`Missing API runtime TypeScript source: ${input}`);
+		}
+		const output = input.replace(/\.ts$/u, '.js');
+		const source = readFileSync(input, 'utf8');
+		const result = ts.transpileModule(source, {
+			fileName: input,
+			compilerOptions: {
+				module: ts.ModuleKind.ESNext,
+				target: ts.ScriptTarget.ES2022,
+				importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
+				sourceMap: false,
+			},
+		});
+		writeFileSync(output, result.outputText, 'utf8');
+	}
+}
+
 try {
 	if (!existsSync(sdkBuildScript)) {
 		throw new Error('Unable to resolve workspace @treeseed/sdk build script.');
@@ -88,6 +119,7 @@ try {
 		}
 	}
 	ensureWorkspaceSdkPackage();
+	transpileApiRuntimeTs();
 } catch (error) {
 	console.error(error instanceof Error ? error.message : String(error));
 	process.exit(1);
