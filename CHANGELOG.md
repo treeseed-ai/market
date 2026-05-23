@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.7] - 2026-05-23
+
+### Added
+
+- feat(api): add marketSteward to actor descriptors (3585d2ac28b8)
+- feat(api): record repository changes (92ac589dec4d)
+
+### Dependencies
+
+- build(deps): sync integrated package updates (71d85c050447)
+- Release @treeseed/market 0.6.7.
+- Release package @treeseed/agent: 0.10.3.
+- Release package @treeseed/cli: 0.10.3.
+- Release package @treeseed/core: 0.10.3.
+- Release package @treeseed/sdk: 0.10.9.
+
 ## [0.6.6] - 2026-05-22
 
 ### Added
