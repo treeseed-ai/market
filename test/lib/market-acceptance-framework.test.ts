@@ -21,6 +21,8 @@ describe('Market API acceptance framework', () => {
 			}
 		}
 		expect(descriptorCases.every((entry) => entry.coverageOnly !== true)).toBe(true);
+		expect(descriptorCases.every((entry) => Number.isInteger(entry.expect.status))).toBe(true);
+		expect(descriptorCases.every((entry) => entry.expect.statusAny === undefined)).toBe(true);
 	});
 
 	it('generates safe request bodies for non-GET route descriptors', () => {
@@ -45,5 +47,21 @@ describe('Market API acceptance framework', () => {
 		assertCoverage(spec, allCases);
 		const sdkMethods = new Set(allCases.map((entry) => entry.sdkMethod).filter(Boolean));
 		expect([...sdkMethods].sort()).toEqual(Object.keys(SDK_METHOD_ROUTE_MAP).sort());
+	});
+
+	it('writes an expanded case report for review without requiring live credentials', async () => {
+		const { mkdtempSync, readFileSync } = await import('node:fs');
+		const { tmpdir } = await import('node:os');
+		const { join } = await import('node:path');
+		const { spawnSync } = await import('node:child_process');
+		const dir = mkdtempSync(join(tmpdir(), 'treeseed-acceptance-expand-'));
+		const output = join(dir, 'cases.json');
+		const result = spawnSync(process.execPath, ['./scripts/market-acceptance.mjs', '--environment', 'staging', '--expand-json', output], {
+			encoding: 'utf8',
+		});
+		expect(result.status).toBe(0);
+		const expanded = JSON.parse(readFileSync(output, 'utf8'));
+		expect(expanded.caseCount).toBeGreaterThan(2700);
+		expect(expanded.cases.every((entry: any) => entry.expect?.statusAny === undefined)).toBe(true);
 	});
 });

@@ -42,13 +42,10 @@ describe('Market API route descriptors', () => {
 			expect(descriptor.acceptance).toMatchObject({
 				successActors: expect.any(Array),
 				denyActors: expect.any(Array),
-				deniedStatusAny: expect.any(Array),
-				successStatusAny: expect.any(Array),
+				exactStatusRequired: true,
 				productionSafe: true,
 				productionStrategy: expect.any(String),
 			});
-			expect(descriptor.acceptance.successStatusAny.length).toBeGreaterThan(0);
-			expect(descriptor.acceptance.deniedStatusAny.length).toBeGreaterThan(0);
 			if (descriptor.method !== 'GET') {
 				expect(descriptor.acceptance).toHaveProperty('bodyFactory');
 			}
@@ -80,5 +77,29 @@ describe('Market API route descriptors', () => {
 			}),
 		]));
 		expect(spec.descriptorMatrices.some((matrix: any) => matrix.coverageOnly === true)).toBe(false);
+	});
+
+	it('does not allow descriptor-generated acceptance cases to use broad status ranges', () => {
+		const spec = parse(readFileSync('test/acceptance/market-api.base.yaml', 'utf8')) as any;
+		expect(spec.descriptorMatrices ?? []).not.toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				expect: expect.objectContaining({
+					statusAny: expect.any(Array),
+				}),
+			}),
+		]));
+		for (const descriptor of MARKET_API_ROUTE_DESCRIPTORS) {
+			expect(descriptor.acceptance).not.toHaveProperty('successStatusAny');
+			expect(descriptor.acceptance).not.toHaveProperty('deniedStatusAny');
+		}
+	});
+
+	it('has exact expected statuses for every descriptor actor pair', () => {
+		const baseline = JSON.parse(readFileSync('test/acceptance/market-api.expected-statuses.json', 'utf8')) as any;
+		for (const descriptor of MARKET_API_ROUTE_DESCRIPTORS) {
+			for (const actor of ['anonymous', 'siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator', 'providerKey', 'platformRunner']) {
+				expect(baseline.statuses?.[descriptor.id]?.[actor], `${descriptor.id} ${actor}`).toEqual(expect.any(Number));
+			}
+		}
 	});
 });

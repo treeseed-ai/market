@@ -11,6 +11,7 @@ function parseArgs(argv) {
 		spec: 'test/acceptance/market-api.base.yaml',
 		reportJson: '',
 		reportJunit: '',
+		expandJson: '',
 	};
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index];
@@ -19,9 +20,16 @@ function parseArgs(argv) {
 		else if (arg === '--spec') args.spec = argv[++index];
 		else if (arg === '--report-json') args.reportJson = argv[++index];
 		else if (arg === '--report-junit') args.reportJunit = argv[++index];
+		else if (arg === '--expand-json') args.expandJson = argv[++index];
 		else if (arg === '--help' || arg === '-h') args.help = true;
 	}
 	return args;
+}
+
+function loadExpectedStatuses(path = 'test/acceptance/market-api.expected-statuses.json') {
+	if (!path || !existsSync(path)) return {};
+	const parsed = JSON.parse(readFileSync(path, 'utf8'));
+	return parsed.statuses ?? {};
 }
 
 function deepMerge(left, right) {
@@ -297,24 +305,26 @@ function bodyForFactory(factory, descriptor, actor) {
 	return byFactory[factory] ?? { acceptance: true, descriptorId: descriptor.id, actor };
 }
 
-function expectedForDescriptor(descriptor, actor) {
+function expectedForDescriptor(descriptor, actor, expectedStatuses = {}) {
 	const policy = descriptor.acceptance ?? {};
 	const successActors = new Set(policy.successActors ?? []);
 	const allowed = successActors.has(actor);
-	const statusAny = allowed
-		? (policy.successStatusAny ?? [policy.expectedSuccessStatus ?? 200])
-		: (policy.deniedStatusAny ?? [401, 403]);
-	const expectsOkEnvelope = allowed
-		&& descriptor?.authClass !== 'public'
-		&& descriptor?.providerIngress !== true;
+	const exactStatus = expectedStatuses?.[descriptor.id]?.[actor];
+	if (exactStatus == null) {
+		throw new Error(`Missing exact acceptance status for ${descriptor.id} as ${actor}`);
+	}
+	const expectsOk = Number(exactStatus) < 400;
+	const expectsEnvelope = !expectsOk
+		|| (descriptor?.authClass !== 'public' && descriptor?.authClass !== 'provider-key');
 	return {
-		statusAny,
-		envelope: allowed ? undefined : { ok: false },
-		json: expectsOkEnvelope ? [{ path: 'ok', exists: true }] : undefined,
+		status: Number(exactStatus),
+		envelope: expectsEnvelope ? { ok: expectsOk } : undefined,
+		json: expectsEnvelope ? [{ path: 'ok', equals: expectsOk }] : undefined,
+		acceptanceRole: allowed ? 'allowed' : 'denied',
 	};
 }
 
-function expandDescriptorMatrices(spec) {
+function expandDescriptorMatrices(spec, expectedStatuses = loadExpectedStatuses(spec.expectedStatuses)) {
 	const matrices = Array.isArray(spec.descriptorMatrices) ? spec.descriptorMatrices : [];
 	const expanded = [];
 	for (const matrix of matrices) {
@@ -333,7 +343,7 @@ function expandDescriptorMatrices(spec) {
 			for (const actor of actors) {
 				const expected = {
 					...(matrix.expect ?? {}),
-					...expectedForDescriptor(descriptor, actor),
+					...expectedForDescriptor(descriptor, actor, expectedStatuses),
 					...(matrix.expectByDescriptor?.[descriptor.id]?.[actor] ?? matrix.expectByDescriptor?.[descriptor.id] ?? {}),
 				};
 				const body = bodyForFactory(descriptor.acceptance?.bodyFactory, descriptor, actor);
@@ -409,7 +419,7 @@ function actorForSdkMethod(method, descriptor) {
 	return 'teamOwner';
 }
 
-function expandSdkMethodMatrices(spec) {
+function expandSdkMethodMatrices(spec, expectedStatuses = loadExpectedStatuses(spec.expectedStatuses)) {
 	if (spec.coverage?.requireAllSdkMethods !== true && !spec.sdkMethodMatrices) return [];
 	const explicit = Array.isArray(spec.sdkMethodMatrices) ? spec.sdkMethodMatrices : [];
 	const expanded = [];
@@ -418,7 +428,7 @@ function expandSdkMethodMatrices(spec) {
 		const descriptor = MARKET_API_ROUTE_DESCRIPTORS.find((entry) => entry.id === descriptorId);
 		const matrixOverride = explicit.find((entry) => entry.method === method || entry.sdkMethod === method) ?? {};
 		const actor = matrixOverride.actor ?? actorForSdkMethod(method, descriptor);
-		const expected = matrixOverride.expect ?? expectedForDescriptor(descriptor ?? { acceptance: { successActors: [actor] } }, actor);
+		const expected = matrixOverride.expect ?? expectedForDescriptor(descriptor ?? { acceptance: { successActors: [actor] } }, actor, expectedStatuses);
 		expanded.push({
 			id: matrixOverride.id ?? `sdk.${method}.${actor}`,
 			actor,
@@ -457,6 +467,12 @@ function assertCoverage(spec, cases) {
 			throw new Error(`Acceptance spec is missing SDK method cases for: ${missingSdkMethods.join(', ')}`);
 		}
 	}
+	const looseGenerated = cases
+		.filter((entry) => entry.id?.startsWith?.('descriptor-executable-role-matrix.'))
+		.filter((entry) => Array.isArray(entry.expect?.statusAny));
+	if (looseGenerated.length > 0) {
+		throw new Error(`Descriptor-generated acceptance cases must use exact statuses, found loose cases: ${looseGenerated.slice(0, 10).map((entry) => entry.id).join(', ')}`);
+	}
 }
 
 function junit(report) {
@@ -474,19 +490,20 @@ function junit(report) {
 
 async function main() {
 	const args = parseArgs(process.argv.slice(2));
-	if (args.help || !args.baseUrl) {
-		console.log('Usage: npm run test:acceptance -- --environment staging|prod --base-url https://api.example.com [--spec path] [--report-json path] [--report-junit path]');
+	if (args.help || (!args.baseUrl && !args.expandJson)) {
+		console.log('Usage: npm run test:acceptance -- --environment staging|prod --base-url https://api.example.com [--spec path] [--report-json path] [--report-junit path] [--expand-json path]');
 		process.exit(args.help ? 0 : 2);
 	}
 	const spec = loadSpec(args.spec);
+	const expectedStatuses = loadExpectedStatuses(spec.expectedStatuses);
 	const variables = {
 		environment: args.environment,
-		baseUrl: args.baseUrl.replace(/\/+$/u, ''),
+		baseUrl: args.baseUrl?.replace(/\/+$/u, '') ?? '',
 		runNonce: Date.now().toString(36),
 		...(spec.variables ?? {}),
 	};
 	const actors = Object.fromEntries(Object.entries(spec.actors ?? {}).map(([id, actor]) => [id, { id, ...actor }]));
-	if (spec.seed?.enabled !== false) {
+	if (spec.seed?.enabled !== false && !args.expandJson) {
 		const seedBody = interpolate({
 			namespace: spec.seed?.namespace ?? `acceptance-${args.environment}`,
 			password: spec.seed?.password ?? undefined,
@@ -520,9 +537,28 @@ async function main() {
 			username: actor.username,
 		}]));
 	}
-	const allCases = [...(spec.cases ?? []), ...expandRoleMatrices(spec), ...expandDescriptorMatrices(spec), ...expandSdkMethodMatrices(spec)];
+	const allCases = [...(spec.cases ?? []), ...expandRoleMatrices(spec), ...expandDescriptorMatrices(spec, expectedStatuses), ...expandSdkMethodMatrices(spec, expectedStatuses)];
 	assertCoverage(spec, allCases);
 	const cases = allCases.filter((entry) => !entry.environments || entry.environments.includes(args.environment));
+	if (args.expandJson) {
+		mkdirSync(dirname(args.expandJson), { recursive: true });
+		writeFileSync(args.expandJson, `${JSON.stringify({
+			ok: true,
+			environment: args.environment,
+			caseCount: cases.length,
+			cases: cases.map((entry) => ({
+				id: entry.id,
+				descriptorId: entry.descriptorId ?? null,
+				actor: entry.actor ?? 'anonymous',
+				method: entry.method ?? 'GET',
+				path: entry.path ?? null,
+				sdkMethod: entry.sdkMethod ?? null,
+				expect: entry.expect ?? {},
+			})),
+		}, null, 2)}\n`);
+		console.log(`expanded ${cases.length} acceptance cases to ${args.expandJson}`);
+		return;
+	}
 	const results = [];
 	for (const rawCase of cases) {
 		const caseSpec = interpolate(rawCase, variables);
