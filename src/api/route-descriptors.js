@@ -147,6 +147,9 @@ function successActorsFor(path, method) {
 	if (path.startsWith('/v1/auth/web/sign-') || path.startsWith('/v1/auth/oauth/')) return ['anonymous'];
 	if (path.startsWith('/v1/auth/')) return ['siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator'];
 	if (path.startsWith('/v1/teams/:teamId')) return routeNeedsManagement(path, method) ? TEAM_MANAGER_ACTORS : TEAM_MEMBER_ACTORS;
+	if (path.startsWith('/v1/projects/:projectId') && path.includes('/workday-policy') && method !== 'get') {
+		return ['siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer'];
+	}
 	if (path.startsWith('/v1/projects/:projectId')) return method === 'get' ? PROJECT_MEMBER_ACTORS : PROJECT_MANAGER_ACTORS;
 	if (path.startsWith('/v1/teams')) return method === 'get'
 		? ['siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator']
