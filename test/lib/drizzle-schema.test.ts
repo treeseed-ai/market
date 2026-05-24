@@ -79,6 +79,9 @@ describe('Treeseed Drizzle schema baseline', () => {
 		]) {
 			expect(marketSql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS "${tableName}"\\s*\\(`, 'u'));
 		}
+		expect(marketSql).toContain('-- Treeseed Market schema adoption columns');
+		expect(marketSql).toContain('ALTER TABLE "better_auth_account" ADD COLUMN IF NOT EXISTS "userId" text;');
+		expect(marketSql).toContain('ALTER TABLE "capacity_providers" ADD COLUMN IF NOT EXISTS "credit_budget_mode" text DEFAULT \'derived\';');
 		expect(marketSql).toContain('CREATE INDEX IF NOT EXISTS "idx_capacity_reservations_provider_state"');
 		expect(marketSql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "idx_credit_conversion_profiles_profile_key"');
 		for (const tableName of [
