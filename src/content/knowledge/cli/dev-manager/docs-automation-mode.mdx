@@ -41,18 +41,18 @@ source_map:
       - docs/market_ui_spec.md
       - docs/purpose.md
       - docs/seed.md
-      - migrations/0001_subscribers.sql
-      - migrations/0002_agent_runtime.sql
-      - migrations/0003_agent_run_trace.sql
-      - migrations/0004_contact_submissions.sql
-      - migrations/0005_runtime_envelopes.sql
-      - migrations/0006_agent_control_plane.sql
-      - migrations/0007_site_web_sessions.sql
-      - migrations/0008_market_control_plane.sql
-      - migrations/0009_team_content_catalog.sql
-      - migrations/0010_project_hosting_topology.sql
-      - migrations/0011_control_plane_reporting.sql
-      - migrations/0012_knowledge_coop_views.sql
+      - packages/sdk/drizzle/market/0000_market_control_plane.sql
+      - packages/sdk/drizzle/market/0000_market_control_plane.sql
+      - packages/sdk/drizzle/market/0000_market_control_plane.sql
+      - packages/sdk/drizzle/market/0000_market_control_plane.sql
+      - packages/sdk/drizzle/market/0000_market_control_plane.sql
+      - packages/sdk/drizzle/market/0000_market_control_plane.sql
+      - packages/sdk/drizzle/market/0000_market_control_plane.sql
+      - packages/sdk/drizzle/market/0000_market_control_plane.sql
+      - packages/sdk/drizzle/market/0000_market_control_plane.sql
+      - packages/sdk/drizzle/market/0000_market_control_plane.sql
+      - packages/sdk/drizzle/market/0000_market_control_plane.sql
+      - packages/sdk/drizzle/market/0000_market_control_plane.sql
       - packages/agent/src/agents/adapters/codex-readiness.ts
       - packages/agent/src/agents/adapters/execution-codex.ts
       - packages/agent/src/agents/adapters/execution.ts
@@ -550,18 +550,18 @@ This draft explains what should `trsd dev:manager` do in local docs automation m
 - docs/market-deploy.md
 - docs/purpose.md
 - docs/seed.md
-- migrations/0001\_subscribers.sql
-- migrations/0002\_agent\_runtime.sql
-- migrations/0003\_agent\_run\_trace.sql
-- migrations/0004\_contact\_submissions.sql
-- migrations/0005\_runtime\_envelopes.sql
-- migrations/0006\_agent\_control\_plane.sql
-- migrations/0007\_site\_web\_sessions.sql
-- migrations/0008\_market\_control\_plane.sql
-- migrations/0009\_team\_content\_catalog.sql
-- migrations/0010\_project\_hosting\_topology.sql
-- migrations/0011\_control\_plane\_reporting.sql
-- migrations/0012\_knowledge\_coop\_views.sql
+- packages/sdk/drizzle/market/0000_market_control_plane.sql
+- packages/sdk/drizzle/market/0000_market_control_plane.sql
+- packages/sdk/drizzle/market/0000_market_control_plane.sql
+- packages/sdk/drizzle/market/0000_market_control_plane.sql
+- packages/sdk/drizzle/market/0000_market_control_plane.sql
+- packages/sdk/drizzle/market/0000_market_control_plane.sql
+- packages/sdk/drizzle/market/0000_market_control_plane.sql
+- packages/sdk/drizzle/market/0000_market_control_plane.sql
+- packages/sdk/drizzle/market/0000_market_control_plane.sql
+- packages/sdk/drizzle/market/0000_market_control_plane.sql
+- packages/sdk/drizzle/market/0000_market_control_plane.sql
+- packages/sdk/drizzle/market/0000_market_control_plane.sql
 - packages/agent/src/agents/adapters/codex-readiness.ts
 - packages/agent/src/agents/adapters/execution-codex.ts
 - packages/agent/src/agents/adapters/execution.ts
@@ -645,7 +645,7 @@ This draft explains what should `trsd dev:manager` do in local docs automation m
   - uncertainty: Graph context may reference content or inferred relationships instead of direct code evidence.
 - Context query dev-manager-docs-automation:code:flow-dev-manager-docs-automation supports research for dev manager docs automation workday startup tasks graph refresh scan codebase documentation surface.
   - evidence: direct
-  - sources: docs/agent-ai-dev-prompt.md, docs/agent-budget.md, docs/agent-dev.md, docs/agent-docs.md, docs/agent-ops.md, docs/demo.md, docs/knowledge-hub-caching.md, docs/knowledge-hub-hosting-budget.md, docs/market-deploy.md, docs/market\_ui\_spec.md, docs/purpose.md, docs/seed.md, migrations/0001\_subscribers.sql, migrations/0002\_agent\_runtime.sql, migrations/0003\_agent\_run\_trace.sql, migrations/0004\_contact\_submissions.sql, migrations/0005\_runtime\_envelopes.sql, migrations/0006\_agent\_control\_plane.sql, migrations/0007\_site\_web\_sessions.sql, migrations/0008\_market\_control\_plane.sql, migrations/0009\_team\_content\_catalog.sql, migrations/0010\_project\_hosting\_topology.sql, migrations/0011\_control\_plane\_reporting.sql, migrations/0012\_knowledge\_coop\_views.sql, packages/agent/src/agents/adapters/codex-readiness.ts, packages/agent/src/agents/adapters/execution-codex.ts, packages/agent/src/agents/adapters/execution.ts, packages/agent/src/agents/adapters/mutations.ts, packages/agent/src/agents/adapters/notification.ts, packages/agent/src/agents/adapters/operations.ts, packages/agent/src/agents/adapters/repository.ts, packages/agent/src/agents/adapters/research.ts, packages/agent/src/agents/adapters/verification.ts, packages/agent/src/agents/cli-tools.ts, packages/agent/src/agents/cli.ts, packages/agent/src/agents/context/code-context-packs.ts, packages/agent/src/services/.ts-run-1778724155855-8jc6bt47z4w\.mjs, packages/agent/src/services/.ts-run-1778724156124-39absm5sr7b.mjs, packages/agent/src/services/.ts-run-1778724515065-r286dezoz3i.mjs, packages/agent/src/services/.ts-run-1778724845757-8n1em4yzzzl.mjs, packages/agent/src/services/.ts-run-1778725032495-kog8jxldat.mjs, packages/agent/src/services/.ts-run-1778725032550-j685g4xdjlq.mjs, packages/agent/src/services/.ts-run-1778731501871-90wxfkb79oe.mjs, packages/agent/src/services/.ts-run-1778731501885-zm4ip06okn.mjs, packages/agent/src/services/.ts-run-1778733332143-zovyqnt8jeb.mjs, packages/agent/src/services/.ts-run-1778733332229-bbo8l6tn28.mjs, packages/agent/src/services/.ts-run-1778741092319-epv9yqo841j.mjs, packages/agent/src/services/.ts-run-1778741092325-3ayg7sm76zr.mjs, packages/cli/src/cli/handlers/audit.ts, packages/cli/src/cli/handlers/auth-login.ts, packages/cli/src/cli/handlers/auth-logout.ts, packages/cli/src/cli/handlers/auth-whoami.ts, packages/cli/src/cli/handlers/capacity.ts, packages/cli/src/cli/handlers/ci.ts, packages/cli/src/cli/handlers/close.ts, packages/cli/src/cli/handlers/config-ui.ts, packages/cli/src/cli/handlers/config.ts, packages/cli/src/cli/handlers/destroy.ts, packages/cli/src/cli/handlers/dev.ts, packages/cli/src/cli/handlers/doctor.ts, packages/sdk/src/.ts-run-1775911544993-md43eh8jqq.mjs, packages/sdk/src/.ts-run-1775911545215-td65nq8esoe.mjs, packages/sdk/src/.ts-run-1775911593087-czgua07y0pf.mjs, packages/sdk/src/.ts-run-1775911614364-zdfn7roiuds.mjs, packages/sdk/src/.ts-run-1775911686249-5z5wldvzd5d.mjs, packages/sdk/src/.ts-run-1775911711165-linrs6z9dkc.mjs, packages/sdk/src/.ts-run-1775912004231-bq2jv49rqrq.mjs, packages/sdk/src/.ts-run-1775912490348-3iqk8h9m0q5.mjs, packages/sdk/src/.ts-run-1775917867106-kgsnznwknu.mjs, packages/sdk/src/.ts-run-1775918140169-i07f8067rd.mjs, packages/sdk/src/.ts-run-1775918381997-ytm4l123gb.mjs, packages/sdk/src/.ts-run-1775919438060-expspixc0fm.mjs
+  - sources: docs/agent-ai-dev-prompt.md, docs/agent-budget.md, docs/agent-dev.md, docs/agent-docs.md, docs/agent-ops.md, docs/demo.md, docs/knowledge-hub-caching.md, docs/knowledge-hub-hosting-budget.md, docs/market-deploy.md, docs/market\_ui\_spec.md, docs/purpose.md, docs/seed.md, packages/sdk/drizzle/market/0000_market_control_plane.sql, packages/sdk/drizzle/market/0000_market_control_plane.sql, packages/sdk/drizzle/market/0000_market_control_plane.sql, packages/sdk/drizzle/market/0000_market_control_plane.sql, packages/sdk/drizzle/market/0000_market_control_plane.sql, packages/sdk/drizzle/market/0000_market_control_plane.sql, packages/sdk/drizzle/market/0000_market_control_plane.sql, packages/sdk/drizzle/market/0000_market_control_plane.sql, packages/sdk/drizzle/market/0000_market_control_plane.sql, packages/sdk/drizzle/market/0000_market_control_plane.sql, packages/sdk/drizzle/market/0000_market_control_plane.sql, packages/sdk/drizzle/market/0000_market_control_plane.sql, packages/agent/src/agents/adapters/codex-readiness.ts, packages/agent/src/agents/adapters/execution-codex.ts, packages/agent/src/agents/adapters/execution.ts, packages/agent/src/agents/adapters/mutations.ts, packages/agent/src/agents/adapters/notification.ts, packages/agent/src/agents/adapters/operations.ts, packages/agent/src/agents/adapters/repository.ts, packages/agent/src/agents/adapters/research.ts, packages/agent/src/agents/adapters/verification.ts, packages/agent/src/agents/cli-tools.ts, packages/agent/src/agents/cli.ts, packages/agent/src/agents/context/code-context-packs.ts, packages/agent/src/services/.ts-run-1778724155855-8jc6bt47z4w\.mjs, packages/agent/src/services/.ts-run-1778724156124-39absm5sr7b.mjs, packages/agent/src/services/.ts-run-1778724515065-r286dezoz3i.mjs, packages/agent/src/services/.ts-run-1778724845757-8n1em4yzzzl.mjs, packages/agent/src/services/.ts-run-1778725032495-kog8jxldat.mjs, packages/agent/src/services/.ts-run-1778725032550-j685g4xdjlq.mjs, packages/agent/src/services/.ts-run-1778731501871-90wxfkb79oe.mjs, packages/agent/src/services/.ts-run-1778731501885-zm4ip06okn.mjs, packages/agent/src/services/.ts-run-1778733332143-zovyqnt8jeb.mjs, packages/agent/src/services/.ts-run-1778733332229-bbo8l6tn28.mjs, packages/agent/src/services/.ts-run-1778741092319-epv9yqo841j.mjs, packages/agent/src/services/.ts-run-1778741092325-3ayg7sm76zr.mjs, packages/cli/src/cli/handlers/audit.ts, packages/cli/src/cli/handlers/auth-login.ts, packages/cli/src/cli/handlers/auth-logout.ts, packages/cli/src/cli/handlers/auth-whoami.ts, packages/cli/src/cli/handlers/capacity.ts, packages/cli/src/cli/handlers/ci.ts, packages/cli/src/cli/handlers/close.ts, packages/cli/src/cli/handlers/config-ui.ts, packages/cli/src/cli/handlers/config.ts, packages/cli/src/cli/handlers/destroy.ts, packages/cli/src/cli/handlers/dev.ts, packages/cli/src/cli/handlers/doctor.ts, packages/sdk/src/.ts-run-1775911544993-md43eh8jqq.mjs, packages/sdk/src/.ts-run-1775911545215-td65nq8esoe.mjs, packages/sdk/src/.ts-run-1775911593087-czgua07y0pf.mjs, packages/sdk/src/.ts-run-1775911614364-zdfn7roiuds.mjs, packages/sdk/src/.ts-run-1775911686249-5z5wldvzd5d.mjs, packages/sdk/src/.ts-run-1775911711165-linrs6z9dkc.mjs, packages/sdk/src/.ts-run-1775912004231-bq2jv49rqrq.mjs, packages/sdk/src/.ts-run-1775912490348-3iqk8h9m0q5.mjs, packages/sdk/src/.ts-run-1775917867106-kgsnznwknu.mjs, packages/sdk/src/.ts-run-1775918140169-i07f8067rd.mjs, packages/sdk/src/.ts-run-1775918381997-ytm4l123gb.mjs, packages/sdk/src/.ts-run-1775919438060-expspixc0fm.mjs
   - symbols/sections: AGENT\_CLI\_ALLOW\_TOOLS, AGENT\_HANDLER\_KINDS, AGENT\_MESSAGE\_KINDS, AGENT\_MESSAGE\_STATUSES, AGENT\_MESSAGE\_TYPES, AGENT\_OPERATION\_MODES, AGENT\_OPERATION\_NAMES, AGENT\_PERMISSION\_OPERATIONS, AGENT\_POOL\_STATUSES, AGENT\_RUN\_STATUSES, AGENT\_TRIGGER\_KINDS, AUTHORED\_GRAPH\_EDGE\_TYPES, AdmissionEstimateInput, AgentApprovalDecision, AgentApprovalKind, AgentCliAllowTool, AgentCliOptions, AgentContext, AgentDatabase, AgentDeterministicOperationStep, AgentErrorCategory, AgentExecutionAdapter, AgentExecutionConfig, AgentExecutionResult
   - last observed: local
   - uncertainty: Scanner evidence should still be reviewed against current source before promotion.

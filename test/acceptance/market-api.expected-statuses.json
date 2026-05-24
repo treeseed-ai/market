@@ -1142,6 +1142,18 @@
       "providerKey": 401,
       "platformRunner": 401
     },
+    "get.v1.teams.teamId.capacity-providers.providerId.execution-providers": {
+      "anonymous": 401,
+      "siteAdmin": 200,
+      "marketSteward": 200,
+      "teamOwner": 200,
+      "teamOperator": 200,
+      "teamViewer": 200,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
     "get.v1.teams.teamId.capacity-providers.providerId.api-keys": {
       "anonymous": 401,
       "siteAdmin": 200,
@@ -1431,6 +1443,18 @@
       "platformRunner": 401
     },
     "patch.v1.teams.teamId.capacity-providers.providerId": {
+      "anonymous": 401,
+      "siteAdmin": 200,
+      "marketSteward": 200,
+      "teamOwner": 200,
+      "teamOperator": 403,
+      "teamViewer": 403,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "patch.v1.teams.teamId.capacity-providers.providerId.execution-providers.executionProviderId": {
       "anonymous": 401,
       "siteAdmin": 200,
       "marketSteward": 200,
@@ -2859,6 +2883,30 @@
       "platformRunner": 401
     },
     "post.v1.teams.teamId.capacity-providers": {
+      "anonymous": 401,
+      "siteAdmin": 201,
+      "marketSteward": 201,
+      "teamOwner": 201,
+      "teamOperator": 403,
+      "teamViewer": 403,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "post.v1.teams.teamId.capacity-providers.providerId.execution-providers": {
+      "anonymous": 401,
+      "siteAdmin": 201,
+      "marketSteward": 201,
+      "teamOwner": 201,
+      "teamOperator": 403,
+      "teamViewer": 403,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "post.v1.teams.teamId.capacity-providers.providerId.execution-providers.executionProviderId.native-limits": {
       "anonymous": 401,
       "siteAdmin": 201,
       "marketSteward": 201,

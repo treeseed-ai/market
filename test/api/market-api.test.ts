@@ -1,13 +1,14 @@
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DataType, newDb } from 'pg-mem';
 import * as treeseedCore from '@treeseed/core';
 import { AgentSdk, PlatformRunnerClient } from '@treeseed/sdk';
-import type { D1DatabaseLike, D1PreparedStatementLike } from '@treeseed/core/types/cloudflare';
 import { createMarketApiApp } from '../../src/api/app.js';
+import { MarketPostgresDatabase } from '../../src/api/market-postgres.js';
 import { MarketControlPlaneStore } from '../../src/api/store.js';
 import { listTreeseedManagedHostsFromConfig } from '../../src/lib/market/managed-hosts.js';
 import { runOnceWithClient } from '../../src/market-operations-runner/entrypoint.js';
@@ -35,92 +36,7 @@ vi.mock('@treeseed/sdk/workflow-support', async (importOriginal) => ({
 }));
 
 const packageRoot = process.cwd();
-const authMigrationPathCandidates = [
-	resolve(packageRoot, 'migrations/0007_site_web_sessions.sql'),
-	resolve(packageRoot, '../migrations/0007_site_web_sessions.sql'),
-];
-const authMigrationPath = authMigrationPathCandidates.find((candidate) => existsSync(candidate));
-const marketMigrationPathCandidates = [
-	resolve(packageRoot, 'migrations/0008_market_control_plane.sql'),
-	resolve(packageRoot, '../migrations/0008_market_control_plane.sql'),
-];
-const marketMigrationPath = marketMigrationPathCandidates.find((candidate) => existsSync(candidate));
-const catalogMigrationPathCandidates = [
-	resolve(packageRoot, 'migrations/0009_team_content_catalog.sql'),
-	resolve(packageRoot, '../migrations/0009_team_content_catalog.sql'),
-];
-const catalogMigrationPath = catalogMigrationPathCandidates.find((candidate) => existsSync(candidate));
-const topologyMigrationPathCandidates = [
-	resolve(packageRoot, 'migrations/0010_project_hosting_topology.sql'),
-	resolve(packageRoot, '../migrations/0010_project_hosting_topology.sql'),
-];
-const topologyMigrationPath = topologyMigrationPathCandidates.find((candidate) => existsSync(candidate));
-const reportingMigrationPathCandidates = [
-	resolve(packageRoot, 'migrations/0011_control_plane_reporting.sql'),
-	resolve(packageRoot, '../migrations/0011_control_plane_reporting.sql'),
-];
-const reportingMigrationPath = reportingMigrationPathCandidates.find((candidate) => existsSync(candidate));
-const webHostsMigrationPathCandidates = [
-	resolve(packageRoot, 'migrations/0014_team_web_hosts.sql'),
-	resolve(packageRoot, '../migrations/0014_team_web_hosts.sql'),
-];
-const webHostsMigrationPath = webHostsMigrationPathCandidates.find((candidate) => existsSync(candidate));
-const capacityMigrationPathCandidates = [
-	resolve(packageRoot, 'migrations/0018_capacity_providers.sql'),
-	resolve(packageRoot, '../migrations/0018_capacity_providers.sql'),
-];
-const capacityMigrationPath = capacityMigrationPathCandidates.find((candidate) => existsSync(candidate));
-const workdayManagerMigrationPathCandidates = [
-	resolve(packageRoot, 'migrations/0019_workday_manager_runners.sql'),
-	resolve(packageRoot, '../migrations/0019_workday_manager_runners.sql'),
-];
-const workdayManagerMigrationPath = workdayManagerMigrationPathCandidates.find((candidate) => existsSync(candidate));
-const hubLaunchSpineMigrationPathCandidates = [
-	resolve(packageRoot, 'migrations/0020_hub_launch_spine.sql'),
-	resolve(packageRoot, '../migrations/0020_hub_launch_spine.sql'),
-];
-const hubLaunchSpineMigrationPath = hubLaunchSpineMigrationPathCandidates.find((candidate) => existsSync(candidate));
-const capacityProviderApiKeysMigrationPathCandidates = [
-	resolve(packageRoot, 'migrations/0021_capacity_provider_api_keys.sql'),
-	resolve(packageRoot, '../migrations/0021_capacity_provider_api_keys.sql'),
-];
-const capacityProviderApiKeysMigrationPath = capacityProviderApiKeysMigrationPathCandidates.find((candidate) => existsSync(candidate));
-const capacityProviderRuntimeMigrationPathCandidates = [
-	resolve(packageRoot, 'migrations/0026_capacity_provider_runtime.sql'),
-	resolve(packageRoot, '../migrations/0026_capacity_provider_runtime.sql'),
-];
-const capacityProviderRuntimeMigrationPath = capacityProviderRuntimeMigrationPathCandidates.find((candidate) => existsSync(candidate));
-const platformOperationsMigrationPathCandidates = [
-	resolve(packageRoot, 'migrations/0027_platform_operations.sql'),
-	resolve(packageRoot, '../migrations/0027_platform_operations.sql'),
-];
-const platformOperationsMigrationPath = platformOperationsMigrationPathCandidates.find((candidate) => existsSync(candidate));
-const seedRunsMigrationPathCandidates = [
-	resolve(packageRoot, 'migrations/0024_seed_runs.sql'),
-	resolve(packageRoot, '../migrations/0024_seed_runs.sql'),
-];
-const seedRunsMigrationPath = seedRunsMigrationPathCandidates.find((candidate) => existsSync(candidate));
-const sqliteModule = await import('node:sqlite').catch(() => null);
-const DatabaseSyncCtor = sqliteModule?.DatabaseSync ?? null;
-const DatabaseSync = DatabaseSyncCtor as NonNullable<typeof DatabaseSyncCtor>;
-const runtimeDescribe = DatabaseSyncCtor ? describe : describe.skip;
-const resolvedAuthMigrationPath = authMigrationPath as string;
-const resolvedMarketMigrationPath = marketMigrationPath as string;
-const resolvedCatalogMigrationPath = catalogMigrationPath as string;
-const resolvedTopologyMigrationPath = topologyMigrationPath as string;
-const resolvedReportingMigrationPath = reportingMigrationPath as string;
-const resolvedWebHostsMigrationPath = webHostsMigrationPath as string;
-const resolvedCapacityMigrationPath = capacityMigrationPath as string;
-const resolvedWorkdayManagerMigrationPath = workdayManagerMigrationPath as string;
-const resolvedHubLaunchSpineMigrationPath = hubLaunchSpineMigrationPath as string;
-const resolvedCapacityProviderApiKeysMigrationPath = capacityProviderApiKeysMigrationPath as string;
-const resolvedCapacityProviderRuntimeMigrationPath = capacityProviderRuntimeMigrationPath as string;
-const resolvedPlatformOperationsMigrationPath = platformOperationsMigrationPath as string;
-const resolvedSeedRunsMigrationPath = seedRunsMigrationPath as string;
-
-if (!authMigrationPath || !marketMigrationPath || !catalogMigrationPath || !topologyMigrationPath || !reportingMigrationPath || !webHostsMigrationPath || !capacityMigrationPath || !workdayManagerMigrationPath || !hubLaunchSpineMigrationPath || !capacityProviderApiKeysMigrationPath || !capacityProviderRuntimeMigrationPath || !platformOperationsMigrationPath || !seedRunsMigrationPath) {
-	throw new Error('Unable to resolve required market migration fixtures.');
-}
+const marketMigrationRoot = resolve(packageRoot, 'packages/sdk/drizzle/market');
 
 async function withEnv<T>(values: Record<string, string | undefined>, action: () => T | Promise<T>) {
 	const previous = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));
@@ -144,71 +60,20 @@ async function withEnv<T>(values: Record<string, string | undefined>, action: ()
 	}
 }
 
-class TestPreparedStatement implements D1PreparedStatementLike {
-	private bindings: unknown[] = [];
-
-	constructor(
-		private readonly db: any,
-		private readonly query: string,
-	) {}
-
-	bind(...values: unknown[]) {
-		this.bindings = values;
-		return this;
-	}
-
-	async run() {
-		this.db.prepare(this.query).run(...this.bindings);
-		return {};
-	}
-
-	async first<T = Record<string, unknown>>() {
-		return (this.db.prepare(this.query).get(...this.bindings) as T | undefined) ?? null;
-	}
-
-	async all<T = Record<string, unknown>>() {
-		return {
-			results: this.db.prepare(this.query).all(...this.bindings) as T[],
-		};
-	}
-
-	async raw<T = unknown[]>() {
-		const rows = this.db.prepare(this.query).all(...this.bindings) as Array<Record<string, unknown>>;
-		return rows.map((row) => Object.values(row)) as T[];
-	}
-}
-
-class TestD1Database implements D1DatabaseLike {
-	private readonly db = new DatabaseSync(':memory:');
-
-	constructor() {
-		this.db.exec(readFileSync(resolvedAuthMigrationPath, 'utf8'));
-		this.db.exec(readFileSync(resolvedMarketMigrationPath, 'utf8'));
-		this.db.exec(readFileSync(resolvedCatalogMigrationPath, 'utf8'));
-		this.db.exec(readFileSync(resolvedTopologyMigrationPath, 'utf8'));
-		this.db.exec(readFileSync(resolvedReportingMigrationPath, 'utf8'));
-		this.db.exec(readFileSync(resolvedWebHostsMigrationPath, 'utf8'));
-		this.db.exec(readFileSync(resolvedCapacityMigrationPath, 'utf8'));
-		this.db.exec(readFileSync(resolvedWorkdayManagerMigrationPath, 'utf8'));
-		this.db.exec(readFileSync(resolvedHubLaunchSpineMigrationPath, 'utf8'));
-		this.db.exec(readFileSync(resolvedCapacityProviderApiKeysMigrationPath, 'utf8'));
-		this.db.exec(readFileSync(resolvedCapacityProviderRuntimeMigrationPath, 'utf8'));
-		this.db.exec(readFileSync(resolvedPlatformOperationsMigrationPath, 'utf8'));
-		this.db.exec(readFileSync(resolvedSeedRunsMigrationPath, 'utf8'));
-	}
-
-	prepare(query: string) {
-		return new TestPreparedStatement(this.db, query);
-	}
-
-	async exec(query: string) {
-		this.db.exec(query);
-		return {};
-	}
+function createTestPostgresDatabase() {
+	const memory = newDb();
+	memory.public.registerFunction({
+		name: 'md5',
+		args: [DataType.text],
+		returns: DataType.text,
+		implementation: (value: string) => `md5:${value}`,
+	});
+	const pg = memory.adapters.createPg();
+	return MarketPostgresDatabase.fromPool(new pg.Pool(), { migrationRoot: marketMigrationRoot });
 }
 
 type MarketApiTestOptions = {
-	db?: D1DatabaseLike;
+	db?: ReturnType<typeof createTestPostgresDatabase>;
 	store?: MarketControlPlaneStore;
 	sdk?: AgentSdk;
 	config?: Record<string, unknown>;
@@ -218,7 +83,7 @@ type MarketApiTestOptions = {
 function createTestApp(options: MarketApiTestOptions = {}) {
 	return createMarketApiApp({
 		...options,
-		db: options.db ?? new TestD1Database(),
+		db: options.db ?? createTestPostgresDatabase(),
 		sdk: options.sdk ?? new AgentSdk({
 			repoRoot: packageRoot,
 		}),
@@ -239,7 +104,7 @@ function createTestApp(options: MarketApiTestOptions = {}) {
 	});
 }
 
-function createTestStore(db: D1DatabaseLike) {
+function createTestStore(db = createTestPostgresDatabase()) {
 	return new MarketControlPlaneStore({
 		repoRoot: packageRoot,
 		authSecret: 'test-secret',
@@ -310,30 +175,6 @@ function createRunnerRepoFixture() {
 function unsignedTestJwt(payload: Record<string, unknown>) {
 	const encode = (value: unknown) => Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
 	return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.`;
-}
-
-async function createLegacyWebSessionsDb() {
-	const db = new TestD1Database();
-	await db.prepare('DROP TABLE web_sessions').run();
-	await db.prepare(`CREATE TABLE web_sessions (
-		id TEXT PRIMARY KEY,
-		user_id TEXT NOT NULL,
-		identity_id TEXT,
-		provider TEXT NOT NULL,
-		provider_subject TEXT NOT NULL,
-		email TEXT,
-		display_name TEXT,
-		principal_json TEXT NOT NULL,
-		csrf_token TEXT NOT NULL,
-		authenticated_at TEXT NOT NULL,
-		expires_at TEXT NOT NULL,
-		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL,
-		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-		FOREIGN KEY (identity_id) REFERENCES user_identities(id) ON DELETE SET NULL
-	)`).run();
-	await db.prepare('CREATE INDEX IF NOT EXISTS idx_web_sessions_user_id ON web_sessions(user_id)').run();
-	return db;
 }
 
 async function authorizeApp(app: ReturnType<typeof createTestApp>, input: { principalId?: string; displayName?: string } = {}) {
@@ -419,7 +260,7 @@ function encryptedTestHostEnvelope(config: Record<string, unknown>, passphrase: 
 	});
 }
 
-runtimeDescribe('market api', () => {
+describe('market api', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
@@ -1795,8 +1636,8 @@ runtimeDescribe('market api', () => {
 		expect(runnerHealth.payload.pools[0]?.latestRegistration?.managerId).toBe('manager-1');
 	});
 
-	it('repairs legacy web session columns before serving deep health', async () => {
-		const db = await createLegacyWebSessionsDb();
+	it('uses the Drizzle-owned web session schema before serving deep health', async () => {
+		const db = createTestPostgresDatabase();
 		const app = createTestApp({ db });
 		const deepHealth = await json(await app.request('/healthz/deep'));
 		expect(deepHealth).toMatchObject({
@@ -1807,8 +1648,12 @@ runtimeDescribe('market api', () => {
 			},
 		});
 
-		const tableInfo = await db.prepare('PRAGMA table_info(web_sessions)').all<{ name: string }>();
-		const columns = new Set((tableInfo.results ?? []).map((row) => row.name));
+		const tableInfo = await db.prepare(`
+			SELECT column_name AS name
+			FROM information_schema.columns
+			WHERE table_name = 'web_sessions'
+		`).all();
+		const columns = new Set(((tableInfo.results ?? []) as Array<{ name: string }>).map((row) => row.name));
 		expect([...columns]).toEqual(expect.arrayContaining([
 			'better_auth_session_id',
 			'ip_address',
@@ -2087,7 +1932,7 @@ runtimeDescribe('market api', () => {
 	});
 
 	it('tracks platform repository claims with runner ownership and safe release metadata', async () => {
-		const db = new TestD1Database();
+		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
 		await store.ensureInitialized();
 		await store.upsertMarketOperationRunner({
@@ -3696,7 +3541,7 @@ runtimeDescribe('market api', () => {
 	});
 
 	it('serves Market UI projections from backend v1 routes', async () => {
-		const db = new TestD1Database();
+		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
 		const app = createTestApp({ db, store });
 		const token = await authorizeApp(app, { principalId: 'ui-projection-user', displayName: 'UI Projection User' });
@@ -4179,6 +4024,7 @@ runtimeDescribe('market api', () => {
 		});
 		expect(providerResponse.status).toBe(201);
 		const provider = (await json(providerResponse)).provider;
+		expect(provider).toMatchObject({ creditBudgetMode: 'derived', dailyCreditBudget: 0, monthlyCreditBudget: 0 });
 
 		const laneResponse = await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/lanes`, {
 			method: 'POST',
@@ -4241,6 +4087,618 @@ runtimeDescribe('market api', () => {
 		expect(plan.payload.remaining.dailyCredits).toBe(120);
 	});
 
+	it('requires static capacity mode to be explicit compatibility state', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { team } = await createTeamAndProject(app, token, {
+			slug: 'explicit-static-capacity',
+			name: 'Explicit Static Capacity',
+		});
+		const headers = {
+			'content-type': 'application/json',
+			authorization: `Bearer ${token}`,
+		};
+
+		const created = await json(await app.request(`/v1/teams/${team.id}/capacity-providers`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				name: 'Static Compatibility Provider',
+				launchMode: 'self_hosted',
+				creditBudgetMode: 'static',
+			}),
+		}));
+		expect(created.provider).toMatchObject({ creditBudgetMode: 'static' });
+
+		const patched = await json(await app.request(`/v1/teams/${team.id}/capacity-providers/${created.provider.id}`, {
+			method: 'PATCH',
+			headers,
+			body: JSON.stringify({
+				name: 'Hybrid Compatibility Provider',
+				creditBudgetMode: 'hybrid',
+			}),
+		}));
+		expect(patched.provider).toMatchObject({
+			name: 'Hybrid Compatibility Provider',
+			creditBudgetMode: 'hybrid',
+		});
+	});
+
+	it('stores native execution provider capacity through backend Market API routes', async () => {
+		const db = createTestPostgresDatabase();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
+		const token = await authorizeApp(app);
+		const { team, project } = await createTeamAndProject(app, token, {
+			slug: 'native-capacity-project',
+			name: 'Native Capacity Project',
+		});
+		const headers = {
+			'content-type': 'application/json',
+			authorization: `Bearer ${token}`,
+		};
+		const createdProvider = await json(await app.request(`/v1/teams/${team.id}/capacity-providers`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				name: 'Native Capacity Provider',
+				launchMode: 'self_hosted',
+			}),
+		}));
+		const provider = createdProvider.provider;
+		await store.upsertCapacityProvider(team.id, {
+			...provider,
+			status: 'active',
+			maxConcurrentWorkers: 4,
+		});
+
+		const codex = await json(await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/execution-providers`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				id: 'codex-seat',
+				name: 'Codex Pro Seat',
+				kind: 'codex_subscription',
+				nativeUnit: 'wall_minute',
+				quotaVisibility: 'opaque',
+				maxConcurrentWorkers: 1,
+				resetCadence: 'daily',
+				nativeLimits: [{
+					scope: 'daily',
+					nativeUnit: 'wall_minute',
+					limitAmount: 240,
+					reserveBufferPercent: 25,
+					confidence: 'estimated',
+					source: 'configured',
+				}],
+			}),
+		}));
+		expect(codex.payload).toMatchObject({
+			id: 'codex-seat',
+			kind: 'codex_subscription',
+			nativeUnit: 'wall_minute',
+			quotaVisibility: 'opaque',
+			nativeLimits: [expect.objectContaining({
+				scope: 'daily',
+				limitAmount: 240,
+				reserveBufferPercent: 25,
+			})],
+		});
+
+		const openRouter = await json(await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/execution-providers`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				id: 'openrouter-budget',
+				name: 'OpenRouter Budget',
+				kind: 'token_metered_api',
+				nativeUnit: 'usd',
+				quotaVisibility: 'exact',
+				maxConcurrentWorkers: 2,
+				nativeLimits: [{
+					scope: 'daily',
+					nativeUnit: 'usd',
+					limitAmount: 3,
+					reserveBufferPercent: 10,
+					confidence: 'exact',
+					source: 'configured',
+				}],
+			}),
+		}));
+		expect(openRouter.payload).toMatchObject({
+			id: 'openrouter-budget',
+			nativeUnit: 'usd',
+			nativeLimits: [expect.objectContaining({ limitAmount: 3 })],
+		});
+
+		const extraLimit = await json(await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/execution-providers/codex-seat/native-limits`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				scope: 'monthly',
+				nativeUnit: 'wall_minute',
+				limitAmount: 5280,
+				reserveBufferPercent: 25,
+			}),
+		}));
+		expect(extraLimit.payload).toMatchObject({ scope: 'monthly', limitAmount: 5280 });
+
+		const listed = await json(await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/execution-providers`, { headers }));
+		expect(listed.payload.map((entry: any) => entry.id)).toEqual(expect.arrayContaining(['codex-seat', 'openrouter-budget']));
+		expect(listed.payload.find((entry: any) => entry.id === 'codex-seat').nativeLimits).toEqual(expect.arrayContaining([
+			expect.objectContaining({ scope: 'daily' }),
+			expect.objectContaining({ scope: 'monthly' }),
+		]));
+
+		const providerDetail = await json(await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}`, { headers }));
+		expect(providerDetail.provider).toMatchObject({
+			id: provider.id,
+			creditBudgetMode: 'derived',
+			dailyCreditBudget: 0,
+			monthlyCreditBudget: 0,
+		});
+
+		const lane = (await json(await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/lanes`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				id: 'native-derived-lane',
+				name: 'Native derived lane',
+			}),
+		}))).payload;
+		const portfolioGrant = await json(await app.request(`/v1/teams/${team.id}/capacity-grants`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				capacityProviderId: provider.id,
+				laneId: lane.id,
+				grantScope: 'project',
+				projectId: project.id,
+				environment: 'staging',
+				portfolioAllocationPercent: 50,
+				reservePoolPercent: 10,
+				maxDailyProjectCredits: 100,
+				emergencyOverride: true,
+			}),
+		}));
+		expect(portfolioGrant.payload).toMatchObject({
+			portfolioAllocationPercent: 50,
+			reservePoolPercent: 10,
+			maxDailyProjectCredits: 100,
+			emergencyOverride: true,
+			metadata: expect.objectContaining({
+				portfolioAllocationPercent: 50,
+				reservePoolPercent: 10,
+				maxDailyProjectCredits: 100,
+				emergencyOverride: true,
+			}),
+		});
+
+		const codexUsage = await json(await app.request('/v1/provider/usage', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${createdProvider.apiKey.plaintext}`,
+			},
+			body: JSON.stringify({
+				projectId: project.id,
+				taskId: 'codex-task-1',
+				taskSignature: 'docs.dynamic-capacity.phase-2',
+				executionProviderId: codex.payload.id,
+				nativeUsage: {
+					nativeUnit: 'wall_minute',
+					wallMinutes: 18,
+					filesChanged: 2,
+					testRuns: 1,
+					source: 'provider_report',
+				},
+			}),
+		}));
+		expect(codexUsage.usage).toMatchObject({
+			actualCredits: 9,
+			creditFormulaVersion: 'treeseed.actual-credits.v1',
+			actualCreditSource: 'central_calculator',
+			executionProviderId: codex.payload.id,
+			nativeUsage: expect.objectContaining({
+				nativeUnit: 'wall_minute',
+				wallMinutes: 18,
+				filesChanged: 2,
+				testRuns: 1,
+			}),
+		});
+
+		const openRouterUsage = await json(await app.request('/v1/provider/usage', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${createdProvider.apiKey.plaintext}`,
+			},
+			body: JSON.stringify({
+				projectId: project.id,
+				taskId: 'openrouter-task-1',
+				taskSignature: 'docs.dynamic-capacity.phase-2',
+				executionProviderId: openRouter.payload.id,
+				nativeUsage: {
+					nativeUnit: 'usd',
+					usd: 0.09,
+					inputTokens: 12000,
+					outputTokens: 4000,
+					source: 'provider_report',
+				},
+			}),
+		}));
+		expect(openRouterUsage.usage).toMatchObject({
+			actualCredits: 5,
+			actualCreditSource: 'central_calculator',
+			executionProviderId: openRouter.payload.id,
+			nativeUsage: expect.objectContaining({
+				nativeUnit: 'usd',
+				usd: 0.09,
+				inputTokens: 12000,
+				outputTokens: 4000,
+			}),
+		});
+		const openRouterProfile = await store.getCreditConversionProfile(
+			'docs.dynamic-capacity.phase-2',
+			'standard-code-model',
+			'token_metered_api',
+			'usd',
+		);
+		expect(openRouterProfile).toMatchObject({
+			taskSignature: 'docs.dynamic-capacity.phase-2',
+			executionProviderKind: 'token_metered_api',
+			nativeUnit: 'usd',
+			sampleCount: 1,
+			completedSampleCount: 1,
+			confidence: 'low',
+		});
+
+		for (let index = 0; index < 20; index += 1) {
+			const response = await app.request('/v1/provider/usage', {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${createdProvider.apiKey.plaintext}`,
+				},
+				body: JSON.stringify({
+					projectId: project.id,
+					taskId: `codex-learning-task-${index}`,
+					taskSignature: 'docs.dynamic-capacity.phase-3',
+					executionProviderId: codex.payload.id,
+					nativeUsage: {
+						nativeUnit: 'wall_minute',
+						wallMinutes: 10,
+						source: 'provider_report',
+					},
+				}),
+			});
+			expect(response.status).toBe(200);
+		}
+		const learnedProfile = await store.getCreditConversionProfile(
+			'docs.dynamic-capacity.phase-3',
+			'standard-code-model',
+			'codex_subscription',
+			'wall_minute',
+		);
+		expect(learnedProfile).toMatchObject({
+			completedSampleCount: 20,
+			nativeUnitsPerCreditP50: 5,
+			nativeUnitsPerCreditP90: 5,
+			confidence: 'high',
+		});
+		const profileCalculatedUsage = await json(await app.request('/v1/provider/usage', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${createdProvider.apiKey.plaintext}`,
+			},
+			body: JSON.stringify({
+				projectId: project.id,
+				taskId: 'codex-profile-calculated-task',
+				taskSignature: 'docs.dynamic-capacity.phase-3',
+				executionProviderId: codex.payload.id,
+				nativeUsage: {
+					nativeUnit: 'wall_minute',
+					wallMinutes: 20,
+					filesChanged: 10,
+					source: 'provider_report',
+				},
+			}),
+		}));
+		expect(profileCalculatedUsage.usage).toMatchObject({
+			actualCredits: 4,
+			actualCreditSource: 'conversion_profile',
+			metadata: expect.objectContaining({
+				actualCreditCalculation: expect.objectContaining({
+					conversionConfidence: 'high',
+				}),
+			}),
+		});
+		await app.request('/v1/provider/usage', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${createdProvider.apiKey.plaintext}`,
+			},
+			body: JSON.stringify({
+				projectId: project.id,
+				taskId: 'codex-interrupted-task',
+				taskSignature: 'docs.dynamic-capacity.phase-3',
+				executionProviderId: codex.payload.id,
+				nativeUsage: {
+					nativeUnit: 'wall_minute',
+					wallMinutes: 120,
+					interrupted: true,
+					partial: true,
+					source: 'provider_report',
+				},
+			}),
+		});
+		const afterInterrupted = await store.getCreditConversionProfile(
+			'docs.dynamic-capacity.phase-3',
+			'standard-code-model',
+			'codex_subscription',
+			'wall_minute',
+		);
+		expect(afterInterrupted).toMatchObject({
+			nativeUnitsPerCreditP90: 5,
+			confidence: 'high',
+			interruptedSampleCount: 1,
+			metadata: expect.objectContaining({
+				partialCredits: 24,
+				partialNativeAmount: 120,
+			}),
+		});
+
+		await store.createCapacityReservation({
+			id: 'native-derived-reservation',
+			capacityProviderId: provider.id,
+			executionProviderId: codex.payload.id,
+			laneId: lane.id,
+			teamId: team.id,
+			projectId: project.id,
+			state: 'reserved',
+			reservedCredits: 3,
+			nativeUnit: 'wall_minute',
+			reservedNativeAmount: 15,
+		});
+		const derivedProviderDetail = await json(await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}`, { headers }));
+		expect(derivedProviderDetail.provider.derivedCapacity).toMatchObject({
+			entries: expect.arrayContaining([
+				expect.objectContaining({
+					executionProviderId: codex.payload.id,
+					nativeUnit: 'wall_minute',
+					configuredNativeLimit: 240,
+					activeReservedNativeAmount: 15,
+					reserveBufferNativeAmount: 60,
+					availableNativeAmount: 165,
+					derivedAvailableCredits: 33,
+					confidence: 'high',
+				}),
+			]),
+		});
+		const projectCapacity = await json(await app.request(`/v1/projects/${project.id}/capacity?environment=staging`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(projectCapacity.payload.derivedCapacity).toMatchObject({
+			providers: expect.arrayContaining([
+				expect.objectContaining({ capacityProviderId: provider.id }),
+			]),
+		});
+		const teamCapacity = await json(await app.request(`/v1/teams/${team.id}/capacity`, { headers }));
+		expect(teamCapacity.payload.summary.derivedCapacity.entries).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				executionProviderId: codex.payload.id,
+				derivedAvailableCredits: 33,
+			}),
+		]));
+
+		const capacityPlan = await json(await app.request(`/v1/projects/${project.id}/capacity-plan?environment=staging`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(capacityPlan.payload.derivedCapacity.entries).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				executionProviderId: codex.payload.id,
+				derivedAvailableCredits: 33,
+			}),
+		]));
+
+		const allocationBlockedResponse = await app.request(`/v1/projects/${project.id}/agent-tasks`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				taskKind: 'proposal.draft',
+				estimatedCreditsP50: 16,
+				estimatedCreditsP90: 16,
+			}),
+		});
+		const allocationBlocked = await json(allocationBlockedResponse);
+		expect(allocationBlockedResponse.status).toBe(409);
+		expect(allocationBlocked.payload.candidates[0]).toMatchObject({
+			derivedCapacityMode: 'derived',
+			staticRemainingCredits: 11.85,
+			derivedAvailableCredits: 33,
+			eligible: false,
+		});
+		expect(allocationBlocked.payload.candidates[0].reasons).toEqual(expect.arrayContaining([
+			'portfolio_allocation_applied',
+			'portfolio_allocation_exhausted',
+			'soft_budget_pressure',
+		]));
+
+		const routedTaskResponse = await app.request(`/v1/projects/${project.id}/agent-tasks`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				taskKind: 'proposal.draft',
+				estimatedCreditsP50: 5,
+				estimatedCreditsP90: 5,
+			}),
+		});
+		expect(routedTaskResponse.status).toBe(201);
+		const routedTask = await json(routedTaskResponse);
+		expect(routedTask.payload.reservation).toMatchObject({
+			capacityProviderId: provider.id,
+			executionProviderId: codex.payload.id,
+			nativeUnit: 'wall_minute',
+			reservedNativeAmount: 25,
+			reservedCredits: 5,
+		});
+		expect(routedTask.payload.task.input.capacity).toMatchObject({
+			executionProviderId: codex.payload.id,
+			nativeUnit: 'wall_minute',
+			reservedNativeAmount: 25,
+			derivedCapacityMode: 'derived',
+			nativePressure: expect.objectContaining({
+				nativeUnit: 'wall_minute',
+			}),
+		});
+
+		await store.createCapacityReservation({
+			id: 'native-derived-exhaustion',
+			capacityProviderId: provider.id,
+			executionProviderId: codex.payload.id,
+			laneId: lane.id,
+			teamId: team.id,
+			projectId: project.id,
+			state: 'reserved',
+			reservedCredits: 40,
+			nativeUnit: 'wall_minute',
+			reservedNativeAmount: 200,
+		});
+		const blockedTaskResponse = await app.request(`/v1/projects/${project.id}/agent-tasks`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				taskKind: 'proposal.draft',
+				estimatedCreditsP50: 5,
+				estimatedCreditsP90: 5,
+			}),
+		});
+		expect(blockedTaskResponse.status).toBe(409);
+		const blockedTask = await json(blockedTaskResponse);
+		expect(blockedTask.payload).toMatchObject({
+			ok: false,
+			code: 'insufficient_budget',
+		});
+		expect(blockedTask.payload.candidates[0]).toMatchObject({
+			derivedCapacityMode: 'derived',
+			derivedAvailableCredits: 0,
+			eligible: false,
+		});
+		expect(blockedTask.payload.candidates[0].reasons).toEqual(expect.arrayContaining([
+			'derived_capacity_exhausted',
+			'insufficient_budget',
+		]));
+	});
+
+	it('stores native capacity reported by capacity provider registration and heartbeat', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const { team } = await createTeamAndProject(app, token, {
+			slug: 'reported-native-capacity-project',
+			name: 'Reported Native Capacity Project',
+		});
+		const createdProvider = await json(await app.request(`/v1/teams/${team.id}/capacity-providers`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Reporting Provider',
+				launchMode: 'self_hosted',
+			}),
+		}));
+		const provider = createdProvider.provider;
+		const providerKey = createdProvider.apiKey.plaintext;
+		const nativeCapacity = {
+			executionProviders: [{
+				id: 'reported-codex-seat',
+				name: 'Reported Codex Seat',
+				kind: 'codex_subscription',
+				nativeUnit: 'wall_minute',
+				quotaVisibility: 'opaque',
+				maxConcurrentWorkers: 1,
+				nativeLimits: [{
+					scope: 'daily',
+					nativeUnit: 'wall_minute',
+					limitAmount: 180,
+					reserveBufferPercent: 20,
+				}],
+			}],
+		};
+
+		const registration = await app.request('/v1/provider/register', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${providerKey}`,
+			},
+			body: JSON.stringify({
+				marketId: 'test',
+				runtime: { package: '@treeseed/agent', version: 'test', entrypoint: 'dist/provider/entrypoint.js', roles: ['api', 'manager', 'runner'] },
+				capabilities: [],
+				budgets: { nativeCapacity },
+				health: { dataDirWritable: true },
+			}),
+		});
+		expect(registration.status).toBe(200);
+
+		const heartbeat = await app.request('/v1/provider/heartbeat', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${providerKey}`,
+			},
+			body: JSON.stringify({
+				marketId: 'test',
+				providerId: provider.id,
+				budgets: {
+					nativeCapacity: {
+						executionProviders: [{
+							...nativeCapacity.executionProviders[0],
+							observation: {
+								health: 'ready',
+								activeWorkers: 1,
+								queuedTasks: 2,
+								nativeRemaining: { wallMinutes: 90 },
+								confidence: 'estimated',
+							},
+						}],
+					},
+				},
+				health: { codexReady: true },
+				status: 'online',
+			}),
+		});
+		expect(heartbeat.status).toBe(200);
+
+		const listed = await json(await app.request(`/v1/teams/${team.id}/capacity-providers/${provider.id}/execution-providers`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(listed.payload).toHaveLength(1);
+		expect(listed.payload[0]).toMatchObject({
+			id: 'reported-codex-seat',
+			nativeLimits: [expect.objectContaining({ limitAmount: 180, reserveBufferPercent: 20 })],
+			latestObservation: expect.objectContaining({
+				health: 'ready',
+				activeWorkers: 1,
+				queuedTasks: 2,
+				nativeRemaining: { wallMinutes: 90 },
+			}),
+		});
+	});
+
 		it('rejects removed host-backed capacity provider launches and omits runtime host collections', async () => {
 			const app = createTestApp();
 			const token = await authorizeApp(app);
@@ -4271,7 +4729,7 @@ runtimeDescribe('market api', () => {
 		});
 
 	it('creates, rotates, and scopes capacity provider API keys without exposing hashes', async () => {
-		const db = new TestD1Database();
+		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
 		const app = createTestApp({ db, store });
 		const token = await authorizeApp(app);
@@ -4381,7 +4839,7 @@ runtimeDescribe('market api', () => {
 	});
 
 	it('handles capacity provider deployment intents without exposing provider secrets', async () => {
-		const db = new TestD1Database();
+		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
 		const app = createTestApp({ db, store });
 		const token = await authorizeApp(app);
@@ -4457,7 +4915,7 @@ runtimeDescribe('market api', () => {
 	});
 
 	it('deploys connected Railway capacity providers with one-use credential sessions', async () => {
-		const db = new TestD1Database();
+		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
 		const app = createTestApp({ db, store });
 		const token = await authorizeApp(app);
@@ -4568,7 +5026,7 @@ runtimeDescribe('market api', () => {
 	});
 
 	it('uses canonical project repositories in provider portfolios and stores provider-generated workday/report state', async () => {
-		const db = new TestD1Database();
+		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
 		const app = createTestApp({ db, store });
 		const token = await authorizeApp(app);
@@ -4680,7 +5138,7 @@ runtimeDescribe('market api', () => {
 	});
 
 	it('rejects expired and insufficient-scope provider API keys distinctly', async () => {
-		const db = new TestD1Database();
+		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
 		const app = createTestApp({ db, store });
 		const token = await authorizeApp(app);
@@ -4885,7 +5343,7 @@ runtimeDescribe('market api', () => {
 		expect(planResponse.status).toBe(200);
 		const plan = await json(planResponse);
 		expect(plan.ok).toBe(true);
-		expect(plan.summary).toMatchObject({ create: 5, update: 1, unchanged: 0, skip: 3 });
+		expect(plan.summary).toMatchObject({ create: 5, update: 1, unchanged: 0, skip: 4 });
 		expect(plan.run).toMatchObject({ state: 'completed', mode: 'plan', seedName: 'treeseed' });
 
 		const firstApplyResponse = await app.request('/v1/seeds/treeseed/apply', {
@@ -4899,7 +5357,7 @@ runtimeDescribe('market api', () => {
 		expect(firstApplyResponse.status).toBe(200);
 		const firstApply = await json(firstApplyResponse);
 		expect(firstApply.ok).toBe(true);
-		expect(firstApply.summary).toMatchObject({ create: 5, update: 1, unchanged: 0, skip: 3 });
+		expect(firstApply.summary).toMatchObject({ create: 5, update: 1, unchanged: 0, skip: 4 });
 		expect(firstApply.run).toMatchObject({ state: 'completed', mode: 'apply', seedName: 'treeseed' });
 		expect(firstApply.result.actionCount).toBe(6);
 		expect(firstApply.result.capacityProviderKeys.created).toHaveLength(0);
@@ -4926,7 +5384,7 @@ runtimeDescribe('market api', () => {
 		});
 		expect(secondApplyResponse.status).toBe(200);
 		const secondApply = await json(secondApplyResponse);
-		expect(secondApply.summary).toMatchObject({ create: 0, update: 0, unchanged: 6, skip: 3 });
+		expect(secondApply.summary).toMatchObject({ create: 0, update: 0, unchanged: 6, skip: 4 });
 		expect(secondApply.result.actionCount).toBe(0);
 		expect(secondApply.result.capacityProviderKeys.created).toHaveLength(0);
 		expect(secondApply.result.capacityProviderKeys.existing).toHaveLength(0);

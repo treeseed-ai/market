@@ -2,21 +2,32 @@
 import Button from '../../../../../../packages/core/src/components/ui/forms/Button.astro';
 import Field from '../../../../../../packages/core/src/components/ui/forms/Field.astro';
 import FormActions from '../../../../../../packages/core/src/components/ui/forms/FormActions.astro';
+import Select from '../../../../../../packages/core/src/components/ui/forms/Select.astro';
 import TextInput from '../../../../../../packages/core/src/components/ui/forms/TextInput.astro';
 import EmptyState from '../../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../../../lib/market/control-ui.js';
+import { createMarketApiFacade } from '../../../../../lib/market/api-client';
 import { loadOperationalContext } from '../../../../../view-models/shared.js';
 
 const providerId = String(Astro.params.providerId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 const context = await loadOperationalContext(Astro.locals, Astro);
 const team = context.activeTeam;
-const providers = team && context.store ? await context.store.listTeamCapacityProviders(team.id).catch(() => []) : [];
+const marketApi = createMarketApiFacade(Astro);
+const providers = team ? await marketApi.listTeamCapacityProviders(team.id).catch(() => []) : [];
 const provider = providers.find((entry: any) => entry.id === providerId) ?? null;
 if (!provider) Astro.response.status = 404;
-const deployments = provider && team && context.store && typeof context.store.listCapacityProviderDeployments === 'function'
-	? await context.store.listCapacityProviderDeployments(team.id, provider.id).catch(() => [])
+const deployments = provider && team
+	? await marketApi.listCapacityProviderDeployments(team.id, provider.id).catch(() => [])
+	: [];
+const executionProviders = provider && team
+	? await marketApi.listExecutionProviders(team.id, provider.id).catch(() => [])
+	: [];
+const capacityGrants = provider && team
+	? await marketApi.listCapacityGrants(team.id, { providerId: provider.id }).catch(() => [])
 	: [];
 const latestDeployment = deployments[0] ?? null;
 const capabilities = provider?.capabilities ?? {};
@@ -25,6 +36,66 @@ const deployment = latestDeployment ?? provider?.deployment ?? (Array.isArray(pr
 const registration = Array.isArray(provider?.registrations) ? provider.registrations[0] : null;
 const latestWorkday = provider?.metadata?.latestProviderWorkday ?? null;
 const latestReport = provider?.metadata?.latestProviderReport ?? null;
+const teamProjects = context.projects.filter((entry: any) => !team || entry.teamId === team.id || entry.team_id === team.id);
+
+function formatLimit(limit: any) {
+	if (!limit) return 'No native limit reported';
+	const reset = limit.resetCadence ? `, resets ${limit.resetCadence}` : '';
+	const buffer = limit.reserveBufferPercent != null ? `, ${limit.reserveBufferPercent}% reserve` : '';
+	const confidence = limit.confidence ? `, ${limit.confidence}` : '';
+	return `${limit.limitAmount ?? 0} ${limit.nativeUnit ?? 'native units'}/${limit.scope ?? 'window'}${buffer}${reset}${confidence}`;
+}
+
+function formatObservation(observation: any) {
+	if (!observation) return 'No observation reported';
+	const workers = observation.activeWorkers == null ? 'workers unknown' : `${observation.activeWorkers} active worker${observation.activeWorkers === 1 ? '' : 's'}`;
+	const queued = observation.queuedTasks == null ? 'queue unknown' : `${observation.queuedTasks} queued`;
+	return `${observation.health ?? 'unknown'}; ${workers}; ${queued}; ${observation.observedAt ?? 'time unknown'}`;
+}
+
+function formatAllocation(grant: any) {
+	const percent = grant.portfolioAllocationPercent == null ? 'unbounded' : `${grant.portfolioAllocationPercent}%`;
+	const reserve = grant.reservePoolPercent == null ? '' : `, ${grant.reservePoolPercent}% reserve`;
+	const daily = grant.maxDailyProjectCredits == null ? '' : `, ${grant.maxDailyProjectCredits}/day max`;
+	return `${percent}${reserve}${daily}`;
+}
+
+function providerAllocationSummary() {
+	const active = capacityGrants.filter((grant: any) => grant.state === 'active');
+	if (active.length === 0) return 'No active allocation grant';
+	return active.map(formatAllocation).join(' | ');
+}
+
+const derivedRows = (Array.isArray(provider?.derivedCapacity?.entries) ? provider.derivedCapacity.entries : []).map((entry: any) => ({
+	id: `derived-${esc(entry.executionProviderId ?? entry.nativeUnit ?? Math.random().toString(36).slice(2))}`,
+	name: `<strong>${esc(entry.executionProviderKind ?? entry.executionProviderId ?? 'Native provider')}</strong><span>${esc(entry.nativeUnit ?? 'native unit')}</span>`,
+	nativeLimit: esc(entry.configuredLimitAmount == null ? 'not configured' : `${entry.configuredLimitAmount} ${entry.nativeUnit}`),
+	observedRemaining: esc(entry.latestObservedRemaining == null ? `${entry.availableNativeAmount ?? 0} ${entry.nativeUnit}` : `${entry.latestObservedRemaining} ${entry.nativeUnit}`),
+	reservedNative: esc(`${entry.activeReservedNativeAmount ?? 0} ${entry.nativeUnit ?? ''}`.trim()),
+	reserveBuffer: esc(`${entry.reserveBufferNativeAmount ?? 0} ${entry.nativeUnit ?? ''}`.trim()),
+	conversion: esc(entry.nativeUnitsPerCredit ? `${entry.nativeUnitsPerCredit} ${entry.nativeUnit}/credit` : 'learning from completed work'),
+	derivedCredits: esc(entry.derivedAvailableCredits == null ? 'learning' : String(entry.derivedAvailableCredits)),
+	confidence: esc(entry.confidence ?? entry.conversionConfidence ?? 'learning'),
+	portfolioAllocation: esc(providerAllocationSummary()),
+	schedulableCredits: esc(entry.schedulableCredits == null ? (entry.derivedAvailableCredits ?? 'learning') : entry.schedulableCredits),
+}));
+
+const grantRows = capacityGrants.map((grant: any) => {
+	const project = teamProjects.find((entry: any) => entry.id === grant.projectId);
+	return {
+		id: `grant-${esc(grant.id)}`,
+		name: `<strong>${esc(project?.name ?? grant.grantScope ?? 'Team allocation')}</strong><span>${esc(grant.environment ?? 'all environments')}</span>`,
+		state: esc(grant.state ?? 'active'),
+		mode: esc(grant.emergencyOverride ? 'emergency override allowed' : grant.overflowPolicy ?? 'standard'),
+		allocation: esc(formatAllocation(grant)),
+		ceilings: esc([
+			grant.dailyUsdLimit == null ? '' : `$${grant.dailyUsdLimit}/day`,
+			grant.weeklyQuotaMinutes == null ? '' : `${grant.weeklyQuotaMinutes} quota min/week`,
+			grant.monthlyProviderUnits == null ? '' : `${grant.monthlyProviderUnits} native units/month`,
+			grant.dailyCreditLimit == null ? '' : `${grant.dailyCreditLimit} legacy credits/day`,
+		].filter(Boolean).join(' | ') || 'no extra ceiling'),
+	};
+});
 ---
 
 <TreeseedAppLayout title={provider ? `Edit ${provider.name}` : 'Provider not found'} description="Edit one capacity provider." currentPath="/app/capacity/providers" teams={context.teams} activeTeam={team}>
@@ -50,12 +121,109 @@ const latestReport = provider?.metadata?.latestProviderReport ?? null;
 			<Panel eyebrow="Capabilities" title="Broadcast capabilities" description="Provider capabilities are read-only and update after registration.">
 				<pre class="ts-code-block">{JSON.stringify(capabilities, null, 2)}</pre>
 			</Panel>
-			<Panel eyebrow="Budgets" title="Broadcast budgets" description="Provider budgets are read-only and update after registration.">
+			<Panel eyebrow="Budget mode" title="Native-derived scheduling mode" description="Budget mode is explicit. New providers use derived mode by default; static mode is legacy compatibility only.">
 				<dl class="ts-definition-list">
-					<div><dt>Daily credits</dt><dd>{budgets.dailyCreditBudget ?? budgets.dailyTaskCreditBudget ?? provider.dailyCreditBudget ?? 0}</dd></div>
-					<div><dt>Monthly credits</dt><dd>{budgets.monthlyCreditBudget ?? provider.monthlyCreditBudget ?? 0}</dd></div>
+					<div><dt>Mode</dt><dd>{provider.creditBudgetMode ?? 'derived'}</dd></div>
 					<div><dt>Concurrent runners</dt><dd>{budgets.maxConcurrentRunners ?? budgets.maxConcurrentWorkers ?? provider.maxConcurrentWorkers ?? 0}</dd></div>
+					<div><dt>Static compatibility</dt><dd>{provider.creditBudgetMode === 'static' || provider.creditBudgetMode === 'hybrid' ? `${budgets.dailyCreditBudget ?? budgets.dailyTaskCreditBudget ?? provider.dailyCreditBudget ?? 0} daily / ${budgets.monthlyCreditBudget ?? provider.monthlyCreditBudget ?? 0} monthly legacy credits` : 'not required for native-derived providers'}</dd></div>
 				</dl>
+			</Panel>
+			<Panel eyebrow="Native setup" title="Add native provider facts" description="Add capacity in units a provider operator can forecast: minutes, USD, tokens, reset windows, concurrency, and reserve buffers.">
+				<form id="native-capacity-form" class="ts-form-stack">
+					<div class="ts-form-grid">
+						<Field label="Execution provider name" name="executionProviderName" required><TextInput name="executionProviderName" required value="Primary native capacity" /></Field>
+						<Field label="Provider kind" name="providerKind" required>
+							<Select name="providerKind" required options={[
+								{ label: 'Codex subscription', value: 'codex_subscription' },
+								{ label: 'OpenRouter', value: 'openrouter' },
+								{ label: 'Custom native provider', value: 'custom' },
+							]} />
+						</Field>
+						<Field label="Native unit" name="nativeUnit" required>
+							<Select name="nativeUnit" required options={[
+								{ label: 'Wall minutes', value: 'wall_minute' },
+								{ label: 'Quota minutes', value: 'quota_minute' },
+								{ label: 'USD', value: 'usd' },
+								{ label: 'Tokens', value: 'token' },
+							]} />
+						</Field>
+						<Field label="Native limit" name="limitAmount" required><TextInput name="limitAmount" type="number" min="0" step="0.01" required inputmode="decimal" /></Field>
+						<Field label="Reset window" name="limitScope"><Select name="limitScope" options={[{ label: 'Daily', value: 'daily' }, { label: 'Weekly', value: 'weekly' }, { label: 'Monthly', value: 'monthly' }, { label: 'Work window', value: 'work_window' }]} /></Field>
+						<Field label="Reset cadence" name="resetCadence"><Select name="resetCadence" options={[{ label: 'Daily', value: 'daily' }, { label: 'Weekly', value: 'weekly' }, { label: 'Monthly', value: 'monthly' }, { label: 'Manual', value: 'manual' }]} /></Field>
+						<Field label="Quota visibility" name="quotaVisibility"><Select name="quotaVisibility" options={[{ label: 'Opaque', value: 'opaque' }, { label: 'Remaining visible', value: 'remaining_visible' }, { label: 'Exact usage visible', value: 'exact_usage' }]} /></Field>
+						<Field label="Reserve buffer percent" name="reserveBufferPercent"><TextInput name="reserveBufferPercent" type="number" min="0" max="100" step="1" value="20" inputmode="decimal" /></Field>
+						<Field label="Concurrent workers" name="maxConcurrentWorkers"><TextInput name="maxConcurrentWorkers" type="number" min="1" step="1" value="1" inputmode="numeric" /></Field>
+					</div>
+					<FormActions align="start"><Button type="submit">Save native capacity</Button><span class="ts-subtle" id="native-capacity-status" role="status"></span></FormActions>
+				</form>
+			</Panel>
+			<Panel eyebrow="Native capacity" title="Human-entered provider facts" description="These are the native limits operators can understand and forecast. TreeSeed credits remain a scheduling abstraction for later derived budgeting phases.">
+				{executionProviders.length > 0 ? (
+					<div class="ts-stack-sm">
+						{executionProviders.map((entry: any) => (
+							<article class="ts-definition-card">
+								<h3>{entry.name}</h3>
+								<dl class="ts-definition-list">
+									<div><dt>Provider kind</dt><dd>{entry.kind}</dd></div>
+									<div><dt>Native unit</dt><dd>{entry.nativeUnit}</dd></div>
+									<div><dt>Quota visibility</dt><dd>{entry.quotaVisibility}</dd></div>
+									<div><dt>Concurrent workers</dt><dd>{entry.maxConcurrentWorkers}</dd></div>
+									<div><dt>Reset cadence</dt><dd>{entry.resetCadence ?? 'not reported'}</dd></div>
+									<div><dt>Native limits</dt><dd>{(entry.nativeLimits ?? []).map(formatLimit).join(' | ') || 'No limits reported'}</dd></div>
+									<div><dt>Latest observation</dt><dd>{formatObservation(entry.latestObservation)}</dd></div>
+								</dl>
+							</article>
+						))}
+					</div>
+				) : (
+					<EmptyState title="No native capacity reported" description="Register this provider with seats, work windows, USD or token limits, and reserve buffers instead of hand-entered TreeSeed credit inventory." />
+				)}
+			</Panel>
+			<Panel eyebrow="Derived availability" title="Projected TreeSeed capacity" description="TreeSeed derives this from native provider facts, active native reservations, reserve buffers, learned conversion profiles, and portfolio allocation. Missing or low-confidence values mean the provider is still learning.">
+				<PlainTable columns={[
+					{ key: 'name', label: 'Provider' },
+					{ key: 'nativeLimit', label: 'Native limit' },
+					{ key: 'observedRemaining', label: 'Observed remaining' },
+					{ key: 'reservedNative', label: 'Reserved native' },
+					{ key: 'reserveBuffer', label: 'Reserve buffer' },
+					{ key: 'conversion', label: 'Conversion' },
+					{ key: 'derivedCredits', label: 'Derived credits' },
+					{ key: 'confidence', label: 'Confidence' },
+					{ key: 'portfolioAllocation', label: 'Portfolio allocation' },
+					{ key: 'schedulableCredits', label: 'Schedulable credits' },
+				]} rows={derivedRows} emptyTitle="Derived availability is learning" emptyDescription="TreeSeed will project credits after providers report native capacity and completed work produces conversion samples." />
+			</Panel>
+			<Panel eyebrow="Allocation" title="Portfolio allocation" description="Allocate a percentage of this provider's derived capacity to a team or project, with optional reserve pools and compatibility ceilings.">
+				<PlainTable columns={[
+					{ key: 'name', label: 'Scope' },
+					{ key: 'state', label: 'State' },
+					{ key: 'allocation', label: 'Allocation' },
+					{ key: 'ceilings', label: 'Optional ceilings' },
+					{ key: 'mode', label: 'Overflow' },
+				]} rows={grantRows} emptyTitle="No allocation grants" emptyDescription="Create an allocation grant to make this provider schedulable for projects or the whole team." />
+				<form id="allocation-form" class="ts-form-stack">
+					<div class="ts-form-grid">
+						<Field label="Existing grant" name="grantId">
+							<Select name="grantId" options={[{ label: 'Create new allocation', value: '' }, ...capacityGrants.map((grant: any) => ({ label: `${grant.projectId ?? grant.grantScope ?? 'team'} ${grant.environment ?? 'all environments'}`, value: grant.id }))]} />
+						</Field>
+						<Field label="Scope" name="grantScope"><Select name="grantScope" options={[{ label: 'Team', value: 'team' }, { label: 'Project', value: 'project' }]} /></Field>
+						<Field label="Project" name="projectId"><Select name="projectId" options={[{ label: 'No project', value: '' }, ...teamProjects.map((project: any) => ({ label: project.name ?? project.slug ?? project.id, value: project.id }))]} /></Field>
+						<Field label="Environment" name="environment"><Select name="environment" options={[{ label: 'All environments', value: '' }, { label: 'Local', value: 'local' }, { label: 'Staging', value: 'staging' }, { label: 'Production', value: 'production' }]} /></Field>
+						<Field label="Allocation percent" name="portfolioAllocationPercent"><TextInput name="portfolioAllocationPercent" type="number" min="0" max="100" step="1" placeholder="80" inputmode="decimal" /></Field>
+						<Field label="Reserve pool percent" name="reservePoolPercent"><TextInput name="reservePoolPercent" type="number" min="0" max="100" step="1" placeholder="10" inputmode="decimal" /></Field>
+						<Field label="Max daily project credits" name="maxDailyProjectCredits"><TextInput name="maxDailyProjectCredits" type="number" min="0" step="0.01" inputmode="decimal" /></Field>
+						<Field label="Daily USD ceiling" name="dailyUsdLimit"><TextInput name="dailyUsdLimit" type="number" min="0" step="0.01" inputmode="decimal" /></Field>
+						<Field label="Weekly quota minutes" name="weeklyQuotaMinutes"><TextInput name="weeklyQuotaMinutes" type="number" min="0" step="1" inputmode="decimal" /></Field>
+						<Field label="Monthly native units" name="monthlyProviderUnits"><TextInput name="monthlyProviderUnits" type="number" min="0" step="0.01" inputmode="decimal" /></Field>
+						<Field label="Overflow policy" name="overflowPolicy"><Select name="overflowPolicy" options={[{ label: 'Queue', value: 'queue' }, { label: 'Block', value: 'block' }, { label: 'Allow overflow', value: 'allow_overflow' }]} /></Field>
+						<Field label="Priority weight" name="priorityWeight"><TextInput name="priorityWeight" type="number" min="0" step="0.1" value="1" inputmode="decimal" /></Field>
+					</div>
+					<label class="ts-field">
+						<span class="ts-field__label">Emergency override</span>
+						<span class="ts-field__control"><input type="checkbox" name="emergencyOverride" value="true" /> Allow explicit emergency requests to use the reserve pool.</span>
+					</label>
+					<FormActions align="start"><Button type="submit">Save allocation</Button><span class="ts-subtle" id="allocation-status" role="status"></span></FormActions>
+				</form>
 			</Panel>
 			<Panel eyebrow="Deployment" title="Deployment status" description="Deployment records are owned by provider launch workflows.">
 				<dl class="ts-definition-list">
@@ -102,10 +270,20 @@ const latestReport = provider?.metadata?.latestProviderReport ?? null;
 <script is:inline define:vars={{ teamId: team?.id ?? '', providerId: provider?.id ?? '' }}>
 	const form = document.getElementById('provider-form');
 	const status = document.getElementById('provider-status');
+	const nativeCapacityForm = document.getElementById('native-capacity-form');
+	const nativeCapacityStatus = document.getElementById('native-capacity-status');
+	const allocationForm = document.getElementById('allocation-form');
+	const allocationStatus = document.getElementById('allocation-status');
 	const deployForm = document.getElementById('provider-deploy-form');
 	const deployStatus = document.getElementById('provider-deploy-status');
 	const deployResult = document.getElementById('provider-deploy-result');
 	const selfHostingDisplay = document.getElementById('self-hosting-display');
+	function numberOrNull(value) {
+		const text = String(value ?? '').trim();
+		if (!text) return null;
+		const number = Number(text);
+		return Number.isFinite(number) ? number : null;
+	}
 	form?.addEventListener('submit', async (event) => {
 		event.preventDefault();
 		const data = new FormData(form);
@@ -123,6 +301,76 @@ const latestReport = provider?.metadata?.latestProviderReport ?? null;
 			return;
 		}
 		if (status) status.textContent = 'Saved.';
+	});
+	nativeCapacityForm?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const data = new FormData(nativeCapacityForm);
+		if (nativeCapacityStatus) nativeCapacityStatus.textContent = 'Saving native capacity...';
+		const nativeUnit = String(data.get('nativeUnit') ?? 'wall_minute');
+		const response = await fetch(`/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/execution-providers`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				name: String(data.get('executionProviderName') ?? '').trim() || 'Primary native capacity',
+				kind: String(data.get('providerKind') ?? 'codex_subscription'),
+				nativeUnit,
+				quotaVisibility: String(data.get('quotaVisibility') ?? 'opaque'),
+				maxConcurrentWorkers: Number(data.get('maxConcurrentWorkers') ?? 1) || 1,
+				resetCadence: String(data.get('resetCadence') ?? 'daily'),
+				nativeLimits: [{
+					scope: String(data.get('limitScope') ?? 'daily'),
+					nativeUnit,
+					limitAmount: numberOrNull(data.get('limitAmount')) ?? 0,
+					reserveBufferPercent: numberOrNull(data.get('reserveBufferPercent')) ?? 0,
+					confidence: 'estimated',
+					source: 'configured',
+				}],
+				metadata: { configuredFrom: 'provider_edit_ui' },
+			}),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			if (nativeCapacityStatus) nativeCapacityStatus.textContent = payload?.error ?? 'Native capacity could not be saved.';
+			return;
+		}
+		if (nativeCapacityStatus) nativeCapacityStatus.textContent = 'Native capacity saved. Refreshing...';
+		window.location.href = `${window.location.pathname}?nativeCapacity=${Date.now()}`;
+	});
+	allocationForm?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		const data = new FormData(allocationForm);
+		if (allocationStatus) allocationStatus.textContent = 'Saving allocation...';
+		const grantId = String(data.get('grantId') ?? '').trim();
+		const body = {
+			capacityProviderId: providerId,
+			grantScope: String(data.get('grantScope') ?? 'team'),
+			projectId: String(data.get('projectId') ?? '').trim() || null,
+			environment: String(data.get('environment') ?? '').trim() || null,
+			state: 'active',
+			portfolioAllocationPercent: numberOrNull(data.get('portfolioAllocationPercent')),
+			reservePoolPercent: numberOrNull(data.get('reservePoolPercent')),
+			maxDailyProjectCredits: numberOrNull(data.get('maxDailyProjectCredits')),
+			dailyUsdLimit: numberOrNull(data.get('dailyUsdLimit')),
+			weeklyQuotaMinutes: numberOrNull(data.get('weeklyQuotaMinutes')),
+			monthlyProviderUnits: numberOrNull(data.get('monthlyProviderUnits')),
+			overflowPolicy: String(data.get('overflowPolicy') ?? 'queue'),
+			priorityWeight: numberOrNull(data.get('priorityWeight')) ?? 1,
+			emergencyOverride: data.get('emergencyOverride') === 'true',
+		};
+		const response = await fetch(grantId
+			? `/v1/teams/${encodeURIComponent(teamId)}/capacity-grants/${encodeURIComponent(grantId)}`
+			: `/v1/teams/${encodeURIComponent(teamId)}/capacity-grants`, {
+			method: grantId ? 'PATCH' : 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(body),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			if (allocationStatus) allocationStatus.textContent = payload?.error ?? 'Allocation could not be saved.';
+			return;
+		}
+		if (allocationStatus) allocationStatus.textContent = 'Allocation saved. Refreshing...';
+		window.location.href = `${window.location.pathname}?allocation=${Date.now()}`;
 	});
 	if (selfHostingDisplay && teamId && providerId) {
 		fetch(`/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/self-hosting`)

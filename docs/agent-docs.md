@@ -412,7 +412,7 @@ packages/core/src/**
 packages/core/test/**
 src/**
 docs/**
-migrations/**
+packages/sdk/drizzle/**
 AGENTS.md
 README.md
 package.json
@@ -612,7 +612,7 @@ Forbidden paths for documentation tasks:
 packages/*/src/**
 src/lib/**
 src/pages/api/**
-migrations/**
+packages/sdk/drizzle/**
 ```
 
 Code paths may be read for context but not mutated by documentation tasks unless the task is explicitly escalated to an implementation workstream.
@@ -998,7 +998,7 @@ trsd dev:manager
 TreeSeed should:
 
 1. load local Market operational config;
-2. ensure local D1/schema state exists;
+2. ensure local Market PostgreSQL schema state exists;
 3. run migrations if needed;
 4. load agent specs from `src/content/agents`;
 5. load work policy;
@@ -1459,7 +1459,7 @@ packages/*/README.md
 packages/*/src/**
 src/lib/**
 src/pages/api/**
-migrations/**
+packages/sdk/drizzle/**
 ```
 
 ### Escalation Rule
@@ -1718,7 +1718,8 @@ workday_report
 Local development:
 
 ```text
-D1/local sqlite for metadata
+Market PostgreSQL for metadata and governance state
+static-hub D1/local sqlite only for unauthenticated form submissions
 repo content files for generated content
 .agent-worktrees for isolated mutations
 ```
@@ -1726,7 +1727,8 @@ repo content files for generated content
 Hosted/runtime later:
 
 ```text
-D1 for metadata
+Market PostgreSQL for metadata
+static-hub D1 only for unauthenticated form submissions
 R2 for large artifact bodies
 repository branches/worktrees for mutations
 Market API for governance state
@@ -1791,6 +1793,8 @@ sync_governance_summary
 ```
 
 ### Budget Defaults
+
+Work policy credit budgets are project/workday governance caps. Provider inventory is configured through native execution-provider limits and derived availability, not through daily/monthly provider credit budgets.
 
 Local dev defaults:
 
@@ -1875,7 +1879,7 @@ src/pages/app/**
 src/pages/v1/**
 src/content/**
 docs/**
-migrations/**
+packages/sdk/drizzle/**
 ```
 
 ### Acceptance Criteria
@@ -2361,7 +2365,7 @@ Graph build/query/ranking
 Context query contracts
 Operation tools
 Workflow state
-Stores and D1/local sqlite
+Stores, Market PostgreSQL contracts, and static-hub D1 form storage
 ```
 
 ### Core
@@ -2485,7 +2489,7 @@ docsAutomation:
     - packages/*/src/**
     - src/lib/**
     - src/pages/api/**
-    - migrations/**
+    - packages/sdk/drizzle/**
 ```
 
 ---

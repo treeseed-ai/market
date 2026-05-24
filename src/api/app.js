@@ -23,16 +23,16 @@ import {
 	platformContentRelationPolicy as repositoryContentRelationPolicy,
 	slugifyPlatformContent as slugifyRepositoryContent,
 } from '@treeseed/sdk';
+import { calculateActualCredits } from '../../packages/sdk/src/capacity.ts';
 import { runTreeseedHostingAudit } from '@treeseed/sdk/workflow-support';
 import {
 	createTreeseedApiApp,
 	D1AuthProvider,
 	loadTemplateCatalog,
 	resolveApiConfig,
-	resolveApiD1Database,
 } from '@treeseed/sdk/api';
 import { MarketControlPlaneStore, validateProjectSlug } from './store.js';
-import { createMarketPostgresD1Database } from './postgres-d1.js';
+import { createMarketPostgresDatabase } from './market-postgres.js';
 import { applySeedWithStore, exportSeedWithStore, planSeedWithStore } from '../lib/market/seeds/apply.js';
 import { buildGovernanceApprovalProjection, buildGovernanceProjection } from '../lib/market/governance-projection.js';
 import { buildInfrastructureProjection } from '../lib/market/infrastructure-projection.js';
@@ -120,25 +120,7 @@ function verifyMarketPassword(password, envelope) {
 }
 
 async function ensureMarketCredentialSchema(store) {
-	await store.run(`CREATE TABLE IF NOT EXISTS market_auth_credentials (
-		user_id TEXT PRIMARY KEY,
-		email TEXT NOT NULL UNIQUE,
-		username TEXT UNIQUE,
-		password_hash TEXT NOT NULL,
-		status TEXT NOT NULL DEFAULT 'active',
-		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL
-	)`);
-	await store.run(`CREATE INDEX IF NOT EXISTS idx_market_auth_credentials_email ON market_auth_credentials(email)`);
-	await store.run(`CREATE INDEX IF NOT EXISTS idx_market_auth_credentials_username ON market_auth_credentials(username)`);
-	await store.run(`CREATE TABLE IF NOT EXISTS market_auth_password_resets (
-		id TEXT PRIMARY KEY,
-		user_id TEXT NOT NULL,
-		token_hash TEXT NOT NULL UNIQUE,
-		expires_at TEXT NOT NULL,
-		used_at TEXT,
-		created_at TEXT NOT NULL
-	)`);
+	await store.ensureInitialized();
 }
 
 async function createMarketWebSession(marketAuthProvider, userId, data = {}, options = {}) {
@@ -2371,7 +2353,10 @@ export function createMarketApiExtension(options = {}) {
 export function createMarketApiApp(options = {}) {
 	const config = defaultConfig(options.config ?? {});
 	const marketDatabaseUrl = config.marketDatabaseUrl ?? process.env.TREESEED_MARKET_DATABASE_URL ?? null;
-	const db = options.db ?? (marketDatabaseUrl ? createMarketPostgresD1Database(marketDatabaseUrl) : resolveApiD1Database(config));
+	if (!options.db && !marketDatabaseUrl) {
+		throw new Error('TREESEED_MARKET_DATABASE_URL is required for the Market PostgreSQL control-plane database.');
+	}
+	const db = options.db ?? createMarketPostgresDatabase(marketDatabaseUrl);
 	const store = options.store ?? new MarketControlPlaneStore({
 		...config,
 		assertionSecret: config.webAssertionSecret,
@@ -4168,6 +4153,9 @@ export function createMarketApiApp(options = {}) {
 					deployments: typeof store.listCapacityProviderDeployments === 'function'
 						? await store.listCapacityProviderDeployments(teamId, provider.id)
 						: [],
+					derivedCapacity: typeof store.getCapacityProviderDerivedCapacity === 'function'
+						? await store.getCapacityProviderDerivedCapacity(teamId, provider.id)
+						: null,
 				})));
 				return c.json({ ok: true, payload });
 			});
@@ -4176,9 +4164,9 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
-				const extra = unknownKeys(body, ['name', 'launchMode']);
+				const extra = unknownKeys(body, ['name', 'launchMode', 'creditBudgetMode']);
 				if (extra.length > 0) {
-					return jsonError(c, 400, 'Capacity provider creation accepts only name and launchMode.', { fields: extra });
+					return jsonError(c, 400, 'Capacity provider creation accepts only name, launchMode, and creditBudgetMode.', { fields: extra });
 				}
 				if (!body.name || !body.launchMode) return jsonError(c, 400, 'name and launchMode are required.');
 				let provider;
@@ -4186,6 +4174,7 @@ export function createMarketApiApp(options = {}) {
 					provider = await store.createStandaloneCapacityProvider(c.req.param('teamId'), {
 						name: body.name,
 						launchMode: body.launchMode,
+						creditBudgetMode: body.creditBudgetMode,
 						createdById: access.principal.id,
 					});
 				} catch (error) {
@@ -4225,14 +4214,14 @@ export function createMarketApiApp(options = {}) {
 				const existing = await store.getCapacityProvider(c.req.param('teamId'), c.req.param('providerId'));
 				if (!existing) return jsonError(c, 404, 'Unknown capacity provider.');
 				const body = await c.req.json().catch(() => ({}));
-				const extra = unknownKeys(body, ['name']);
+				const extra = unknownKeys(body, ['name', 'creditBudgetMode']);
 				if (extra.length > 0) {
-					return jsonError(c, 400, 'Capacity provider update accepts only name.', { fields: extra });
+					return jsonError(c, 400, 'Capacity provider update accepts only name and creditBudgetMode.', { fields: extra });
 				}
 				try {
 					return c.json({
 						ok: true,
-						provider: await store.renameCapacityProvider(c.req.param('teamId'), c.req.param('providerId'), body.name),
+						provider: await store.updateCapacityProvider(c.req.param('teamId'), c.req.param('providerId'), body),
 					});
 				} catch (error) {
 					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
@@ -4254,8 +4243,74 @@ export function createMarketApiApp(options = {}) {
 						deployments: typeof store.listCapacityProviderDeployments === 'function'
 							? await store.listCapacityProviderDeployments(c.req.param('teamId'), provider.id)
 							: [],
+						derivedCapacity: typeof store.getCapacityProviderDerivedCapacity === 'function'
+							? await store.getCapacityProviderDerivedCapacity(c.req.param('teamId'), provider.id)
+							: null,
 					},
 				});
+			});
+
+			app.get('/v1/teams/:teamId/capacity-providers/:providerId/execution-providers', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const provider = await store.getCapacityProvider(c.req.param('teamId'), c.req.param('providerId'));
+				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
+				return c.json({
+					ok: true,
+					payload: await store.listExecutionProviders(c.req.param('teamId'), c.req.param('providerId')),
+				});
+			});
+
+			app.post('/v1/teams/:teamId/capacity-providers/:providerId/execution-providers', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const provider = await store.getCapacityProvider(c.req.param('teamId'), c.req.param('providerId'));
+				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
+				const body = await c.req.json().catch(() => ({}));
+				try {
+					const executionProvider = await store.upsertExecutionProvider(c.req.param('teamId'), c.req.param('providerId'), body);
+					return executionProvider
+						? c.json({ ok: true, payload: executionProvider }, { status: 201 })
+						: jsonError(c, 404, 'Unknown capacity provider.');
+				} catch (error) {
+					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
+				}
+			});
+
+			app.patch('/v1/teams/:teamId/capacity-providers/:providerId/execution-providers/:executionProviderId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const provider = await store.getCapacityProvider(c.req.param('teamId'), c.req.param('providerId'));
+				if (!provider) return jsonError(c, 404, 'Unknown capacity provider.');
+				const body = await c.req.json().catch(() => ({}));
+				try {
+					const executionProvider = await store.upsertExecutionProvider(c.req.param('teamId'), c.req.param('providerId'), {
+						...body,
+						id: c.req.param('executionProviderId'),
+					});
+					return executionProvider
+						? c.json({ ok: true, payload: executionProvider })
+						: jsonError(c, 404, 'Unknown execution provider.');
+				} catch (error) {
+					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
+				}
+			});
+
+			app.post('/v1/teams/:teamId/capacity-providers/:providerId/execution-providers/:executionProviderId/native-limits', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				try {
+					const limit = await store.upsertExecutionProviderNativeLimit(
+						c.req.param('teamId'),
+						c.req.param('providerId'),
+						c.req.param('executionProviderId'),
+						body,
+					);
+					return limit ? c.json({ ok: true, payload: limit }, { status: 201 }) : jsonError(c, 404, 'Unknown execution provider.');
+				} catch (error) {
+					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
+				}
 			});
 
 			app.get('/v1/teams/:teamId/capacity-providers/:providerId/api-keys', async (c) => {
@@ -4551,6 +4606,9 @@ export function createMarketApiApp(options = {}) {
 						hosts: await store.listCapacityProviderHosts(teamId, provider.id),
 					lanes: await store.listCapacityProviderLanes(teamId, provider.id),
 					apiKeys: await store.listCapacityProviderApiKeys(teamId, provider.id),
+					derivedCapacity: typeof store.getCapacityProviderDerivedCapacity === 'function'
+						? await store.getCapacityProviderDerivedCapacity(teamId, provider.id)
+						: null,
 				})));
 				return c.json({
 					ok: true,
@@ -4586,6 +4644,9 @@ export function createMarketApiApp(options = {}) {
 						hosts: await store.listCapacityProviderHosts(provider.teamId ?? provider.ownerTeamId, provider.id),
 						lanes: await store.listCapacityProviderLanes(provider.teamId ?? provider.ownerTeamId, provider.id),
 						apiKeys: await store.listCapacityProviderApiKeys(provider.teamId ?? provider.ownerTeamId, provider.id),
+						derivedCapacity: typeof store.getCapacityProviderDerivedCapacity === 'function'
+							? await store.getCapacityProviderDerivedCapacity(provider.teamId ?? provider.ownerTeamId, provider.id)
+							: null,
 					},
 				});
 			});
@@ -7918,7 +7979,17 @@ export function createMarketApiApp(options = {}) {
 				if (!projectId) return jsonError(c, 400, 'projectId or taskId is required.');
 				const project = await store.getProject(projectId);
 				if (!project || project.teamId !== auth.principal.teamId) return jsonError(c, 404, 'Unknown project.');
-				if (!Number.isFinite(Number(body.actualCredits))) return jsonError(c, 400, 'actualCredits is required.');
+				const reportedNativeUsage = body.nativeUsage && typeof body.nativeUsage === 'object'
+					? body.nativeUsage
+					: body.usage && typeof body.usage === 'object'
+						? body.usage
+						: {};
+				const hasNativeUsage = Object.keys(reportedNativeUsage).length > 0
+					|| ['wallMinutes', 'quotaMinutes', 'inputTokens', 'outputTokens', 'cachedInputTokens', 'actualUsd', 'usd', 'filesOpened', 'filesChanged', 'diffLinesAdded', 'diffLinesRemoved', 'testRuns', 'retryCount']
+						.some((key) => Number.isFinite(Number(body[key])));
+				if (!hasNativeUsage && !Number.isFinite(Number(body.actualCredits))) {
+					return jsonError(c, 400, 'nativeUsage or legacy actualCredits is required.');
+				}
 				const usage = await store.createTaskUsageActual({
 					...body,
 					projectId,
@@ -7927,11 +7998,31 @@ export function createMarketApiApp(options = {}) {
 					taskSignature: body.taskSignature ?? job?.operation ?? 'capacity-provider.reported-usage',
 					executionProfileId: body.executionProfileId ?? 'standard-code-model',
 					capacityProviderId: auth.provider.id,
+					executionProviderId: typeof body.executionProviderId === 'string' ? body.executionProviderId : null,
 					laneId: body.laneId ?? null,
-					actualCredits: Number(body.actualCredits),
+					actualCredits: Number.isFinite(Number(body.actualCredits)) ? Number(body.actualCredits) : null,
+					actualCreditsOverride: body.actualCreditsOverride === true,
+					actualUsd: Number.isFinite(Number(body.actualUsd ?? body.usd)) ? Number(body.actualUsd ?? body.usd) : null,
+					nativeUsage: hasNativeUsage ? {
+						...reportedNativeUsage,
+						wallMinutes: body.wallMinutes ?? reportedNativeUsage.wallMinutes,
+						quotaMinutes: body.quotaMinutes ?? reportedNativeUsage.quotaMinutes,
+						inputTokens: body.inputTokens ?? reportedNativeUsage.inputTokens,
+						outputTokens: body.outputTokens ?? reportedNativeUsage.outputTokens,
+						cachedInputTokens: body.cachedInputTokens ?? reportedNativeUsage.cachedInputTokens,
+						usd: body.actualUsd ?? body.usd ?? reportedNativeUsage.usd,
+						filesOpened: body.filesOpened ?? reportedNativeUsage.filesOpened,
+						filesChanged: body.filesChanged ?? reportedNativeUsage.filesChanged,
+						diffLinesAdded: body.diffLinesAdded ?? reportedNativeUsage.diffLinesAdded,
+						diffLinesRemoved: body.diffLinesRemoved ?? reportedNativeUsage.diffLinesRemoved,
+						testRuns: body.testRuns ?? reportedNativeUsage.testRuns,
+						retryCount: body.retryCount ?? reportedNativeUsage.retryCount,
+						source: reportedNativeUsage.source ?? 'provider_report',
+					} : null,
 					metadata: {
 						...(body.metadata && typeof body.metadata === 'object' ? body.metadata : {}),
 						providerKeyId: auth.principal.keyId,
+						legacyActualCreditsSupplied: Number.isFinite(Number(body.actualCredits)),
 					},
 				});
 				return c.json({ ok: true, usage });
@@ -8007,10 +8098,49 @@ export function createMarketApiApp(options = {}) {
 				const project = await store.getProject(c.req.param('projectId'));
 				if (!project) return jsonError(c, 404, 'Unknown project.');
 				const body = await c.req.json().catch(() => ({}));
-				if (!body.capacityProviderId || !Number.isFinite(Number(body.credits))) {
-					return jsonError(c, 400, 'capacityProviderId and credits are required.');
-				}
 				const phase = body.phase ?? 'consume';
+				const reportedNativeUsage = body.nativeUsage && typeof body.nativeUsage === 'object'
+					? body.nativeUsage
+					: body.usageActual?.nativeUsage && typeof body.usageActual.nativeUsage === 'object'
+						? body.usageActual.nativeUsage
+						: body.usage && typeof body.usage === 'object'
+							? body.usage
+							: {};
+				const hasNativeUsage = Object.keys(reportedNativeUsage).length > 0
+					|| ['wallMinutes', 'quotaMinutes', 'inputTokens', 'outputTokens', 'cachedInputTokens', 'usd', 'actualUsd', 'filesOpened', 'filesChanged', 'diffLinesAdded', 'diffLinesRemoved', 'testRuns', 'retryCount']
+						.some((key) => Number.isFinite(Number(body[key] ?? body.usageActual?.[key])));
+				if (!body.capacityProviderId || (!Number.isFinite(Number(body.credits)) && !hasNativeUsage)) {
+					return jsonError(c, 400, 'capacityProviderId and credits or nativeUsage are required.');
+				}
+				const nativeUsage = {
+					...reportedNativeUsage,
+					wallMinutes: body.usageActual?.wallMinutes ?? body.wallMinutes ?? reportedNativeUsage.wallMinutes,
+					quotaMinutes: body.usageActual?.quotaMinutes ?? body.quotaMinutes ?? reportedNativeUsage.quotaMinutes,
+					inputTokens: body.usageActual?.inputTokens ?? body.inputTokens ?? reportedNativeUsage.inputTokens,
+					outputTokens: body.usageActual?.outputTokens ?? body.outputTokens ?? reportedNativeUsage.outputTokens,
+					cachedInputTokens: body.usageActual?.cachedInputTokens ?? body.cachedInputTokens ?? reportedNativeUsage.cachedInputTokens,
+					usd: body.usageActual?.actualUsd ?? body.actualUsd ?? body.usd ?? reportedNativeUsage.usd,
+					filesOpened: body.usageActual?.filesOpened ?? body.filesOpened ?? reportedNativeUsage.filesOpened,
+					filesChanged: body.usageActual?.filesChanged ?? body.filesChanged ?? reportedNativeUsage.filesChanged,
+					diffLinesAdded: body.usageActual?.diffLinesAdded ?? body.diffLinesAdded ?? reportedNativeUsage.diffLinesAdded,
+					diffLinesRemoved: body.usageActual?.diffLinesRemoved ?? body.diffLinesRemoved ?? reportedNativeUsage.diffLinesRemoved,
+					testRuns: body.usageActual?.testRuns ?? body.testRuns ?? reportedNativeUsage.testRuns,
+					retryCount: body.usageActual?.retryCount ?? body.retryCount ?? reportedNativeUsage.retryCount,
+					partial: body.usageActual?.partial ?? reportedNativeUsage.partial,
+					interrupted: body.usageActual?.interrupted ?? reportedNativeUsage.interrupted,
+					source: reportedNativeUsage.source ?? body.source ?? 'runner',
+				};
+				const actualCreditCalculation = calculateActualCredits({
+					nativeUsage,
+					legacyActualCredits: Number.isFinite(Number(body.credits)) ? Number(body.credits) : Number.isFinite(Number(body.actualCredits)) ? Number(body.actualCredits) : null,
+					actualCreditsOverride: body.actualCreditsOverride === true,
+					reservedCredits: body.reservedCredits,
+					actualUsd: Number.isFinite(Number(body.actualUsd ?? body.usd)) ? Number(body.actualUsd ?? body.usd) : null,
+					source: typeof body.source === 'string' ? body.source : 'runner',
+				});
+				const effectiveCredits = hasNativeUsage || phase === 'task_completed_actual_settlement'
+					? actualCreditCalculation.actualCredits
+					: Number(body.credits);
 				let entry = null;
 				let settlement = null;
 				if (body.reservationId && phase === 'task_completed_actual_settlement') {
@@ -8018,12 +8148,15 @@ export function createMarketApiApp(options = {}) {
 					if (!reservation) return jsonError(c, 404, 'Unknown capacity reservation.');
 					settlement = settleCapacityActuals({
 						reservation,
-						actualCredits: Number(body.credits ?? 0),
+						actualCredits: effectiveCredits,
 						actualProviderUnits: Number.isFinite(Number(body.providerUnits)) ? Number(body.providerUnits) : null,
 						actualUsd: Number.isFinite(Number(body.usd)) ? Number(body.usd) : null,
 						taskId: typeof body.taskId === 'string' ? body.taskId : null,
 						source: typeof body.source === 'string' ? body.source : 'runner',
-						metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : {},
+						metadata: {
+							...(body.metadata && typeof body.metadata === 'object' ? body.metadata : {}),
+							actualCreditCalculation,
+						},
 					});
 					entry = await store.recordCapacityUsage(settlement.consumeEntry);
 					if (settlement.releaseEntry) await store.recordCapacityUsage(settlement.releaseEntry);
@@ -8031,6 +8164,7 @@ export function createMarketApiApp(options = {}) {
 				} else {
 					entry = await store.recordCapacityUsage({
 						...body,
+						credits: effectiveCredits,
 						teamId: typeof body.teamId === 'string' ? body.teamId : project.teamId,
 						projectId: c.req.param('projectId'),
 					});
@@ -8040,13 +8174,14 @@ export function createMarketApiApp(options = {}) {
 						workDayId: String(body.workDayId),
 						taskId: typeof body.taskId === 'string' ? body.taskId : null,
 						phase: 'consume',
-						credits: Number(body.credits),
+						credits: effectiveCredits,
 						metadata: {
 							capacityProviderId: body.capacityProviderId,
 							laneId: body.laneId ?? null,
 							reservationId: body.reservationId ?? null,
 							providerUnits: body.providerUnits ?? null,
 							usd: body.usd ?? null,
+							actualCreditCalculation,
 						},
 					});
 				}
@@ -8059,10 +8194,18 @@ export function createMarketApiApp(options = {}) {
 						workDayId: body.usageActual.workDayId ?? body.workDayId ?? null,
 						executionProfileId: body.usageActual.executionProfileId ?? body.executionProfileId ?? body.metadata?.executionProfileId ?? null,
 						capacityProviderId: body.usageActual.capacityProviderId ?? body.capacityProviderId,
+						executionProviderId: body.usageActual.executionProviderId ?? body.executionProviderId ?? null,
 						laneId: body.usageActual.laneId ?? body.laneId ?? null,
+						actualCredits: body.usageActual.actualCredits ?? body.credits ?? null,
+						actualCreditsOverride: body.usageActual.actualCreditsOverride === true,
+						nativeUsage: hasNativeUsage ? nativeUsage : null,
+						metadata: {
+							...(body.usageActual.metadata && typeof body.usageActual.metadata === 'object' ? body.usageActual.metadata : {}),
+							actualCreditCalculation,
+						},
 					});
 				}
-				return c.json({ ok: true, payload: { entry, settlement, usageActual } }, { status: 201 });
+				return c.json({ ok: true, payload: { entry, settlement, usageActual, actualCreditCalculation } }, { status: 201 });
 			});
 
 			app.post('/v1/projects/:projectId/runner/capacity/routing-decisions', async (c) => {

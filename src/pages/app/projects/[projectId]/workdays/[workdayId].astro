@@ -8,14 +8,16 @@ import ProjectControlNav from '../../../../../components/app/controls/ProjectCon
 import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
 import { buildWorkdayProjection } from '../../../../../lib/market/workday-projection.js';
 import { escapeHtml as esc } from '../../../../../lib/market/control-ui.js';
+import { createMarketApiFacade } from '../../../../../lib/market/api-client';
 import { loadOperationalContext } from '../../../../../view-models/shared.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
 const workdayId = String(Astro.params.workdayId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 const context = await loadOperationalContext(Astro.locals, Astro);
+const marketApi = createMarketApiFacade(Astro);
 const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
-const projection = project && context.store ? await buildWorkdayProjection({ store: context.store, principal: context.principal, projects: [project], workdayId }).catch(() => null) : null;
+const projection = project ? await buildWorkdayProjection({ store: marketApi, principal: context.principal, projects: [project], workdayId }).catch(() => null) : null;
 if (!project || !projection) Astro.response.status = 404;
 const workday = projection?.workday ?? null;
 const agentRows = (projection?.agentActivity ?? []).map((agent: any) => ({
@@ -41,6 +43,35 @@ const artifactRows = (projection?.artifacts ?? []).map((artifact: any) => ({
 	action: artifact.href ? `<a class="ts-link-button" href="${esc(artifact.href)}">Open</a>` : '',
 }));
 const capacity = projection?.capacity ?? {};
+const nativeUsageRows = (capacity?.nativeUsage ?? []).map((usage: any) => ({
+	id: `native-usage-${esc(usage.id)}`,
+	name: `<strong>${esc(usage.taskId || usage.id)}</strong><span>${esc(usage.source || 'actual')}</span>`,
+	nativeUsage: esc(usage.amount == null ? 'not reported' : `${usage.amount} ${usage.nativeUnit || 'native units'}`),
+	actualCredits: esc(usage.actualCredits ?? 'learning'),
+}));
+const derivedRows = (capacity?.derivedEntries ?? []).map((entry: any) => ({
+	id: `derived-${esc(entry.executionProviderId ?? entry.nativeUnit ?? Math.random().toString(36).slice(2))}`,
+	name: `<strong>${esc(entry.executionProviderKind ?? entry.executionProviderId ?? 'Native provider')}</strong><span>${esc(entry.nativeUnit ?? 'native unit')}</span>`,
+	availableNative: esc(`${entry.availableNativeAmount ?? 0} ${entry.nativeUnit ?? ''}`.trim()),
+	reservedNative: esc(`${entry.activeReservedNativeAmount ?? 0} ${entry.nativeUnit ?? ''}`.trim()),
+	derivedCredits: esc(entry.derivedAvailableCredits == null ? 'learning' : entry.derivedAvailableCredits),
+	confidence: esc(entry.confidence ?? entry.conversionConfidence ?? 'learning'),
+	reasons: esc(Array.isArray(entry.reasons) ? entry.reasons.join(', ') : ''),
+}));
+const reservationRows = (capacity?.reservations ?? []).map((reservation: any) => ({
+	id: `reservation-${esc(reservation.id)}`,
+	name: `<strong>${esc(reservation.taskId ?? reservation.id)}</strong><span>${esc(reservation.state ?? 'reserved')}</span>`,
+	credits: esc(`${reservation.reservedCredits ?? 0} reserved / ${reservation.consumedCredits ?? 0} consumed`),
+	nativePressure: esc(reservation.nativeUnit ? `${reservation.reservedNativeAmount ?? 0} reserved / ${reservation.consumedNativeAmount ?? 0} consumed ${reservation.nativeUnit}` : 'legacy credit reservation'),
+	provider: esc(reservation.executionProviderId ?? reservation.capacityProviderId ?? 'not recorded'),
+}));
+const routingRows = (capacity?.routingDecisions ?? []).map((decision: any) => ({
+	id: `routing-${esc(decision.id)}`,
+	name: `<strong>${esc(decision.decision ?? 'decision')}</strong><span>${esc(decision.reason ?? '')}</span>`,
+	capacity: esc(decision.metadata?.derivedCapacityMode ? `${decision.metadata.derivedCapacityMode}; ${decision.metadata.derivedAvailableCredits ?? 'learning'} derived credits` : decision.metadata?.summary ?? ''),
+	nativePressure: esc(decision.metadata?.nativeUnit ? `${decision.metadata.reservedNativeAmount ?? 0} ${decision.metadata.nativeUnit}` : decision.metadata?.blockingReason ?? ''),
+	created: esc(decision.createdAt ?? ''),
+}));
 ---
 
 <TreeseedAppLayout title={workday?.objective ?? 'Workday'} description="Agent workday dashboard." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
@@ -55,7 +86,15 @@ const capacity = projection?.capacity ?? {};
 					{ key: 'Ended', value: workday.endedAt ?? 'not recorded' },
 					{ key: 'Credits used', value: String(workday.budget?.capacityUsed ?? capacity?.usedCredits ?? 0) },
 					{ key: 'Credit budget', value: String(workday.budget?.capacityBudget ?? capacity?.dailyCreditLimit ?? 0) },
+					{ key: 'Reserved native', value: String(capacity?.totalReservedNative ?? 0) },
+					{ key: 'Consumed native', value: String(capacity?.totalConsumedNative ?? 0) },
 				]} />
+			</Panel>
+			<Panel eyebrow="Capacity" title="Native and derived capacity" description="Native usage, derived balances, and reservation pressure for this workday.">
+				<PlainTable columns={[{ key: 'name', label: 'Provider' }, { key: 'availableNative', label: 'Available native' }, { key: 'reservedNative', label: 'Reserved native' }, { key: 'derivedCredits', label: 'Derived credits' }, { key: 'confidence', label: 'Confidence' }, { key: 'reasons', label: 'Reasons' }]} rows={derivedRows} emptyTitle="No derived capacity" emptyDescription="Derived balances appear after the Market API records native provider capacity and conversion profiles." />
+				<PlainTable columns={[{ key: 'name', label: 'Task' }, { key: 'nativeUsage', label: 'Native usage' }, { key: 'actualCredits', label: 'Actual credits' }]} rows={nativeUsageRows} emptyTitle="No native usage actuals" emptyDescription="Native usage appears after completed tasks report wall minutes, USD, or tokens." />
+				<PlainTable columns={[{ key: 'name', label: 'Reservation' }, { key: 'credits', label: 'Credits' }, { key: 'nativePressure', label: 'Native pressure' }, { key: 'provider', label: 'Provider' }]} rows={reservationRows} emptyTitle="No reservations" emptyDescription="Reservations appear after task admission." />
+				<PlainTable columns={[{ key: 'name', label: 'Decision' }, { key: 'capacity', label: 'Derived capacity' }, { key: 'nativePressure', label: 'Native pressure' }, { key: 'created', label: 'Created' }]} rows={routingRows} emptyTitle="No routing decisions" emptyDescription="Routing explanations appear after task admission or capacity blocks." />
 			</Panel>
 			<Panel eyebrow="Agents" title="Agent activity" description="Tasks, completions, and failures grouped by agent for this workday.">
 				<PlainTable columns={[{ key: 'name', label: 'Agent' }, { key: 'tasks', label: 'Tasks' }, { key: 'completed', label: 'Completed' }, { key: 'failed', label: 'Failed' }, { key: 'action', label: 'Action' }]} rows={agentRows} emptyTitle="No agent activity" emptyDescription="Agent activity appears after tasks are recorded for this workday." interactive={true} pageSize={10} searchLabel="Filter agents" />

@@ -194,6 +194,37 @@ capacityProviders:
     name: treeseed-local-dev
 ```
 
+Native-capacity providers declare execution providers and native limits directly. Humans enter facts they can forecast, such as wall minutes, USD, tokens, concurrency, reset cadence, quota visibility, and reserve buffers. Static provider credit budgets are compatibility data only.
+
+```yaml
+capacityProviders:
+  - key: capacity-provider:treeseed/local-dev
+    environments: [local]
+    team: team:treeseed
+    name: treeseed-local-dev
+    kind: local
+    provider: local
+    billingScope: team
+    creditBudgetMode: derived
+    maxConcurrentWorkers: 4
+    executionProviders:
+      - id: treeseed-local-codex
+        name: Local Codex capacity
+        kind: codex_subscription
+        nativeUnit: wall_minute
+        quotaVisibility: opaque
+        maxConcurrentWorkers: 4
+        resetCadence: daily
+        nativeLimits:
+          - scope: daily
+            nativeUnit: wall_minute
+            limitAmount: 480
+            reserveBufferPercent: 20
+            resetCadence: daily
+            confidence: estimated
+            source: configured
+```
+
 ---
 
 ## Initial `treeseed.yaml` Seed
@@ -319,25 +350,25 @@ capacityProviders:
     kind: local
     provider: local
     billingScope: team
-    monthlyCreditBudget: 100000
-    dailyCreditBudget: 10000
+    creditBudgetMode: derived
     maxConcurrentWorkdays: 2
     maxConcurrentWorkers: 4
-    lanes:
-      - key: lane:treeseed/local-dev/codex
-        name: local-codex
-        businessModel: subscription
-        modelFamily: codex
-        modelClass: coding_agent
-        unit: treeseed_credit
-        scarcityLevel: low
-      - key: lane:treeseed/local-dev/worker
-        name: local-worker
-        businessModel: local
-        modelFamily: local
-        modelClass: worker
-        unit: worker_minute
-        scarcityLevel: medium
+    executionProviders:
+      - id: treeseed-local-codex
+        name: Local Codex capacity
+        kind: codex_subscription
+        nativeUnit: wall_minute
+        quotaVisibility: opaque
+        maxConcurrentWorkers: 4
+        resetCadence: daily
+        nativeLimits:
+          - scope: daily
+            nativeUnit: wall_minute
+            limitAmount: 480
+            reserveBufferPercent: 20
+            resetCadence: daily
+            confidence: estimated
+            source: configured
 
   - key: capacity-provider:treeseed/production
     environments: [staging, prod]
@@ -346,38 +377,41 @@ capacityProviders:
     kind: managed
     provider: railway
     billingScope: team
-    monthlyCreditBudget: 50000
-    dailyCreditBudget: 5000
+    creditBudgetMode: derived
     maxConcurrentWorkdays: 2
     maxConcurrentWorkers: 8
-    lanes:
-      - key: lane:treeseed/production/codex
-        name: codex-production
-        businessModel: subscription
-        modelFamily: codex
-        modelClass: coding_agent
-        unit: treeseed_credit
-        scarcityLevel: high
-      - key: lane:treeseed/production/workday-runner
-        name: workday-runner
-        businessModel: managed_runtime
-        modelFamily: railway
-        modelClass: worker_pool
-        unit: quota_minute
-        scarcityLevel: medium
+    executionProviders:
+      - id: treeseed-production-openrouter
+        name: Production OpenRouter budget
+        kind: openrouter
+        nativeUnit: usd
+        quotaVisibility: exact
+        maxConcurrentWorkers: 8
+        resetCadence: monthly
+        nativeLimits:
+          - scope: monthly
+            nativeUnit: usd
+            limitAmount: 75
+            reserveBufferPercent: 10
+            resetCadence: monthly
+            confidence: exact
+            source: configured
 ```
 
 ### Capacity Grants
 
 ```yaml
 capacityGrants:
-  - key: grant:treeseed/local-dev/all-projects
+  - key: capacity-grant:treeseed/local/market
     environments: [local]
     provider: capacity-provider:treeseed/local-dev
     team: team:treeseed
-    grantScope: team
-    dailyCreditLimit: 10000
-    monthlyCreditLimit: 100000
+    project: project:treeseed/market
+    environment: local
+    grantScope: project
+    portfolioAllocationPercent: 100
+    reservePoolPercent: 10
+    maxDailyProjectCredits: 5000
     priorityWeight: 1
     overflowPolicy: soft_grant
 
@@ -387,8 +421,9 @@ capacityGrants:
     team: team:treeseed
     project: project:treeseed/market
     grantScope: project
-    dailyCreditLimit: 2500
-    monthlyCreditLimit: 25000
+    portfolioAllocationPercent: 40
+    reservePoolPercent: 10
+    maxDailyProjectCredits: 2500
     priorityWeight: 10
     overflowPolicy: approval_required
 
@@ -438,6 +473,8 @@ capacityGrants:
 ```
 
 ### Work Policies
+
+Work policy `dailyCreditBudget` and queued-credit limits are governance caps for a project workday. They are not provider inventory. Capacity provider availability is seeded through `capacityProviders[].executionProviders[].nativeLimits[]` and converted to credits by the Market capacity model.
 
 ```yaml
 workPolicies:
@@ -541,9 +578,10 @@ Implement a strict schema with clear errors.
 Recommended files:
 
 ```text
-src/lib/market/seeds/schema.ts
-src/lib/market/seeds/types.ts
-src/lib/market/seeds/errors.ts
+packages/sdk/src/seeds/schema.ts
+packages/sdk/src/seeds/types.ts
+packages/sdk/src/seeds/errors.ts
+src/lib/market/seeds/apply.js
 ```
 
 Validation should catch:

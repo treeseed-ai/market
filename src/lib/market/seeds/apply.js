@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { NodeSqliteD1Database } from '@treeseed/sdk/db/node-sqlite';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { loadAndPlanSeed } from '@treeseed/sdk/seeds';
 import YAML from 'yaml';
+import { createMarketPostgresDatabase } from '../../../api/market-postgres.js';
 import { MarketControlPlaneStore } from '../../../api/store.js';
 
 function isoNow() {
@@ -81,24 +81,55 @@ function emptyObjectAsNull(value) {
 	return value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0 ? null : value ?? null;
 }
 
-export async function resolveLocalSeedPersistTo(projectRoot, env = process.env) {
-	if (env.TREESEED_API_D1_LOCAL_PERSIST_TO?.trim()) {
-		return env.TREESEED_API_D1_LOCAL_PERSIST_TO.trim();
-	}
-	const generatedWranglerConfig = resolve(projectRoot, '.treeseed', 'generated', 'environments', 'local', 'wrangler.toml');
-	if (existsSync(generatedWranglerConfig)) {
-		const d1Root = resolve(dirname(generatedWranglerConfig), '.wrangler', 'state', 'v3', 'd1');
-		const miniflareD1Root = resolve(d1Root, 'miniflare-D1DatabaseObject');
-		if (existsSync(miniflareD1Root)) {
-			const existingDatabase = readdirSync(miniflareD1Root)
-				.filter((entry) => /\.sqlite$/u.test(entry) && entry !== 'metadata.sqlite')
-				.sort()
-				.map((entry) => join(miniflareD1Root, entry))[0];
-			if (existingDatabase) return existingDatabase;
-		}
-		return d1Root;
-	}
-	return resolve(projectRoot, '.wrangler', 'state', 'v3', 'd1');
+function zeroAsNull(value) {
+	return Number(value ?? 0) === 0 ? null : Number(value);
+}
+
+function normalizeNativeLimits(limits, desiredLimits = []) {
+	return (Array.isArray(limits) ? limits : [])
+		.map((limit) => {
+			const desired = desiredLimits.find((entry) => (
+				(entry.id && entry.id === limit.id)
+				|| ((entry.scope ?? entry.limitScope ?? 'daily') === (limit.scope ?? 'daily') && (entry.nativeUnit ?? limit.nativeUnit) === limit.nativeUnit)
+			)) ?? null;
+			return {
+				id: desired?.id ? limit.id ?? undefined : undefined,
+				scope: limit.scope ?? undefined,
+				nativeUnit: limit.nativeUnit ?? undefined,
+				limitAmount: Number(limit.limitAmount ?? 0),
+				reserveBufferPercent: limit.reserveBufferPercent ?? undefined,
+				resetCadence: limit.resetCadence ?? undefined,
+				resetAt: limit.resetAt ?? undefined,
+				confidence: limit.confidence ?? undefined,
+				source: limit.source ?? undefined,
+				metadata: emptyObjectAsNull(limit.metadata) ?? undefined,
+			};
+		})
+		.sort(sortBy((limit) => limit.id, (limit) => limit.scope, (limit) => limit.nativeUnit));
+}
+
+function normalizeExecutionProviders(executionProviders, desiredProviders = []) {
+	return (Array.isArray(executionProviders) ? executionProviders : [])
+		.map((provider) => {
+			const desired = desiredProviders.find((entry) => (
+				(entry.id && entry.id === provider.id)
+				|| (entry.name === provider.name && entry.kind === provider.kind)
+			)) ?? null;
+			return {
+				id: desired?.id ? provider.id ?? undefined : undefined,
+				name: provider.name,
+				kind: provider.kind,
+				status: desired?.status ? provider.status ?? undefined : undefined,
+				nativeUnit: provider.nativeUnit,
+				quotaVisibility: provider.quotaVisibility ?? undefined,
+				maxConcurrentWorkers: provider.maxConcurrentWorkers ?? undefined,
+				resetCadence: provider.resetCadence ?? undefined,
+				config: emptyObjectAsNull(provider.config) ?? undefined,
+				metadata: emptyObjectAsNull(provider.metadata) ?? undefined,
+				nativeLimits: normalizeNativeLimits(provider.nativeLimits, desired?.nativeLimits ?? []),
+			};
+		})
+		.sort(sortBy((provider) => provider.id, (provider) => provider.name, (provider) => provider.kind));
 }
 
 function parseTomlStringValue(value) {
@@ -145,7 +176,11 @@ export function resolveLocalSeedEnv(projectRoot, env = process.env) {
 
 async function createLocalSeedStore(projectRoot, env = process.env) {
 	const localEnv = resolveLocalSeedEnv(projectRoot, env);
-	const db = new NodeSqliteD1Database(await resolveLocalSeedPersistTo(projectRoot, localEnv));
+	const marketDatabaseUrl = localEnv.TREESEED_MARKET_DATABASE_URL?.trim();
+	if (!marketDatabaseUrl) {
+		throw new Error('TREESEED_MARKET_DATABASE_URL is required to apply Market seeds through the PostgreSQL control-plane database.');
+	}
+	const db = createMarketPostgresDatabase(marketDatabaseUrl);
 	return new MarketControlPlaneStore({
 		repoRoot: projectRoot,
 		projectId: localEnv.TREESEED_PROJECT_ID ?? 'treeseed-market',
@@ -342,20 +377,25 @@ function hubRepositoryCurrentPayload(action, repository) {
 	};
 }
 
-function providerCurrentPayload(action, provider) {
+async function providerCurrentPayload(store, teamId, action, provider) {
 	if (!provider) return null;
+	const executionProviders = teamId && typeof store.listExecutionProviders === 'function'
+		? await store.listExecutionProviders(teamId, provider.id)
+		: [];
 	return {
 		teamKey: action.payload.teamKey,
 		name: provider.name,
 		kind: providerManifestKind(provider),
 		provider: provider.provider,
 		billingScope: provider.billingScope ?? null,
-		monthlyCreditBudget: provider.monthlyCreditBudget ?? null,
-		dailyCreditBudget: provider.dailyCreditBudget ?? null,
+			creditBudgetMode: provider.creditBudgetMode ?? 'derived',
+		monthlyCreditBudget: zeroAsNull(provider.monthlyCreditBudget),
+		dailyCreditBudget: zeroAsNull(provider.dailyCreditBudget),
 		maxConcurrentWorkdays: provider.maxConcurrentWorkdays ?? null,
 		maxConcurrentWorkers: provider.maxConcurrentWorkers ?? null,
 		capacityModel: emptyObjectAsNull(provider.capacityModel),
 		registration: action.payload.registration ?? null,
+		executionProviders: normalizeExecutionProviders(executionProviders, action.payload.executionProviders ?? []),
 		metadata: action.payload.metadata,
 	};
 }
@@ -392,6 +432,10 @@ function grantCurrentPayload(action, grant) {
 		dailyUsdLimit: grant.dailyUsdLimit ?? null,
 		weeklyQuotaMinutes: grant.weeklyQuotaMinutes ?? null,
 		monthlyProviderUnits: grant.monthlyProviderUnits ?? null,
+		portfolioAllocationPercent: grant.portfolioAllocationPercent ?? null,
+		reservePoolPercent: grant.reservePoolPercent ?? null,
+		maxDailyProjectCredits: grant.maxDailyProjectCredits ?? null,
+		emergencyOverride: action.payload.emergencyOverride === true ? grant.emergencyOverride === true : null,
 		priorityWeight: grant.priorityWeight ?? null,
 		overflowPolicy: grant.overflowPolicy ?? null,
 		state: action.payload.state ?? (grant.state === 'active' ? null : grant.state ?? null),
@@ -555,7 +599,7 @@ async function reconcilePlanWithStore(plan, store) {
 			const teamId = teamIds.get(action.payload.teamKey);
 			existing = teamId ? await findProviderByName(store, teamId, action.payload.name) : null;
 			if (existing) providerIds.set(action.key, existing.id);
-			currentPayload = providerCurrentPayload(action, existing);
+			currentPayload = await providerCurrentPayload(store, teamId, action, existing);
 		}
 		if (action.kind === 'capacityLane') {
 			const providerId = providerIds.get(action.payload.providerKey);
@@ -726,10 +770,11 @@ async function applyAction({ action, store, ids, manifestHash, appliedAt, plan }
 				name: action.payload.name,
 				kind: normalizeProviderKind(action.payload.kind),
 				status: 'active',
-				provider: action.payload.provider,
-				billingScope: action.payload.billingScope ?? 'team',
-				monthlyCreditBudget: action.payload.monthlyCreditBudget ?? 0,
-				dailyCreditBudget: action.payload.dailyCreditBudget ?? 0,
+					provider: action.payload.provider,
+					billingScope: action.payload.billingScope ?? 'team',
+					creditBudgetMode: action.payload.creditBudgetMode ?? 'derived',
+					monthlyCreditBudget: action.payload.monthlyCreditBudget ?? 0,
+					dailyCreditBudget: action.payload.dailyCreditBudget ?? 0,
 				maxConcurrentWorkdays: action.payload.maxConcurrentWorkdays ?? 1,
 				maxConcurrentWorkers: action.payload.maxConcurrentWorkers ?? 1,
 				capacityModel: action.payload.capacityModel ?? {},
@@ -742,6 +787,9 @@ async function applyAction({ action, store, ids, manifestHash, appliedAt, plan }
 			throw new Error(`Unable to upsert capacity provider ${action.key} for team ${teamId}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 		ids.providers.set(action.key, provider.id);
+		for (const executionProvider of action.payload.executionProviders ?? []) {
+			await store.upsertExecutionProvider(teamId, provider.id, executionProvider);
+		}
 		return provider;
 	}
 	if (action.kind === 'capacityLane') {
@@ -784,6 +832,10 @@ async function applyAction({ action, store, ids, manifestHash, appliedAt, plan }
 			dailyUsdLimit: action.payload.dailyUsdLimit,
 			weeklyQuotaMinutes: action.payload.weeklyQuotaMinutes,
 			monthlyProviderUnits: action.payload.monthlyProviderUnits,
+			portfolioAllocationPercent: action.payload.portfolioAllocationPercent,
+			reservePoolPercent: action.payload.reservePoolPercent,
+			maxDailyProjectCredits: action.payload.maxDailyProjectCredits,
+			emergencyOverride: action.payload.emergencyOverride,
 			priorityWeight: action.payload.priorityWeight ?? 1,
 			overflowPolicy: action.payload.overflowPolicy ?? 'soft_grant',
 			metadata,
@@ -1383,12 +1435,18 @@ export async function exportSeedWithStore(input) {
 			kind: providerManifestKind(provider),
 			provider: provider.provider,
 			billingScope: provider.billingScope,
-			monthlyCreditBudget: provider.monthlyCreditBudget,
-			dailyCreditBudget: provider.dailyCreditBudget,
 			maxConcurrentWorkdays: provider.maxConcurrentWorkdays,
 			maxConcurrentWorkers: provider.maxConcurrentWorkers,
 			lanes: [],
 		};
+			maybeAssign(resource, 'creditBudgetMode', provider.creditBudgetMode ?? 'derived');
+		if (Number(provider.monthlyCreditBudget ?? 0) > 0) resource.monthlyCreditBudget = provider.monthlyCreditBudget;
+		if (Number(provider.dailyCreditBudget ?? 0) > 0) resource.dailyCreditBudget = provider.dailyCreditBudget;
+		if (typeof input.store.listExecutionProviders === 'function') {
+			const rawExecutionProviders = await input.store.listExecutionProviders(team.id, provider.id);
+			const executionProviders = normalizeExecutionProviders(rawExecutionProviders, rawExecutionProviders);
+			if (executionProviders.length > 0) resource.executionProviders = executionProviders;
+		}
 		const metadata = exportMetadata(provider.metadata);
 		if (metadata) resource.metadata = metadata;
 		for (const lane of (await input.store.listCapacityProviderLanes(team.id, provider.id)).sort(sortBy((lane) => lane.name))) {
@@ -1428,6 +1486,10 @@ export async function exportSeedWithStore(input) {
 			dailyUsdLimit: grant.dailyUsdLimit,
 			weeklyQuotaMinutes: grant.weeklyQuotaMinutes,
 			monthlyProviderUnits: grant.monthlyProviderUnits,
+			portfolioAllocationPercent: grant.portfolioAllocationPercent,
+			reservePoolPercent: grant.reservePoolPercent,
+			maxDailyProjectCredits: grant.maxDailyProjectCredits,
+			emergencyOverride: grant.emergencyOverride,
 			priorityWeight: grant.priorityWeight,
 			overflowPolicy: grant.overflowPolicy,
 			state: grant.state === 'active' ? undefined : grant.state,

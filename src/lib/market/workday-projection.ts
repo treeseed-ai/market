@@ -100,10 +100,11 @@ async function loadProjectWorkdayBundle(store: any, principal: any, project: any
 	}
 
 	const workday = normalizeWorkday(project, source, runtime, summary);
-	const [projectSummary, tasks, approvals, capacitySummary, ledgerEntries, routingDecisions] = await Promise.all([
+	const [projectSummary, tasks, approvals, capacityOperations, capacitySummary, ledgerEntries, routingDecisions] = await Promise.all([
 		typeof store.getProjectSummary === 'function' ? store.getProjectSummary(projectId, principal).catch(() => null) : null,
 		typeof store.listRuntimeTasks === 'function' ? store.listRuntimeTasks(projectId, { workDayId: workday.id, limit: 1000 }).catch(() => []) : [],
 		typeof store.listApprovalRequestsForProject === 'function' ? store.listApprovalRequestsForProject(projectId, 200).catch(() => []) : [],
+		typeof store.getProjectCapacityOperations === 'function' ? store.getProjectCapacityOperations(projectId, workday.environment).catch(() => null) : null,
 		typeof store.getProjectCapacitySummary === 'function' ? store.getProjectCapacitySummary(projectId, workday.environment).catch(() => null) : null,
 		typeof store.listCapacityLedgerEntries === 'function' ? store.listCapacityLedgerEntries(projectId, workday.id).catch(() => []) : [],
 		typeof store.listCapacityRoutingDecisionsForProject === 'function' ? store.listCapacityRoutingDecisionsForProject(projectId, 200).catch(() => []) : [],
@@ -130,9 +131,12 @@ async function loadProjectWorkdayBundle(store: any, principal: any, project: any
 		projectSummary,
 		taskDetails,
 		approvals: safeArray(approvals).filter((approval: any) => !workdayRef(approval) || workdayRef(approval) === workday.id),
-		capacitySummary,
-		ledgerEntries: safeArray(ledgerEntries),
-		routingDecisions: safeArray(routingDecisions).filter((decision: any) => !workdayRef(decision) || workdayRef(decision) === workday.id),
+		capacityOperations,
+		capacitySummary: capacityOperations?.summary ?? capacitySummary,
+		ledgerEntries: safeArray(capacityOperations?.ledgerEntries ?? ledgerEntries),
+		routingDecisions: safeArray(capacityOperations?.routingDecisions ?? routingDecisions).filter((decision: any) => !workdayRef(decision) || workdayRef(decision) === workday.id),
+		reservations: safeArray(capacityOperations?.reservations),
+		usageActuals: safeArray(capacityOperations?.usageActuals).filter((actual: any) => !workdayRef(actual) || workdayRef(actual) === workday.id),
 	};
 }
 
@@ -375,12 +379,29 @@ function currentPhase(phases: OperationalPhase[], workday: any) {
 function capacityProjection(bundle: any) {
 	const ledgerEntries = safeArray(bundle.ledgerEntries);
 	const routingDecisions = safeArray(bundle.routingDecisions);
+	const reservations = safeArray(bundle.reservations).filter((reservation: any) => !workdayRef(reservation) || workdayRef(reservation) === bundle.workday.id);
+	const usageActuals = safeArray(bundle.usageActuals);
+	const derivedEntries = safeArray(bundle.capacitySummary?.derivedCapacity?.entries ?? bundle.capacityOperations?.plan?.derivedCapacity?.entries);
+	const nativeUsage = usageActuals.map((actual: any) => ({
+		id: compact(actual?.id, compact(actual?.taskId, 'usage')),
+		taskId: compact(actual?.taskId ?? actual?.task_id, ''),
+		nativeUnit: compact(actual?.nativeUsage?.nativeUnit ?? actual?.native_usage?.nativeUnit ?? actual?.nativeUnit, ''),
+		amount: numberOrNull(actual?.nativeUsage?.amount ?? actual?.nativeUsage?.nativeAmount ?? actual?.nativeUsage?.usd ?? actual?.nativeUsage?.wallMinutes ?? actual?.nativeUsage?.quotaMinutes),
+		actualCredits: numberOrNull(actual?.actualCredits ?? actual?.actual_credits),
+		source: compact(actual?.actualCreditsSource ?? actual?.actual_credits_source ?? actual?.source, ''),
+	}));
 	return {
 		summary: bundle.capacitySummary ?? null,
 		ledgerEntries,
 		routingDecisions,
+		reservations,
+		usageActuals,
+		nativeUsage,
+		derivedEntries,
 		totalCredits: ledgerEntries.reduce((sum: number, entry: any) => sum + numberValue(entry?.credits, 0), 0),
 		totalUsd: ledgerEntries.reduce((sum: number, entry: any) => sum + numberValue(entry?.usd, 0), 0),
+		totalReservedNative: reservations.reduce((sum: number, reservation: any) => sum + numberValue(reservation?.reservedNativeAmount, 0), 0),
+		totalConsumedNative: reservations.reduce((sum: number, reservation: any) => sum + numberValue(reservation?.consumedNativeAmount, 0), 0),
 		routingDecisionCount: routingDecisions.length,
 	};
 }
@@ -503,6 +524,11 @@ function parseJson(value: unknown, fallback: any) {
 function numberValue(value: unknown, fallback = 0): number {
 	const next = Number(value);
 	return Number.isFinite(next) ? next : fallback;
+}
+
+function numberOrNull(value: unknown): number | null {
+	const next = Number(value);
+	return Number.isFinite(next) ? next : null;
 }
 
 function compareTimelineAsc(left: OperationalTimelineEvent, right: OperationalTimelineEvent): number {

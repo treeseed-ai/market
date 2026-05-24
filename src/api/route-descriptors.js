@@ -33,11 +33,18 @@ export const SDK_METHOD_ROUTE_MAP = {
 	projects: 'get.v1.projects',
 	projectAccess: 'get.v1.projects.projectId.access',
 	teamCapacity: 'get.v1.teams.teamId.capacity',
+	teamCapacityProviders: 'get.v1.teams.teamId.capacity-providers',
+	updateCapacityProvider: 'patch.v1.teams.teamId.capacity-providers.providerId',
 	launchManagedCapacityProvider: 'post.v1.teams.teamId.capacity.providers.managed',
 	capacityProvider: 'get.v1.capacity.providers.providerId',
 	rotateCapacityProviderApiKey: 'post.v1.teams.teamId.capacity-providers.providerId.keys.rotate',
 	capacityGrants: 'get.v1.teams.teamId.capacity-grants',
 	createCapacityGrant: 'post.v1.teams.teamId.capacity-grants',
+	executionProviders: 'get.v1.teams.teamId.capacity-providers.providerId.execution-providers',
+	createExecutionProvider: 'post.v1.teams.teamId.capacity-providers.providerId.execution-providers',
+	updateExecutionProvider: 'patch.v1.teams.teamId.capacity-providers.providerId.execution-providers.executionProviderId',
+	createExecutionProviderNativeLimit: 'post.v1.teams.teamId.capacity-providers.providerId.execution-providers.executionProviderId.native-limits',
+	projectCapacityPlan: 'get.v1.projects.projectId.capacity-plan',
 	planSeed: 'post.v1.seeds.name.plan',
 	applySeed: 'post.v1.seeds.name.apply',
 	listSeedRuns: 'get.v1.seeds.runs',
@@ -216,6 +223,8 @@ function bodyFactoryFor(path, method) {
 	if (path.includes('/teams') && (path.includes('/web-hosts') || path.includes('/hosts'))) return method === 'delete' ? 'empty' : path.endsWith('/validate') ? 'hostValidate' : 'webHost';
 	if (path.includes('/teams') && path.includes('/capacity-providers') && path.endsWith('/deployments')) return 'capacityProviderDeployment';
 	if (path.includes('/teams') && path.includes('/capacity-providers') && path.endsWith('/keys/rotate')) return 'empty';
+	if (path.includes('/teams') && path.includes('/capacity-providers') && path.endsWith('/native-limits')) return 'executionProviderNativeLimit';
+	if (path.includes('/teams') && path.includes('/capacity-providers') && path.includes('/execution-providers')) return 'executionProvider';
 	if (path.includes('/teams') && path.includes('/capacity-providers')) return method === 'patch' ? 'capacityProviderPatch' : 'capacityProviderCreate';
 	if (path.includes('/teams') && path.includes('/capacity-grants')) return 'capacityGrant';
 	if (path.includes('/teams') && path.includes('/provider-credential-sessions')) return 'providerCredentialSession';

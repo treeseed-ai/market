@@ -42,10 +42,25 @@ resources:
       kind: local
       provider: local
       billingScope: team
-      monthlyCreditBudget: 100000
-      dailyCreditBudget: 10000
+      creditBudgetMode: derived
       maxConcurrentWorkdays: 2
       maxConcurrentWorkers: 4
+      executionProviders:
+        - id: treeseed-local-codex
+          name: Local Codex capacity
+          kind: codex_subscription
+          nativeUnit: wall_minute
+          quotaVisibility: opaque
+          maxConcurrentWorkers: 4
+          resetCadence: daily
+          nativeLimits:
+            - scope: daily
+              nativeUnit: wall_minute
+              limitAmount: 480
+              reserveBufferPercent: 20
+              resetCadence: daily
+              confidence: estimated
+              source: configured
       registration:
         apiKey:
           createIfMissing: true
@@ -60,7 +75,19 @@ resources:
             - provider:reports:write
             - provider:capabilities:write
 
-  capacityGrants: []
+  capacityGrants:
+    - key: capacity-grant:treeseed/local/market
+      environments: [local]
+      provider: capacity-provider:treeseed/local-dev
+      team: team:treeseed
+      project: project:treeseed/market
+      environment: local
+      grantScope: project
+      portfolioAllocationPercent: 100
+      reservePoolPercent: 10
+      maxDailyProjectCredits: 5000
+      priorityWeight: 1
+      overflowPolicy: soft_grant
 
   workPolicies:
     - key: work-policy:treeseed/local/market

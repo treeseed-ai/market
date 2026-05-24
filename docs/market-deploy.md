@@ -138,7 +138,7 @@ Provisioning is the step that should create or reconcile:
 
 - Cloudflare Pages
 - Cloudflare Worker
-- Cloudflare D1
+- Cloudflare D1 for static knowledge-hub form storage only
 - Cloudflare Queue and DLQ
 - Cloudflare R2
 - Railway `api`
@@ -185,7 +185,7 @@ After deployment:
 
 - confirm environment state remains `provisioned`
 - confirm managed services report `deployed` where expected
-- confirm monitor endpoints pass for pages, API, D1, queue, and R2
+- confirm monitor endpoints pass for pages, API, static-hub D1 form storage, queue, and R2
 
 ## Production Promotion
 
