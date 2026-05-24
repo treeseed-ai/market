@@ -84,8 +84,11 @@ describe('Treeseed Drizzle schema baseline', () => {
 			'contact_submissions',
 			'runtime_records',
 		]) {
-			expect(d1Sql).toMatch(new RegExp(`CREATE TABLE \`${tableName}\`\\s*\\(`, 'u'));
+			expect(d1Sql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS \`${tableName}\`\\s*\\(`, 'u'));
 		}
+		expect(d1Sql).toContain('CREATE INDEX IF NOT EXISTS `idx_contact_submissions_created_at`');
+		expect(d1Sql).toContain('CREATE INDEX IF NOT EXISTS `idx_contact_submissions_email`');
+		expect(d1Sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS `idx_runtime_records_type_record_key`');
 		for (const tableName of [
 			'better_auth_user',
 			'better_auth_session',
