@@ -16,12 +16,14 @@ The goal is simple:
 
 ## Unified Agent Hosting
 
-Treeseed now supports a split agent-hosting architecture:
+Treeseed uses a split agent-hosting architecture:
 
-- Cloudflare is the data and queue plane.
-  - D1 is the canonical operational store.
+- Cloudflare is the web edge, static knowledge-hub storage, and queue plane.
+  - D1 is limited to unauthenticated static knowledge-hub form/contact storage.
   - Queues are the transient execution transport.
-- Railway is the API and execution plane.
+- Market PostgreSQL is the operational control-plane store.
+  - Users, auth, teams, projects, capacity providers, execution providers, grants, reservations, routing decisions, tasks, ledgers, operations, and usage actuals live in PostgreSQL.
+- Railway is the hosted API and execution plane.
   - `manager` is an always-on coordinator that owns the work-day lifecycle and graph runtime.
   - `worker` is an always-on bounded execution process.
   - `workdayStart` and `workdayReport` are short-lived cron services.
@@ -36,10 +38,11 @@ The important operational consequence is that local and hybrid deployments still
 The local hybrid path is first-class. The intended shape is:
 
 ```text
-Cloudflare site + D1 + Queue
-            ^
+Cloudflare site + static-hub D1/forms + Queue/R2
             |
-    local or Railway services
+      Market API + PostgreSQL
+            |
+    local or Railway capacity providers
       (manager / worker / cron)
 ```
 
@@ -70,7 +73,7 @@ The market site consumes the package runtime like a normal TreeSeed application.
 
 Important boundaries:
 
-- `sdk` owns shared data-access and typed runtime helpers.
+- `sdk` owns shared data-access and typed runtime helpers, including the Market PostgreSQL Drizzle schema and SDK/core static-hub D1 form-storage schema.
 - `core` owns the integrated Treeseed runtime for Astro/Starlight sites, Hono API surfaces, agent and worker services, and integrated local dev orchestration.
 - `cli` owns the `treeseed` command, scaffold/sync behavior, and CLI-facing template integration while delegating integrated runtime startup to `core`.
 - the market site owns marketplace content, presentation, and eventually the remote template catalog API
@@ -128,7 +131,7 @@ Full documentation:
 
 ### Agent Hosting Package Roles
 
-- `sdk` owns the typed operational models, remote clients, queue client, and D1-backed state transitions.
+- `sdk` owns the typed operational models, remote clients, queue client, Market PostgreSQL data contracts, and static-hub D1 form-storage contracts.
 - `core` owns the published Treeseed HTTP API runtime, the internal control-plane routes, and the integrated local platform startup flow.
 - `agent` owns the Node service entrypoints for `manager`, `worker`, `workday-start`, and `workday-report`.
 - `core` and the Treeseed deploy tooling own how these services are represented in `treeseed.site.yaml` and deploy state.
@@ -150,7 +153,8 @@ That means:
 
 Top-level workspace responsibilities:
 
-- market site source: `src/`, `public/`, `migrations/`, `treeseed.site.yaml`
+- market site source: `src/`, `public/`, `treeseed.site.yaml`
+- Drizzle migration artifacts: `packages/sdk/drizzle/market` for Market PostgreSQL and `packages/sdk/drizzle/d1` for SDK/Core static-hub D1 form storage
 - unified workspace scripts: root `package.json`
 - integration lockfile: root `package-lock.json`
 - package submodules: `packages/*`

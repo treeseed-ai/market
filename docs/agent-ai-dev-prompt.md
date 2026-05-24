@@ -8,7 +8,7 @@ Market-owned tenant specs:
 * `@treeseed/agent` owns provider API, manager, runner, handlers, provider
   plan/doctor, runtime paths, and test harnesses.
 * Market owns `src/content/agents`, `src/content/agent-tests`, seeds,
-  migrations, and deployment config.
+  generated Drizzle migration artifacts, and deployment config.
 * Parity mode uses the package-owned provider Docker image and `/data` paths. Fast-dev
   `.agent-worktrees` behavior is non-parity unless a test explicitly exercises
   it.
@@ -71,7 +71,8 @@ Use this as the intended local runtime shape:
 ```text
 TreeSeed operational app
   -> local Market API / control plane
-  -> local D1/local store
+  -> local Market PostgreSQL control-plane store
+  -> static-hub D1 form store for unauthenticated submissions only
   -> seeded TreeSeed team
   -> seeded market project
   -> seeded local work policy
@@ -284,7 +285,7 @@ Research and knowledge outputs should be code-aware across:
 * `src/pages/v1/**`
 * `src/content/**`
 * `docs/**`
-* `migrations/**`
+* `packages/sdk/drizzle/**`
 
 Generate or improve context pack support for:
 
@@ -387,7 +388,7 @@ Forbidden paths:
 packages/*/src/**
 src/lib/**
 src/pages/api/**
-migrations/**
+packages/sdk/drizzle/**
 ```
 
 If an agent discovers that documentation cannot be accurate without changing implementation code, do not patch code in the docs workstream. Create an implementation proposal or task with:

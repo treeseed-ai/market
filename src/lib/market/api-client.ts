@@ -252,6 +252,41 @@ export class MarketApiClientFacade {
 		return this.request<any[]>('GET', `/v1/teams/${encodeURIComponent(teamId)}/capacity-providers`);
 	}
 
+	updateCapacityProvider(teamId: string, providerId: string, body: Record<string, unknown>) {
+		return this.request<any>('PATCH', `/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}`, { body });
+	}
+
+	listCapacityGrants(teamId: string, filters: { projectId?: string | null; providerId?: string | null } = {}) {
+		const query = new URLSearchParams();
+		if (filters.projectId) query.set('projectId', filters.projectId);
+		if (filters.providerId) query.set('providerId', filters.providerId);
+		return this.request<any[]>('GET', `/v1/teams/${encodeURIComponent(teamId)}/capacity-grants${query.toString() ? `?${query}` : ''}`);
+	}
+
+	createCapacityGrant(teamId: string, body: Record<string, unknown>) {
+		return this.request<any>('POST', `/v1/teams/${encodeURIComponent(teamId)}/capacity-grants`, { body });
+	}
+
+	updateCapacityGrant(teamId: string, grantId: string, body: Record<string, unknown>) {
+		return this.request<any>('PATCH', `/v1/teams/${encodeURIComponent(teamId)}/capacity-grants/${encodeURIComponent(grantId)}`, { body });
+	}
+
+	listExecutionProviders(teamId: string, providerId: string) {
+		return this.request<any[]>('GET', `/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/execution-providers`);
+	}
+
+	createExecutionProvider(teamId: string, providerId: string, body: Record<string, unknown>) {
+		return this.request<any>('POST', `/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/execution-providers`, { body });
+	}
+
+	updateExecutionProvider(teamId: string, providerId: string, executionProviderId: string, body: Record<string, unknown>) {
+		return this.request<any>('PATCH', `/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/execution-providers/${encodeURIComponent(executionProviderId)}`, { body });
+	}
+
+	createExecutionProviderNativeLimit(teamId: string, providerId: string, executionProviderId: string, body: Record<string, unknown>) {
+		return this.request<any>('POST', `/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/execution-providers/${encodeURIComponent(executionProviderId)}/native-limits`, { body });
+	}
+
 	listCapacityProviderDeployments(teamId: string, providerId: string) {
 		return this.request<any[]>('GET', `/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/deployments`);
 	}

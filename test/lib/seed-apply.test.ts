@@ -1,16 +1,18 @@
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { NodeSqliteD1Database } from '@treeseed/sdk/db/node-sqlite';
+import { DataType, newDb } from 'pg-mem';
 import { MarketControlPlaneStore } from '../../src/api/store.js';
+import { MarketPostgresDatabase } from '../../src/api/market-postgres.js';
 import { loadInfrastructureSeedState } from '../../src/lib/market/infrastructure-seeds.js';
 import { applyLocalSeedFromCli, exportSeedWithStore } from '../../src/lib/market/seeds/apply.js';
 import { applyLocalSeedViaApiFromCli } from '../../src/lib/market/seeds/local-api.js';
 import { createAccessToken } from '../../packages/agent/src/api/auth/tokens.ts';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const marketMigrationRoot = resolve(projectRoot, 'packages/sdk/drizzle/market');
 
 const tempDirs: string[] = [];
 
@@ -31,9 +33,15 @@ function localUserAccessToken(userId = 'user-local', email = 'adrian.webb@knowle
 }
 
 function createStore() {
-	const dir = mkdtempSync(resolve(tmpdir(), 'treeseed-seed-apply-'));
-	tempDirs.push(dir);
-	const db = new NodeSqliteD1Database(dir);
+	const memory = newDb();
+	memory.public.registerFunction({
+		name: 'md5',
+		args: [DataType.text],
+		returns: DataType.text,
+		implementation: (value: string) => `md5:${value}`,
+	});
+	const pg = memory.adapters.createPg();
+	const db = MarketPostgresDatabase.fromPool(new pg.Pool(), { migrationRoot: marketMigrationRoot });
 	const store = new MarketControlPlaneStore({
 		repoRoot: projectRoot,
 		projectId: 'treeseed-market-test',
@@ -52,80 +60,54 @@ afterEach(() => {
 });
 
 describe('local seed apply', () => {
-	it('targets the generated local Miniflare D1 database and attaches the local owner', async () => {
+	it('targets the Market PostgreSQL database and attaches the local owner', async () => {
 		const tempRoot = mkdtempSync(resolve(tmpdir(), 'treeseed-local-seed-root-'));
 		tempDirs.push(tempRoot);
 		mkdirSync(resolve(tempRoot, 'seeds'), { recursive: true });
 		copyFileSync(resolve(projectRoot, 'seeds', 'treeseed.yaml'), resolve(tempRoot, 'seeds', 'treeseed.yaml'));
-		const localEnvRoot = resolve(tempRoot, '.treeseed', 'generated', 'environments', 'local');
-		const miniflareRoot = resolve(localEnvRoot, '.wrangler', 'state', 'v3', 'd1', 'miniflare-D1DatabaseObject');
-		mkdirSync(miniflareRoot, { recursive: true });
-		writeFileSync(resolve(localEnvRoot, 'wrangler.toml'), 'name = "treeseed-local-test"\n');
-		const sqlitePath = join(miniflareRoot, 'local-ui.sqlite');
-
-		const setupDb = new NodeSqliteD1Database(sqlitePath);
-		const setupStore = new MarketControlPlaneStore({
-			repoRoot: tempRoot,
-			projectId: 'treeseed-market-test',
-			authSecret: 'test-auth-secret',
-			assertionSecret: 'test-assertion-secret',
-			serviceId: 'web',
-			serviceSecret: 'test-service-secret',
-		}, setupDb);
+		const { db, store } = createStore();
 		try {
-			await setupStore.ensureInitialized();
-			await setupStore.run(
+			await store.ensureInitialized();
+			await store.run(
 				`INSERT INTO users (id, email, display_name, status, metadata_json, created_at, updated_at)
 				 VALUES (?, ?, ?, 'active', '{}', ?, ?)`,
 				['user-local', 'adrian.webb@knowledge.coop', 'Adrian Webb', '2026-05-15T00:00:00.000Z', '2026-05-15T00:00:00.000Z'],
 			);
-		} finally {
-			setupDb.close();
-		}
 
-		const applied = await applyLocalSeedViaApiFromCli({
-			projectRoot: tempRoot,
-			seedName: 'treeseed',
-			environments: 'local',
-			accessToken: localUserAccessToken(),
-			env: {
-				TREESEED_API_AUTH_SECRET: 'test-auth-secret',
-				TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST: 'adrian.webb@knowledge.coop',
-			},
-		} as any);
+			const applied = await applyLocalSeedViaApiFromCli({
+				projectRoot: tempRoot,
+				seedName: 'treeseed',
+				environments: 'local',
+				accessToken: localUserAccessToken(),
+				db,
+				env: {
+					TREESEED_API_AUTH_SECRET: 'test-auth-secret',
+					TREESEED_API_BOOTSTRAP_ADMIN_ALLOWLIST: 'adrian.webb@knowledge.coop',
+				},
+			} as any);
 
-		expect(applied.plan.summary).toMatchObject({
-			create: 7,
-			update: 0,
-			unchanged: 0,
-			skip: 2,
-		});
-		expect((applied.result as any).localTeamMemberships).toEqual([
-			expect.objectContaining({
-				userId: 'user-local',
-				email: 'adrian.webb@knowledge.coop',
-				role: 'team_owner',
-			}),
-		]);
+			expect(applied.plan.summary).toMatchObject({
+				create: 8,
+				update: 0,
+				unchanged: 0,
+				skip: 2,
+			});
+			expect((applied.result as any).localTeamMemberships).toEqual([
+				expect.objectContaining({
+					userId: 'user-local',
+					email: 'adrian.webb@knowledge.coop',
+					role: 'team_owner',
+				}),
+			]);
 
-		const verifyDb = new NodeSqliteD1Database(sqlitePath);
-		const verifyStore = new MarketControlPlaneStore({
-			repoRoot: tempRoot,
-			projectId: 'treeseed-market-test',
-			authSecret: 'test-auth-secret',
-			assertionSecret: 'test-assertion-secret',
-			serviceId: 'web',
-			serviceSecret: 'test-service-secret',
-		}, verifyDb);
-		try {
-			const team = await verifyStore.getTeamBySlug('treeseed');
+			const team = await store.getTeamBySlug('treeseed');
 			expect(team?.id).toBeTruthy();
-			const teamContext = await verifyStore.resolvePrincipalTeamContext(team!.id, { id: 'user-local', roles: [] });
+			const teamContext = await store.resolvePrincipalTeamContext(team!.id, { id: 'user-local', roles: [] });
 			expect(teamContext?.roles).toContain('team_owner');
-			const projects = await verifyStore.listTeamProjects(team!.id);
+			const projects = await store.listTeamProjects(team!.id);
 			expect(projects.map((project: any) => project.slug).sort()).toEqual(['market']);
 		} finally {
-			verifyDb.close();
+			db.close();
 		}
 	});
 
@@ -140,7 +122,7 @@ describe('local seed apply', () => {
 			});
 
 			expect(first.plan.summary).toMatchObject({
-				create: 7,
+				create: 8,
 				update: 0,
 				unchanged: 0,
 				skip: 2,
@@ -198,8 +180,9 @@ describe('local seed apply', () => {
 			expect(provider).toMatchObject({
 				kind: 'team_owned',
 				provider: 'local',
-				monthlyCreditBudget: 100000,
-				dailyCreditBudget: 10000,
+				monthlyCreditBudget: 0,
+				dailyCreditBudget: 0,
+				creditBudgetMode: 'derived',
 			});
 			expect(provider?.metadata).toMatchObject({
 				manifestKind: 'local',
@@ -230,12 +213,40 @@ describe('local seed apply', () => {
 				'provider:reports:write',
 				'provider:capabilities:write',
 			]));
+			const executionProviders = await store.listExecutionProviders(team!.id, provider!.id);
+			expect(executionProviders).toHaveLength(1);
+			const executionProvider = executionProviders[0]!;
+			expect(executionProvider).toMatchObject({
+				id: 'treeseed-local-codex',
+				name: 'Local Codex capacity',
+				kind: 'codex_subscription',
+				nativeUnit: 'wall_minute',
+				quotaVisibility: 'opaque',
+				maxConcurrentWorkers: 4,
+			});
+			expect(executionProvider.nativeLimits).toEqual([
+				expect.objectContaining({
+					scope: 'daily',
+					nativeUnit: 'wall_minute',
+					limitAmount: 480,
+					reserveBufferPercent: 20,
+					resetCadence: 'daily',
+				}),
+			]);
 
 			const lanes = await store.listCapacityProviderLanes(team!.id, provider!.id);
 			expect(lanes).toHaveLength(0);
 
 			const grants = await store.listCapacityGrants(team!.id, { providerId: provider!.id });
-			expect(grants).toHaveLength(0);
+			expect(grants).toHaveLength(1);
+			expect(grants[0]).toMatchObject({
+				projectId: marketProject!.id,
+				environment: 'local',
+				grantScope: 'project',
+				portfolioAllocationPercent: 100,
+				reservePoolPercent: 10,
+				maxDailyProjectCredits: 5000,
+			});
 
 			const policy = await store.getProjectWorkPolicy(marketProject!.id, 'local');
 			expect(policy).toMatchObject({
@@ -294,6 +305,11 @@ describe('local seed apply', () => {
 			expect(exported.yaml).toContain('repositoryHosts:');
 			expect(exported.yaml).toContain('products:');
 			expect(exported.yaml).toContain('catalogArtifacts:');
+			expect(exported.yaml).toContain('executionProviders:');
+			expect(exported.yaml).toContain('nativeLimits:');
+			expect(exported.yaml).toContain('portfolioAllocationPercent: 100');
+			expect(exported.yaml).not.toContain('dailyCreditBudget: 0');
+			expect(exported.yaml).not.toContain('monthlyCreditBudget: 0');
 			expect(exported.yaml).not.toMatch(/encryptedPayload|BEGIN PRIVATE KEY|ghp_/u);
 
 			const second = await applyLocalSeedFromCli({
@@ -306,7 +322,7 @@ describe('local seed apply', () => {
 			expect(second.plan.summary).toMatchObject({
 				create: 0,
 				update: 0,
-				unchanged: 7,
+				unchanged: 8,
 				skip: 2,
 			});
 			const secondResult = second.result as any;
@@ -341,7 +357,7 @@ describe('local seed apply', () => {
 			expect(repaired.plan.summary).toMatchObject({
 				create: 0,
 				update: 0,
-				unchanged: 7,
+				unchanged: 8,
 				skip: 2,
 			});
 			expect((repaired.result as any).repairs).toEqual([
@@ -450,7 +466,7 @@ describe('local seed apply', () => {
 			expect(seedPage.selectedSeed).toBe('treeseed');
 			expect(seedPage.selectedEnvironments).toBe('local');
 			expect(seedPage.plan.summary).toMatchObject({
-				create: 6,
+				create: 7,
 				update: 1,
 				unchanged: 0,
 				skip: 2,

@@ -1,11 +1,13 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import {
+	buildCreditConversionProfileFromActuals,
+	calculateActualCredits,
+	deriveAvailableCredits,
+	nativeUsageUnit,
+} from '../../packages/sdk/src/capacity.ts';
 
 function getNodeBuiltin(name) {
 	return globalThis.process?.getBuiltinModule?.(name) ?? null;
-}
-
-function fileUrlPath(url) {
-	return decodeURIComponent(url.pathname);
 }
 
 function safeStoragePathSegment(value) {
@@ -16,52 +18,20 @@ function safeStoragePathSegment(value) {
 		.join('/');
 }
 
+function safeIdPart(value, fallback = 'item') {
+	return String(value ?? fallback)
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9_-]+/gu, '-')
+		.replace(/^-+|-+$/gu, '')
+		|| fallback;
+}
+
 function artifactStorageRoot(config) {
 	const path = getNodeBuiltin('path');
 	if (!path) return null;
 	const root = String(config.agentArtifactStorageRoot ?? config.repoRoot ?? process.cwd()).trim();
 	return path.resolve(root, '.treeseed/generated/hosted-artifacts');
-}
-
-const migrationPaths = [
-	'../../migrations/0006_agent_control_plane.sql',
-	'../../migrations/0007_site_web_sessions.sql',
-	'../../migrations/0008_market_control_plane.sql',
-	'../../migrations/0009_team_content_catalog.sql',
-	'../../migrations/0010_project_hosting_topology.sql',
-	'../../migrations/0011_control_plane_reporting.sql',
-	'../../migrations/0012_knowledge_coop_views.sql',
-	'../../migrations/0013_better_auth_browser_accounts.sql',
-	'../../migrations/0014_team_web_hosts.sql',
-	'../../migrations/0018_capacity_providers.sql',
-	'../../migrations/0020_hub_launch_spine.sql',
-	'../../migrations/0021_capacity_provider_api_keys.sql',
-	'../../migrations/0022_user_preferences.sql',
-	'../../migrations/0024_seed_runs.sql',
-	'../../migrations/0026_capacity_provider_runtime.sql',
-	'../../migrations/0027_platform_operations.sql',
-];
-
-let cachedMigrationSql = null;
-
-function loadMigrationSql() {
-	if (cachedMigrationSql !== null) {
-		return cachedMigrationSql;
-	}
-	const fs = getNodeBuiltin('fs');
-	if (!fs) {
-		cachedMigrationSql = '';
-		return cachedMigrationSql;
-	}
-	try {
-		cachedMigrationSql = migrationPaths
-			.map((relativePath) => fileUrlPath(new URL(relativePath, import.meta.url)))
-			.map((migrationPath) => fs.readFileSync(migrationPath, 'utf8'))
-			.join('\n');
-	} catch {
-		cachedMigrationSql = '';
-	}
-	return cachedMigrationSql;
 }
 
 function isoNow() {
@@ -75,6 +45,28 @@ function parseJson(value, fallback) {
 	} catch {
 		return fallback;
 	}
+}
+
+function objectValue(value, fallback = {}) {
+	return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback;
+}
+
+function arrayValue(value) {
+	return Array.isArray(value) ? value : [];
+}
+
+function stringValue(value, fallback = '') {
+	const next = typeof value === 'string' ? value.trim() : '';
+	return next || fallback;
+}
+
+function numberValue(value, fallback = null) {
+	if (typeof value === 'number' && Number.isFinite(value)) return value;
+	if (typeof value === 'string' && value.trim()) {
+		const parsed = Number(value);
+		if (Number.isFinite(parsed)) return parsed;
+	}
+	return fallback;
 }
 
 function stableHash(value, secret) {
@@ -539,6 +531,7 @@ function defaultCapacityLaneDefinitions(providerId) {
 function serializeCapacityProvider(row) {
 	if (!row) return null;
 	const metadata = parseJson(row.metadata_json, {});
+	const creditBudgetMode = normalizeCreditBudgetMode(row.credit_budget_mode, 'derived');
 	return {
 		id: row.id,
 		teamId: row.team_id,
@@ -550,6 +543,7 @@ function serializeCapacityProvider(row) {
 		billingScope: row.billing_scope,
 		monthlyCreditBudget: Number(row.monthly_credit_budget ?? 0),
 		dailyCreditBudget: Number(row.daily_credit_budget ?? 0),
+		creditBudgetMode,
 		maxConcurrentWorkdays: Number(row.max_concurrent_workdays ?? 1),
 		maxConcurrentWorkers: Number(row.max_concurrent_workers ?? 1),
 		capacityModel: parseJson(row.capacity_model_json, {}),
@@ -570,6 +564,72 @@ function serializeCapacityProvider(row) {
 		metadata,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
+	};
+}
+
+function normalizeCreditBudgetMode(value, fallback = 'derived') {
+	const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+	if (!raw) return fallback;
+	if (raw === 'static' || raw === 'hybrid' || raw === 'derived') return raw;
+	throw new Error('creditBudgetMode must be static, hybrid, or derived.');
+}
+
+function serializeExecutionProvider(row, extras = {}) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		capacityProviderId: row.capacity_provider_id,
+		name: row.name,
+		kind: row.kind,
+		status: row.status,
+		nativeUnit: row.native_unit,
+		quotaVisibility: row.quota_visibility,
+		maxConcurrentWorkers: Number(row.max_concurrent_workers ?? 1),
+		resetCadence: row.reset_cadence,
+		config: parseJson(row.config_json, {}),
+		metadata: parseJson(row.metadata_json, {}),
+		nativeLimits: extras.nativeLimits ?? [],
+		latestObservation: extras.latestObservation ?? null,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeExecutionProviderNativeLimit(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		executionProviderId: row.execution_provider_id,
+		scope: row.scope,
+		nativeUnit: row.native_unit,
+		limitAmount: Number(row.limit_amount ?? 0),
+		reserveBufferPercent: Number(row.reserve_buffer_percent ?? 0),
+		resetCadence: row.reset_cadence,
+		resetAt: row.reset_at,
+		confidence: row.confidence,
+		source: row.source,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeExecutionProviderObservation(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		executionProviderId: row.execution_provider_id,
+		observedAt: row.observed_at,
+		health: row.health,
+		activeWorkers: row.active_workers == null ? null : Number(row.active_workers),
+		queuedTasks: row.queued_tasks == null ? null : Number(row.queued_tasks),
+		throttleState: row.throttle_state,
+		nativeRemaining: parseJson(row.native_remaining_json, {}),
+		resetAt: row.reset_at,
+		confidence: row.confidence,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
 	};
 }
 
@@ -671,6 +731,7 @@ function serializeCapacityProviderLane(row) {
 
 function serializeCapacityGrant(row) {
 	if (!row) return null;
+	const metadata = parseJson(row.metadata_json, {});
 	return {
 		id: row.id,
 		capacityProviderId: row.capacity_provider_id,
@@ -686,9 +747,13 @@ function serializeCapacityGrant(row) {
 		dailyUsdLimit: row.daily_usd_limit == null ? null : Number(row.daily_usd_limit),
 		weeklyQuotaMinutes: row.weekly_quota_minutes == null ? null : Number(row.weekly_quota_minutes),
 		monthlyProviderUnits: row.monthly_provider_units == null ? null : Number(row.monthly_provider_units),
+		portfolioAllocationPercent: numberValue(metadata.portfolioAllocationPercent ?? metadata.allocationPercent ?? metadata.derivedAllocationPercent, null),
+		reservePoolPercent: numberValue(metadata.reservePoolPercent ?? metadata.minimumReservePercent, null),
+		maxDailyProjectCredits: numberValue(metadata.maxDailyProjectCredits ?? metadata.dailyProjectCreditCap, null),
+		emergencyOverride: metadata.emergencyOverride === true || metadata.emergencyOverrideEnabled === true,
 		priorityWeight: Number(row.priority_weight ?? 1),
 		overflowPolicy: row.overflow_policy,
-		metadata: parseJson(row.metadata_json, {}),
+		metadata,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -699,6 +764,7 @@ function serializeCapacityReservation(row) {
 	return {
 		id: row.id,
 		capacityProviderId: row.capacity_provider_id,
+		executionProviderId: row.execution_provider_id,
 		laneId: row.lane_id,
 		teamId: row.team_id,
 		projectId: row.project_id,
@@ -707,6 +773,9 @@ function serializeCapacityReservation(row) {
 		state: row.state,
 		reservedCredits: Number(row.reserved_credits ?? 0),
 		consumedCredits: Number(row.consumed_credits ?? 0),
+		nativeUnit: row.native_unit,
+		reservedNativeAmount: row.reserved_native_amount == null ? null : Number(row.reserved_native_amount),
+		consumedNativeAmount: row.consumed_native_amount == null ? null : Number(row.consumed_native_amount),
 		reservedProviderUnits: row.reserved_provider_units == null ? null : Number(row.reserved_provider_units),
 		consumedProviderUnits: row.consumed_provider_units == null ? null : Number(row.consumed_provider_units),
 		reservedUsd: row.reserved_usd == null ? null : Number(row.reserved_usd),
@@ -793,6 +862,7 @@ function serializeTaskUsageActual(row) {
 		taskSignature: row.task_signature,
 		executionProfileId: executionProfileId(row.execution_profile_id),
 		capacityProviderId: row.capacity_provider_id,
+		executionProviderId: row.execution_provider_id,
 		laneId: row.lane_id,
 		businessModel: row.business_model,
 		modelName: row.model_name,
@@ -809,6 +879,9 @@ function serializeTaskUsageActual(row) {
 		retryCount: row.retry_count == null ? null : Number(row.retry_count),
 		actualCredits: Number(row.actual_credits ?? 0),
 		actualUsd: row.actual_usd == null ? null : Number(row.actual_usd),
+		creditFormulaVersion: row.credit_formula_version,
+		actualCreditSource: row.actual_credit_source,
+		nativeUsage: parseJson(row.native_usage_json, {}),
 		metadata: parseJson(row.metadata_json, {}),
 		createdAt: row.created_at,
 	};
@@ -838,6 +911,31 @@ function serializeTaskEstimateProfile(row) {
 		partialCredits: row.partial_credits == null ? null : Number(row.partial_credits),
 		firstSampleAt: row.first_sample_at,
 		lastSampleAt: row.last_sample_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeCreditConversionProfile(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		taskSignature: row.task_signature,
+		executionProfileId: executionProfileId(row.execution_profile_id),
+		executionProviderKind: row.execution_provider_kind,
+		nativeUnit: row.native_unit,
+		sampleCount: Number(row.sample_count ?? 0),
+		completedSampleCount: Number(row.completed_sample_count ?? 0),
+		interruptedSampleCount: Number(row.interrupted_sample_count ?? 0),
+		nativeUnitsPerCreditP50: row.native_units_per_credit_p50 == null ? null : Number(row.native_units_per_credit_p50),
+		nativeUnitsPerCreditP90: row.native_units_per_credit_p90 == null ? null : Number(row.native_units_per_credit_p90),
+		creditsPerNativeUnitP50: row.credits_per_native_unit_p50 == null ? null : Number(row.credits_per_native_unit_p50),
+		creditsPerNativeUnitP90: row.credits_per_native_unit_p90 == null ? null : Number(row.credits_per_native_unit_p90),
+		actualCreditsP50: row.actual_credits_p50 == null ? null : Number(row.actual_credits_p50),
+		actualCreditsP90: row.actual_credits_p90 == null ? null : Number(row.actual_credits_p90),
+		confidence: row.confidence,
+		formulaVersion: row.formula_version,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
 }
@@ -1908,293 +2006,11 @@ export class MarketControlPlaneStore {
 
 	ensureInitialized() {
 		if (!this.initializationPromise) {
-			const migrationSql = loadMigrationSql();
-			this.initializationPromise = (migrationSql && this.db.exec ? this.db.exec(migrationSql) : Promise.resolve())
-				.then(() => this.ensureWebSessionSchema())
-				.then(() => this.ensureTeamManagementSchema())
-				.then(() => this.ensureWorkdayManagerSchema())
-				.then(() => this.ensureProjectCapabilityGrantSchema())
-				.then(() => this.ensureHubLaunchEventSchema())
-				.then(() => this.ensureRepositoryHostMetadataSchema())
-				.then(() => this.ensureCapacityEstimateLearningSchema())
+			this.initializationPromise = Promise.resolve()
+				.then(() => this.db.migrate?.())
 				.then(() => this.seedTeamRoles());
 		}
 		return this.initializationPromise;
-	}
-
-	async tableColumns(tableName) {
-		const result = await this.all(`PRAGMA table_info(${tableName})`);
-		return new Set(result.map((row) => row.name));
-	}
-
-	async ensureWorkdayManagerSchema() {
-		const workPolicyColumns = await this.tableColumns('work_policies');
-		const addColumn = async (name, definition) => {
-			if (!workPolicyColumns.has(name)) {
-				await this.run(`ALTER TABLE work_policies ADD COLUMN ${name} ${definition}`);
-				workPolicyColumns.add(name);
-			}
-		};
-		await addColumn('enabled', 'INTEGER NOT NULL DEFAULT 1');
-		await addColumn('start_cron', "TEXT NOT NULL DEFAULT '0 9 * * 1-5'");
-		await addColumn('duration_minutes', 'INTEGER NOT NULL DEFAULT 480');
-		await addColumn('max_runners', 'INTEGER NOT NULL DEFAULT 1');
-		await addColumn('max_workers_per_runner', 'INTEGER NOT NULL DEFAULT 4');
-		await addColumn('daily_credit_budget', 'INTEGER NOT NULL DEFAULT 0');
-		await addColumn('closeout_grace_minutes', 'INTEGER NOT NULL DEFAULT 15');
-		await this.run(`UPDATE work_policies SET daily_credit_budget = daily_task_credit_budget WHERE daily_credit_budget = 0 AND daily_task_credit_budget > 0`);
-		await this.run(`CREATE TABLE IF NOT EXISTS workday_requests (
-			id TEXT PRIMARY KEY,
-			project_id TEXT NOT NULL,
-			environment TEXT NOT NULL,
-			type TEXT NOT NULL,
-			state TEXT NOT NULL DEFAULT 'pending',
-			work_day_id TEXT,
-			requested_by TEXT,
-			reason TEXT,
-			payload_json TEXT NOT NULL,
-			metadata_json TEXT NOT NULL,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		)`);
-		await this.run(`CREATE INDEX IF NOT EXISTS idx_workday_requests_project_environment_state ON workday_requests(project_id, environment, state, created_at ASC)`);
-		await this.run(`CREATE TABLE IF NOT EXISTS workday_manager_leases (
-			id TEXT PRIMARY KEY,
-			project_id TEXT NOT NULL,
-			environment TEXT NOT NULL,
-			work_day_id TEXT,
-			manager_id TEXT NOT NULL,
-			state TEXT NOT NULL DEFAULT 'active',
-			heartbeat_at TEXT NOT NULL,
-			expires_at TEXT NOT NULL,
-			metadata_json TEXT NOT NULL,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		)`);
-		await this.run(`CREATE INDEX IF NOT EXISTS idx_workday_manager_leases_active ON workday_manager_leases(project_id, environment, state, heartbeat_at DESC)`);
-		await this.run(`CREATE TABLE IF NOT EXISTS worker_runners (
-			id TEXT PRIMARY KEY,
-			project_id TEXT NOT NULL,
-			environment TEXT NOT NULL,
-			runner_id TEXT NOT NULL,
-			runner_service_name TEXT NOT NULL,
-			volume_identity TEXT NOT NULL,
-			state TEXT NOT NULL DEFAULT 'active',
-			max_local_workers INTEGER NOT NULL DEFAULT 4,
-			active_local_workers INTEGER NOT NULL DEFAULT 0,
-			available_capacity INTEGER NOT NULL DEFAULT 4,
-			last_heartbeat_at TEXT,
-			claimed_repository_ids_json TEXT NOT NULL,
-			metadata_json TEXT NOT NULL,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		)`);
-		await this.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_runners_identity ON worker_runners(project_id, environment, runner_id)`);
-		await this.run(`CREATE INDEX IF NOT EXISTS idx_worker_runners_state_capacity ON worker_runners(project_id, environment, state, available_capacity DESC)`);
-		await this.run(`CREATE TABLE IF NOT EXISTS repository_claims (
-			id TEXT PRIMARY KEY,
-			project_id TEXT NOT NULL,
-			repository_id TEXT NOT NULL,
-			runner_id TEXT NOT NULL,
-			runner_service_name TEXT NOT NULL,
-			volume_identity TEXT NOT NULL,
-			last_seen_commit TEXT,
-			last_task_at TEXT,
-			claim_state TEXT NOT NULL DEFAULT 'active',
-			metadata_json TEXT NOT NULL,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		)`);
-		await this.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_repository_claims_runner_repo ON repository_claims(project_id, repository_id, runner_id)`);
-		await this.run(`CREATE INDEX IF NOT EXISTS idx_repository_claims_repo_state ON repository_claims(project_id, repository_id, claim_state, updated_at DESC)`);
-		await this.run(`CREATE TABLE IF NOT EXISTS runner_scale_decisions (
-			id TEXT PRIMARY KEY,
-			project_id TEXT NOT NULL,
-			environment TEXT NOT NULL,
-			work_day_id TEXT,
-			runner_id TEXT,
-			runner_service_name TEXT,
-			action TEXT NOT NULL,
-			reason TEXT NOT NULL,
-			metadata_json TEXT NOT NULL,
-			created_at TEXT NOT NULL
-		)`);
-		await this.run(`CREATE INDEX IF NOT EXISTS idx_runner_scale_decisions_project_workday ON runner_scale_decisions(project_id, environment, work_day_id, created_at DESC)`);
-	}
-
-	async ensureProjectCapabilityGrantSchema() {
-		const columns = await this.tableColumns('project_capability_grants');
-		const addColumn = async (name, definition) => {
-			if (!columns.has(name)) {
-				await this.run(`ALTER TABLE project_capability_grants ADD COLUMN ${name} ${definition}`);
-				columns.add(name);
-			}
-		};
-		await addColumn('label', 'TEXT');
-		await addColumn('approval_policy_json', "TEXT NOT NULL DEFAULT '{}'");
-		await addColumn('resource_scope_json', "TEXT NOT NULL DEFAULT '{}'");
-		await addColumn('metadata_json', "TEXT NOT NULL DEFAULT '{}'");
-	}
-
-	async ensureHubLaunchEventSchema() {
-		const columns = await this.tableColumns('hub_launch_events');
-		const addColumn = async (name, definition) => {
-			if (!columns.has(name)) {
-				await this.run(`ALTER TABLE hub_launch_events ADD COLUMN ${name} ${definition}`);
-				columns.add(name);
-			}
-		};
-		await addColumn('started_at', 'TEXT');
-		await addColumn('finished_at', 'TEXT');
-		await addColumn('error_json', 'TEXT');
-	}
-
-	async ensureRepositoryHostMetadataSchema() {
-		const columns = await this.tableColumns('repository_hosts');
-		if (columns.size > 0 && !columns.has('metadata_json')) {
-			await this.run(`ALTER TABLE repository_hosts ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'`);
-		}
-	}
-
-	async ensureCapacityEstimateLearningSchema() {
-		const estimateColumns = await this.tableColumns('task_estimates');
-		if (estimateColumns.size > 0 && !estimateColumns.has('execution_profile_id')) {
-			await this.run(`ALTER TABLE task_estimates ADD COLUMN execution_profile_id TEXT NOT NULL DEFAULT 'standard-code-model'`);
-		}
-		const actualColumns = await this.tableColumns('task_usage_actuals');
-		if (actualColumns.size > 0 && !actualColumns.has('execution_profile_id')) {
-			await this.run(`ALTER TABLE task_usage_actuals ADD COLUMN execution_profile_id TEXT NOT NULL DEFAULT 'standard-code-model'`);
-		}
-
-		let profileColumns = await this.tableColumns('task_estimate_profiles');
-		if (profileColumns.size > 0 && !profileColumns.has('execution_profile_id')) {
-			await this.run(`ALTER TABLE task_estimate_profiles RENAME TO task_estimate_profiles_legacy_learning`);
-			await this.createCapacityEstimateProfileTable();
-			await this.run(
-				`INSERT OR REPLACE INTO task_estimate_profiles (
-					task_signature, execution_profile_id, sample_count, completed_sample_count, interrupted_sample_count,
-					input_tokens_p50, input_tokens_p90, output_tokens_p50, output_tokens_p90,
-					quota_minutes_p50, quota_minutes_p90, files_changed_p50, files_changed_p90,
-					credits_p50, credits_p90, credits_variance, confidence_score, outlier_count,
-					partial_credits, first_sample_at, last_sample_at, updated_at
-				)
-				SELECT
-					task_signature, 'standard-code-model', sample_count, sample_count, 0,
-					input_tokens_p50, input_tokens_p90, output_tokens_p50, output_tokens_p90,
-					quota_minutes_p50, quota_minutes_p90, files_changed_p50, files_changed_p90,
-					credits_p50, credits_p90, NULL,
-					CASE WHEN sample_count >= 20 THEN 1.0 WHEN sample_count > 0 THEN sample_count / 20.0 ELSE 0 END,
-					0, NULL, updated_at, updated_at, updated_at
-				FROM task_estimate_profiles_legacy_learning`,
-			);
-			await this.run(`DROP TABLE task_estimate_profiles_legacy_learning`);
-			profileColumns = await this.tableColumns('task_estimate_profiles');
-		} else if (profileColumns.size === 0) {
-			await this.createCapacityEstimateProfileTable();
-			profileColumns = await this.tableColumns('task_estimate_profiles');
-		}
-
-		const addProfileColumn = async (name, definition) => {
-			if (!profileColumns.has(name)) {
-				await this.run(`ALTER TABLE task_estimate_profiles ADD COLUMN ${name} ${definition}`);
-				profileColumns.add(name);
-			}
-		};
-		await addProfileColumn('completed_sample_count', 'INTEGER NOT NULL DEFAULT 0');
-		await addProfileColumn('interrupted_sample_count', 'INTEGER NOT NULL DEFAULT 0');
-		await addProfileColumn('credits_variance', 'REAL');
-		await addProfileColumn('confidence_score', 'REAL');
-		await addProfileColumn('outlier_count', 'INTEGER NOT NULL DEFAULT 0');
-		await addProfileColumn('partial_credits', 'REAL');
-		await addProfileColumn('first_sample_at', 'TEXT');
-		await addProfileColumn('last_sample_at', 'TEXT');
-
-		await this.run(`CREATE INDEX IF NOT EXISTS idx_task_estimates_project_signature_profile ON task_estimates(project_id, task_signature, execution_profile_id, created_at DESC)`);
-		await this.run(`CREATE INDEX IF NOT EXISTS idx_task_usage_actuals_project_signature_profile ON task_usage_actuals(project_id, task_signature, execution_profile_id, created_at DESC)`);
-	}
-
-	async createCapacityEstimateProfileTable() {
-		await this.run(
-			`CREATE TABLE IF NOT EXISTS task_estimate_profiles (
-				task_signature TEXT NOT NULL,
-				execution_profile_id TEXT NOT NULL DEFAULT 'standard-code-model',
-				sample_count INTEGER NOT NULL DEFAULT 0,
-				completed_sample_count INTEGER NOT NULL DEFAULT 0,
-				interrupted_sample_count INTEGER NOT NULL DEFAULT 0,
-				input_tokens_p50 INTEGER,
-				input_tokens_p90 INTEGER,
-				output_tokens_p50 INTEGER,
-				output_tokens_p90 INTEGER,
-				quota_minutes_p50 REAL,
-				quota_minutes_p90 REAL,
-				files_changed_p50 REAL,
-				files_changed_p90 REAL,
-				credits_p50 REAL,
-				credits_p90 REAL,
-				credits_variance REAL,
-				confidence_score REAL,
-				outlier_count INTEGER NOT NULL DEFAULT 0,
-				partial_credits REAL,
-				first_sample_at TEXT,
-				last_sample_at TEXT,
-				updated_at TEXT NOT NULL,
-				PRIMARY KEY (task_signature, execution_profile_id)
-			)`,
-		);
-	}
-
-	async ensureWebSessionSchema() {
-		const columns = await this.tableColumns('web_sessions');
-		const columnMigrations = [
-			['better_auth_session_id', `ALTER TABLE web_sessions ADD COLUMN better_auth_session_id TEXT`],
-			['ip_address', `ALTER TABLE web_sessions ADD COLUMN ip_address TEXT`],
-			['user_agent', `ALTER TABLE web_sessions ADD COLUMN user_agent TEXT`],
-			['last_seen_at', `ALTER TABLE web_sessions ADD COLUMN last_seen_at TEXT`],
-			['revoked_at', `ALTER TABLE web_sessions ADD COLUMN revoked_at TEXT`],
-		];
-		for (const [column, statement] of columnMigrations) {
-			if (!columns.has(column)) {
-				await this.run(statement);
-			}
-		}
-		await this.run(`CREATE INDEX IF NOT EXISTS idx_web_sessions_better_auth_session_id ON web_sessions(better_auth_session_id)`);
-		await this.run(`CREATE INDEX IF NOT EXISTS idx_web_sessions_active ON web_sessions(user_id, revoked_at, expires_at)`);
-	}
-
-	async ensureTeamManagementSchema() {
-		const columns = await this.tableColumns('teams');
-		if (!columns.has('display_name')) {
-			await this.run(`ALTER TABLE teams ADD COLUMN display_name TEXT`);
-		}
-		if (!columns.has('logo_url')) {
-			await this.run(`ALTER TABLE teams ADD COLUMN logo_url TEXT`);
-		}
-		if (!columns.has('profile_summary')) {
-			await this.run(`ALTER TABLE teams ADD COLUMN profile_summary TEXT`);
-		}
-		await this.run(`UPDATE teams SET display_name = name WHERE display_name IS NULL`);
-		await this.run(`UPDATE teams SET name = LOWER(slug) WHERE slug IS NOT NULL AND slug != '' AND name != LOWER(slug)`);
-		await this.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_name ON teams(name)`);
-		await this.run(`CREATE TABLE IF NOT EXISTS team_invites (
-			id TEXT PRIMARY KEY,
-			team_id TEXT NOT NULL,
-			email TEXT NOT NULL,
-			role_key TEXT NOT NULL,
-			token_prefix TEXT NOT NULL,
-			token_hash TEXT NOT NULL,
-			status TEXT NOT NULL DEFAULT 'pending',
-			invited_by_user_id TEXT,
-			accepted_by_user_id TEXT,
-			accepted_at TEXT,
-			expires_at TEXT NOT NULL,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL,
-			FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-			FOREIGN KEY (invited_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
-			FOREIGN KEY (accepted_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-		)`);
-		await this.run(`CREATE INDEX IF NOT EXISTS idx_team_invites_team_status ON team_invites(team_id, status, created_at)`);
-		await this.run(`CREATE INDEX IF NOT EXISTS idx_team_invites_token_prefix ON team_invites(token_prefix)`);
 	}
 
 	async seedTeamRoles() {
@@ -3109,6 +2925,7 @@ export class MarketControlPlaneStore {
 		const timestamp = isoNow();
 		const id = input.id ?? randomUUID();
 		const existing = await this.first(`SELECT * FROM capacity_providers WHERE id = ? LIMIT 1`, [id]);
+		const creditBudgetMode = normalizeCreditBudgetMode(input.creditBudgetMode ?? input.credit_budget_mode, existing?.credit_budget_mode ?? 'derived');
 		const values = [
 			input.teamId ?? teamId,
 			input.ownerTeamId ?? input.teamId ?? teamId,
@@ -3119,6 +2936,7 @@ export class MarketControlPlaneStore {
 			String(input.billingScope ?? existing?.billing_scope ?? 'team'),
 			Number(input.monthlyCreditBudget ?? existing?.monthly_credit_budget ?? 0),
 			Number(input.dailyCreditBudget ?? existing?.daily_credit_budget ?? 0),
+			creditBudgetMode,
 			Number(input.maxConcurrentWorkdays ?? existing?.max_concurrent_workdays ?? 1),
 			Number(input.maxConcurrentWorkers ?? existing?.max_concurrent_workers ?? 1),
 			JSON.stringify(input.capacityModel ?? parseJson(existing?.capacity_model_json, {})),
@@ -3133,7 +2951,7 @@ export class MarketControlPlaneStore {
 			await this.run(
 				`UPDATE capacity_providers
 				 SET team_id = ?, owner_team_id = ?, name = ?, kind = ?, status = ?, provider = ?, billing_scope = ?,
-				     monthly_credit_budget = ?, daily_credit_budget = ?, max_concurrent_workdays = ?, max_concurrent_workers = ?,
+				     monthly_credit_budget = ?, daily_credit_budget = ?, credit_budget_mode = ?, max_concurrent_workdays = ?, max_concurrent_workers = ?,
 				     capacity_model_json = ?, metadata_json = ?, updated_at = ?
 				 WHERE id = ?`,
 				values,
@@ -3142,9 +2960,9 @@ export class MarketControlPlaneStore {
 			await this.run(
 				`INSERT INTO capacity_providers (
 					id, team_id, owner_team_id, name, kind, status, provider, billing_scope,
-					monthly_credit_budget, daily_credit_budget, max_concurrent_workdays, max_concurrent_workers,
+					monthly_credit_budget, daily_credit_budget, credit_budget_mode, max_concurrent_workdays, max_concurrent_workers,
 					capacity_model_json, metadata_json, created_at, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				[
 					id,
 					input.teamId ?? teamId,
@@ -3156,6 +2974,7 @@ export class MarketControlPlaneStore {
 					String(input.billingScope ?? 'team'),
 					Number(input.monthlyCreditBudget ?? 0),
 					Number(input.dailyCreditBudget ?? 0),
+					creditBudgetMode,
 					Number(input.maxConcurrentWorkdays ?? 1),
 					Number(input.maxConcurrentWorkers ?? 1),
 					JSON.stringify(input.capacityModel ?? {}),
@@ -3184,6 +3003,7 @@ export class MarketControlPlaneStore {
 			billingScope: 'team',
 			monthlyCreditBudget: 0,
 			dailyCreditBudget: 0,
+			creditBudgetMode: normalizeCreditBudgetMode(input.creditBudgetMode ?? input.credit_budget_mode, 'derived'),
 			maxConcurrentWorkdays: 1,
 			maxConcurrentWorkers: 1,
 			capacityModel: {},
@@ -3211,6 +3031,20 @@ export class MarketControlPlaneStore {
 		await this.run(
 			`UPDATE capacity_providers SET name = ?, updated_at = ? WHERE id = ? AND (team_id = ? OR owner_team_id = ?)`,
 			[trimmed, isoNow(), providerId, teamId, teamId],
+		);
+		return this.getCapacityProvider(teamId, providerId);
+	}
+
+	async updateCapacityProvider(teamId, providerId, input = {}) {
+		await this.ensureInitialized();
+		const provider = await this.getCapacityProvider(teamId, providerId);
+		if (!provider) return null;
+		const trimmed = input.name === undefined ? provider.name : typeof input.name === 'string' ? input.name.trim() : '';
+		if (!trimmed) throw new Error('name is required.');
+		const creditBudgetMode = normalizeCreditBudgetMode(input.creditBudgetMode ?? input.credit_budget_mode, provider.creditBudgetMode ?? 'derived');
+		await this.run(
+			`UPDATE capacity_providers SET name = ?, credit_budget_mode = ?, updated_at = ? WHERE id = ? AND (team_id = ? OR owner_team_id = ?)`,
+			[trimmed, creditBudgetMode, isoNow(), providerId, teamId, teamId],
 		);
 		return this.getCapacityProvider(teamId, providerId);
 	}
@@ -3587,6 +3421,7 @@ export class MarketControlPlaneStore {
 			lastUsedAt: timestamp,
 			rotationRequired: false,
 		});
+		await this.syncProviderNativeCapacity(principal.teamId, provider.id, budgets);
 		return {
 			provider: await this.getCapacityProvider(principal.teamId, provider.id),
 			registration: await this.latestCapacityProviderRegistration(provider.id),
@@ -3644,7 +3479,259 @@ export class MarketControlPlaneStore {
 			lastUsedAt: timestamp,
 			rotationRequired: false,
 		});
+		await this.syncProviderNativeCapacity(principal.teamId, provider.id, budgets);
 		return this.getCapacityProvider(principal.teamId, provider.id);
+	}
+
+	async updateCapacityProviderCreditBudgetMode(teamId, providerId) {
+		const provider = await this.getCapacityProvider(teamId, providerId);
+		if (!provider) return null;
+		const mode = normalizeCreditBudgetMode(provider.creditBudgetMode, 'derived');
+		await this.run(
+			`UPDATE capacity_providers SET credit_budget_mode = ?, updated_at = ? WHERE id = ?`,
+			[mode, isoNow(), providerId],
+		);
+		return this.getCapacityProvider(teamId, providerId);
+	}
+
+	async listExecutionProviders(teamId, providerId) {
+		await this.ensureInitialized();
+		if (!(await this.getCapacityProvider(teamId, providerId))) return [];
+		const rows = await this.all(
+			`SELECT * FROM execution_providers
+			 WHERE team_id = ? AND capacity_provider_id = ?
+			 ORDER BY created_at ASC`,
+			[teamId, providerId],
+		);
+		const providers = [];
+		for (const row of rows) {
+			const limits = (await this.all(
+				`SELECT * FROM execution_provider_native_limits
+				 WHERE execution_provider_id = ?
+				 ORDER BY scope ASC, native_unit ASC, created_at ASC`,
+				[row.id],
+			)).map(serializeExecutionProviderNativeLimit);
+			const latestObservation = serializeExecutionProviderObservation(await this.first(
+				`SELECT * FROM execution_provider_observations
+				 WHERE execution_provider_id = ?
+				 ORDER BY observed_at DESC, created_at DESC LIMIT 1`,
+				[row.id],
+			));
+			providers.push(serializeExecutionProvider(row, {
+				nativeLimits: limits,
+				latestObservation,
+			}));
+		}
+		return providers;
+	}
+
+	async getExecutionProvider(teamId, providerId, executionProviderId) {
+		await this.ensureInitialized();
+		const row = await this.first(
+			`SELECT * FROM execution_providers
+			 WHERE id = ? AND team_id = ? AND capacity_provider_id = ?
+			 LIMIT 1`,
+			[executionProviderId, teamId, providerId],
+		);
+		if (!row) return null;
+		const [provider] = await this.listExecutionProviders(teamId, providerId).then((items) => items.filter((item) => item.id === executionProviderId));
+		return provider ?? null;
+	}
+
+	async upsertExecutionProvider(teamId, providerId, input = {}) {
+		await this.ensureInitialized();
+		const provider = await this.getCapacityProvider(teamId, providerId);
+		if (!provider) return null;
+		const firstLimit = arrayValue(input.nativeLimits ?? input.limits)[0] ?? {};
+		const nativeUnit = stringValue(input.nativeUnit ?? input.native_unit ?? firstLimit.nativeUnit ?? firstLimit.native_unit, 'wall_minute');
+		const kind = stringValue(input.kind, provider.provider === '@treeseed/agent' ? 'codex_subscription' : 'custom');
+		const name = stringValue(input.name, `${kind.replaceAll('_', ' ')} capacity`);
+		const id = stringValue(input.id, `${providerId}:${safeIdPart(kind)}:${safeIdPart(name)}`);
+		const existing = await this.first(
+			`SELECT * FROM execution_providers
+			 WHERE id = ? AND team_id = ? AND capacity_provider_id = ?
+			 LIMIT 1`,
+			[id, teamId, providerId],
+		);
+		const timestamp = isoNow();
+		const values = [
+			teamId,
+			providerId,
+			name,
+			kind,
+			stringValue(input.status, existing?.status ?? 'active'),
+			nativeUnit,
+			stringValue(input.quotaVisibility ?? input.quota_visibility, existing?.quota_visibility ?? 'opaque'),
+			Math.max(1, Math.floor(numberValue(input.maxConcurrentWorkers ?? input.max_concurrent_workers, existing?.max_concurrent_workers ?? provider.maxConcurrentWorkers ?? 1))),
+			stringValue(input.resetCadence ?? input.reset_cadence, existing?.reset_cadence ?? '') || null,
+			JSON.stringify(objectValue(input.config ?? input.configJson ?? parseJson(existing?.config_json, {}))),
+			JSON.stringify(objectValue(input.metadata ?? input.metadataJson ?? parseJson(existing?.metadata_json, {}))),
+			timestamp,
+			id,
+		];
+		if (existing) {
+			await this.run(
+				`UPDATE execution_providers
+				 SET team_id = ?, capacity_provider_id = ?, name = ?, kind = ?, status = ?, native_unit = ?,
+				     quota_visibility = ?, max_concurrent_workers = ?, reset_cadence = ?, config_json = ?,
+				     metadata_json = ?, updated_at = ?
+				 WHERE id = ?`,
+				values,
+			);
+		} else {
+			await this.run(
+				`INSERT INTO execution_providers (
+					id, team_id, capacity_provider_id, name, kind, status, native_unit, quota_visibility,
+					max_concurrent_workers, reset_cadence, config_json, metadata_json, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[
+					id,
+					teamId,
+					providerId,
+					name,
+					kind,
+					stringValue(input.status, 'active'),
+					nativeUnit,
+					stringValue(input.quotaVisibility ?? input.quota_visibility, 'opaque'),
+					Math.max(1, Math.floor(numberValue(input.maxConcurrentWorkers ?? input.max_concurrent_workers, provider.maxConcurrentWorkers ?? 1))),
+					stringValue(input.resetCadence ?? input.reset_cadence, '') || null,
+					JSON.stringify(objectValue(input.config ?? input.configJson)),
+					JSON.stringify(objectValue(input.metadata ?? input.metadataJson)),
+					timestamp,
+					timestamp,
+				],
+			);
+		}
+		for (const limit of arrayValue(input.nativeLimits ?? input.limits)) {
+			await this.upsertExecutionProviderNativeLimit(teamId, providerId, id, limit);
+		}
+		if (input.observation && typeof input.observation === 'object') {
+			await this.recordExecutionProviderObservation(teamId, providerId, id, input.observation);
+		}
+		return this.getExecutionProvider(teamId, providerId, id);
+	}
+
+	async upsertExecutionProviderNativeLimit(teamId, providerId, executionProviderId, input = {}) {
+		await this.ensureInitialized();
+		const executionProvider = await this.first(
+			`SELECT * FROM execution_providers
+			 WHERE id = ? AND team_id = ? AND capacity_provider_id = ?
+			 LIMIT 1`,
+			[executionProviderId, teamId, providerId],
+		);
+		if (!executionProvider) return null;
+		const scope = stringValue(input.scope ?? input.limitScope ?? input.limit_scope, 'daily');
+		const nativeUnit = stringValue(input.nativeUnit ?? input.native_unit, executionProvider.native_unit);
+		const limitAmount = numberValue(input.limitAmount ?? input.limit_amount, null);
+		if (limitAmount === null || limitAmount < 0) {
+			throw new Error('limitAmount must be a non-negative number.');
+		}
+		const id = stringValue(input.id, `${executionProviderId}:${safeIdPart(scope)}:${safeIdPart(nativeUnit)}`);
+		const existing = await this.first(
+			`SELECT * FROM execution_provider_native_limits
+			 WHERE id = ? AND execution_provider_id = ?
+			 LIMIT 1`,
+			[id, executionProviderId],
+		);
+		const timestamp = isoNow();
+		const values = [
+			executionProviderId,
+			scope,
+			nativeUnit,
+			limitAmount,
+			Math.max(0, numberValue(input.reserveBufferPercent ?? input.reserve_buffer_percent, existing?.reserve_buffer_percent ?? 0)),
+			stringValue(input.resetCadence ?? input.reset_cadence, existing?.reset_cadence ?? executionProvider.reset_cadence ?? '') || null,
+			stringValue(input.resetAt ?? input.reset_at, existing?.reset_at ?? '') || null,
+			stringValue(input.confidence, existing?.confidence ?? 'estimated'),
+			stringValue(input.source, existing?.source ?? 'configured'),
+			JSON.stringify(objectValue(input.metadata ?? input.metadataJson ?? parseJson(existing?.metadata_json, {}))),
+			timestamp,
+			id,
+		];
+		if (existing) {
+			await this.run(
+				`UPDATE execution_provider_native_limits
+				 SET execution_provider_id = ?, scope = ?, native_unit = ?, limit_amount = ?, reserve_buffer_percent = ?,
+				     reset_cadence = ?, reset_at = ?, confidence = ?, source = ?, metadata_json = ?, updated_at = ?
+				 WHERE id = ?`,
+				values,
+			);
+		} else {
+			await this.run(
+				`INSERT INTO execution_provider_native_limits (
+					id, execution_provider_id, scope, native_unit, limit_amount, reserve_buffer_percent,
+					reset_cadence, reset_at, confidence, source, metadata_json, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[
+					id,
+					executionProviderId,
+					scope,
+					nativeUnit,
+					limitAmount,
+					Math.max(0, numberValue(input.reserveBufferPercent ?? input.reserve_buffer_percent, 0)),
+					stringValue(input.resetCadence ?? input.reset_cadence, executionProvider.reset_cadence ?? '') || null,
+					stringValue(input.resetAt ?? input.reset_at, '') || null,
+					stringValue(input.confidence, 'estimated'),
+					stringValue(input.source, 'configured'),
+					JSON.stringify(objectValue(input.metadata ?? input.metadataJson)),
+					timestamp,
+					timestamp,
+				],
+			);
+		}
+		return serializeExecutionProviderNativeLimit(await this.first(`SELECT * FROM execution_provider_native_limits WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async recordExecutionProviderObservation(teamId, providerId, executionProviderId, input = {}) {
+		await this.ensureInitialized();
+		const executionProvider = await this.first(
+			`SELECT * FROM execution_providers
+			 WHERE id = ? AND team_id = ? AND capacity_provider_id = ?
+			 LIMIT 1`,
+			[executionProviderId, teamId, providerId],
+		);
+		if (!executionProvider) return null;
+		const timestamp = isoNow();
+		const id = stringValue(input.id, randomUUID());
+		await this.run(
+			`INSERT INTO execution_provider_observations (
+				id, execution_provider_id, observed_at, health, active_workers, queued_tasks, throttle_state,
+				native_remaining_json, reset_at, confidence, metadata_json, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				executionProviderId,
+				stringValue(input.observedAt ?? input.observed_at, timestamp),
+				stringValue(input.health, 'unknown'),
+				numberValue(input.activeWorkers ?? input.active_workers, null),
+				numberValue(input.queuedTasks ?? input.queued_tasks, null),
+				stringValue(input.throttleState ?? input.throttle_state, '') || null,
+				JSON.stringify(objectValue(input.nativeRemaining ?? input.native_remaining ?? input.nativeRemainingJson)),
+				stringValue(input.resetAt ?? input.reset_at, '') || null,
+				stringValue(input.confidence, 'estimated'),
+				JSON.stringify(objectValue(input.metadata ?? input.metadataJson)),
+				timestamp,
+			],
+		);
+		return serializeExecutionProviderObservation(await this.first(`SELECT * FROM execution_provider_observations WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async syncProviderNativeCapacity(teamId, providerId, budgets = {}) {
+		const nativeCapacity = budgets?.nativeCapacity ?? budgets?.native_capacity ?? null;
+		const executionProviderInputs = arrayValue(
+			nativeCapacity?.executionProviders
+				?? nativeCapacity?.execution_providers
+				?? budgets?.executionProviders
+				?? budgets?.execution_providers
+				?? (Array.isArray(nativeCapacity) ? nativeCapacity : []),
+		);
+		const synced = [];
+		for (const input of executionProviderInputs) {
+			if (!input || typeof input !== 'object' || Array.isArray(input)) continue;
+			const executionProvider = await this.upsertExecutionProvider(teamId, providerId, input);
+			if (executionProvider) synced.push(executionProvider);
+		}
+		return synced;
 	}
 
 	async listCapacityProviderDeployments(teamId, providerId) {
@@ -3928,6 +4015,25 @@ export class MarketControlPlaneStore {
 		await this.ensureInitialized();
 		const timestamp = isoNow();
 		const id = input.id ?? randomUUID();
+		const existing = await this.first(`SELECT * FROM capacity_grants WHERE id = ? LIMIT 1`, [id]);
+		const metadata = {
+			...parseJson(existing?.metadata_json, {}),
+			...(input.metadata ?? {}),
+		};
+		for (const [inputKey, metadataKey] of [
+			['portfolioAllocationPercent', 'portfolioAllocationPercent'],
+			['allocationPercent', 'portfolioAllocationPercent'],
+			['derivedAllocationPercent', 'portfolioAllocationPercent'],
+			['reservePoolPercent', 'reservePoolPercent'],
+			['minimumReservePercent', 'reservePoolPercent'],
+			['maxDailyProjectCredits', 'maxDailyProjectCredits'],
+		]) {
+			const value = numberValue(input[inputKey], null);
+			if (value !== null) metadata[metadataKey] = value;
+		}
+		if (input.emergencyOverride !== undefined || input.emergencyOverrideEnabled !== undefined) {
+			metadata.emergencyOverride = input.emergencyOverride === true || input.emergencyOverrideEnabled === true;
+		}
 		await this.run(
 			`INSERT OR REPLACE INTO capacity_grants (
 				id, capacity_provider_id, lane_id, grant_scope, team_id, project_id, environment, state,
@@ -3956,7 +4062,7 @@ export class MarketControlPlaneStore {
 				input.monthlyProviderUnits ?? null,
 				Number(input.priorityWeight ?? 1),
 				input.overflowPolicy ?? 'soft_grant',
-				JSON.stringify(input.metadata ?? {}),
+				JSON.stringify(metadata),
 				id,
 				timestamp,
 				timestamp,
@@ -3981,6 +4087,7 @@ export class MarketControlPlaneStore {
 			billingScope: 'team',
 			monthlyCreditBudget: Number(input.monthlyCreditBudget ?? 1000),
 			dailyCreditBudget: Number(input.dailyCreditBudget ?? 50),
+			creditBudgetMode: normalizeCreditBudgetMode(input.creditBudgetMode ?? input.credit_budget_mode, 'hybrid'),
 			maxConcurrentWorkdays: Number(input.maxConcurrentWorkdays ?? 1),
 			maxConcurrentWorkers: Number(input.maxConcurrentWorkers ?? 2),
 			metadata: {
@@ -4093,13 +4200,15 @@ export class MarketControlPlaneStore {
 		const id = input.id ?? randomUUID();
 		await this.run(
 			`INSERT INTO capacity_reservations (
-				id, capacity_provider_id, lane_id, team_id, project_id, work_day_id, task_id, state,
-				reserved_credits, consumed_credits, reserved_provider_units, consumed_provider_units,
+				id, capacity_provider_id, execution_provider_id, lane_id, team_id, project_id, work_day_id, task_id, state,
+				reserved_credits, consumed_credits, native_unit, reserved_native_amount, consumed_native_amount,
+				reserved_provider_units, consumed_provider_units,
 				reserved_usd, consumed_usd, expires_at, metadata_json, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, NULL, ?, NULL, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?)`,
 			[
 				id,
 				input.capacityProviderId,
+				input.executionProviderId ?? null,
 				input.laneId,
 				input.teamId,
 				input.projectId,
@@ -4107,6 +4216,9 @@ export class MarketControlPlaneStore {
 				input.taskId ?? null,
 				input.state ?? 'reserved',
 				Number(input.reservedCredits ?? 0),
+				input.nativeUnit ?? input.native_unit ?? null,
+				input.reservedNativeAmount ?? input.reserved_native_amount ?? null,
+				input.consumedNativeAmount ?? input.consumed_native_amount ?? null,
 				input.reservedProviderUnits ?? null,
 				input.reservedUsd ?? null,
 				input.expiresAt ?? null,
@@ -4183,6 +4295,8 @@ export class MarketControlPlaneStore {
 			await this.run(
 				`UPDATE capacity_reservations
 				 SET consumed_credits = MAX(consumed_credits, ?),
+				     native_unit = CASE WHEN ? IS NULL THEN native_unit ELSE ? END,
+				     consumed_native_amount = CASE WHEN ? IS NULL THEN consumed_native_amount ELSE ? END,
 				     consumed_provider_units = CASE WHEN ? IS NULL THEN consumed_provider_units ELSE ? END,
 				     consumed_usd = CASE WHEN ? IS NULL THEN consumed_usd ELSE ? END,
 				     state = CASE WHEN ? >= reserved_credits THEN 'consumed' ELSE state END,
@@ -4190,6 +4304,10 @@ export class MarketControlPlaneStore {
 				 WHERE id = ?`,
 				[
 					Number(input.credits ?? 0),
+					input.nativeUnit ?? null,
+					input.nativeUnit ?? null,
+					input.nativeAmount ?? null,
+					input.nativeAmount ?? null,
 					input.providerUnits ?? null,
 					input.providerUnits ?? null,
 					input.usd ?? null,
@@ -4309,25 +4427,253 @@ export class MarketControlPlaneStore {
 		return serializeTaskEstimate(await this.first(`SELECT * FROM task_estimates WHERE id = ? LIMIT 1`, [id]));
 	}
 
+	async getExecutionProviderKind(executionProviderId) {
+		if (!executionProviderId) return null;
+		await this.ensureInitialized();
+		const row = await this.first(`SELECT kind FROM execution_providers WHERE id = ? LIMIT 1`, [executionProviderId]);
+		return typeof row?.kind === 'string' && row.kind ? row.kind : null;
+	}
+
+	async getCreditConversionProfile(taskSignature, profileId, executionProviderKind, nativeUnit) {
+		if (!taskSignature || !executionProviderKind || !nativeUnit) return null;
+		await this.ensureInitialized();
+		return serializeCreditConversionProfile(await this.first(
+			`SELECT * FROM credit_conversion_profiles
+			 WHERE task_signature = ? AND execution_profile_id = ? AND execution_provider_kind = ? AND native_unit = ?
+			 LIMIT 1`,
+			[taskSignature, executionProfileId(profileId), executionProviderKind, nativeUnit],
+		));
+	}
+
+	async upsertCreditConversionProfileFromActuals(input) {
+		await this.ensureInitialized();
+		if (!input?.taskSignature || !input?.executionProviderKind || !input?.nativeUnit) return null;
+		const profileId = executionProfileId(input.executionProfileId);
+		const timestamp = isoNow();
+		const actuals = (await this.all(
+			`SELECT a.*
+			 FROM task_usage_actuals a
+			 JOIN execution_providers ep ON ep.id = a.execution_provider_id
+			 WHERE a.task_signature = ?
+			   AND COALESCE(a.execution_profile_id, ?) = ?
+			   AND ep.kind = ?
+			 ORDER BY a.created_at DESC LIMIT 200`,
+			[input.taskSignature, defaultExecutionProfileId, profileId, input.executionProviderKind],
+		)).map(serializeTaskUsageActual);
+		const existing = await this.getCreditConversionProfile(input.taskSignature, profileId, input.executionProviderKind, input.nativeUnit);
+		const profile = buildCreditConversionProfileFromActuals({
+			id: existing?.id ?? `${input.taskSignature}:${profileId}:${input.executionProviderKind}:${input.nativeUnit}`,
+			taskSignature: input.taskSignature,
+			executionProfileId: profileId,
+			executionProviderKind: input.executionProviderKind,
+			nativeUnit: input.nativeUnit,
+			actuals,
+			formulaVersion: input.formulaVersion,
+			now: timestamp,
+		});
+		await this.run(
+			`INSERT OR REPLACE INTO credit_conversion_profiles (
+				id, task_signature, execution_profile_id, execution_provider_kind, native_unit,
+				sample_count, completed_sample_count, interrupted_sample_count,
+				native_units_per_credit_p50, native_units_per_credit_p90,
+				credits_per_native_unit_p50, credits_per_native_unit_p90,
+				actual_credits_p50, actual_credits_p90, confidence, formula_version,
+				metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				profile.id,
+				profile.taskSignature,
+				profile.executionProfileId,
+				profile.executionProviderKind,
+				profile.nativeUnit,
+				profile.sampleCount,
+				profile.completedSampleCount,
+				profile.interruptedSampleCount ?? 0,
+				profile.nativeUnitsPerCreditP50,
+				profile.nativeUnitsPerCreditP90,
+				profile.creditsPerNativeUnitP50,
+				profile.creditsPerNativeUnitP90,
+				profile.actualCreditsP50,
+				profile.actualCreditsP90,
+				profile.confidence,
+				profile.formulaVersion,
+				JSON.stringify(profile.metadata ?? {}),
+				existing?.createdAt ?? timestamp,
+				profile.updatedAt,
+			],
+		);
+		return await this.getCreditConversionProfile(input.taskSignature, profileId, input.executionProviderKind, input.nativeUnit);
+	}
+
+	async listCreditConversionProfiles(limit = 100) {
+		await this.ensureInitialized();
+		const rows = await this.all(
+			`SELECT * FROM credit_conversion_profiles ORDER BY updated_at DESC LIMIT ?`,
+			[Math.max(1, Math.min(500, Number(limit) || 100))],
+		);
+		return rows.map(serializeCreditConversionProfile);
+	}
+
+	async getBestCreditConversionProfile(executionProviderKind, nativeUnit) {
+		if (!executionProviderKind || !nativeUnit) return null;
+		await this.ensureInitialized();
+		return serializeCreditConversionProfile(await this.first(
+			`SELECT * FROM credit_conversion_profiles
+			 WHERE execution_provider_kind = ? AND native_unit = ?
+			 ORDER BY CASE confidence WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END DESC,
+			          completed_sample_count DESC, sample_count DESC, updated_at DESC
+			 LIMIT 1`,
+			[executionProviderKind, nativeUnit],
+		));
+	}
+
+	summarizeDerivedCapacity(entries = []) {
+		const availableNativeByUnit = {};
+		let totalDerivedAvailableCredits = 0;
+		let derivedEntryCount = 0;
+		let learningEntryCount = 0;
+		for (const entry of entries) {
+			if (!entry) continue;
+			availableNativeByUnit[entry.nativeUnit] = (availableNativeByUnit[entry.nativeUnit] ?? 0) + Number(entry.availableNativeAmount ?? 0);
+			if (entry.derivedAvailableCredits == null) {
+				learningEntryCount += 1;
+			} else {
+				totalDerivedAvailableCredits += Number(entry.derivedAvailableCredits ?? 0);
+				derivedEntryCount += 1;
+			}
+		}
+		return {
+			entries,
+			totalDerivedAvailableCredits: Math.floor(totalDerivedAvailableCredits * 100) / 100,
+			derivedEntryCount,
+			learningEntryCount,
+			availableNativeByUnit,
+		};
+	}
+
+	async getCapacityProviderDerivedCapacity(teamId, providerId, options = {}) {
+		await this.ensureInitialized();
+		const executionProviders = Array.isArray(options.executionProviders)
+			? options.executionProviders
+			: await this.listExecutionProviders(teamId, providerId);
+		const activeReservations = Array.isArray(options.activeReservations)
+			? options.activeReservations
+			: (await this.all(
+				`SELECT * FROM capacity_reservations
+				 WHERE team_id = ? AND capacity_provider_id = ?
+				   AND state IN ('reserved', 'consuming', 'consumed', 'failed', 'overran_pending_approval')
+				 ORDER BY created_at DESC`,
+				[teamId, providerId],
+			)).map(serializeCapacityReservation);
+		const entries = [];
+		for (const executionProvider of executionProviders) {
+			const limits = Array.isArray(executionProvider.nativeLimits) && executionProvider.nativeLimits.length > 0
+				? executionProvider.nativeLimits
+				: [{ nativeUnit: executionProvider.nativeUnit, scope: null, limitAmount: null, reserveBufferPercent: 0 }];
+			for (const limit of limits) {
+				const nativeUnit = limit?.nativeUnit ?? executionProvider.nativeUnit;
+				const conversionProfile = await this.getBestCreditConversionProfile(executionProvider.kind, nativeUnit);
+				entries.push(deriveAvailableCredits({
+					executionProvider,
+					nativeLimit: limit,
+					latestObservation: executionProvider.latestObservation ?? null,
+					activeReservations,
+					conversionProfile,
+					scope: limit?.scope ?? null,
+					nativeUnit,
+				}));
+			}
+		}
+		return this.summarizeDerivedCapacity(entries);
+	}
+
+	async getTeamDerivedCapacity(teamId, options = {}) {
+		await this.ensureInitialized();
+		const providers = Array.isArray(options.providers) ? options.providers : await this.listTeamCapacityProviders(teamId);
+		const activeReservations = Array.isArray(options.activeReservations)
+			? options.activeReservations
+			: (await this.all(
+				`SELECT * FROM capacity_reservations
+				 WHERE team_id = ? AND state IN ('reserved', 'consuming', 'consumed', 'failed', 'overran_pending_approval')
+				 ORDER BY created_at DESC`,
+				[teamId],
+			)).map(serializeCapacityReservation);
+		const providerSummaries = [];
+		for (const provider of providers) {
+			providerSummaries.push({
+				capacityProviderId: provider.id,
+				...(await this.getCapacityProviderDerivedCapacity(teamId, provider.id, {
+					activeReservations: activeReservations.filter((reservation) => reservation.capacityProviderId === provider.id),
+				})),
+			});
+		}
+		const entries = providerSummaries.flatMap((summary) => summary.entries ?? []);
+		return {
+			...this.summarizeDerivedCapacity(entries),
+			providers: providerSummaries,
+		};
+	}
+
 	async createTaskUsageActual(input) {
 		await this.ensureInitialized();
 		const timestamp = isoNow();
 		const id = input.id ?? randomUUID();
+		const profileId = executionProfileId(input.executionProfileId);
+		const profileNativeUnit = nativeUsageUnit(input.nativeUsage) ?? nativeUsageUnit(input);
+		const executionProviderKind = input.executionProviderKind
+			?? await this.getExecutionProviderKind(input.executionProviderId);
+		const conversionProfile = profileNativeUnit && executionProviderKind
+			? await this.getCreditConversionProfile(input.taskSignature, profileId, executionProviderKind, profileNativeUnit)
+			: null;
+		const creditCalculation = calculateActualCredits({
+			nativeUsage: input.nativeUsage,
+			conversionProfile,
+			legacyActualCredits: input.actualCredits,
+			actualCreditsOverride: input.actualCreditsOverride === true,
+			reservedCredits: input.reservedCredits,
+			actualUsd: input.actualUsd,
+			inputTokens: input.inputTokens,
+			outputTokens: input.outputTokens,
+			cachedInputTokens: input.cachedInputTokens,
+			quotaMinutes: input.quotaMinutes,
+			wallMinutes: input.wallMinutes,
+			filesOpened: input.filesOpened,
+			filesChanged: input.filesChanged,
+			diffLinesAdded: input.diffLinesAdded,
+			diffLinesRemoved: input.diffLinesRemoved,
+			testRuns: input.testRuns,
+			retryCount: input.retryCount,
+			source: input.source,
+		});
+		const metadata = {
+			...(input.metadata && typeof input.metadata === 'object' ? input.metadata : {}),
+			actualCreditCalculation: {
+				formulaVersion: creditCalculation.formulaVersion,
+				source: creditCalculation.source,
+				components: creditCalculation.components,
+				conversionProfileId: creditCalculation.conversionProfileId ?? null,
+				conversionConfidence: creditCalculation.conversionConfidence ?? null,
+			},
+		};
+		if (creditCalculation.partial) metadata.partial = true;
+		if (creditCalculation.interrupted) metadata.interrupted = true;
 		await this.run(
 			`INSERT INTO task_usage_actuals (
-				id, task_id, work_day_id, project_id, task_signature, execution_profile_id, capacity_provider_id, lane_id,
+				id, task_id, work_day_id, project_id, task_signature, execution_profile_id, capacity_provider_id, execution_provider_id, lane_id,
 				business_model, model_name, input_tokens, output_tokens, cached_input_tokens, quota_minutes,
 				wall_minutes, files_opened, files_changed, diff_lines_added, diff_lines_removed,
-				test_runs, retry_count, actual_credits, actual_usd, metadata_json, created_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				test_runs, retry_count, actual_credits, actual_usd, credit_formula_version, actual_credit_source,
+				native_usage_json, metadata_json, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[
 				id,
 				input.taskId ?? null,
 				input.workDayId ?? null,
 				input.projectId,
 				input.taskSignature,
-				executionProfileId(input.executionProfileId),
+				profileId,
 				input.capacityProviderId ?? null,
+				input.executionProviderId ?? null,
 				input.laneId ?? null,
 				input.businessModel ?? 'credit',
 				input.modelName ?? null,
@@ -4342,13 +4688,57 @@ export class MarketControlPlaneStore {
 				input.diffLinesRemoved ?? null,
 				input.testRuns ?? null,
 				input.retryCount ?? null,
-				Number(input.actualCredits ?? 0),
+				creditCalculation.actualCredits,
 				input.actualUsd ?? null,
-				JSON.stringify(input.metadata ?? {}),
+				input.creditFormulaVersion ?? creditCalculation.formulaVersion,
+				input.actualCreditSource ?? creditCalculation.source,
+				JSON.stringify(creditCalculation.nativeUsage ?? {}),
+				JSON.stringify(metadata),
 				timestamp,
 			],
 		);
-		await this.upsertTaskEstimateProfileFromActual(input.taskSignature, executionProfileId(input.executionProfileId));
+		const nativeUsageInput = objectValue(input.nativeUsage);
+		const hasNativeObservation = Object.keys(nativeUsageInput).length > 0
+			|| Object.keys(creditCalculation.components).length > 0;
+		if (hasNativeObservation) {
+			await this.run(
+				`INSERT INTO native_usage_observations (
+					id, task_usage_actual_id, task_id, work_day_id, project_id, task_signature, execution_profile_id,
+					capacity_provider_id, execution_provider_id, native_unit, native_usage_json, observed_at, source,
+					formula_version, actual_credits, metadata_json, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[
+					randomUUID(),
+					id,
+					input.taskId ?? null,
+					input.workDayId ?? null,
+					input.projectId,
+					input.taskSignature,
+					profileId,
+					input.capacityProviderId ?? null,
+					input.executionProviderId ?? null,
+					creditCalculation.nativeUsage?.nativeUnit ?? null,
+					JSON.stringify(creditCalculation.nativeUsage ?? {}),
+					creditCalculation.nativeUsage?.observedAt ?? timestamp,
+					creditCalculation.nativeUsage?.source ?? input.source ?? 'provider_report',
+					input.creditFormulaVersion ?? creditCalculation.formulaVersion,
+					creditCalculation.actualCredits,
+					JSON.stringify(metadata),
+					timestamp,
+				],
+			);
+		}
+		await this.upsertTaskEstimateProfileFromActual(input.taskSignature, profileId);
+		const learnedNativeUnit = creditCalculation.nativeUsage?.nativeUnit ?? profileNativeUnit;
+		if (executionProviderKind && learnedNativeUnit) {
+			await this.upsertCreditConversionProfileFromActuals({
+				taskSignature: input.taskSignature,
+				executionProfileId: profileId,
+				executionProviderKind,
+				nativeUnit: learnedNativeUnit,
+				formulaVersion: input.creditFormulaVersion ?? creditCalculation.formulaVersion,
+			});
+		}
 		return serializeTaskUsageActual(await this.first(`SELECT * FROM task_usage_actuals WHERE id = ? LIMIT 1`, [id]));
 	}
 
@@ -4636,6 +5026,10 @@ export class MarketControlPlaneStore {
 		const reservedCredits = activeReservations
 			.filter((reservation) => reservation.state === 'reserved')
 			.reduce((total, reservation) => total + Number(reservation.reservedCredits ?? 0), 0);
+		const derivedCapacity = await this.getTeamDerivedCapacity(project.teamId, {
+			providers,
+			activeReservations,
+		});
 		return {
 			projectId,
 			teamId: project.teamId,
@@ -4645,6 +5039,7 @@ export class MarketControlPlaneStore {
 			grants,
 			activeReservations,
 			estimateProfiles: profiles,
+			derivedCapacity,
 			remaining: {
 				dailyCredits: dailyCredits > 0 ? Math.max(0, dailyCredits - reservedCredits) : null,
 				weeklyCredits: weeklyCredits || null,
@@ -4736,6 +5131,7 @@ export class MarketControlPlaneStore {
 			 ORDER BY created_at DESC LIMIT 200`,
 			projects.length ? projects.map((project) => project.id) : ['__none__'],
 		);
+		const derivedCapacity = await this.getTeamDerivedCapacity(teamId, { providers, activeReservations });
 		return {
 			teamId,
 			monthlyCredits: monthlyCredits || null,
@@ -4751,6 +5147,7 @@ export class MarketControlPlaneStore {
 			grantCount: grants.length,
 			blockedTaskCount: blocked.filter((entry) => entry.decision === 'blocked').length,
 			approvalRequiredCount: blocked.filter((entry) => entry.decision === 'approval_required').length,
+			derivedCapacity,
 		};
 	}
 
@@ -4772,6 +5169,10 @@ export class MarketControlPlaneStore {
 		));
 		const dailyUsedCredits = sumNumbers(projectReservations.map((reservation) => reservation.consumedCredits));
 		const dailyCredits = sumNumbers(plan.grants.filter((grant) => grant.state === 'active').map((grant) => grant.dailyCreditLimit));
+		const derivedCapacity = await this.getTeamDerivedCapacity(plan.teamId, {
+			providers: plan.providers,
+			activeReservations: projectReservations,
+		});
 		let readiness = 'ready';
 		const reasons = [];
 		if (policy?.enabled === false) {
@@ -4792,6 +5193,7 @@ export class MarketControlPlaneStore {
 			dailyUsedCredits,
 			dailyReservedCredits,
 			dailyRemainingCredits: dailyCredits ? Math.max(0, dailyCredits - dailyReservedCredits) : teamSummary.dailyRemainingCredits,
+			derivedCapacity,
 			readiness,
 			reasons,
 			workPolicy: policy,

@@ -1,6 +1,0 @@
-CREATE TABLE IF NOT EXISTS contact_submissions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  email TEXT NOT NULL,
-  message TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);

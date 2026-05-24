@@ -4,13 +4,15 @@ import FormActions from '../../../../../../packages/core/src/components/ui/forms
 import EmptyState from '../../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../../../packages/core/src/components/ui/surface/Panel.astro';
 import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
+import { createMarketApiFacade } from '../../../../../lib/market/api-client';
 import { loadOperationalContext } from '../../../../../view-models/shared.js';
 
 const providerId = String(Astro.params.providerId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 const context = await loadOperationalContext(Astro.locals, Astro);
 const team = context.activeTeam;
-const providers = team && context.store ? await context.store.listTeamCapacityProviders(team.id).catch(() => []) : [];
+const marketApi = createMarketApiFacade(Astro);
+const providers = team ? await marketApi.listTeamCapacityProviders(team.id).catch(() => []) : [];
 const provider = providers.find((entry: any) => entry.id === providerId) ?? null;
 if (!provider) Astro.response.status = 404;
 ---

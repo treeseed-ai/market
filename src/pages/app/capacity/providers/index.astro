@@ -5,12 +5,28 @@ import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.
 import PlainTable from '../../../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
+import { createMarketApiFacade } from '../../../../lib/market/api-client';
 import { loadOperationalContext } from '../../../../view-models/shared.js';
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/capacity/providers')}`);
 const context = await loadOperationalContext(Astro.locals, Astro);
 const team = context.activeTeam;
-const providers = team && context.store ? await context.store.listTeamCapacityProviders(team.id).catch(() => []) : [];
+const marketApi = createMarketApiFacade(Astro);
+const providers = team ? await marketApi.listTeamCapacityProviders(team.id).catch(() => []) : [];
+const nativeCapacityEntries = team
+	? await Promise.all(providers.map(async (provider: any) => [
+			provider.id,
+			await marketApi.listExecutionProviders(team.id, provider.id).catch(() => []),
+		]))
+	: [];
+const nativeCapacityByProvider = new Map(nativeCapacityEntries as Array<[string, any[]]>);
+const grantEntries = team
+	? await Promise.all(providers.map(async (provider: any) => [
+			provider.id,
+			await marketApi.listCapacityGrants(team.id, { providerId: provider.id }).catch(() => []),
+		]))
+	: [];
+const grantsByProvider = new Map(grantEntries as Array<[string, any[]]>);
 
 function summarizeCapabilities(provider: any) {
 	const runtimes = Array.isArray(provider.capabilities?.runtimes) ? provider.capabilities.runtimes : [];
@@ -21,12 +37,54 @@ function summarizeCapabilities(provider: any) {
 	return labels.length > 0 ? labels.slice(0, 3).join(', ') + (labels.length > 3 ? ` +${labels.length - 3}` : '') : 'not reported';
 }
 
-function summarizeBudgets(provider: any) {
+function summarizeCompatibilityBudget(provider: any) {
 	const budgets = provider.budgets ?? {};
 	const daily = budgets.dailyCreditBudget ?? budgets.dailyTaskCreditBudget ?? provider.dailyCreditBudget ?? 0;
 	const monthly = budgets.monthlyCreditBudget ?? provider.monthlyCreditBudget ?? 0;
-	const runners = budgets.maxConcurrentRunners ?? budgets.maxConcurrentWorkers ?? provider.maxConcurrentWorkers ?? 0;
-	return `${daily} daily / ${monthly} monthly / ${runners} runners`;
+	const mode = provider.creditBudgetMode ?? 'derived';
+	if (mode === 'derived' && !daily && !monthly) return 'native-derived, no static credits';
+	return mode === 'static'
+		? `legacy static compatibility: ${daily} daily / ${monthly} monthly`
+		: `${mode} compatibility: ${daily} daily / ${monthly} monthly`;
+}
+
+function summarizeNativeCapacity(executionProviders: any[]) {
+	if (!executionProviders.length) return 'not reported';
+	const labels = executionProviders.slice(0, 2).map((entry) => {
+		const limit = Array.isArray(entry.nativeLimits) ? entry.nativeLimits[0] : null;
+		const amount = limit?.limitAmount ?? 'unbounded';
+		const unit = limit?.nativeUnit ?? entry.nativeUnit ?? 'native units';
+		const scope = limit?.scope ? `/${limit.scope}` : '';
+		const buffer = limit?.reserveBufferPercent != null ? `, ${limit.reserveBufferPercent}% buffer` : '';
+		const workers = entry.maxConcurrentWorkers != null ? `, ${entry.maxConcurrentWorkers} worker${entry.maxConcurrentWorkers === 1 ? '' : 's'}` : '';
+		const visibility = entry.quotaVisibility ? `, ${entry.quotaVisibility}` : '';
+		return `${entry.kind ?? 'provider'}: ${amount} ${unit}${scope}${buffer}${workers}${visibility}`;
+	});
+	return labels.join(' | ') + (executionProviders.length > 2 ? ` +${executionProviders.length - 2}` : '');
+}
+
+function summarizeDerivedCapacity(provider: any) {
+	const entries = Array.isArray(provider.derivedCapacity?.entries) ? provider.derivedCapacity.entries : [];
+	const first = entries.find((entry: any) => entry?.nativeUnit) ?? null;
+	if (!first) return (provider.creditBudgetMode ?? 'derived') === 'derived' ? 'learning native conversion' : 'not derived';
+	const credits = first.derivedAvailableCredits == null ? 'learning' : `${first.derivedAvailableCredits} credits`;
+	const native = `${first.availableNativeAmount ?? 0} ${first.nativeUnit}`;
+	const confidence = first.confidence ? `, ${first.confidence}` : '';
+	const warning = first.derivedAvailableCredits == null || first.confidence === 'low' ? ', learning' : '';
+	return `${credits} from ${native}${confidence}${warning}`;
+}
+
+function summarizePortfolioAllocation(grants: any[]) {
+	const active = grants.filter((grant: any) => grant.state === 'active');
+	if (active.length === 0) return 'no active allocation';
+	const labels = active.slice(0, 2).map((grant: any) => {
+		const scope = grant.projectId ? `project ${grant.projectId}` : grant.grantScope ?? 'team';
+		const percent = grant.portfolioAllocationPercent == null ? 'unbounded' : `${grant.portfolioAllocationPercent}%`;
+		const reserve = grant.reservePoolPercent == null ? '' : `, ${grant.reservePoolPercent}% reserve`;
+		const daily = grant.maxDailyProjectCredits == null ? '' : `, max ${grant.maxDailyProjectCredits}/day`;
+		return `${scope}: ${percent}${reserve}${daily}`;
+	});
+	return labels.join(' | ') + (active.length > 2 ? ` +${active.length - 2}` : '');
 }
 
 function summarizeDeployment(provider: any) {
@@ -47,7 +105,10 @@ const rows = providers.map((provider: any) => ({
 	heartbeat: esc(provider.lastSeenAt ?? provider.metadata?.lastSeenAt ?? 'never'),
 	key: esc(provider.activeKeyPrefix ?? provider.metadata?.apiKey?.activeKeyPrefix ?? 'none'),
 	capabilities: esc(summarizeCapabilities(provider)),
-	budget: esc(summarizeBudgets(provider)),
+	nativeCapacity: esc(summarizeNativeCapacity(nativeCapacityByProvider.get(provider.id) ?? [])),
+	derivedCapacity: esc(summarizeDerivedCapacity(provider)),
+	portfolioAllocation: esc(summarizePortfolioAllocation(grantsByProvider.get(provider.id) ?? [])),
+	compatibilityBudget: esc(summarizeCompatibilityBudget(provider)),
 	deployment: esc(summarizeDeployment(provider)),
 	providerWork: esc(summarizeProviderWork(provider)),
 	actions: `<a class="ts-link-button" href="/app/capacity/providers/${encodeURIComponent(provider.id)}/edit">Open</a> <a class="ts-link-button" href="/app/capacity/providers/${encodeURIComponent(provider.id)}/keys">Rotate key</a>`,
@@ -56,7 +117,7 @@ const rows = providers.map((provider: any) => ({
 
 <TreeseedAppLayout title="Capacity providers" description="Manage provider lifecycle and runtime state." currentPath="/app/capacity/providers" teams={context.teams} activeTeam={team}>
 	<section class="ts-control-page" aria-label="Capacity providers">
-		<Panel eyebrow="Capacity" title="Providers" description={team ? 'Create providers, rotate keys, and review provider-reported runtime state.' : 'Create a team before adding capacity.'}>
+		<Panel eyebrow="Capacity" title="Providers" description={team ? 'Create providers from native limits, then review derived availability and portfolio allocation.' : 'Create a team before adding capacity.'}>
 			<Button slot="actions" href="/app/capacity/providers/new" size="sm">New provider</Button>
 			{team ? (
 				<PlainTable columns={[
@@ -65,7 +126,10 @@ const rows = providers.map((provider: any) => ({
 					{ key: 'heartbeat', label: 'Last heartbeat' },
 					{ key: 'key', label: 'Active key' },
 					{ key: 'capabilities', label: 'Capabilities' },
-					{ key: 'budget', label: 'Budget' },
+					{ key: 'nativeCapacity', label: 'Native capacity' },
+					{ key: 'derivedCapacity', label: 'Derived availability' },
+					{ key: 'portfolioAllocation', label: 'Portfolio allocation' },
+					{ key: 'compatibilityBudget', label: 'Compatibility credits' },
 					{ key: 'deployment', label: 'Deployment' },
 					{ key: 'providerWork', label: 'Provider work' },
 					{ key: 'actions', label: 'Actions' },

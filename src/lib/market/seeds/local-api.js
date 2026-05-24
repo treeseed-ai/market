@@ -1,6 +1,5 @@
-import { NodeSqliteD1Database } from '@treeseed/sdk/db/node-sqlite';
 import { createMarketApiApp } from '../../../api/app.js';
-import { resolveLocalSeedEnv, resolveLocalSeedPersistTo } from './apply.js';
+import { resolveLocalSeedEnv } from './apply.js';
 
 function localApiConfig(projectRoot, env = process.env) {
 	const localEnv = resolveLocalSeedEnv(projectRoot, env);
@@ -57,22 +56,22 @@ async function jsonRequest(app, path, input, body = {}) {
 
 async function requestLocalSeedApi(input, endpoint) {
 	const localEnv = resolveLocalSeedEnv(input.projectRoot, input.env);
-	const db = new NodeSqliteD1Database(await resolveLocalSeedPersistTo(input.projectRoot, localEnv));
+	const db = input.db;
 	try {
 		const config = localApiConfig(input.projectRoot, localEnv);
-		const app = createMarketApiApp({ config, db });
+		const app = createMarketApiApp({ config, ...(db ? { db } : {}) });
 		return await jsonRequest(app, `/v1/seeds/${encodeURIComponent(input.seedName)}/${endpoint}`, input, seedRequestBody(input));
 	} finally {
-		db.close?.();
+		if (!input.db) db?.close?.();
 	}
 }
 
 async function requestLocalSeedExport(input) {
 	const localEnv = resolveLocalSeedEnv(input.projectRoot, input.env);
-	const db = new NodeSqliteD1Database(await resolveLocalSeedPersistTo(input.projectRoot, localEnv));
+	const db = input.db;
 	try {
 		const config = localApiConfig(input.projectRoot, localEnv);
-		const app = createMarketApiApp({ config, db });
+		const app = createMarketApiApp({ config, ...(db ? { db } : {}) });
 		let teamId = input.team;
 		const teamsResponse = await app.request('/v1/teams', {
 			headers: {
@@ -96,7 +95,7 @@ async function requestLocalSeedExport(input) {
 			...(input.includeArtifacts === true ? { includeArtifacts: true } : {}),
 		});
 	} finally {
-		db.close?.();
+		if (!input.db) db?.close?.();
 	}
 }
 

@@ -1,6 +1,0 @@
-CREATE TABLE IF NOT EXISTS agent_messages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  type TEXT NOT NULL,
-  payload_json TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);

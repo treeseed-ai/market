@@ -5,17 +5,19 @@ import PlainTable from '../../../../components/app/controls/PlainTable.astro';
 import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
+import { createMarketApiFacade } from '../../../../lib/market/api-client';
 import { loadOperationalContext, normalizeWorkdayEntry } from '../../../../view-models/shared.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 const context = await loadOperationalContext(Astro.locals, Astro);
+const marketApi = createMarketApiFacade(Astro);
 const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
 let workdays: any[] = [];
-if (project && context.store) {
+if (project) {
 	const [summaries, runtime] = await Promise.all([
-		typeof context.store.listProjectWorkdaySummaries === 'function' ? context.store.listProjectWorkdaySummaries(project.id, null).catch(() => []) : [],
-		typeof context.store.listRuntimeWorkDays === 'function' ? context.store.listRuntimeWorkDays(project.id, { limit: 1000 }).catch(() => []) : [],
+		marketApi.listProjectWorkdaySummaries(project.id, null).catch(() => []),
+		marketApi.listRuntimeWorkDays(project.id, { limit: 1000 }).catch(() => []),
 	]);
 	const seen = new Set();
 	workdays = [...summaries, ...runtime].map((entry: any) => normalizeWorkdayEntry(project, entry)).filter((entry: any) => {
@@ -26,11 +28,12 @@ if (project && context.store) {
 }
 if (!project) Astro.response.status = 404;
 const rows = await Promise.all(workdays.map(async (workday: any) => {
-	const tasks = project && context.store && typeof context.store.listRuntimeTasks === 'function'
-		? await context.store.listRuntimeTasks(project.id, { workDayId: workday.id, limit: 1000 }).catch(() => [])
+	const tasks = project
+		? await marketApi.listRuntimeTasks(project.id, { workDayId: workday.id, limit: 1000 }).catch(() => [])
 		: [];
 	const agentCount = new Set(tasks.map((task: any) => task.agentId ?? task.agent_id).filter(Boolean)).size;
 	const credits = Number(workday.summary?.capacityUsed ?? workday.summary?.creditsUsed ?? workday.summary?.budget?.capacityUsed ?? 0);
+	const nativeUsage = workday.summary?.nativeUsage ?? workday.summary?.nativeUsageSummary ?? null;
 	return {
 		id: `workday-${esc(workday.id)}`,
 		name: `<strong>${esc(workday.objective)}</strong><span>${esc(workday.id)}</span>`,
@@ -38,6 +41,7 @@ const rows = await Promise.all(workdays.map(async (workday: any) => {
 		agents: esc(agentCount || workday.docsAutomation?.agentCount || 0),
 		tasks: esc(tasks.length || workday.docsAutomation?.taskCount || 0),
 		credits: esc(credits ? credits.toFixed(2) : '0'),
+		nativeUsage: esc(nativeUsage?.amount == null ? 'learning' : `${nativeUsage.amount} ${nativeUsage.nativeUnit ?? 'native units'}`),
 		updated: esc(workday.updatedAt ?? workday.startedAt ?? ''),
 		action: `<a class="ts-link-button" href="/app/projects/${encodeURIComponent(project.id)}/workdays/${encodeURIComponent(workday.id)}">Open</a>`,
 	};
@@ -50,7 +54,7 @@ const rows = await Promise.all(workdays.map(async (workday: any) => {
 			<ProjectControlNav projectId={project.id} current="workdays" />
 			<Panel eyebrow="Workdays" title="Agent workdays" description="Daily agent activity grouped by status, task volume, and credit usage.">
 				<button slot="actions" class="ts-button" data-size="sm" type="button" id="request-workday-button">Request local workday</button>
-				<PlainTable columns={[{ key: 'name', label: 'Workday' }, { key: 'state', label: 'State' }, { key: 'agents', label: 'Agents' }, { key: 'tasks', label: 'Tasks' }, { key: 'credits', label: 'Credits' }, { key: 'updated', label: 'Updated' }, { key: 'action', label: 'Action' }]} rows={rows} emptyTitle="No workdays" emptyDescription="Workdays appear after the manager records project activity." interactive={true} pageSize={10} searchLabel="Filter workdays" />
+				<PlainTable columns={[{ key: 'name', label: 'Workday' }, { key: 'state', label: 'State' }, { key: 'agents', label: 'Agents' }, { key: 'tasks', label: 'Tasks' }, { key: 'credits', label: 'Credits' }, { key: 'nativeUsage', label: 'Native usage' }, { key: 'updated', label: 'Updated' }, { key: 'action', label: 'Action' }]} rows={rows} emptyTitle="No workdays" emptyDescription="Workdays appear after the manager records project activity." interactive={true} pageSize={10} searchLabel="Filter workdays" />
 				<p class="ts-subtle" id="workday-request-status" role="status"></p>
 			</Panel>
 		</section>

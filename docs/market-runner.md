@@ -91,7 +91,7 @@ Non-repository SDK operations:
 * deployment intent clients
 * catalog/template/knowledge-pack clients
 * seed planning/apply contracts
-* D1/Postgres migration helpers as applicable
+* Drizzle migration helpers for Market PostgreSQL and the static-hub D1 form storage
 * Cloudflare resource reconciliation
 * Railway service/deployment reconciliation
 * GitHub workflow dispatch and monitoring
@@ -651,12 +651,10 @@ CLOUDFLARE_API_TOKEN=...
 CLOUDFLARE_ACCOUNT_ID=...
 ```
 
-Database credentials depend on the selected database backend:
+Database credentials target the Market PostgreSQL control-plane database:
 
 ```bash
-TREESEED_DATABASE_URL=postgres://...
-# or current D1 configuration during transition
-TREESEED_API_D1_DATABASE_ID=...
+TREESEED_MARKET_DATABASE_URL=postgres://...
 ```
 
 ### Runner loop
@@ -739,7 +737,7 @@ Production operations that mutate the Market repo or database should support app
 
 Examples requiring approval:
 
-* production database migration
+* production Market PostgreSQL migration
 * production release
 * production infrastructure reconciliation that destroys/replaces resources
 * direct push to protected branch
@@ -764,42 +762,16 @@ selected_target = cli
 
 ## Database Direction
 
-The current Market control plane has grown beyond a small edge-local database. It includes users, sessions, teams, projects, hosts, deployments, credentials, capacity providers, tasks, events, approvals, catalog, artifacts, reports, and operation state.
+The Market control plane is PostgreSQL-only. It includes users, sessions, teams, projects, hosts, deployments, credentials, capacity providers, tasks, events, approvals, catalog, artifacts, reports, and operation state.
 
-Recommended direction:
+Schema ownership is split by runtime:
 
-### Short term
+* Market control-plane schema lives in `packages/sdk/src/db/market-schema.ts`.
+* Market PostgreSQL migration SQL is generated into `packages/sdk/drizzle/market` with `npm run db:generate:market`.
+* Market startup and deploy workflows apply generated Drizzle SQL with `npm run db:migrate:market` against `TREESEED_MARKET_DATABASE_URL`.
+* SDK/Core D1 schema remains only for unauthenticated static knowledge-hub form storage: `runtime_records`, `subscribers`, and `contact_submissions`. It is generated into `packages/sdk/drizzle/d1` with `npm -w packages/sdk run db:generate:d1`.
 
-Keep the current D1 path while the runner/API boundary is cleaned up.
-
-Do not combine the database migration with the first runner extraction unless necessary.
-
-### Medium term
-
-Add database abstraction support for PostgreSQL:
-
-```text
-DatabaseProvider = d1 | postgres
-```
-
-Introduce `TREESEED_DATABASE_URL` for Railway PostgreSQL.
-
-Keep D1 support where Cloudflare-local hub/runtime use cases benefit from it.
-
-### Long term
-
-Move the Market control-plane database to Railway PostgreSQL if the Market API remains Railway-hosted and the schema continues to grow.
-
-Reasons:
-
-* stronger relational behavior
-* better concurrency
-* richer migrations
-* easier reporting and introspection
-* fewer limits for operational jobs
-* simpler fit with Railway-hosted API and runner services
-
-The operations runner should be database-backend agnostic through SDK/store interfaces.
+The top-level `migrations/` directory and hand-authored Market SQL migrations are retired. Market runtime code must fail clearly when PostgreSQL migrations cannot be applied; it must not create or repair Market tables ad hoc.
 
 ## Migration Sequence
 
@@ -887,18 +859,17 @@ Acceptance:
 * Staging runner executes a safe repository read operation.
 * Staging runner executes a test repository write operation on a non-production branch.
 
-### Phase 7 — Optional PostgreSQL migration plan
+### Phase 7 — PostgreSQL migration hardening
 
-* Add database provider abstraction.
-* Add Postgres schema/migrations.
-* Add migration/export/import tooling.
-* Add dual-read or maintenance-window migration plan.
-* Add rollback plan.
+* Keep Market runtime on the PostgreSQL adapter.
+* Keep generated Drizzle migration artifacts checked in.
+* Add migration/export/import tooling where operationally useful.
+* Add rollback and restore runbooks for production PostgreSQL.
 
 Acceptance:
 
-* Market API and operations runner can run against Postgres in staging.
-* D1 remains available until production migration is approved.
+* Market API and operations runner run against PostgreSQL in staging and production.
+* D1 references are limited to SDK/Core static-hub form storage.
 
 ## Boundary Tests
 
@@ -940,7 +911,7 @@ This change is done when:
 9. Platform jobs have events, retries, cancellation, and idempotency.
 10. Staging can execute a safe repo operation through the runner.
 11. Production repo/database operations can require approval.
-12. Database migration to PostgreSQL has a separate plan and does not block runner extraction.
+12. Market control-plane database migration is PostgreSQL/Drizzle-owned and does not block runner extraction.
 
 ## Implementation Notes
 
