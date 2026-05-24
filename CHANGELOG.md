@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.6.10] - 2026-05-24
+
+### Added
+
+- feat(market): complete dynamic capacity budgeting (5d99983cce95)
+
+### Fixed
+
+- fix(deps): sdk template source reuse (fc5d6a6a1570)
+- build(deps): fix sdk acceptance capacity method arguments (6fa3efe55c29)
+- docs(deps): fix markdown cleanup for staging deploy (06831f1e2ee6)
+
+### Infrastructure
+
+- release: sync package staging heads (b71f8438d7bc)
+
+### Tests
+
+- test(deps): stabilize market api release candidate test (3b584c0ecf40)
+- build(deps): add market postgres baseline adoption columns (e1821f586449)
+- build(deps): make market postgres baseline adopt existing schema (6dac1dc73a6c)
+- build(deps): make static hub d1 baseline idempotent (80f3dca60fb8)
+
+### Dependencies
+
+- Release @treeseed/market 0.6.10.
+- Release package @treeseed/agent: 0.10.6.
+- Release package @treeseed/cli: 0.10.6.
+- Release package @treeseed/core: 0.10.6.
+- Release package @treeseed/sdk: 0.10.12.
+
 ## [0.6.9] - 2026-05-23
 
 ### Added
