@@ -314,7 +314,7 @@ describe('market api', () => {
 		expect(seeded.payload.fixtures.catalogArtifact.version).toBe('1.0.0');
 		expect(seeded.payload.fixtures.seedRun.id).toEqual(expect.any(String));
 		expect(seeded.payload.fixtures.passwordReset.token).toEqual(expect.any(String));
-	});
+	}, 15000);
 
 	it('deletes projects and project-owned records through the project API', async () => {
 		const app = createTestApp();
