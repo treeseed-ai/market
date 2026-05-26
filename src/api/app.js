@@ -3467,7 +3467,7 @@ export function createMarketApiApp(options = {}) {
 						emailAddressId,
 						displayName,
 						returnTo,
-						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, config),
+						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, runtime.resolved.config),
 					});
 				} catch (error) {
 					await store.run(`DELETE FROM market_auth_credentials WHERE user_id = ?`, [synced.principal.id]).catch(() => null);
@@ -3626,7 +3626,7 @@ export function createMarketApiApp(options = {}) {
 						email: body.email,
 						displayName: auth.principal.displayName,
 						returnTo: '/app/account',
-						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, config),
+						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, runtime.resolved.config),
 					});
 					if (!result.ok) return jsonError(c, result.status, result.error);
 					return c.json({ ok: true, payload: result });
@@ -3653,7 +3653,7 @@ export function createMarketApiApp(options = {}) {
 						emailAddressId: row.id,
 						displayName: auth.principal.displayName,
 						returnTo: '/app/account',
-						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, config),
+						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, runtime.resolved.config),
 					});
 					return c.json({
 						ok: true,
@@ -3794,7 +3794,7 @@ export function createMarketApiApp(options = {}) {
 						email,
 						displayName: auth.principal.displayName,
 						returnTo: '/app/account',
-						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, config),
+						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, runtime.resolved.config),
 					});
 					if (!result.ok) return jsonError(c, result.status, result.error);
 					if (result.emailAddress?.status === 'verified') {

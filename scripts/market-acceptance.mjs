@@ -435,6 +435,7 @@ function sdkArgsForMethod(method) {
 		webSignIn: [{ email: '${actors.siteAdmin.email}', password: '${seed.password}' }],
 		checkWebUsername: ['${actors.teamOwner.username}'],
 		webSessions: [],
+		addWebEmail: [{ email: `treeseed+${stamp}-sdk-added-email@treeseed.ai` }],
 		revokeWebSession: ['${fixtures.session.id}'],
 		updateWebProfile: [{ name: 'Acceptance SDK Profile' }],
 		webAppearance: [],
