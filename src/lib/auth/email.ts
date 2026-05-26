@@ -1,5 +1,5 @@
 import type { APIContext } from 'astro';
-import { getSiteAuthConfig } from './config';
+import { getSiteAuthConfig } from './config.ts';
 
 interface AuthEmailMessage {
 	to: string;

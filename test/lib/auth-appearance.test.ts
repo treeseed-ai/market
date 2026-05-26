@@ -96,11 +96,14 @@ describe('anonymous auth appearance', () => {
 		});
 	});
 
-	it('keeps the register page free of the appearance selector', () => {
+	it('locks the selected auth appearance into registration payload fields', () => {
 		const source = readFileSync(resolve(process.cwd(), 'src/pages/auth/register.astro'), 'utf8');
-		expect(source).toContain('showAppearance={false}');
 		expect(source).not.toContain('Default appearance');
-		expect(source).not.toContain('includeHiddenFields={true}');
+		expect(source).toContain('name="colorScheme"');
+		expect(source).toContain('name="themeMode"');
+		expect(source).toContain('data-auth-theme-scheme-field');
+		expect(source).toContain('treeseed:theme-change');
+		expect(source).toContain('appearance,');
 	});
 
 	it('returns anonymous defaults when no market user preference is available', async () => {
@@ -134,20 +137,24 @@ describe('anonymous auth appearance', () => {
 		expect(context.set).toHaveBeenCalledWith(TREESEED_THEME_MODE_COOKIE, 'dark', expect.any(Object));
 	});
 
-	it('renders the account appearance panel wiring', () => {
+	it('keeps authenticated appearance changes on the shell control instead of an account tab', () => {
 		const source = readFileSync(resolve(process.cwd(), 'src/pages/app/account.astro'), 'utf8');
-		expect(source).toContain('Choose the color scheme and light/dark behavior used across TreeSeed.');
-		expect(source).toContain('action="/v1/auth/web/appearance"');
-		expect(source).toContain('data-account-api-form="appearance"');
-		expect(source).toContain('includeHiddenFields={true}');
-		expect(source).toContain('schemeFieldName="colorScheme"');
-		expect(source).toContain('modeFieldName="themeMode"');
+		expect(source).not.toContain('account-panel-appearance');
+		expect(source).not.toContain('data-account-api-form="appearance"');
+		expect(source).not.toContain('Choose the color scheme and light/dark behavior used across TreeSeed.');
+
+		const layout = readFileSync(resolve(process.cwd(), 'src/layouts/TreeseedAppLayout.astro'), 'utf8');
+		expect(layout).toContain('treeseed:theme-change');
+		expect(layout).toContain('/v1/auth/web/appearance');
 	});
 
-	it('wires successful appearance saves through the backend API proxy and cookie sync', () => {
-		const source = readFileSync(resolve(process.cwd(), 'src/pages/app/account.astro'), 'utf8');
-		expect(source).toContain('/v1/auth/web/appearance');
-		expect(source).toContain("themeCookie('treeseed_color_scheme'");
-		expect(source).toContain("themeCookie('treeseed_theme_mode'");
+	it('only persists explicit theme changes to the authenticated appearance API', () => {
+		const selector = readFileSync(resolve(process.cwd(), 'packages/core/src/components/ui/theme/ThemeSelector.astro'), 'utf8');
+		expect(selector).toContain('persist }');
+
+		const layout = readFileSync(resolve(process.cwd(), 'src/layouts/TreeseedAppLayout.astro'), 'utf8');
+		expect(layout).toContain('detail.persist !== true');
+		expect(layout).toContain('colorScheme: detail.scheme');
+		expect(layout).toContain('themeMode: detail.mode');
 	});
 });

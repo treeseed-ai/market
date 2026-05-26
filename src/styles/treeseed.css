@@ -255,6 +255,14 @@ a:hover {
 	font-weight: 700;
 }
 
+.ts-metric__description {
+	color: var(--ts-color-text-muted);
+	display: block;
+	font-size: 0.86rem;
+	margin-top: 0.35rem;
+	overflow-wrap: anywhere;
+}
+
 .ts-grid-2,
 .ts-grid-3 {
 	display: grid;
@@ -297,6 +305,10 @@ a:hover {
 
 .ts-metric-strip[data-columns='5'] {
 	grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.ts-metric-strip[data-columns='6'] {
+	grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .ts-panel {
@@ -456,28 +468,44 @@ a:hover {
 }
 
 .ts-team-switcher {
-	margin-bottom: 0.85rem;
-	padding-top: 0.75rem;
+	margin-bottom: 0.45rem;
+	padding: 0;
+	border-top: 0;
 }
 
 .ts-team-selector {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	gap: 0.4rem;
+	grid-template-columns: minmax(0, 1fr) max-content;
+	gap: 0.35rem;
 	align-items: center;
-	margin-top: 0.4rem;
+	margin-top: 0.3rem;
 }
 
 .ts-team-selector__label {
+	display: block;
 	min-width: 0;
+	margin: 0;
 	padding: 0;
 	border: 0;
 	background: transparent;
 }
 
 .ts-team-selector .ts-control {
-	min-height: 2.25rem;
-	padding-block: 0.35rem;
+	height: 2.15rem;
+	margin-top: 0;
+	min-height: 2.15rem;
+	padding-block: 0.28rem;
+}
+
+.ts-team-selector select.ts-control {
+	padding-right: 2.35rem;
+}
+
+.ts-team-selector .ts-icon-button {
+	align-self: center;
+	height: 2.15rem;
+	min-height: 2.15rem;
+	white-space: nowrap;
 }
 
 .ts-icon-button {
@@ -871,16 +899,36 @@ a:hover {
 }
 
 .ts-control {
+	appearance: none;
 	box-sizing: border-box;
 	width: 100%;
 	margin-top: 0.55rem;
 	padding: 0.72rem 0.78rem;
 	border: 1px solid var(--ts-color-border);
 	border-radius: 0.55rem;
-	background: var(--ts-color-surface);
+	background-color: var(--ts-color-surface);
 	color: var(--ts-color-text);
 	font: inherit;
 	line-height: 1.3;
+}
+
+select.ts-control,
+.ts-control--select {
+	background-color: var(--ts-color-surface);
+	background-image:
+		linear-gradient(var(--ts-color-border), var(--ts-color-border)),
+		linear-gradient(45deg, transparent 50%, currentColor 50%),
+		linear-gradient(135deg, currentColor 50%, transparent 50%);
+	background-position:
+		calc(100% - 2rem) 50%,
+		calc(100% - 1.17rem) calc(50% - 0.08rem),
+		calc(100% - 0.86rem) calc(50% - 0.08rem);
+	background-repeat: no-repeat;
+	background-size:
+		1px 1.2rem,
+		0.42rem 0.42rem,
+		0.42rem 0.42rem;
+	padding-right: 2.5rem;
 }
 
 textarea.ts-control {
@@ -1258,20 +1306,23 @@ textarea.ts-control {
 	align-items: center;
 	gap: 0.25rem;
 	max-width: 100%;
-	min-height: 1.55rem;
-	padding: 0.12rem 0.42rem;
+	min-height: 1.9rem;
+	padding: 0.22rem 0.48rem;
 	border: 1px solid var(--ts-color-border);
 	border-radius: var(--ts-radius-sm);
 	background: var(--ts-color-surface-muted);
 	color: var(--ts-color-text-muted);
 	font-size: 0.75rem;
 	font-weight: 760;
-	line-height: 1.25;
+	line-height: 1.2;
 	overflow-wrap: anywhere;
 }
 
 .ts-record-card__relations span {
 	align-items: flex-start;
+	min-height: 1.55rem;
+	padding: 0.12rem 0.42rem;
+	line-height: 1.25;
 	white-space: normal;
 }
 
@@ -1382,8 +1433,13 @@ textarea.ts-control {
 }
 
 .ts-record-card__actions {
+	align-items: flex-start;
 	justify-content: flex-end;
 	max-width: 20rem;
+}
+
+.ts-record-card__actions .ts-link-button {
+	margin: 0;
 }
 
 .ts-card-select {
@@ -2099,6 +2155,259 @@ input[data-team-name-state='error'] {
 	padding-top: 0.55rem;
 }
 
+.ts-deploy-launch,
+.ts-deploy-next-action,
+.ts-deploy-environment,
+.ts-deploy-action,
+.ts-deploy-timeline,
+.ts-deploy-definition-list,
+.ts-deploy-compact-list,
+.ts-deploy-monitor-summary,
+.ts-deploy-monitor-checks,
+.ts-deploy-checklist {
+	display: grid;
+	gap: 0.8rem;
+}
+
+.ts-deploy-environments {
+	display: grid;
+	gap: 1rem;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ts-deploy-environment {
+	background: var(--ts-color-surface-raised);
+	border: 1px solid var(--ts-color-border);
+	border-radius: 0.5rem;
+	padding: 1rem;
+}
+
+.ts-deploy-next-action {
+	align-items: center;
+	background: var(--ts-color-surface-raised);
+	border: 1px solid var(--ts-color-border);
+	border-radius: 0.5rem;
+	grid-template-columns: max-content minmax(0, 1fr) max-content;
+	padding: 0.9rem 1rem;
+}
+
+.ts-deploy-next-action p {
+	margin: 0;
+}
+
+.ts-deploy-environment__header,
+.ts-deploy-timeline__header {
+	align-items: flex-start;
+	display: flex;
+	gap: 1rem;
+	justify-content: space-between;
+}
+
+.ts-deploy-environment__header h3,
+.ts-deploy-environment__header p,
+.ts-deploy-timeline__header h3,
+.ts-deploy-timeline__phase {
+	margin: 0;
+}
+
+.ts-deploy-environment__header h3,
+.ts-deploy-timeline__header h3 {
+	font-size: 1rem;
+	line-height: 1.25;
+}
+
+.ts-deploy-environment__header p,
+.ts-deploy-action__message,
+.ts-deploy-timeline__content p,
+.ts-deploy-compact-list span {
+	color: var(--ts-color-text-muted);
+	margin: 0.25rem 0 0;
+}
+
+.ts-deploy-definition-list {
+	margin: 0;
+}
+
+.ts-deploy-definition-list div {
+	border-top: 1px solid var(--ts-color-border-muted);
+	display: grid;
+	gap: 0.25rem;
+	grid-template-columns: minmax(8rem, 0.4fr) minmax(0, 1fr);
+	padding-top: 0.7rem;
+}
+
+.ts-deploy-definition-list dt {
+	color: var(--ts-color-text-subtle);
+	font-size: 0.78rem;
+	font-weight: 750;
+	text-transform: uppercase;
+}
+
+.ts-deploy-definition-list dd {
+	margin: 0;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.ts-deploy-monitor-summary {
+	align-items: center;
+	gap: 0.45rem;
+	grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.ts-deploy-monitor-summary time {
+	color: var(--ts-color-text-subtle);
+	font-size: 0.78rem;
+	grid-column: 2;
+}
+
+.ts-deploy-monitor-checks {
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.ts-deploy-monitor-checks li {
+	background: var(--ts-color-surface);
+	border: 1px solid var(--ts-color-border-muted);
+	border-radius: 0.4rem;
+	display: grid;
+	gap: 0.15rem;
+	padding: 0.55rem;
+}
+
+.ts-deploy-monitor-checks strong {
+	font-size: 1rem;
+}
+
+.ts-deploy-monitor-checks span {
+	color: var(--ts-color-text-subtle);
+	font-size: 0.76rem;
+	font-weight: 750;
+	text-transform: uppercase;
+}
+
+.ts-deploy-checklist,
+.ts-deploy-compact-list,
+.ts-deploy-timeline {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.ts-deploy-checklist li {
+	align-items: flex-start;
+	border-top: 1px solid var(--ts-color-border-muted);
+	display: grid;
+	gap: 0.75rem;
+	grid-template-columns: max-content minmax(0, 1fr);
+	padding-top: 0.75rem;
+}
+
+.ts-deploy-checklist li:first-child,
+.ts-deploy-definition-list div:first-child {
+	border-top: 0;
+	padding-top: 0;
+}
+
+.ts-deploy-checklist p {
+	margin: 0.2rem 0 0;
+}
+
+.ts-deploy-actions {
+	display: grid;
+	gap: 0.75rem;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ts-deploy-action {
+	align-content: start;
+	border-top: 1px solid var(--ts-color-border-muted);
+	padding-top: 0.75rem;
+}
+
+.ts-checkbox-label {
+	align-items: flex-start;
+	color: var(--ts-color-text-muted);
+	display: flex;
+	font-size: 0.86rem;
+	gap: 0.5rem;
+	line-height: 1.35;
+}
+
+.ts-checkbox-label input {
+	margin-top: 0.15rem;
+}
+
+.ts-deploy-timeline__item {
+	display: grid;
+	gap: 0.8rem;
+	grid-template-columns: 1rem minmax(0, 1fr);
+	position: relative;
+}
+
+.ts-deploy-timeline__item::before {
+	background: var(--ts-color-border);
+	bottom: 0;
+	content: "";
+	left: 0.48rem;
+	position: absolute;
+	top: 1.2rem;
+	width: 1px;
+}
+
+.ts-deploy-timeline__item:last-child::before {
+	display: none;
+}
+
+.ts-deploy-timeline__marker {
+	background: var(--ts-color-surface);
+	border: 1px solid var(--ts-color-border-strong);
+	border-radius: 999px;
+	height: 0.7rem;
+	margin-top: 0.35rem;
+	width: 0.7rem;
+	z-index: 1;
+}
+
+.ts-deploy-timeline__content {
+	border-bottom: 1px solid var(--ts-color-border-muted);
+	display: grid;
+	gap: 0.45rem;
+	padding-bottom: 0.9rem;
+}
+
+.ts-deploy-timeline__item:last-child .ts-deploy-timeline__content {
+	border-bottom: 0;
+	padding-bottom: 0;
+}
+
+.ts-deploy-timeline__phase,
+.ts-deploy-timeline__meta {
+	color: var(--ts-color-text-subtle);
+	font-size: 0.76rem;
+	font-weight: 750;
+	text-transform: uppercase;
+}
+
+.ts-deploy-timeline__item:focus-within .ts-deploy-timeline__content {
+	box-shadow: inset 3px 0 0 var(--ts-color-focus);
+	padding-left: 0.65rem;
+}
+
+.ts-deploy-compact-list li {
+	border-top: 1px solid var(--ts-color-border-muted);
+	display: grid;
+	gap: 0.2rem;
+	padding-top: 0.7rem;
+}
+
+.ts-deploy-compact-list li:first-child {
+	border-top: 0;
+	padding-top: 0;
+}
+
 .ts-infra-status-grid {
 	display: grid;
 	gap: 0.7rem;
@@ -2384,6 +2693,8 @@ input[data-team-name-state='error'] {
 	.ts-feature-grid,
 	.ts-section-grid,
 	.ts-metric-strip,
+	.ts-deploy-environments,
+	.ts-deploy-actions,
 	.ts-app-shell {
 		grid-template-columns: 1fr;
 	}

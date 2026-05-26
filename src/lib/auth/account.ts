@@ -4,7 +4,7 @@ import {
 	normalizeUsername,
 	validateUsername,
 	type UsernameValidationResult,
-} from './profile-validation';
+} from './profile-validation.ts';
 
 export { RESERVED_USERNAMES, composeDisplayNameFromParts, normalizeUsername, validateUsername };
 export type { UsernameValidationResult };

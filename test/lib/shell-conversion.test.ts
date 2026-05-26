@@ -24,6 +24,7 @@ describe('app and public shell conversion', () => {
 		expect(contents).toContain('Capacity');
 		expect(contents).toContain('Work');
 		expect(contents).toContain('Knowledge');
+		expect(contents).toContain('reload: true');
 		expect(contents).not.toContain('Mission Control');
 		expect(contents).not.toContain('Workdays');
 		expect(contents).not.toContain('Infrastructure');
@@ -46,6 +47,7 @@ describe('app and public shell conversion', () => {
 			'packages/core/src/components/ui/shell/PublicShell.astro',
 		]) {
 			const contents = source(path);
+			expect(contents, path).toContain('ClientRouter');
 			expect(contents, path).toContain('DevWatchReload');
 		}
 

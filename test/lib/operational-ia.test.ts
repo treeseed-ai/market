@@ -28,6 +28,7 @@ const onePurposeRoutes = [
 	'src/pages/app/projects/new.astro',
 	'src/pages/app/projects/[projectId]/settings.astro',
 	'src/pages/app/projects/[projectId]/hosts.astro',
+	'src/pages/app/projects/[projectId]/deploy.astro',
 	'src/pages/app/projects/[projectId]/guidance.astro',
 	'src/pages/app/projects/[projectId]/decisions.astro',
 	'src/pages/app/projects/[projectId]/artifacts.astro',
@@ -77,6 +78,127 @@ describe('one-purpose control app information architecture', () => {
 			'teams',
 			'work',
 		]);
+	});
+
+	it('keeps the rail team selector compact without a duplicate divider', () => {
+		const styles = source('src/styles/treeseed.css');
+
+		expect(styles).toContain('.ts-team-switcher {\n\tmargin-bottom: 0.45rem;\n\tpadding: 0;\n\tborder-top: 0;');
+		expect(styles).toContain('grid-template-columns: minmax(0, 1fr) max-content;');
+		expect(styles).toContain('.ts-team-selector .ts-icon-button');
+		expect(styles).toContain('white-space: nowrap;');
+	});
+
+	it('keeps team mutations behind the server-side Market API facade', () => {
+		for (const path of [
+			'src/pages/app/teams/new.astro',
+			'src/pages/app/teams/[teamId]/edit.astro',
+			'src/pages/app/teams/[teamId]/delete.astro',
+		]) {
+			const page = source(path);
+			expect(page).toContain('MarketApiClientFacade');
+			expect(page).toContain('method="POST"');
+			expect(page).not.toContain("fetch('/v1/teams");
+			expect(page).not.toContain('fetch("/v1/teams');
+			expect(page).not.toContain('fetch(`/v1/teams');
+			expect(page).not.toContain('x-treeseed-service-secret');
+		}
+	});
+
+	it('adds deployment as a first-class project control surface', () => {
+		const nav = source('src/components/app/controls/ProjectControlNav.astro');
+		const page = source('src/pages/app/projects/[projectId]/deploy.astro');
+		const newProject = source('src/pages/app/projects/new.astro');
+		const timeline = source('src/components/app/operations/DeploymentTimeline.astro');
+		const helper = source('src/components/app/controls/deployment-action-status.ts');
+		const deployIndex = nav.indexOf("label: 'Deploy'");
+		expect(deployIndex).toBeGreaterThan(nav.indexOf("label: 'Hosts'"));
+		expect(deployIndex).toBeLessThan(nav.indexOf("label: 'Guidance'"));
+		expect(nav).toContain("current: 'settings' | 'hosts' | 'deploy'");
+		expect(page).toContain('buildProjectDeploymentState');
+		expect(page).toContain('buildDeploymentViewModel');
+		expect(page).toContain('deployment-state');
+		expect(page).toContain('Deployment readiness checklist');
+		expect(page).toContain('Launch status');
+		expect(page).toContain('Launch recovery actions');
+		expect(page).toContain('data-next-action');
+		expect(page).toContain('Runner diagnostics');
+		expect(page).toContain('Staging and production');
+		expect(page).toContain('Active operation timeline');
+		expect(page).toContain('Deployment history');
+		expect(page).toContain('Action blockers and hints');
+		expect(page).toContain('monitor checks');
+		expect(page).toContain('ts-deploy-monitor-checks');
+		expect(page).toContain('aria-live="polite"');
+		expect(page).toContain('confirmProduction');
+		expect(page).toContain('submitDeploymentActionForm');
+		expect(page).toContain('watchDeploymentState');
+		expect(page).toContain('submitLaunchRecoveryForm');
+		expect(newProject).toContain('payload?.deployHref');
+		expect(newProject).toContain('/deploy');
+		expect(timeline).toContain('<ol class="ts-deploy-timeline"');
+		expect(timeline).toContain('StatusPill');
+		expect(helper).toContain("source: 'market_ui'");
+		expect(helper).toContain('intervalMs?: number');
+		for (const contents of [page, timeline, helper]) {
+			for (const forbidden of ['capacityProviderId', 'laneId', 'grantId', 'workerPoolId', 'runtimeHostId', 'railwayServiceId', 'runnerToken']) {
+				expect(contents).not.toContain(forbidden);
+			}
+		}
+	});
+
+	it('keeps hosted web deployment templates out of capacity-provider runtime secrets', () => {
+		for (const path of [
+			'packages/sdk/templates/github/hosted-project.workflow.yml',
+			'packages/sdk/templates/github/deploy-web.workflow.yml',
+			'packages/core/templates/github/hosted-project.workflow.yml',
+			'packages/core/templates/github/deploy-web.workflow.yml',
+		]) {
+			const contents = source(path);
+			expect(contents).toContain('deploy_web');
+			expect(contents).toContain('publish_content');
+			expect(contents).toContain('monitor');
+			for (const forbidden of ['capacityProviderId', 'runnerToken', 'TREESEED_PLATFORM_RUNNER_SECRET', 'RAILWAY_API_TOKEN', 'TREESEED_RAILWAY_PROJECT_ID', 'WORKER_POOL', 'CAPACITY_PROVIDER']) {
+				expect(contents, path).not.toContain(forbidden);
+			}
+		}
+	});
+
+	it('documents Phase 8 web deployment release readiness without legacy runner commands', () => {
+		const packageJson = JSON.parse(source('package.json'));
+		const deploymentDocs = source('docs/market-web-deployment.md');
+		const demo = source('docs/demo.md');
+		const uiSpec = source('docs/market_ui_spec.md');
+		const purpose = source('docs/purpose.md');
+		const plan = source('docs/web-ui-deployment.md');
+		const releaseNotes = source('docs/web-deployment-release-notes.md');
+		const acceptanceSpec = source('test/acceptance/market-api.base.yaml');
+		const acceptanceHarness = source('scripts/market-acceptance.mjs');
+		const stableRunnerCommand = 'npm run market:operations-runner -- --market local --once --operation project:web_deployment --mock-external';
+
+		expect(packageJson.scripts['market:operations-runner']).toBe('node --experimental-transform-types ./src/market-operations-runner/entrypoint.js');
+		for (const contents of [deploymentDocs, demo, plan, releaseNotes]) {
+			expect(contents).toContain(stableRunnerCommand);
+			expect(contents).not.toContain('npx trsd market:operations-runner');
+		}
+		expect(deploymentDocs).toContain('project:web_deployment');
+		expect(deploymentDocs).toContain('Security And Audit');
+		expect(demo).toContain('Deploy staging');
+		expect(demo).toContain('Inspect deployment history and events');
+		expect(uiSpec).toContain('/app/projects/:projectId/deploy');
+		expect(uiSpec).toContain('Project Deploy');
+		expect(purpose).toContain('/app/projects/:projectId/deploy');
+		expect(releaseNotes).toContain('Deferred External Proof');
+		expect(acceptanceSpec).toContain('deployment-flow.mocked-web-deployment');
+		expect(acceptanceHarness).toContain('expandDeploymentFlows');
+		expect(acceptanceHarness).toContain('assertNoForbiddenDeploymentOutput');
+		expect(plan).toContain('* [x] Acceptance flow passes with mocked external providers.');
+		expect(plan).toContain('* [ ] One real external staging deploy is verified. Deferred blocker:');
+		for (const contents of [deploymentDocs, demo, uiSpec, purpose, releaseNotes]) {
+			for (const forbidden of ['capacityProviderId', 'laneId', 'grantId', 'workerPoolId', 'runtimeHostId', 'railwayServiceId', 'runnerToken']) {
+				expect(contents, forbidden).not.toContain(`${forbidden}:`);
+			}
+		}
 	});
 
 	it('uses the Phase 7 native capacity provider lifecycle UI', () => {
@@ -223,6 +345,9 @@ describe('one-purpose control app information architecture', () => {
 		for (const marker of ['.ts-control-page', '.ts-plain-table', '.ts-link-button', '.ts-checkbox-group', 'prefers-reduced-motion', ':focus-visible']) {
 			expect(css).toContain(marker);
 		}
+		expect(css).toContain('select.ts-control');
+		expect(css).toContain('background-image:');
+		expect(css).toContain('padding-right: 2.5rem');
 		for (const path of [...primaryRoutes, ...onePurposeRoutes]) {
 			const contents = source(path);
 			expect(contents, path).not.toContain('<style');

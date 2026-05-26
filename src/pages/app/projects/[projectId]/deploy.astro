@@ -1,0 +1,331 @@
+---
+import Button from '../../../../../packages/core/src/components/ui/forms/Button.astro';
+import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
+import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import StatusPill from '../../../../../packages/core/src/components/ui/data/StatusPill.astro';
+import PlainTable from '../../../../components/app/controls/PlainTable.astro';
+import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
+import DeploymentTimeline from '../../../../components/app/operations/DeploymentTimeline.astro';
+import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
+import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
+import { buildProjectDeploymentState } from '../../../../lib/market/deployment-projection.ts';
+import { buildDeploymentViewModel } from '../../../../view-models/deployment.vm.ts';
+import { loadOperationalContext } from '../../../../view-models/shared.ts';
+
+const projectParam = String(Astro.params.projectId ?? '');
+if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
+const context = await loadOperationalContext(Astro.locals, Astro);
+const projectEntry = context.projects.find((project: any) => project.id === projectParam || project.slug === projectParam || project.handle === projectParam) ?? null;
+const projectId = projectEntry?.id ?? projectParam;
+const details = projectEntry && context.store ? await context.store.getProjectDetails(projectId).catch(() => null) : null;
+if (!projectEntry || !details) Astro.response.status = 404;
+const state = projectEntry && details && context.store
+	? await buildProjectDeploymentState({ store: context.store, projectId, details }).catch(() => null)
+	: null;
+const timelineDeployment = state?.activeOperations?.[0] ?? state?.recentDeployments?.[0] ?? null;
+const timelineEvents = timelineDeployment && context.store?.listProjectDeploymentEvents
+	? await context.store.listProjectDeploymentEvents(timelineDeployment.id, { limit: 200 }).catch(() => [])
+	: [];
+const vm = state ? buildDeploymentViewModel(state, timelineEvents) : null;
+const deploymentActionUrl = `/v1/projects/${encodeURIComponent(projectId)}/deployments/web`;
+const deploymentStateUrl = `/v1/projects/${encodeURIComponent(projectId)}/deployment-state`;
+const historyRows = vm?.historyRows.map((row) => ({
+	id: `deployment-${esc(row.id)}`,
+	name: `<strong>${esc(row.environment)}</strong><span>${esc(row.action)}</span>`,
+	status: esc(row.status),
+	started: esc(row.startedAt),
+	completed: esc(row.completedAt),
+	workflow: row.workflowUrl ? `<a class="ts-link-button" href="${esc(row.workflowUrl)}">Workflow</a>` : 'Not recorded',
+	url: row.url ? `<a class="ts-link-button" href="${esc(row.url)}">Open URL</a>` : 'Not recorded',
+	requestedBy: esc(row.requestedBy),
+})) ?? [];
+---
+
+<TreeseedAppLayout title="Project deploy" description="Queue and monitor project web deployments." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+	{projectEntry && details && vm ? (
+		<section
+			class="ts-control-page"
+			aria-label="Project deploy"
+			data-deploy-page
+			data-state-url={deploymentStateUrl}
+			data-has-active={vm.activeDeployment ? 'true' : 'false'}
+		>
+			<ProjectControlNav projectId={vm.project.id} current="deploy" />
+			<Panel eyebrow="Deploy" title={`${vm.project.name} deployment`} description="Queue web deployments, inspect readiness, and follow runner progress for staging and production.">
+				<div class="ts-metric-strip" data-columns="6">
+					{vm.summary.map((metric) => (
+						<div class="ts-metric">
+							<span class="ts-metric__label">{metric.label}</span>
+							<span class="ts-metric__value">{metric.value}</span>
+							{metric.href ? <a href={metric.href}>{metric.description}</a> : <span class="ts-metric__description">{metric.description}</span>}
+						</div>
+					))}
+				</div>
+				<p class="ts-subtle" id="deployment-action-status" role="status" aria-live="polite"></p>
+			</Panel>
+
+			<Panel eyebrow="Next" title={vm.nextAction.label} description={vm.nextAction.description}>
+				<div class="ts-deploy-next-action" data-next-action={vm.nextAction.code}>
+					<StatusPill tone={vm.nextAction.tone} label={vm.nextAction.label} />
+					<p>{vm.nextAction.description}</p>
+					{vm.nextAction.code === 'deploy_staging' ? (
+						<a class="ts-link-button" href="#deploy-staging-title">Open staging actions</a>
+					) : vm.nextAction.code === 'launch_recovery' && vm.launch.actions.length > 0 ? (
+						<a class="ts-link-button" href="#launch-recovery-actions">Open launch recovery</a>
+					) : null}
+				</div>
+			</Panel>
+
+			<div class="ts-grid-2">
+				<Panel eyebrow="Launch" title="Launch status" description="Project setup state feeding repository, workflow, and host readiness.">
+					<div class="ts-deploy-launch">
+						<StatusPill tone={vm.launch.tone} label={vm.launch.label} />
+						<p>{vm.launch.description}</p>
+						{vm.launch.inspect ? (
+							<div class="ts-empty-inline" role="note">
+								<strong>Inspect failure</strong>
+								<span>{vm.launch.inspect.summary}</span>
+								{vm.launch.inspect.command ? <code>{vm.launch.inspect.command}</code> : null}
+							</div>
+						) : null}
+						{vm.launch.actions.length > 0 ? (
+							<div class="ts-deploy-actions" id="launch-recovery-actions" aria-label="Launch recovery actions">
+								{vm.launch.actions.map((action) => (
+									<form
+										class="ts-deploy-action"
+										method={action.method}
+										action={action.url}
+										data-launch-recovery-action
+									>
+										<Button type="submit" size="sm" variant="secondary">{action.label}</Button>
+										<p class="ts-deploy-action__message">{action.description}</p>
+									</form>
+								))}
+							</div>
+						) : null}
+						{vm.launch.events.length > 0 ? (
+							<ol class="ts-deploy-compact-list" aria-label="Launch events">
+								{vm.launch.events.map((event) => (
+									<li>
+										<strong>{event.label}</strong>
+										<span>{event.description}</span>
+										{event.timestamp ? <time datetime={event.timestamp}>{event.timestamp}</time> : null}
+									</li>
+								))}
+							</ol>
+						) : (
+							<p class="ts-empty-inline">No launch events recorded.</p>
+						)}
+					</div>
+				</Panel>
+
+				<Panel eyebrow="Runner" title="Runner diagnostics" description="Display-only Market operations runner state for deployment work.">
+					<dl class="ts-deploy-definition-list">
+						<div>
+							<dt>Status</dt>
+							<dd><StatusPill tone={vm.runner.tone} label={vm.runner.label} /></dd>
+						</div>
+						<div>
+							<dt>Last heartbeat</dt>
+							<dd>{vm.runner.lastHeartbeatAt ?? 'Not reported'}</dd>
+						</div>
+						<div>
+							<dt>Active jobs</dt>
+							<dd>{vm.runner.activeJobCount}</dd>
+						</div>
+						<div>
+							<dt>Capabilities</dt>
+							<dd>{vm.runner.capabilities.length ? vm.runner.capabilities.join(', ') : 'Not reported'}</dd>
+						</div>
+					</dl>
+				</Panel>
+			</div>
+
+			<Panel eyebrow="Readiness" title="Deployment readiness" description="Checks that must pass before the runner can safely dispatch web deployment work.">
+				<ul class="ts-deploy-checklist" aria-label="Deployment readiness checklist">
+					{vm.readiness.checks.map((check) => (
+						<li>
+							<StatusPill tone={check.tone} label={check.ready ? 'Ready' : 'Blocked'} />
+							<div>
+								<strong>{check.label}</strong>
+								<p>{check.message}</p>
+								{check.href ? <a href={check.href}>Open related settings</a> : null}
+							</div>
+						</li>
+					))}
+				</ul>
+				{vm.showSensitiveUnlock ? (
+					<div class="ts-empty-inline" role="note">Unlock sensitive provider access before queueing deployment work.</div>
+				) : null}
+			</Panel>
+
+			<Panel eyebrow="Environments" title="Staging and production" description="Latest deployment state, target URL, workflow run, monitor result, and available actions.">
+				<div class="ts-deploy-environments">
+					{vm.environments.map((environment) => (
+						<article class="ts-deploy-environment" aria-labelledby={`deploy-${environment.environment}-title`}>
+							<header class="ts-deploy-environment__header">
+								<div>
+									<h3 id={`deploy-${environment.environment}-title`}>{environment.label}</h3>
+									<p>{environment.latestSummary}</p>
+								</div>
+								<StatusPill tone={environment.tone} label={environment.status} />
+							</header>
+							<dl class="ts-deploy-definition-list">
+								<div>
+									<dt>Target URL</dt>
+									<dd>{environment.url ? <a href={environment.url}>{environment.url}</a> : 'Not recorded'}</dd>
+								</div>
+								<div>
+									<dt>Completed</dt>
+									<dd>{environment.latestCompletedAt ?? 'Not recorded'}</dd>
+								</div>
+								<div>
+									<dt>Workflow</dt>
+									<dd>{environment.workflowUrl ? <a href={environment.workflowUrl}>Open workflow run</a> : 'Not recorded'}</dd>
+								</div>
+								<div>
+									<dt>Monitor</dt>
+									<dd>
+										<div class="ts-deploy-monitor-summary">
+											<StatusPill tone={environment.monitor.tone} label={environment.monitor.label} />
+											<span>{environment.monitorSummary}</span>
+											{environment.monitor.checkedAt ? <time datetime={environment.monitor.checkedAt}>{environment.monitor.checkedAt}</time> : null}
+										</div>
+									</dd>
+								</div>
+							</dl>
+							{environment.monitor.checks.length > 0 ? (
+								<ul class="ts-deploy-monitor-checks" aria-label={`${environment.label} monitor checks`}>
+									<li><strong>{environment.monitor.counts.passed}</strong><span>Passed</span></li>
+									<li><strong>{environment.monitor.counts.warnings}</strong><span>Warnings</span></li>
+									<li><strong>{environment.monitor.counts.failed}</strong><span>Failed</span></li>
+									<li><strong>{environment.monitor.counts.skipped}</strong><span>Skipped</span></li>
+								</ul>
+							) : null}
+							{environment.monitor.checks.length > 0 ? (
+								<ol class="ts-deploy-compact-list" aria-label={`${environment.label} monitor details`}>
+									{environment.monitor.checks.slice(0, 4).map((check) => (
+										<li>
+											<strong>{check.label}</strong>
+											<span>{check.summary}</span>
+											{check.url ? <a href={check.url}>Inspect link</a> : null}
+											{check.inspectCommand ? <code>{check.inspectCommand}</code> : null}
+										</li>
+									))}
+								</ol>
+							) : null}
+							<div class="ts-deploy-actions" aria-label={`${environment.label} deployment actions`}>
+								{environment.actions.map((action) => (
+									<form
+										class="ts-deploy-action"
+										method="post"
+										action={deploymentActionUrl}
+										data-deployment-action
+										data-state-url={deploymentStateUrl}
+									>
+										<input type="hidden" name="environment" value={action.environment} />
+										<input type="hidden" name="action" value={action.action} />
+										{action.requiresProductionConfirmation ? (
+											<label class="ts-checkbox-label">
+												<input type="checkbox" name="confirmProduction" required />
+												<span>I confirm this production {action.label.toLowerCase()} request.</span>
+											</label>
+										) : null}
+										<Button type="submit" size="sm" variant={action.disabled ? 'secondary' : 'primary'} disabled={action.disabled}>
+											{action.label}
+										</Button>
+										<p class="ts-deploy-action__message">
+											{action.disabled && action.blockers[0] ? action.blockers[0].message : action.description}
+										</p>
+									</form>
+								))}
+							</div>
+						</article>
+					))}
+				</div>
+			</Panel>
+
+			<div class="ts-grid-2">
+				<Panel eyebrow="Timeline" title={vm.activeDeployment ? 'Active operation timeline' : 'Latest deployment timeline'} description="Deployment-scoped events linked with the platform operation when one exists.">
+					<DeploymentTimeline items={vm.timeline} />
+				</Panel>
+				<Panel eyebrow="Troubleshooting" title="Action blockers and hints" description="The most relevant blockers or failure details for this project deployment path.">
+					<ul class="ts-deploy-compact-list" aria-label="Deployment troubleshooting hints">
+						{vm.troubleshooting.map((hint) => (
+							<li>
+								<strong>{hint.title}</strong>
+								<span>{hint.description}</span>
+								{hint.href ? <a href={hint.href}>Open related settings</a> : null}
+							</li>
+						))}
+					</ul>
+				</Panel>
+			</div>
+
+			<Panel eyebrow="History" title="Deployment history" description="Recent deployment and monitor records for this project.">
+				<PlainTable
+					columns={[
+						{ key: 'name', label: 'Environment' },
+						{ key: 'status', label: 'Status' },
+						{ key: 'started', label: 'Started' },
+						{ key: 'completed', label: 'Completed' },
+						{ key: 'workflow', label: 'Workflow' },
+						{ key: 'url', label: 'URL' },
+						{ key: 'requestedBy', label: 'Requested by' },
+					]}
+					rows={historyRows}
+					emptyTitle="No deployment history"
+					emptyDescription="Deployment records appear after staging or production work is queued."
+					interactive={true}
+					pageSize={10}
+					searchLabel="Filter deployments"
+				/>
+			</Panel>
+		</section>
+	) : (
+		<EmptyState title="Project not found" description="This project is not available." actions={[{ label: 'Back to Projects', href: '/app/projects' }]} />
+	)}
+</TreeseedAppLayout>
+
+<script>
+	import { submitDeploymentActionForm, submitLaunchRecoveryForm, watchDeploymentState } from '../../../../components/app/controls/deployment-action-status.ts';
+
+	const page = document.querySelector('[data-deploy-page]') as HTMLElement | null;
+	const status = document.getElementById('deployment-action-status');
+	const forms = [...document.querySelectorAll('[data-deployment-action]')] as HTMLFormElement[];
+	const launchForms = [...document.querySelectorAll('[data-launch-recovery-action]')] as HTMLFormElement[];
+	for (const form of forms) {
+		form.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			try {
+				await submitDeploymentActionForm({
+					form,
+					statusElement: status,
+					fallbackHref: `${window.location.pathname}?deployment=${Date.now()}`,
+				});
+			} catch (error) {
+				if (status) status.textContent = error instanceof Error ? error.message : 'Deployment operation could not be queued.';
+			}
+		});
+	}
+	for (const form of launchForms) {
+		form.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			try {
+				await submitLaunchRecoveryForm({
+					form,
+					statusElement: status,
+					fallbackHref: `${window.location.pathname}?launch=${Date.now()}`,
+				});
+			} catch (error) {
+				if (status) status.textContent = error instanceof Error ? error.message : 'Launch recovery could not be queued.';
+			}
+		});
+	}
+	watchDeploymentState({
+		stateUrl: page?.dataset.stateUrl ?? '',
+		statusElement: status,
+		initialActive: page?.dataset.hasActive === 'true',
+		intervalMs: 12_000,
+	});
+</script>

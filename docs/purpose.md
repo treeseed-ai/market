@@ -166,6 +166,8 @@ The authenticated app should remain centered on the compact control flow:
 
 No retired section-first navigation should return to the primary app experience. Teams remain real operational context in the backend and are managed through the persistent sidebar team selector and `/app/teams`, not as a primary navigation step.
 
+Project detail controls should keep deployment inside the selected project context. `/app/projects/:projectId/deploy` is the canonical place to inspect launch progress, readiness, staging and production deployment actions, monitor output, runner diagnostics, history, and events.
+
 ## Section purposes
 
 ### Start
@@ -297,6 +299,8 @@ The demo should reinforce:
 ```text
 Setup -> Project -> Work -> Knowledge
 ```
+
+The project step includes the Deploy control after Hosts so a newly launched project can move from setup to staged web deployment without sending the operator to an infrastructure dashboard.
 
 Never lead with prompting, code generation spectacle, or fake agent conversation. The system coordinates durable organizational work.
 

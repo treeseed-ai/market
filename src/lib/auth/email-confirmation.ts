@@ -2,12 +2,12 @@ import React from 'react';
 import { render } from '@react-email/render';
 import type { APIContext } from 'astro';
 import { sendAuthEmail } from './email.ts';
-import { getSiteAuthConfig } from './config.ts';
 
-interface WelcomeEmailInput {
+interface EmailConfirmationInput {
 	email: string;
 	displayName?: string | null;
-	signInUrl?: string;
+	confirmationUrl: string;
+	expiresInSeconds: number;
 }
 
 const colors = {
@@ -17,11 +17,19 @@ const colors = {
 	border: '#d9ded4',
 	card: '#ffffff',
 	green: '#2f6f4e',
-	greenDark: '#24573d',
 	gold: '#d9a441',
 };
 
-function WelcomeEmail({ displayName, signInUrl }: { displayName: string; signInUrl: string }) {
+function expiryLabel(seconds: number) {
+	const minutes = Math.max(1, Math.round(seconds / 60));
+	return minutes === 1 ? '1 minute' : `${minutes} minutes`;
+}
+
+function EmailConfirmation({ displayName, confirmationUrl, expiresInSeconds }: {
+	displayName: string;
+	confirmationUrl: string;
+	expiresInSeconds: number;
+}) {
 	return React.createElement('html', { lang: 'en' },
 		React.createElement('body', {
 			style: {
@@ -62,7 +70,7 @@ function WelcomeEmail({ displayName, signInUrl }: { displayName: string; signInU
 					letterSpacing: 0,
 					marginBottom: 16,
 				},
-			}, 'Email verified'),
+			}, 'Confirm your email'),
 			React.createElement('h1', {
 				style: {
 					margin: 0,
@@ -71,7 +79,7 @@ function WelcomeEmail({ displayName, signInUrl }: { displayName: string; signInU
 					fontWeight: 800,
 					letterSpacing: 0,
 				},
-			}, `Welcome to Treeseed Market, ${displayName}.`),
+			}, `Finish creating your Treeseed Market account, ${displayName}.`),
 			React.createElement('p', {
 				style: {
 					margin: '12px 0 0',
@@ -79,7 +87,7 @@ function WelcomeEmail({ displayName, signInUrl }: { displayName: string; signInU
 					fontSize: 15,
 					lineHeight: '23px',
 				},
-			}, 'Your account is ready. Treeseed Market is where teams launch, connect, and manage working Treeseed projects.')),
+			}, `This link expires in ${expiryLabel(expiresInSeconds)}.`)),
 			React.createElement('div', { style: { padding: '28px 32px 32px' } },
 				React.createElement('p', {
 					style: {
@@ -88,9 +96,9 @@ function WelcomeEmail({ displayName, signInUrl }: { displayName: string; signInU
 						fontSize: 15,
 						lineHeight: '24px',
 					},
-				}, 'Sign in to create your first team, connect project infrastructure, and start shaping the workspace around the way your collaborators actually work.'),
+				}, 'Confirm this email address to activate your account and continue to Treeseed Market.'),
 				React.createElement('a', {
-					href: signInUrl,
+					href: confirmationUrl,
 					style: {
 						display: 'inline-block',
 						backgroundColor: colors.green,
@@ -101,7 +109,7 @@ function WelcomeEmail({ displayName, signInUrl }: { displayName: string; signInU
 						fontWeight: 800,
 						fontSize: 14,
 					},
-				}, 'Sign in to Treeseed Market'),
+				}, 'Confirm email'),
 				React.createElement('div', {
 					style: {
 						marginTop: 24,
@@ -120,12 +128,12 @@ function WelcomeEmail({ displayName, signInUrl }: { displayName: string; signInU
 				React.createElement('p', {
 					style: {
 						margin: '6px 0 0',
-						color: colors.greenDark,
+						color: colors.green,
 						fontSize: 13,
 						lineHeight: '20px',
 						wordBreak: 'break-all',
 					},
-				}, signInUrl)),
+				}, confirmationUrl)),
 				React.createElement('p', {
 					style: {
 						margin: '24px 0 0',
@@ -133,30 +141,32 @@ function WelcomeEmail({ displayName, signInUrl }: { displayName: string; signInU
 						fontSize: 12,
 						lineHeight: '18px',
 					},
-				}, 'You are receiving this because this email address was verified for a Treeseed Market account.'))))));
+				}, 'You are receiving this because this email address was used to create a Treeseed Market account.'))))));
 }
 
 function firstName(value: string) {
 	return value.trim().split(/\s+/u)[0] || value;
 }
 
-export async function sendWelcomeEmail(
-	context: Pick<APIContext, 'locals' | 'url'>,
-	input: WelcomeEmailInput,
+export async function sendEmailConfirmation(
+	context: Pick<APIContext, 'locals' | 'url'> | undefined,
+	input: EmailConfirmationInput,
 ) {
 	const email = input.email.trim();
 	if (!email) return;
-	const config = getSiteAuthConfig(context);
 	const displayName = firstName(input.displayName?.trim() || email.split('@')[0] || 'there');
-	const signInUrl = input.signInUrl ?? `${config.siteBaseUrl.replace(/\/+$/u, '')}/auth/sign-in?verified=1`;
-	const element = React.createElement(WelcomeEmail, { displayName, signInUrl });
+	const element = React.createElement(EmailConfirmation, {
+		displayName,
+		confirmationUrl: input.confirmationUrl,
+		expiresInSeconds: input.expiresInSeconds,
+	});
 	const [html, text] = await Promise.all([
 		render(element),
 		render(element, { plainText: true }),
 	]);
 	await sendAuthEmail(context, {
 		to: email,
-		subject: 'Welcome to Treeseed Market',
+		subject: 'Confirm your Treeseed Market email',
 		text,
 		html,
 	});

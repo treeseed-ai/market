@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	assertCoverage,
 	bodyForFactory,
+	expandDeploymentFlows,
 	expandDescriptorMatrices,
 	expandRoleMatrices,
 	expandSdkMethodMatrices,
@@ -40,6 +41,7 @@ describe('Market API acceptance framework', () => {
 		const spec = loadSpec('test/acceptance/market-api.base.yaml');
 		const allCases = [
 			...(spec.cases ?? []),
+			...expandDeploymentFlows(spec),
 			...expandRoleMatrices(spec),
 			...expandDescriptorMatrices(spec),
 			...expandSdkMethodMatrices(spec),
@@ -49,6 +51,19 @@ describe('Market API acceptance framework', () => {
 		expect([...sdkMethods].sort()).toEqual(Object.keys(SDK_METHOD_ROUTE_MAP).sort());
 	});
 
+	it('includes the mocked web deployment acceptance flow in expansion', () => {
+		const spec = loadSpec('test/acceptance/market-api.base.yaml');
+		const flows = expandDeploymentFlows(spec);
+		expect(flows).toHaveLength(1);
+		expect(flows[0]).toMatchObject({
+			id: 'deployment-flow.mocked-web-deployment',
+			actor: 'teamOwner',
+			deploymentFlow: true,
+			method: 'FLOW',
+		});
+		expect(JSON.stringify(flows)).not.toMatch(/capacityProviderId|runnerToken|TREESEED_PLATFORM_RUNNER_SECRET/u);
+	});
+
 	it('writes an expanded case report for review without requiring live credentials', async () => {
 		const { mkdtempSync, readFileSync } = await import('node:fs');
 		const { tmpdir } = await import('node:os');
@@ -56,12 +71,13 @@ describe('Market API acceptance framework', () => {
 		const { spawnSync } = await import('node:child_process');
 		const dir = mkdtempSync(join(tmpdir(), 'treeseed-acceptance-expand-'));
 		const output = join(dir, 'cases.json');
-		const result = spawnSync(process.execPath, ['./scripts/market-acceptance.mjs', '--environment', 'staging', '--expand-json', output], {
+		const result = spawnSync(process.execPath, ['./scripts/market-acceptance.mjs', '--environment', 'local', '--expand-json', output], {
 			encoding: 'utf8',
 		});
 		expect(result.status).toBe(0);
 		const expanded = JSON.parse(readFileSync(output, 'utf8'));
 		expect(expanded.caseCount).toBeGreaterThan(2700);
+		expect(expanded.cases.some((entry: any) => entry.id === 'deployment-flow.mocked-web-deployment' && entry.deploymentFlow === true)).toBe(true);
 		expect(expanded.cases.every((entry: any) => entry.expect?.statusAny === undefined)).toBe(true);
 	});
 });

@@ -1,8 +1,6 @@
 ---
 import AuthShell from '../../components/app/auth/AuthShell.astro';
 import AuthCard from '../../components/app/auth/AuthCard.astro';
-import Button from '../../../packages/core/src/components/ui/forms/Button.astro';
-import FormActions from '../../../packages/core/src/components/ui/forms/FormActions.astro';
 import { resolveAnonymousThemePreference } from '../../lib/auth/appearance';
 import { normalizeReturnTo, redirectAuthenticatedToApp } from '../../lib/auth/flow';
 
@@ -29,10 +27,10 @@ const description = `${isReset
 		description={description}
 		appearance={appearance}
 	>
-		<FormActions>
-			<Button href={`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`} variant="secondary">
+		<Fragment slot="sidebarLinks">
+			<a href={`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`}>
 				{isReset ? 'Back to sign in' : 'I verified my email'}
-			</Button>
-		</FormActions>
+			</a>
+		</Fragment>
 	</AuthCard>
 </AuthShell>

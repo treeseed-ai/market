@@ -6,7 +6,8 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DataType, newDb } from 'pg-mem';
 import * as treeseedCore from '@treeseed/core';
-import { AgentSdk, PlatformRunnerClient } from '@treeseed/sdk';
+import { AgentSdk } from '@treeseed/sdk';
+import { PlatformRunnerClient } from '../../packages/sdk/src/platform-operations.ts';
 import { createMarketApiApp } from '../../src/api/app.js';
 import { MarketPostgresDatabase } from '../../src/api/market-postgres.js';
 import { MarketControlPlaneStore } from '../../src/api/store.js';
@@ -78,6 +79,7 @@ type MarketApiTestOptions = {
 	sdk?: AgentSdk;
 	config?: Record<string, unknown>;
 	fetchImpl?: typeof fetch;
+	logRequests?: boolean;
 };
 
 function createTestApp(options: MarketApiTestOptions = {}) {
@@ -260,13 +262,69 @@ function encryptedTestHostEnvelope(config: Record<string, unknown>, passphrase: 
 	});
 }
 
+async function createDeploymentReadyProject(id: string) {
+	const db = createTestPostgresDatabase();
+	const store = createTestStore(db);
+	const app = createTestApp({
+		db,
+		store,
+		config: {
+			platformRunnerSecret: 'platform-runner-secret',
+		},
+	});
+	const token = await authorizeApp(app);
+	const { team, project } = await createTeamAndProject(app, token, {
+		id,
+		slug: id,
+		name: id.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
+	});
+	await store.upsertHubRepository(project.id, {
+		teamId: team.id,
+		role: 'software',
+		provider: 'github',
+		owner: 'treeseed-ai',
+		name: id,
+		url: `https://github.com/treeseed-ai/${id}`,
+		defaultBranch: 'staging',
+		status: 'ready',
+	});
+	await json(await app.request(`/v1/teams/${team.id}/web-hosts`, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+		body: JSON.stringify({
+			name: 'Team Cloudflare',
+			ownership: 'team_owned',
+			encryptedPayload: encryptedHostEnvelope(),
+		}),
+	}));
+	await store.upsertProjectEnvironment(project.id, {
+		environment: 'staging',
+		deploymentProfile: 'hosted_project',
+		baseUrl: `https://staging.${id}.example.com`,
+		pagesProjectName: `${id}-staging`,
+	});
+	return { app, db, store, token, team, project };
+}
+
 describe('market api', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
 
+	it('logs local Market API request URLs with sensitive query values redacted', async () => {
+		const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+		const app = createTestApp({ logRequests: true });
+
+		const response = await app.request('/v1/markets/current?token=secret-token&teamId=team-1');
+
+		expect(response.status).toBe(200);
+		expect(write).toHaveBeenCalledWith(expect.stringContaining('[market-api] GET /v1/markets/current?token=[redacted]&teamId=team-1 -> 200'));
+	});
+
 	it('owns web auth lifecycle and acceptance session seeding in the Market API', async () => {
-		const app = createTestApp();
+		const db = createTestPostgresDatabase();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
 		const signup = await json(await app.request('/v1/auth/web/sign-up', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
@@ -275,11 +333,17 @@ describe('market api', () => {
 				username: 'api-auth-user',
 				password: 'TreeSeed-auth-test-123!',
 				name: 'API Auth User',
+				colorScheme: 'cedar',
+				themeMode: 'dark',
 			}),
 		}));
 		expect(signup.ok).toBe(true);
-		expect(signup.payload.accessToken).toEqual(expect.any(String));
-		const signin = await json(await app.request('/v1/auth/web/sign-in', {
+		expect(signup.payload).toMatchObject({
+			confirmationRequired: true,
+			email: 'api-auth@example.com',
+			confirmationToken: expect.any(String),
+		});
+		const pendingSignin = await json(await app.request('/v1/auth/web/sign-in', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({
@@ -287,12 +351,52 @@ describe('market api', () => {
 				password: 'TreeSeed-auth-test-123!',
 			}),
 		}));
+		expect(pendingSignin.ok).toBe(false);
+		expect(pendingSignin.code).toBe('email_confirmation_required');
+		const confirmed = await json(await app.request('/v1/auth/web/confirm-email', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ token: signup.payload.confirmationToken }),
+		}));
+		expect(confirmed.ok).toBe(true);
+		expect(confirmed.payload.accessToken).toEqual(expect.any(String));
+		expect(confirmed.payload.principal.metadata.appearance).toEqual({ scheme: 'cedar', mode: 'dark' });
+		const signin = await json(await app.request('/v1/auth/web/sign-in', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				'user-agent': 'Treeseed Test Browser/1.0',
+				'x-forwarded-for': '203.0.113.9, 10.0.0.2',
+			},
+			body: JSON.stringify({
+				email: 'api-auth@example.com',
+				password: 'TreeSeed-auth-test-123!',
+			}),
+		}));
 		expect(signin.ok).toBe(true);
+		expect(signin.payload.principal.metadata.appearance).toEqual({ scheme: 'cedar', mode: 'dark' });
+		const appearance = await json(await app.request('/v1/auth/web/appearance', {
+			method: 'PATCH',
+			headers: {
+				authorization: `Bearer ${signin.payload.accessToken}`,
+				'content-type': 'application/json',
+			},
+			body: JSON.stringify({ colorScheme: 'tidepool', themeMode: 'light' }),
+		}));
+		expect(appearance.ok).toBe(true);
+		expect(appearance.payload.scheme).toBe('tidepool');
+		expect(appearance.payload.mode).toBe('light');
+		expect(appearance.payload.accessToken).toEqual(expect.any(String));
+		expect(appearance.payload.principal.metadata.appearance).toEqual({ scheme: 'tidepool', mode: 'light' });
 		const sessions = await json(await app.request('/v1/auth/web/sessions', {
 			headers: { authorization: `Bearer ${signin.payload.accessToken}` },
 		}));
 		expect(sessions.ok).toBe(true);
 		expect(sessions.payload.length).toBeGreaterThan(0);
+		expect(sessions.payload).toContainEqual(expect.objectContaining({
+			ipAddress: '203.0.113.9',
+			userAgent: 'Treeseed Test Browser/1.0',
+		}));
 		const seeded = await json(await app.request('/v1/acceptance/seed', {
 			method: 'POST',
 			headers: {
@@ -310,14 +414,141 @@ describe('market api', () => {
 		expect(seeded.payload.fixtures.provider.id).toEqual(expect.any(String));
 		expect(seeded.payload.fixtures.platformOperation.id).toEqual(expect.any(String));
 		expect(seeded.payload.fixtures.platformRunner.id).toEqual(expect.any(String));
+		expect(seeded.payload.fixtures.host.id).toEqual(expect.any(String));
 		expect(seeded.payload.fixtures.catalogItem.id).toEqual(expect.any(String));
 		expect(seeded.payload.fixtures.catalogArtifact.version).toBe('1.0.0');
 		expect(seeded.payload.fixtures.seedRun.id).toEqual(expect.any(String));
 		expect(seeded.payload.fixtures.passwordReset.token).toEqual(expect.any(String));
+		const details = await store.getProjectDetails(seeded.payload.fixtures.project.id);
+		expect(details).not.toBeNull();
+		expect(details!.repositories).toEqual(expect.arrayContaining([
+			expect.objectContaining({ provider: 'github', role: 'software', status: 'ready' }),
+		]));
+		expect(details!.environments).toEqual(expect.arrayContaining([
+			expect.objectContaining({ environment: 'staging', deploymentProfile: 'hosted_project' }),
+			expect.objectContaining({ environment: 'prod', deploymentProfile: 'hosted_project' }),
+		]));
+		expect(await store.listTeamWebHosts(seeded.payload.fixtures.team.id)).toEqual(expect.arrayContaining([
+			expect.objectContaining({ id: seeded.payload.fixtures.host.id, provider: 'cloudflare', status: 'active' }),
+		]));
+		const runners = await store.listMarketOperationRunners({ limit: 10 });
+		expect(runners.find((runner: any) => runner.id === seeded.payload.fixtures.platformRunner.id)?.capabilities).toContain('project:web_deployment');
+	}, 15000);
+
+	it('supports multiple verified account emails for login, primary selection, deletion, reset, and invite lookup', async () => {
+		const db = createTestPostgresDatabase();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
+		const password = 'TreeSeed-auth-test-123!';
+		const signup = await json(await app.request('/v1/auth/web/sign-up', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				email: 'multi-primary@example.com',
+				username: 'multi-email-user',
+				password,
+				name: 'Multi Email User',
+			}),
+		}));
+		expect(signup.ok).toBe(true);
+		expect(await store.all(`SELECT * FROM user_email_addresses WHERE normalized_email = ?`, ['multi-primary@example.com'])).toEqual([
+			expect.objectContaining({ status: 'pending', is_primary: 1 }),
+		]);
+		expect(await store.findUserByEmail('multi-primary@example.com')).toBeNull();
+
+		const confirmed = await json(await app.request('/v1/auth/web/confirm-email', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ token: signup.payload.confirmationToken }),
+		}));
+		expect(confirmed.ok).toBe(true);
+		const userId = confirmed.payload.principal.id;
+		const headers = {
+			authorization: `Bearer ${confirmed.payload.accessToken}`,
+			'content-type': 'application/json',
+		};
+		const initialEmails = await json(await app.request('/v1/auth/web/emails', { headers }));
+		expect(initialEmails.payload).toEqual([
+			expect.objectContaining({ email: 'multi-primary@example.com', verified: true, isPrimary: true }),
+		]);
+
+		const added = await json(await app.request('/v1/auth/web/emails', {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({ email: 'multi-secondary@example.com' }),
+		}));
+		expect(added.ok).toBe(true);
+		expect(added.payload).toMatchObject({
+			verificationSent: true,
+			confirmationToken: expect.any(String),
+			emailAddress: expect.objectContaining({ email: 'multi-secondary@example.com', verified: false }),
+		});
+		const pendingSecondarySignin = await json(await app.request('/v1/auth/web/sign-in', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ email: 'multi-secondary@example.com', password }),
+		}));
+		expect(pendingSecondarySignin.ok).toBe(false);
+		expect(pendingSecondarySignin.code).toBe('email_confirmation_required');
+
+		const resent = await json(await app.request(`/v1/auth/web/emails/${added.payload.emailAddress.id}/verify`, {
+			method: 'POST',
+			headers,
+		}));
+		expect(resent.ok).toBe(true);
+		expect(resent.payload.confirmationToken).toEqual(expect.any(String));
+		const secondaryConfirmed = await json(await app.request('/v1/auth/web/confirm-email', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ token: resent.payload.confirmationToken }),
+		}));
+		expect(secondaryConfirmed.ok).toBe(true);
+		const secondarySignin = await json(await app.request('/v1/auth/web/sign-in', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ email: 'multi-secondary@example.com', password }),
+		}));
+		expect(secondarySignin.ok).toBe(true);
+
+		const primary = await json(await app.request(`/v1/auth/web/emails/${added.payload.emailAddress.id}/primary`, {
+			method: 'POST',
+			headers,
+		}));
+		expect(primary.ok).toBe(true);
+		expect(primary.payload.emailAddress).toMatchObject({ email: 'multi-secondary@example.com', isPrimary: true });
+		expect(await store.all(`SELECT email FROM users WHERE id = ?`, [userId])).toEqual([{ email: 'multi-secondary@example.com' }]);
+		expect(await store.all(`SELECT email FROM market_auth_credentials WHERE user_id = ?`, [userId])).toEqual([{ email: 'multi-secondary@example.com' }]);
+
+		const reset = await json(await app.request('/v1/auth/web/password-reset/request', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ email: 'multi-primary@example.com' }),
+		}));
+		expect(reset.ok).toBe(true);
+		expect(reset.payload.resetToken).toEqual(expect.any(String));
+		const team = await createTeam(app, secondarySignin.payload.accessToken);
+		const invite = await store.createTeamInvite(team.id, { email: 'multi-primary@example.com', roleKey: 'contributor' });
+		expect(invite.existingUser).toBe(true);
+		expect(invite.member?.userId).toBe(userId);
+
+		const originalEmail = initialEmails.payload[0];
+		const deletedOriginal = await json(await app.request(`/v1/auth/web/emails/${originalEmail.id}`, {
+			method: 'DELETE',
+			headers,
+		}));
+		expect(deletedOriginal.ok).toBe(true);
+		const lastDelete = await json(await app.request(`/v1/auth/web/emails/${added.payload.emailAddress.id}`, {
+			method: 'DELETE',
+			headers,
+		}));
+		expect(lastDelete.ok).toBe(false);
+		expect(lastDelete.code).toBe('last_verified_email');
 	}, 15000);
 
 	it('deletes projects and project-owned records through the project API', async () => {
-		const app = createTestApp();
+		const db = createTestPostgresDatabase();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
 		const token = await authorizeApp(app);
 		const { team, project } = await createTeamAndProject(app, token, {
 			slug: 'delete-me',
@@ -370,7 +601,9 @@ describe('market api', () => {
 	});
 
 	it('updates project profile settings through the project API', async () => {
-		const app = createTestApp();
+		const db = createTestPostgresDatabase();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
 		const token = await authorizeApp(app);
 		const { team, project } = await createTeamAndProject(app, token, {
 			slug: 'settings-before',
@@ -801,6 +1034,9 @@ describe('market api', () => {
 		expect(launched.status).toBe(202);
 		const launchPayload = await json(launched);
 		expect(JSON.stringify(launchPayload)).not.toContain('cf-secret-token');
+		expect(launchPayload.projectId).toBeTruthy();
+		expect(launchPayload.launchId).toBeTruthy();
+		expect(launchPayload.deployHref).toBe(`/app/projects/${launchPayload.projectId}/deploy?launch=${launchPayload.launchId}`);
 		expect(launchPayload.payload.launchJob.status).toBe('pending');
 		expect(launchSpy).not.toHaveBeenCalled();
 		const projects = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
@@ -1465,6 +1701,12 @@ describe('market api', () => {
 			logoUrl: 'https://example.com/logo.png',
 			profileSummary: 'Public team summary.',
 		});
+		const creatorMembers = await json(await app.request(`/v1/teams/${created.payload.id}/members`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		const creatorMember = creatorMembers.payload.find((entry: { userId: string }) => entry.userId === 'user-1');
+		expect(creatorMember).toMatchObject({ roleKey: 'team_owner' });
+		expect(creatorMember.roles).toContain('team_owner');
 
 		const updated = await json(await app.request(`/v1/teams/${created.payload.id}`, {
 			method: 'PATCH',
@@ -1551,6 +1793,38 @@ describe('market api', () => {
 			body: JSON.stringify({ confirmation: 'DELETE alpha-collective' }),
 		}));
 		expect(deleted.ok).toBe(true);
+	});
+
+	it('allows project leads to manage team settings while hiding controls from contributors', async () => {
+		const db = createTestPostgresDatabase();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
+		const ownerToken = await authorizeApp(app);
+		const team = await createTeam(app, ownerToken);
+		const leadToken = await authorizeApp(app, { principalId: 'team-lead', displayName: 'Team Lead' });
+		const contributorToken = await authorizeApp(app, { principalId: 'team-contributor', displayName: 'Team Contributor' });
+		await store.upsertTeamMember(team.id, 'team-lead', 'project_lead');
+		await store.upsertTeamMember(team.id, 'team-contributor', 'contributor');
+
+		const leadMembers = await json(await app.request(`/v1/teams/${team.id}/members`, {
+			headers: { authorization: `Bearer ${leadToken}` },
+		}));
+		expect(leadMembers.ok).toBe(true);
+		const ownerMember = leadMembers.payload.find((entry: { userId: string }) => entry.userId === 'user-1');
+		const ownerAliasUpdate = await json(await app.request(`/v1/teams/${team.id}/members/${ownerMember.id}`, {
+			method: 'PATCH',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${leadToken}`,
+			},
+			body: JSON.stringify({ roleKey: 'owner' }),
+		}));
+		expect(ownerAliasUpdate.member.roleKey).toBe('team_owner');
+
+		const contributorMembers = await app.request(`/v1/teams/${team.id}/members`, {
+			headers: { authorization: `Bearer ${contributorToken}` },
+		});
+		expect(contributorMembers.status).toBe(403);
 	});
 
 	it('blocks team deletion while the team owns projects', async () => {
@@ -1929,6 +2203,680 @@ describe('market api', () => {
 			'runner.progress',
 			'completed',
 		]);
+	});
+
+	it('queues project web deployment operations with readiness, idempotency, events, retry, resume, and cancel semantics', async () => {
+		const db = createTestPostgresDatabase();
+		const store = createTestStore(db);
+		const app = createTestApp({
+			db,
+			store,
+			config: {
+				platformRunnerSecret: 'platform-runner-secret',
+			},
+		});
+		const token = await authorizeApp(app);
+		const { team, project } = await createTeamAndProject(app, token, {
+			id: 'deploy-project',
+			slug: 'deploy-project',
+			name: 'Deploy Project',
+		});
+
+		const forbidden = await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({ environment: 'staging', action: 'deploy_web', capacityProviderId: 'forbidden' }),
+		});
+		expect(forbidden.status).toBe(400);
+		expect(await json(forbidden)).toMatchObject({ error: { code: 'validation_failed' } });
+
+		const noRepo = await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({ environment: 'staging', action: 'deploy_web' }),
+		});
+		expect(noRepo.status).toBe(409);
+		expect(await json(noRepo)).toMatchObject({ error: { code: 'repository_not_ready' } });
+
+		await store.upsertHubRepository(project.id, {
+			teamId: team.id,
+			role: 'software',
+			provider: 'github',
+			owner: 'treeseed-ai',
+			name: 'deploy-project',
+			url: 'https://github.com/treeseed-ai/deploy-project',
+			defaultBranch: 'staging',
+			status: 'ready',
+		});
+		await json(await app.request(`/v1/teams/${team.id}/web-hosts`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({
+				name: 'Team Cloudflare',
+				ownership: 'team_owned',
+				encryptedPayload: encryptedHostEnvelope(),
+			}),
+		}));
+		await store.upsertProjectEnvironment(project.id, {
+			environment: 'staging',
+			deploymentProfile: 'hosted_project',
+			baseUrl: 'https://staging.deploy-project.example.com',
+			pagesProjectName: 'deploy-project-staging',
+		});
+
+		const productionWithoutConfirmation = await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({ environment: 'prod', action: 'deploy_web' }),
+		});
+		expect(productionWithoutConfirmation.status).toBe(409);
+		expect(await json(productionWithoutConfirmation)).toMatchObject({ error: { code: 'deployment_not_ready' } });
+
+		const queued = await json(await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({
+				environment: 'staging',
+				action: 'deploy_web',
+				source: 'market_ui',
+				idempotencyKey: 'deploy-project-staging-one',
+			}),
+		}));
+		expect(queued).toMatchObject({
+			ok: true,
+			pollUrl: expect.stringContaining('/v1/platform/operations/'),
+			eventsUrl: expect.stringContaining(`/v1/projects/${project.id}/deployments/`),
+			stateUrl: `/v1/projects/${project.id}/deployment-state`,
+			deployment: {
+				projectId: project.id,
+				teamId: team.id,
+				environment: 'staging',
+				action: 'deploy_web',
+				status: 'queued',
+				idempotencyKey: 'deploy-project-staging-one',
+			},
+			operation: {
+				namespace: 'project',
+				operation: 'web_deployment',
+				status: 'queued',
+				target: 'market_operations_runner',
+			},
+		});
+		expect(JSON.stringify(queued)).not.toContain('runnerToken');
+		expect(JSON.stringify(queued)).not.toContain('capacityProviderId');
+
+		const repeated = await json(await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({
+				environment: 'staging',
+				action: 'deploy_web',
+				idempotencyKey: 'deploy-project-staging-one',
+			}),
+		}));
+		expect(repeated.deployment.id).toBe(queued.deployment.id);
+		expect(repeated.operation.id).toBe(queued.operation.id);
+
+		const listed = await json(await app.request(`/v1/projects/${project.id}/deployments`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(listed.payload).toEqual([
+			expect.objectContaining({ id: queued.deployment.id, platformOperationId: queued.operation.id }),
+		]);
+
+		const detail = await json(await app.request(`/v1/projects/${project.id}/deployments/${queued.deployment.id}`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(detail.payload).toMatchObject({ id: queued.deployment.id, platformOperationId: queued.operation.id });
+
+		const events = await json(await app.request(`/v1/projects/${project.id}/deployments/${queued.deployment.id}/events`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(events.payload.map((event: any) => event.kind)).toEqual(expect.arrayContaining([
+			'deployment.requested',
+			'deployment.operation_queued',
+			'created',
+		]));
+
+		const state = await json(await app.request(`/v1/projects/${project.id}/deployment-state`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(state).toMatchObject({
+			ok: true,
+			project: { id: project.id },
+			latestDeployments: {
+				staging: expect.objectContaining({ id: queued.deployment.id }),
+			},
+			readiness: {
+				ready: false,
+			},
+		});
+		expect(state.activeOperations).toHaveLength(1);
+
+		const resumed = await app.request(`/v1/projects/${project.id}/deployments/${queued.deployment.id}/resume`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({}),
+		});
+		expect(resumed.status).toBe(409);
+		expect(await json(resumed)).toMatchObject({ error: { code: 'operation_not_retryable' } });
+
+		const cancelled = await json(await app.request(`/v1/projects/${project.id}/deployments/${queued.deployment.id}/cancel`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({}),
+		}));
+		expect(cancelled).toMatchObject({
+			ok: true,
+			cancellation: 'completed',
+			deployment: {
+				status: 'cancelled',
+				completedAt: expect.any(String),
+			},
+		});
+
+		const retried = await json(await app.request(`/v1/projects/${project.id}/deployments/${queued.deployment.id}/retry`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({ idempotencyKey: 'deploy-project-staging-retry-one' }),
+		}));
+		expect(retried).toMatchObject({
+			ok: true,
+			originalDeployment: { id: queued.deployment.id },
+			retryDeployment: {
+				retryOfDeploymentId: queued.deployment.id,
+				status: 'queued',
+				platformOperationId: retried.operation.id,
+			},
+			operation: {
+				namespace: 'project',
+				operation: 'web_deployment',
+			},
+		});
+	});
+
+	it('enforces deployment governance and audit/redaction boundaries', async () => {
+		const { app, store, team, project } = await createDeploymentReadyProject('deployment-governance-project');
+		await store.upsertProjectEnvironment(project.id, {
+			environment: 'prod',
+			deploymentProfile: 'hosted_project',
+			baseUrl: 'https://deployment-governance-project.example.com',
+			pagesProjectName: 'deployment-governance-project-prod',
+		});
+
+		const readOnlyKey = await store.createTeamApiKey(team.id, {
+			name: 'Read only deployment key',
+			permissions: ['project:read'],
+		});
+		const noPermissionKey = await store.createTeamApiKey(team.id, {
+			name: 'No deployment key',
+			permissions: [],
+		});
+		const apiKeyRead = await app.request(`/v1/projects/${project.id}/deployments`, {
+			headers: { authorization: `Bearer ${readOnlyKey.token}` },
+		});
+		expect(apiKeyRead.status).toBe(200);
+		const apiKeyDeniedRead = await app.request(`/v1/projects/${project.id}/deployments`, {
+			headers: { authorization: `Bearer ${noPermissionKey.token}` },
+		});
+		expect(apiKeyDeniedRead.status).toBe(403);
+
+		const contributorToken = await authorizeApp(app, { principalId: 'deployment-contributor', displayName: 'Deployment Contributor' });
+		await store.upsertTeamMember(team.id, 'deployment-contributor', 'contributor');
+		const contributorDeploy = await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${contributorToken}` },
+			body: JSON.stringify({ environment: 'staging', action: 'deploy_web', idempotencyKey: 'contributor-deploy-denied' }),
+		});
+		expect(contributorDeploy.status).toBe(403);
+		expect(await json(contributorDeploy)).toMatchObject({ error: { code: 'not_authorized' } });
+
+		const contributorMonitor = await json(await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${contributorToken}` },
+			body: JSON.stringify({ environment: 'staging', action: 'monitor', idempotencyKey: 'contributor-monitor-ok' }),
+		}));
+		expect(contributorMonitor.deployment).toMatchObject({ action: 'monitor', status: 'queued' });
+		const contributorMonitorRepeat = await json(await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${contributorToken}` },
+			body: JSON.stringify({ environment: 'staging', action: 'monitor', idempotencyKey: 'contributor-monitor-ok' }),
+		}));
+		expect(contributorMonitorRepeat.deployment.id).toBe(contributorMonitor.deployment.id);
+
+		const reviewerToken = await authorizeApp(app, { principalId: 'deployment-reviewer', displayName: 'Deployment Reviewer' });
+		await store.upsertTeamMember(team.id, 'deployment-reviewer', 'reviewer');
+		const reviewerDeploy = await json(await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${reviewerToken}` },
+			body: JSON.stringify({ environment: 'staging', action: 'deploy_web', idempotencyKey: 'reviewer-staging-deploy-ok' }),
+		}));
+		expect(reviewerDeploy.deployment).toMatchObject({ environment: 'staging', action: 'deploy_web', status: 'queued' });
+		const reviewerProduction = await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${reviewerToken}` },
+			body: JSON.stringify({ environment: 'prod', action: 'deploy_web', confirmProduction: true, idempotencyKey: 'reviewer-prod-denied' }),
+		});
+		expect(reviewerProduction.status).toBe(403);
+
+		const leadToken = await authorizeApp(app, { principalId: 'deployment-lead', displayName: 'Deployment Lead' });
+		await store.upsertTeamMember(team.id, 'deployment-lead', 'project_lead');
+		const productionWithoutConfirmation = await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${leadToken}` },
+			body: JSON.stringify({ environment: 'prod', action: 'deploy_web', idempotencyKey: 'lead-prod-no-confirm' }),
+		});
+		expect(productionWithoutConfirmation.status).toBe(409);
+		const productionDeploy = await json(await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${leadToken}` },
+			body: JSON.stringify({ environment: 'prod', action: 'deploy_web', confirmProduction: true, idempotencyKey: 'lead-prod-confirmed' }),
+		}));
+		expect(productionDeploy.deployment).toMatchObject({ environment: 'prod', action: 'deploy_web', status: 'queued' });
+		const stagingPublish = await json(await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${leadToken}` },
+			body: JSON.stringify({ environment: 'staging', action: 'publish_content', idempotencyKey: 'lead-staging-publish' }),
+		}));
+		expect(stagingPublish.deployment).toMatchObject({ action: 'publish_content', status: 'queued' });
+
+		const failedDeployment = await store.updateProjectDeployment(reviewerDeploy.deployment.id, { status: 'failed', summary: 'Failed for retry test.' });
+		const readOnlyRetry = await app.request(`/v1/projects/${project.id}/deployments/${failedDeployment!.id}/retry`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${readOnlyKey.token}` },
+			body: JSON.stringify({ idempotencyKey: 'read-only-retry-denied' }),
+		});
+		expect(readOnlyRetry.status).toBe(403);
+		const retry = await json(await app.request(`/v1/projects/${project.id}/deployments/${failedDeployment!.id}/retry`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${reviewerToken}` },
+			body: JSON.stringify({ idempotencyKey: 'reviewer-retry-ok' }),
+		}));
+		expect(retry.retryDeployment.retryOfDeploymentId).toBe(failedDeployment!.id);
+		const resume = await app.request(`/v1/projects/${project.id}/deployments/${failedDeployment!.id}/resume`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${reviewerToken}` },
+			body: JSON.stringify({}),
+		});
+		expect(resume.status).toBe(409);
+
+		const cancelKey = await store.createTeamApiKey(team.id, {
+			name: 'Cancel deployment key',
+			permissions: ['project:deployment:cancel'],
+		});
+		const cancelled = await json(await app.request(`/v1/projects/${project.id}/deployments/${contributorMonitor.deployment.id}/cancel`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${cancelKey.token}` },
+			body: JSON.stringify({}),
+		}));
+		expect(cancelled.deployment.status).toBe('cancelled');
+
+		const monitorKey = await store.createTeamApiKey(team.id, {
+			name: 'Monitor deployment key',
+			permissions: ['project:monitor'],
+		});
+		const apiKeyMonitor = await json(await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${monitorKey.token}` },
+			body: JSON.stringify({ environment: 'prod', action: 'monitor', idempotencyKey: 'api-key-monitor-prod-ok' }),
+		}));
+		expect(apiKeyMonitor.deployment).toMatchObject({ action: 'monitor', environment: 'prod', status: 'queued' });
+
+		await store.appendProjectDeploymentEvent(productionDeploy.deployment.id, {
+			kind: 'deployment.security_probe',
+			message: 'Security probe.',
+			payload: {
+				runnerToken: 'runner-token-secret',
+				nested: {
+					capacityProviderId: 'capacity-provider-secret',
+					apiKey: 'sk-secret-token-value',
+				},
+			},
+		});
+		await store.recordAuditEvent({
+			eventType: 'security_probe',
+			actorType: 'user',
+			actorId: 'deployment-lead',
+			targetType: 'project',
+			targetId: project.id,
+			data: {
+				runnerToken: 'runner-token-secret',
+				capacityProviderId: 'capacity-provider-secret',
+				rawProviderResponse: { token: 'secret-token' },
+			},
+		});
+		const deploymentEvents = await store.listProjectDeploymentEvents(productionDeploy.deployment.id);
+		const auditEvents = await store.listAuditEventsForTarget('project', project.id, 100);
+		const auditTypes = auditEvents.map((event: Record<string, unknown>) => event.eventType);
+		expect(auditTypes).toEqual(expect.arrayContaining([
+			'project_deployment_requested',
+			'project_production_deployment_requested',
+			'project_content_publish_requested',
+			'project_deployment_retry_requested',
+			'project_deployment_resume_requested',
+			'project_deployment_cancel_requested',
+			'project_deployment_cancelled',
+		]));
+		const contributorRequestEvents = auditEvents.filter((event: any) => event.eventType === 'project_deployment_requested' && event.data?.deploymentId === contributorMonitor.deployment.id);
+		expect(contributorRequestEvents).toHaveLength(1);
+		const serialized = JSON.stringify({ deploymentEvents, auditEvents });
+		expect(serialized).not.toContain('runner-token-secret');
+		expect(serialized).not.toContain('capacity-provider-secret');
+		expect(serialized).not.toContain('capacityProviderId');
+		expect(serialized).not.toContain('runnerToken');
+		expect(serialized).not.toContain('sk-secret-token-value');
+	});
+
+	it('runs mocked project web deployments through the market operations runner', async () => {
+		const { app, store, token, project } = await createDeploymentReadyProject('runner-web-deploy-project');
+		const unrelated = await store.createPlatformOperation({
+			namespace: 'market',
+			operation: 'noop',
+			target: 'market_operations_runner',
+			input: {},
+			requestedByType: 'user',
+			requestedById: 'user-1',
+		});
+		const queued = await json(await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({
+				environment: 'staging',
+				action: 'deploy_web',
+				idempotencyKey: 'runner-web-deploy-success',
+			}),
+		}));
+
+		await withHttpMarketApp(app, async (baseUrl) => {
+			const client = new PlatformRunnerClient({
+				marketUrl: baseUrl,
+				marketId: 'local',
+				runnerSecret: 'platform-runner-secret',
+			});
+			const result = await runOnceWithClient({
+				runnerId: 'market-ops-web-runner-01',
+				environment: 'staging',
+				dataDir: packageRoot,
+			}, client, 'test', {
+				deploymentStore: store,
+				operationKey: 'project:web_deployment',
+				mockExternal: true,
+				mockResult: 'success',
+			});
+			expect(result).toMatchObject({
+				ok: true,
+				claimed: true,
+				output: {
+					ok: true,
+					deploymentId: queued.deployment.id,
+					externalWorkflow: {
+						provider: 'github',
+						runId: 9001,
+						runUrl: expect.stringContaining('/actions/runs/9001'),
+						mock: true,
+					},
+				},
+			});
+		});
+
+		expect(unrelated).not.toBeNull();
+		const untouched = await store.findPlatformOperationById(unrelated!.id);
+		expect(untouched).not.toBeNull();
+		expect(untouched!.status).toBe('queued');
+		const completedOperation = await store.findPlatformOperationById(queued.operation.id);
+		expect(completedOperation).not.toBeNull();
+		expect(completedOperation!.status).toBe('succeeded');
+		const deployment = await store.findProjectDeploymentById(queued.deployment.id);
+		expect(deployment).not.toBeNull();
+		expect(deployment).toMatchObject({
+			status: 'succeeded',
+			completedAt: expect.any(String),
+			externalWorkflow: {
+				runId: 9001,
+				mock: true,
+				conclusion: 'success',
+			},
+			target: {
+				baseUrl: 'https://staging.runner-web-deploy-project.example.com',
+			},
+			monitor: {
+				status: 'healthy',
+				checks: expect.arrayContaining([
+					expect.objectContaining({ key: 'latest_workflow', status: 'passed' }),
+					expect.objectContaining({ key: 'workflow_file', status: 'passed' }),
+					expect.objectContaining({ key: 'http_response', status: 'passed' }),
+				]),
+			},
+			summary: 'deploy_web for staging succeeded.',
+		});
+		const events = await store.listProjectDeploymentEvents(deployment!.id);
+		expect(events.map((event: Record<string, unknown>) => event.kind)).toEqual(expect.arrayContaining([
+			'deployment.preflight.started',
+			'deployment.preflight.completed',
+			'deployment.workflow.dispatching',
+			'deployment.workflow.dispatched',
+			'deployment.workflow.running',
+			'deployment.workflow.completed',
+			'deployment.monitor.started',
+			'deployment.monitor.completed',
+			'deployment.succeeded',
+		]));
+		const auditEvents = await store.listAuditEventsForTarget('project', project.id, 50);
+		expect(auditEvents.map((event: Record<string, unknown>) => event.eventType)).toEqual(expect.arrayContaining([
+			'project_monitor_completed',
+			'project_deployment_succeeded',
+		]));
+		const environments = await store.listProjectEnvironments(project.id);
+		expect(environments.find((entry: Record<string, unknown>) => entry.environment === 'staging')).toMatchObject({
+			baseUrl: 'https://staging.runner-web-deploy-project.example.com',
+			metadata: {
+					lastDeploymentId: deployment!.id,
+					lastOperationId: queued.operation.id,
+				},
+			});
+		expect(await store.all(`SELECT * FROM capacity_providers`)).toHaveLength(0);
+		expect(JSON.stringify(completedOperation!)).not.toContain('capacityProviderId');
+	});
+
+	it('records mocked project web deployment failures with GitHub inspect guidance', async () => {
+		const { app, store, token, project } = await createDeploymentReadyProject('runner-web-deploy-failure');
+		const queued = await json(await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({
+				environment: 'staging',
+				action: 'deploy_web',
+				idempotencyKey: 'runner-web-deploy-failure',
+			}),
+		}));
+
+		await withHttpMarketApp(app, async (baseUrl) => {
+			const client = new PlatformRunnerClient({
+				marketUrl: baseUrl,
+				marketId: 'local',
+				runnerSecret: 'platform-runner-secret',
+			});
+			const result = await runOnceWithClient({
+				runnerId: 'market-ops-web-runner-02',
+				environment: 'staging',
+				dataDir: packageRoot,
+			}, client, 'test', {
+				deploymentStore: store,
+				operationKey: 'project:web_deployment',
+				mockExternal: true,
+				mockResult: 'failure',
+			});
+			expect(result).toMatchObject({
+				ok: false,
+				claimed: true,
+				error: { message: expect.stringContaining('deploy-web.yml') },
+			});
+		});
+
+		const operation = await store.findPlatformOperationById(queued.operation.id);
+		const deployment = await store.findProjectDeploymentById(queued.deployment.id);
+		expect(operation).not.toBeNull();
+		expect(deployment).not.toBeNull();
+		expect(operation!.status).toBe('failed');
+		expect(deployment).toMatchObject({
+			status: 'failed',
+			completedAt: expect.any(String),
+			error: {
+				provider: 'github',
+				inspectCommand: 'gh run view 9001 --repo treeseed-ai/runner-web-deploy-failure --log-failed',
+				failedJobName: 'deploy',
+				retrySafe: true,
+				resumeSafe: false,
+				blockerCode: 'github_workflow_failed',
+			},
+		});
+		const events = await store.listProjectDeploymentEvents(deployment!.id);
+		expect(events.map((event: Record<string, unknown>) => event.kind)).toEqual(expect.arrayContaining([
+			'deployment.workflow.completed',
+			'deployment.failed',
+		]));
+		const auditEvents = await store.listAuditEventsForTarget('project', project.id, 50);
+		expect(auditEvents.map((event: Record<string, unknown>) => event.eventType)).toContain('project_deployment_failed');
+	});
+
+	it('runs monitor-only deployments without workflow dispatch and exposes latest monitor state', async () => {
+		const { app, store, token, project } = await createDeploymentReadyProject('runner-web-monitor-project');
+		const queued = await json(await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({
+				environment: 'staging',
+				action: 'monitor',
+				idempotencyKey: 'runner-web-monitor-success',
+			}),
+		}));
+
+		await withHttpMarketApp(app, async (baseUrl) => {
+			const client = new PlatformRunnerClient({
+				marketUrl: baseUrl,
+				marketId: 'local',
+				runnerSecret: 'platform-runner-secret',
+			});
+			const result = await runOnceWithClient({
+				runnerId: 'market-ops-web-runner-monitor',
+				environment: 'staging',
+				dataDir: packageRoot,
+			}, client, 'test', {
+				deploymentStore: store,
+				operationKey: 'project:web_deployment',
+				mockExternal: true,
+				mockResult: 'success',
+			});
+			expect(result).toMatchObject({
+				ok: true,
+				claimed: true,
+				output: {
+					ok: true,
+					deploymentId: queued.deployment.id,
+					externalWorkflow: null,
+					monitor: {
+						status: 'healthy',
+					},
+				},
+			});
+		});
+
+		const deployment = await store.findProjectDeploymentById(queued.deployment.id);
+		expect(deployment).toMatchObject({
+			status: 'succeeded',
+			action: 'monitor',
+			monitor: {
+				status: 'healthy',
+				checks: expect.arrayContaining([
+					expect.objectContaining({ key: 'workflow_file', status: 'passed' }),
+					expect.objectContaining({ key: 'http_response', status: 'passed' }),
+				]),
+			},
+		});
+		const events = await store.listProjectDeploymentEvents(queued.deployment.id);
+		expect(events.map((event: Record<string, unknown>) => event.kind)).toEqual(expect.arrayContaining([
+			'deployment.preflight.started',
+			'deployment.preflight.completed',
+			'deployment.monitor.started',
+			'deployment.monitor.completed',
+			'deployment.succeeded',
+		]));
+		expect(events.map((event: Record<string, unknown>) => event.kind)).not.toContain('deployment.workflow.dispatching');
+
+		const state = await json(await app.request(`/v1/projects/${project.id}/deployment-state`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(state.latestMonitors.staging).toMatchObject({
+			status: 'healthy',
+			checks: expect.arrayContaining([
+				expect.objectContaining({ key: 'http_response', status: 'passed' }),
+			]),
+		});
+	});
+
+	it('marks claimed project web deployments cancelled before dispatch when cancellation is requested', async () => {
+		const { app, store, token, project } = await createDeploymentReadyProject('runner-web-deploy-cancel');
+		const queued = await json(await app.request(`/v1/projects/${project.id}/deployments/web`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({
+				environment: 'staging',
+				action: 'deploy_web',
+				idempotencyKey: 'runner-web-deploy-cancel',
+			}),
+		}));
+		const beforeCancel = await store.findProjectDeploymentById(queued.deployment.id);
+		expect(beforeCancel).not.toBeNull();
+		await store.updateProjectDeployment(beforeCancel!.id, {
+			metadata: {
+				...(beforeCancel!.metadata ?? {}),
+				cancellation: {
+					requested: true,
+					requestedAt: '2026-01-01T00:00:00.000Z',
+					actor: { id: 'user-1', type: 'user' },
+				},
+			},
+		});
+
+		await withHttpMarketApp(app, async (baseUrl) => {
+			const client = new PlatformRunnerClient({
+				marketUrl: baseUrl,
+				marketId: 'local',
+				runnerSecret: 'platform-runner-secret',
+			});
+			const result = await runOnceWithClient({
+				runnerId: 'market-ops-web-runner-03',
+				environment: 'staging',
+				dataDir: packageRoot,
+			}, client, 'test', {
+				deploymentStore: store,
+				operationKey: 'project:web_deployment',
+				mockExternal: true,
+			});
+			expect(result).toMatchObject({
+				ok: false,
+				claimed: true,
+				operation: { status: 'cancelled' },
+				error: { message: 'Deployment cancellation was requested.' },
+			});
+		});
+
+		const deployment = await store.findProjectDeploymentById(queued.deployment.id);
+		expect(deployment).not.toBeNull();
+		expect(deployment).toMatchObject({
+			status: 'cancelled',
+			completedAt: expect.any(String),
+			error: {
+				code: 'deployment_cancelled',
+				retrySafe: true,
+				resumeSafe: false,
+			},
+		});
+		const events = await store.listProjectDeploymentEvents(deployment!.id);
+		expect(events.map((event: Record<string, unknown>) => event.kind)).toContain('deployment.cancelled');
+		expect(events.map((event: Record<string, unknown>) => event.kind)).not.toContain('deployment.workflow.dispatching');
+		const auditEvents = await store.listAuditEventsForTarget('project', project.id, 50);
+		expect(auditEvents.map((event: Record<string, unknown>) => event.eventType)).toContain('project_deployment_cancelled');
 	});
 
 	it('tracks platform repository claims with runner ownership and safe release metadata', async () => {
@@ -2478,27 +3426,6 @@ describe('market api', () => {
 			logicalName: 'content',
 		});
 
-		const deployment = await json(await app.request(`/v1/projects/${project.id}/deployments`, {
-			method: 'POST',
-			headers: {
-				'content-type': 'application/json',
-				authorization: `Bearer ${token}`,
-			},
-			body: JSON.stringify({
-				environment: 'staging',
-				deploymentKind: 'code',
-				status: 'running',
-				sourceRef: 'staging',
-				commitSha: 'abc123',
-			}),
-		}));
-		expect(deployment.payload).toMatchObject({
-			projectId: project.id,
-			environment: 'staging',
-			deploymentKind: 'code',
-			status: 'running',
-		});
-
 		const pool = await json(await app.request(`/v1/projects/${project.id}/agent-pools`, {
 			method: 'POST',
 			headers: {
@@ -2626,7 +3553,7 @@ describe('market api', () => {
 		expect(runnerDeployment.payload).toMatchObject({
 			environment: 'prod',
 			deploymentKind: 'mixed',
-			status: 'success',
+			status: 'succeeded',
 		});
 
 		const details = await json(await app.request(`/v1/projects/${project.id}`, {
@@ -2639,7 +3566,7 @@ describe('market api', () => {
 		});
 		expect(details.payload.environments).toHaveLength(2);
 		expect(details.payload.resources).toHaveLength(2);
-		expect(details.payload.deployments).toHaveLength(2);
+		expect(details.payload.deployments).toHaveLength(1);
 		expect(details.payload.agentPools).toHaveLength(1);
 	});
 
@@ -3814,7 +4741,9 @@ describe('market api', () => {
 			},
 		} as unknown as Awaited<ReturnType<typeof treeseedCore.executeKnowledgeHubProviderLaunch>>);
 
-		const app = createTestApp();
+		const db = createTestPostgresDatabase();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
 		const token = await authorizeApp(app);
 		const team = await createTeam(app, token);
 
@@ -3836,6 +4765,10 @@ describe('market api', () => {
 		expect(launched.status).toBe(202);
 		const payload = await json(launched);
 		expect(payload.ok).toBe(true);
+		expect(payload.projectId).toBe(payload.payload.project.project.id);
+		expect(payload.launchId).toBe(payload.payload.launch.id);
+		expect(payload.operationId).toBe(payload.payload.launchJob.id);
+		expect(payload.deployHref).toBe(`/app/projects/${payload.projectId}/deploy?launch=${payload.launchId}`);
 		expect(payload.payload.project.project.slug).toBe('launch-project');
 		expect(payload.payload.project.latestLaunch.state).toBe('queued');
 		expect(payload.payload.launchJob.status).toBe('pending');
@@ -3852,6 +4785,62 @@ describe('market api', () => {
 		]));
 		expect(details.payload.contentSource.productionSource).toBe('r2_published_artifacts');
 		expect(details.payload.latestLaunch.state).toBe('queued');
+		const deploymentState = await json(await app.request(`/v1/projects/${payload.projectId}/deployment-state`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(deploymentState.launch).toMatchObject({
+			id: payload.launchId,
+			jobId: payload.operationId,
+			status: 'queued',
+			active: true,
+			deployHref: payload.deployHref,
+		});
+		expect(deploymentState.nextAction).toMatchObject({ code: 'launch_active' });
+		await store.retryJob(payload.operationId, { status: 'failed', eventType: 'failed' });
+		await store.updateHubLaunch(payload.launchId, {
+			state: 'failed',
+			currentPhase: 'workflow_installing',
+			error: {
+				summary: 'Workflow installation failed.',
+				inspectCommand: 'gh run view 123 --repo owner/repo --log-failed',
+			},
+		});
+		await store.appendHubLaunchEvent(payload.launchId, {
+			phase: 'workflow_installing',
+			status: 'failed',
+			title: 'Workflow installation failed',
+			summary: 'Workflow installation failed.',
+		});
+		const failedState = await json(await app.request(`/v1/projects/${payload.projectId}/deployment-state`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(failedState.launch).toMatchObject({
+			status: 'failed',
+			active: false,
+			error: {
+				summary: 'Workflow installation failed.',
+				inspectCommand: 'gh run view 123 --repo owner/repo --log-failed',
+			},
+		});
+		expect(failedState.launch.actions.map((action: { action: string }) => action.action)).toEqual(['retry_launch', 'resume_launch']);
+		expect(failedState.nextAction).toMatchObject({ code: 'launch_recovery', action: 'retry_launch' });
+		const resumed = await app.request(`/v1/jobs/${payload.operationId}/resume`, {
+			method: 'POST',
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		});
+		expect(resumed.status).toBe(202);
+		const resumedState = await json(await app.request(`/v1/projects/${payload.projectId}/deployment-state`, {
+			headers: {
+				authorization: `Bearer ${token}`,
+			},
+		}));
+		expect(resumedState.launch).toMatchObject({ status: 'queued', currentPhase: 'launch_resume_queued' });
 
 		const inbox = await json(await app.request(`/v1/teams/${team.id}/inbox`, {
 			headers: {

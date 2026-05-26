@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -138,6 +139,29 @@ function assertCase(caseSpec, response, body) {
 	return failures;
 }
 
+const FORBIDDEN_DEPLOYMENT_OUTPUT = [
+	'capacityProviderId',
+	'laneId',
+	'grantId',
+	'workerPoolId',
+	'runtimeHostId',
+	'railwayServiceId',
+	'runnerToken',
+	'runner-token-secret',
+	'capacity-provider-secret',
+	'TREESEED_PLATFORM_RUNNER_SECRET',
+	'RAILWAY_API_TOKEN',
+	'TREESEED_RAILWAY_PROJECT_ID',
+];
+
+function assertNoForbiddenDeploymentOutput(value, label = 'deployment output') {
+	const serialized = JSON.stringify(value);
+	const failures = FORBIDDEN_DEPLOYMENT_OUTPUT
+		.filter((needle) => serialized.includes(needle))
+		.map((needle) => `${label} exposed forbidden field or value ${needle}`);
+	return failures;
+}
+
 function expandRoleMatrices(spec) {
 	const matrices = Array.isArray(spec.roleMatrices) ? spec.roleMatrices : [];
 	const expanded = [];
@@ -171,6 +195,19 @@ function expandRoleMatrices(spec) {
 	return expanded;
 }
 
+function expandDeploymentFlows(spec) {
+	return (Array.isArray(spec.deploymentFlows) ? spec.deploymentFlows : []).map((flow) => ({
+		id: flow.id ?? 'deployment-flow.mocked-local',
+		actor: flow.actor ?? 'teamOwner',
+		method: 'FLOW',
+		path: '/v1/projects/${fixtures.project.id}/deployments/web',
+		deploymentFlow: true,
+		flow,
+		expect: flow.expect ?? { status: 200, envelope: { ok: true } },
+		environments: flow.environments,
+	}));
+}
+
 function fixtureValue(name) {
 	const map = {
 		teamId: '${fixtures.team.id}',
@@ -183,7 +220,7 @@ function fixtureValue(name) {
 		sessionId: '${fixtures.session.id}',
 		membershipId: '${fixtures.membership.id}',
 		inviteId: '${fixtures.invite.id}',
-		hostId: '${fixtures.host.id}',
+		hostId: 'acceptance-hostId',
 		environmentId: '${fixtures.environment.id}',
 		requestId: '${fixtures.approvalRequest.id}',
 		taskId: '${fixtures.task.id}',
@@ -215,6 +252,7 @@ function bodyForFactory(factory, descriptor, actor) {
 			password: '${seed.password}',
 			name: `Acceptance ${actor}`,
 		},
+		emailConfirm: { token: `acceptance-confirm-${stamp}` },
 		webSignIn: { email: '${actors.siteAdmin.email}', password: '${seed.password}' },
 		sessionRevoke: {},
 		webProfile: { name: `Acceptance ${actor}` },
@@ -250,6 +288,7 @@ function bodyForFactory(factory, descriptor, actor) {
 		platformRunnerEvent: { runnerId: '${fixtures.platformRunner.id}', event: { kind: 'acceptance.event', data: { actor } } },
 		platformRunnerCheckpoint: { runnerId: '${fixtures.platformRunner.id}', output: { acceptance: true }, event: { kind: 'acceptance.checkpoint' } },
 		platformRunnerRenew: { runnerId: '${fixtures.platformRunner.id}', leaseSeconds: 30, event: { kind: 'acceptance.renew' } },
+		platformRunnerCancel: { runnerId: '${fixtures.platformRunner.id}', event: { kind: 'acceptance.cancel' } },
 		platformRunnerComplete: { runnerId: '${fixtures.platformRunner.id}', output: { acceptance: true }, event: { kind: 'acceptance.complete' } },
 		platformRunnerFail: { runnerId: '${fixtures.platformRunner.id}', error: { message: 'Acceptance failure fixture.' }, event: { kind: 'acceptance.fail' } },
 		providerRegister: {
@@ -268,7 +307,7 @@ function bodyForFactory(factory, descriptor, actor) {
 		providerUsage: { providerId: '${fixtures.provider.id}', records: [{ id: `usage-${stamp}`, credits: 0, unit: 'dry_run' }] },
 		providerReport: { providerId: '${fixtures.provider.id}', report: { id: `report-${stamp}`, status: 'ok', summary: 'Acceptance report.' } },
 		projectCreate: { slug: `${stamp}-${actor}-project`, name: `Acceptance ${actor} Project`, description: 'Acceptance fixture project.' },
-		projectLaunch: { name: `Acceptance ${actor} Launch`, slug: `${stamp}-${actor}-launch`, template: 'blank' },
+		projectLaunch: { name: `Acceptance ${actor} Launch`, slug: `${stamp}-${actor}-launch`, sourceKind: 'acceptance_unsupported' },
 		teamInvite: { email: `treeseed+${stamp}-${actor}-invite@treeseed.ai`, roleKey: 'reviewer' },
 		teamMemberUpdate: { roleKey: 'reviewer' },
 		repositoryHost: { provider: 'github', owner: 'treeseed-acceptance', name: 'fixture', defaultBranch: 'main' },
@@ -403,6 +442,14 @@ function sdkArgsForMethod(method) {
 		teamPermissions: ['${fixtures.team.id}'],
 		projects: ['${fixtures.team.id}'],
 		projectAccess: ['${fixtures.project.id}'],
+		projectDeploymentState: ['${fixtures.project.id}'],
+		projectDeployments: ['${fixtures.project.id}'],
+		projectDeployment: ['${fixtures.project.id}', '${fixtures.deployment.id}'],
+		projectDeploymentEvents: ['${fixtures.project.id}', '${fixtures.deployment.id}'],
+		createProjectWebDeployment: ['${fixtures.project.id}'],
+		retryProjectDeployment: ['${fixtures.project.id}', '${fixtures.deployment.id}'],
+		resumeProjectDeployment: ['${fixtures.project.id}', '${fixtures.deployment.id}'],
+		cancelProjectDeployment: ['${fixtures.project.id}', '${fixtures.deployment.id}'],
 		teamCapacity: ['${fixtures.team.id}'],
 		teamCapacityProviders: ['${fixtures.team.id}'],
 		updateCapacityProvider: ['${fixtures.team.id}', '${fixtures.provider.id}', { name: 'Acceptance SDK Provider' }],
@@ -511,6 +558,156 @@ function assertCoverage(spec, cases) {
 	}
 }
 
+async function requestAcceptanceJson({ variables, actors, actorId, method = 'GET', path, body }) {
+	const actor = actors[actorId ?? 'anonymous'] ?? {};
+	const headers = actorHeaders(actor);
+	if (!headers) {
+		throw new Error(`Actor ${actorId} is unavailable for acceptance request ${method} ${path}.`);
+	}
+	headers.set('accept', 'application/json');
+	if (body !== undefined) headers.set('content-type', 'application/json');
+	const response = await fetch(`${variables.baseUrl}${path}`, {
+		method,
+		headers,
+		body: body === undefined ? undefined : JSON.stringify(body),
+	});
+	const envelope = await response.json().catch(() => null);
+	if (!response.ok || envelope?.ok === false) {
+		throw new Error(`${method} ${path} failed with ${response.status}: ${JSON.stringify(envelope)}`);
+	}
+	return { response, body: envelope };
+}
+
+function runMockedDeploymentRunner({ variables, actors, flow, args }) {
+	const runnerActor = actors[flow.runnerActor ?? 'platformRunner'] ?? {};
+	const runnerSecret = runnerActor.token ?? process.env.TREESEED_PLATFORM_RUNNER_SECRET;
+	if (!runnerSecret) {
+		throw new Error('Mocked deployment acceptance requires TREESEED_PLATFORM_RUNNER_SECRET or a seeded platformRunner actor.');
+	}
+	const market = flow.market ?? args.environment ?? 'local';
+	const runnerArgs = [
+		'run',
+		'market:operations-runner',
+		'--',
+		'--market',
+		market,
+		'--once',
+		'--operation',
+		'project:web_deployment',
+		'--mock-external',
+		'--mock-result',
+		flow.mockResult ?? 'success',
+	];
+	const result = spawnSync('npm', runnerArgs, {
+		cwd: process.cwd(),
+		encoding: 'utf8',
+		env: {
+			...process.env,
+			TREESEED_MARKET_API_BASE_URL: variables.baseUrl,
+			TREESEED_MARKET_URL: variables.baseUrl,
+			TREESEED_MARKET_ID: market,
+			TREESEED_PLATFORM_RUNNER_SECRET: runnerSecret,
+			TREESEED_PLATFORM_RUNNER_ID: variables.fixtures?.platformRunner?.id ?? `market-ops-${market}-1`,
+		},
+	});
+	if (result.status !== 0) {
+		throw new Error(`Mocked deployment runner failed with ${result.status}.\n${result.stdout}\n${result.stderr}`);
+	}
+	return {
+		status: result.status,
+		stdout: result.stdout,
+		stderr: result.stderr,
+	};
+}
+
+async function runDeploymentAcceptanceFlow(caseSpec, variables, actors, args) {
+	const flow = caseSpec.flow ?? {};
+	const actorId = caseSpec.actor ?? flow.actor ?? 'teamOwner';
+	const projectId = variables.fixtures?.project?.id;
+	if (!projectId) throw new Error('Deployment acceptance flow requires fixtures.project.id.');
+	const basePath = `${variables.apiVersionPath ?? '/v1'}/projects/${projectId}`;
+	const failures = [];
+	const firstState = await requestAcceptanceJson({
+		variables,
+		actors,
+		actorId,
+		path: `${basePath}/deployment-state`,
+	});
+	failures.push(...assertNoForbiddenDeploymentOutput(firstState.body, 'initial deployment state'));
+	const initialState = firstState.body?.payload ?? firstState.body;
+	if (initialState?.readiness?.ready !== true) {
+		throw new Error(`Seeded project is not deployment-ready: ${JSON.stringify(initialState?.readiness?.blockers ?? [])}`);
+	}
+	const deploy = await requestAcceptanceJson({
+		variables,
+		actors,
+		actorId,
+		method: 'POST',
+		path: `${basePath}/deployments/web`,
+		body: {
+			environment: flow.environment ?? 'staging',
+			action: 'deploy_web',
+			source: 'acceptance',
+			idempotencyKey: `acceptance-${variables.runNonce}-deploy`,
+		},
+	});
+	failures.push(...assertNoForbiddenDeploymentOutput(deploy.body, 'queued deployment'));
+	runMockedDeploymentRunner({ variables, actors, flow, args });
+	const deploymentId = deploy.body?.payload?.deployment?.id ?? deploy.body?.deployment?.id;
+	const deploymentDetail = await requestAcceptanceJson({
+		variables,
+		actors,
+		actorId,
+		path: `${basePath}/deployments/${deploymentId}`,
+	});
+	const completedDeployment = deploymentDetail.body?.payload?.deployment ?? deploymentDetail.body?.payload ?? deploymentDetail.body?.deployment;
+	if (completedDeployment?.status !== 'succeeded') {
+		throw new Error(`Mocked deployment did not succeed: ${JSON.stringify(deploymentDetail.body)}`);
+	}
+	failures.push(...assertNoForbiddenDeploymentOutput(deploymentDetail.body, 'completed deployment'));
+	const monitor = await requestAcceptanceJson({
+		variables,
+		actors,
+		actorId,
+		method: 'POST',
+		path: `${basePath}/deployments/web`,
+		body: {
+			environment: flow.environment ?? 'staging',
+			action: 'monitor',
+			source: 'acceptance',
+			idempotencyKey: `acceptance-${variables.runNonce}-monitor`,
+		},
+	});
+	failures.push(...assertNoForbiddenDeploymentOutput(monitor.body, 'queued monitor'));
+	runMockedDeploymentRunner({ variables, actors, flow, args });
+	const monitorDeploymentId = monitor.body?.payload?.deployment?.id ?? monitor.body?.deployment?.id;
+	const monitorDetail = await requestAcceptanceJson({
+		variables,
+		actors,
+		actorId,
+		path: `${basePath}/deployments/${monitorDeploymentId}`,
+	});
+	const completedMonitor = monitorDetail.body?.payload?.deployment ?? monitorDetail.body?.payload ?? monitorDetail.body?.deployment;
+	const monitorPayload = completedMonitor?.monitor;
+	if (!monitorPayload?.status) {
+		throw new Error(`Mocked monitor result was not persisted: ${JSON.stringify(monitorDetail.body)}`);
+	}
+	failures.push(...assertNoForbiddenDeploymentOutput(monitorDetail.body, 'completed monitor'));
+	const finalState = await requestAcceptanceJson({
+		variables,
+		actors,
+		actorId,
+		path: `${basePath}/deployment-state`,
+	});
+	const finalStateModel = finalState.body?.payload ?? finalState.body;
+	const latestMonitor = finalStateModel?.latestMonitors?.[flow.environment ?? 'staging'];
+	if (!latestMonitor?.monitor?.status && !latestMonitor?.status) {
+		throw new Error(`Deployment state does not expose the latest monitor: ${JSON.stringify(finalStateModel?.latestMonitors ?? null)}`);
+	}
+	failures.push(...assertNoForbiddenDeploymentOutput(finalState.body, 'final deployment state'));
+	return failures;
+}
+
 function junit(report) {
 	const failures = report.results.filter((result) => !result.ok);
 	const escape = (value) => String(value ?? '').replace(/[<>&"']/gu, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[char]));
@@ -573,7 +770,7 @@ async function main() {
 			username: actor.username,
 		}]));
 	}
-	const allCases = [...(spec.cases ?? []), ...expandRoleMatrices(spec), ...expandDescriptorMatrices(spec, expectedStatuses), ...expandSdkMethodMatrices(spec, expectedStatuses)];
+	const allCases = [...(spec.cases ?? []), ...expandDeploymentFlows(spec), ...expandRoleMatrices(spec), ...expandDescriptorMatrices(spec, expectedStatuses), ...expandSdkMethodMatrices(spec, expectedStatuses)];
 	assertCoverage(spec, allCases);
 	const cases = allCases.filter((entry) => !entry.environments || entry.environments.includes(args.environment));
 	if (args.expandJson) {
@@ -587,10 +784,11 @@ async function main() {
 				descriptorId: entry.descriptorId ?? null,
 				actor: entry.actor ?? 'anonymous',
 				method: entry.method ?? 'GET',
-				path: entry.path ?? null,
-				sdkMethod: entry.sdkMethod ?? null,
-				expect: entry.expect ?? {},
-			})),
+					path: entry.path ?? null,
+					sdkMethod: entry.sdkMethod ?? null,
+					deploymentFlow: entry.deploymentFlow === true,
+					expect: entry.expect ?? {},
+				})),
 		}, null, 2)}\n`);
 		console.log(`expanded ${cases.length} acceptance cases to ${args.expandJson}`);
 		return;
@@ -619,58 +817,64 @@ async function main() {
 				console.log(`coverage ${caseSpec.id}`);
 				continue;
 			}
-			const actor = actors[caseSpec.actor ?? 'anonymous'] ?? {};
-			const headers = actorHeaders(actor);
-			if (!headers) {
-				results.push({
-					id: caseSpec.id,
-					actor: caseSpec.actor ?? 'anonymous',
-					method: caseSpec.method ?? 'GET',
-					path: caseSpec.path,
-					status: null,
-					ok: true,
-					skipped: true,
-					failures: [],
-					durationMs: Date.now() - started,
-				});
-				console.log(`skip ${caseSpec.id} missing optional actor credential`);
-				continue;
-			}
-			headers.set('accept', 'application/json');
-			if (caseSpec.body !== undefined) headers.set('content-type', 'application/json');
-			if (caseSpec.sdkMethod) {
-				const { MarketClient } = await loadMarketClient();
-				const client = new MarketClient({
-					profile: {
-						id: args.environment,
-						label: args.environment,
-						baseUrl: variables.baseUrl,
-						kind: 'specialized',
-					},
-					accessToken: actor.token ?? null,
-					fetchImpl: fetch,
-					userAgent: 'treeseed-acceptance/1',
-				});
-				try {
-					body = await client[caseSpec.sdkMethod](...(caseSpec.sdkArgs ?? []));
-					response = { status: Number(caseSpec.expect?.status ?? caseSpec.expect?.statusAny?.[0] ?? 200) };
-				} catch (error) {
-					if (typeof error?.status === 'number') {
-						body = error.payload ?? { ok: false, error: error.message };
-						response = { status: error.status };
-					} else {
-						throw error;
+				if (caseSpec.deploymentFlow) {
+					failures = await runDeploymentAcceptanceFlow(caseSpec, variables, actors, args);
+					response = { status: failures.length > 0 ? 500 : Number(caseSpec.expect?.status ?? 200) };
+					body = { ok: failures.length === 0 };
+				} else {
+					const actor = actors[caseSpec.actor ?? 'anonymous'] ?? {};
+					const headers = actorHeaders(actor);
+					if (!headers) {
+						results.push({
+							id: caseSpec.id,
+							actor: caseSpec.actor ?? 'anonymous',
+							method: caseSpec.method ?? 'GET',
+							path: caseSpec.path,
+							status: null,
+							ok: true,
+							skipped: true,
+							failures: [],
+							durationMs: Date.now() - started,
+						});
+						console.log(`skip ${caseSpec.id} missing optional actor credential`);
+						continue;
 					}
+					headers.set('accept', 'application/json');
+					if (caseSpec.body !== undefined) headers.set('content-type', 'application/json');
+					if (caseSpec.sdkMethod) {
+						const { MarketClient } = await loadMarketClient();
+						const client = new MarketClient({
+							profile: {
+								id: args.environment,
+								label: args.environment,
+								baseUrl: variables.baseUrl,
+								kind: 'specialized',
+							},
+							accessToken: actor.token ?? null,
+							fetchImpl: fetch,
+							userAgent: 'treeseed-acceptance/1',
+						});
+						try {
+							body = await client[caseSpec.sdkMethod](...(caseSpec.sdkArgs ?? []));
+							response = { status: Number(caseSpec.expect?.status ?? caseSpec.expect?.statusAny?.[0] ?? 200) };
+						} catch (error) {
+							if (typeof error?.status === 'number') {
+								body = error.payload ?? { ok: false, error: error.message };
+								response = { status: error.status };
+							} else {
+								throw error;
+							}
+						}
+					} else {
+						response = await fetch(`${variables.baseUrl}${caseSpec.path}`, {
+							method: caseSpec.method ?? 'GET',
+							headers,
+							body: caseSpec.body === undefined ? undefined : JSON.stringify(caseSpec.body),
+						});
+						body = await response.json().catch(() => null);
+					}
+					failures = assertCase(caseSpec, response, body);
 				}
-			} else {
-				response = await fetch(`${variables.baseUrl}${caseSpec.path}`, {
-					method: caseSpec.method ?? 'GET',
-					headers,
-					body: caseSpec.body === undefined ? undefined : JSON.stringify(caseSpec.body),
-				});
-				body = await response.json().catch(() => null);
-			}
-			failures = assertCase(caseSpec, response, body);
 		} catch (error) {
 			failures = [error?.message ?? String(error)];
 		}
@@ -717,6 +921,7 @@ export {
 	assertCoverage,
 	bodyForFactory,
 	deepMerge,
+	expandDeploymentFlows,
 	expandDescriptorMatrices,
 	expandRoleMatrices,
 	expandSdkMethodMatrices,

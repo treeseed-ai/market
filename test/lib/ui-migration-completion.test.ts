@@ -97,6 +97,7 @@ describe('UI migration completion', () => {
 		expect(themeScript).toContain('window.sessionStorage.setItem(name, value)');
 		expect(themeScript).toContain('window.localStorage.setItem(name, value)');
 		expect(themeScript).toContain('document.cookie = `${name}=');
+		expect(themeScript).toContain('data-astro-rerun');
 
 		for (const path of [
 			'src/pages/auth/register.astro',

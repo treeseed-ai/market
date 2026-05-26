@@ -6,17 +6,54 @@ import { fileURLToPath } from 'node:url';
 import {
 	PlatformRunnerClient,
 	runPlatformOperationOnce,
-} from '@treeseed/sdk/platform-operations';
+} from '../../packages/sdk/src/platform-operations.ts';
 import {
 	createPlatformOperationStoreFromEnv,
-} from '@treeseed/sdk/platform-operation-store';
+} from '../../packages/sdk/src/platform-operation-store.ts';
 import {
 	executePlatformRepositoryOperation,
-} from '@treeseed/sdk/operations/repository-operations';
+} from '../../packages/sdk/src/operations/repository-operations.ts';
+import { createMarketPostgresDatabase } from '../api/market-postgres.js';
+import { MarketControlPlaneStore } from '../api/store.js';
+import { createProjectWebDeploymentExecutor } from './project-web-deployment-executor.js';
 
 function readArg(name, fallback = null) {
 	const index = process.argv.indexOf(name);
 	return index >= 0 ? process.argv[index + 1] ?? fallback : fallback;
+}
+
+function hasArg(name) {
+	return process.argv.includes(name);
+}
+
+function readNumberArg(name, fallback) {
+	const value = readArg(name);
+	const parsed = Number(value);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseOperationKey(value) {
+	const normalized = typeof value === 'string' ? value.trim() : '';
+	if (!normalized) return null;
+	const [namespace, operation] = normalized.split(':');
+	if (!namespace || !operation) {
+		throw new Error(`Invalid --operation value "${normalized}". Expected namespace:operation.`);
+	}
+	return `${namespace}:${operation}`;
+}
+
+function parseRunnerOptions() {
+	return {
+		once: hasArg('--once'),
+		watch: hasArg('--watch'),
+		operationId: readArg('--operation-id'),
+		operationKey: parseOperationKey(readArg('--operation')),
+		pollIntervalMs: readNumberArg('--poll-interval-ms', 5000),
+		maxJobs: readNumberArg('--max-jobs', 1),
+		dryRun: hasArg('--dry-run'),
+		mockExternal: hasArg('--mock-external'),
+		mockResult: readArg('--mock-result', 'success') === 'failure' ? 'failure' : 'success',
+	};
 }
 
 function env(name, fallback = null) {
@@ -34,7 +71,7 @@ async function packageVersion() {
 }
 
 async function loadConfig({ requireSecrets = true } = {}) {
-	const marketId = env('TREESEED_MARKET_ID', 'local');
+	const marketId = readArg('--market') ?? env('TREESEED_MARKET_ID', 'local');
 	const config = {
 		marketUrl: env('TREESEED_MARKET_API_BASE_URL') ?? env('TREESEED_MARKET_URL'),
 		marketDatabaseUrl: env('TREESEED_MARKET_DATABASE_URL'),
@@ -82,7 +119,17 @@ function createClient(config) {
 	});
 }
 
+function createDeploymentStore(config) {
+	if (!config.marketDatabaseUrl) return null;
+	const db = createMarketPostgresDatabase(config.marketDatabaseUrl);
+	return new MarketControlPlaneStore(config, db);
+}
+
 export function createExecutors() {
+	return createExecutorsForOptions({});
+}
+
+export function createExecutorsForOptions(options = {}) {
 	const noop = {
 		namespace: 'market',
 		operation: 'noop',
@@ -173,30 +220,34 @@ export function createExecutors() {
 		repositoryExecutor('write_content_record'),
 		repositoryExecutor('create_related_content'),
 		repositoryExecutor('create_decision_from_proposals'),
-	];
+		createProjectWebDeploymentExecutor({
+			deploymentStore: options.deploymentStore,
+			mockExternal: options.mockExternal,
+			mockResult: options.mockResult,
+			dryRun: options.dryRun,
+			pollSeconds: Math.max(0, Math.round(Number(options.pollIntervalMs ?? 5000) / 1000)),
+		}),
+	].filter((executor) => !options.operationKey || `${executor.namespace}:${executor.operation}` === options.operationKey);
 }
 
-export async function registerAndHeartbeat(client, config, version) {
+export async function registerAndHeartbeat(client, config, version, options = {}) {
+	const executors = createExecutorsForOptions(options);
 	const payload = {
 		runnerId: config.runnerId,
 		name: config.runnerId,
 		environment: config.environment,
 		version,
-		capabilities: [
-			'market:noop',
-			'market:diagnostic',
-			'repository:write_content_record',
-			'repository:create_related_content',
-			'repository:create_decision_from_proposals',
-		],
-		maxConcurrentJobs: 1,
+		capabilities: executors.map((executor) => `${executor.namespace}:${executor.operation}`),
+		maxConcurrentJobs: Math.max(1, Number(options.maxJobs ?? 1) || 1),
 		metadata: {
 			dataDir: config.dataDir,
 			process: 'market-operations-runner',
 			queue: {
 				activeJobCount: 0,
-				maxConcurrentJobs: 1,
+				maxConcurrentJobs: Math.max(1, Number(options.maxJobs ?? 1) || 1),
 			},
+			dryRun: options.dryRun === true,
+			mockExternal: options.mockExternal === true,
 		},
 	};
 	await client.register(payload);
@@ -205,22 +256,56 @@ export async function registerAndHeartbeat(client, config, version) {
 		environment: config.environment,
 		version,
 		activeJobCount: 0,
-		maxConcurrentJobs: 1,
+		maxConcurrentJobs: payload.maxConcurrentJobs,
 		capabilities: payload.capabilities,
 	});
 }
 
 export async function runOnceWithClient(config, client, version, options = {}) {
-	await registerAndHeartbeat(client, config, version);
+	const deploymentStore = options.deploymentStore ?? options.store ?? null;
+	await registerAndHeartbeat(client, config, version, { ...options, deploymentStore });
 	const result = await runPlatformOperationOnce({
 		client,
 		runnerId: config.runnerId,
 		workspaceRoot: config.dataDir,
 		environment: config.environment,
-		executors: createExecutors(),
+		executors: createExecutorsForOptions({ ...options, deploymentStore }),
 		operationId: options.operationId ?? null,
-		limit: 1,
+		limit: Math.max(1, Number(options.maxJobs ?? 1) || 1),
 		leaseSeconds: 300,
+		throwIfCancelled: async (operation) => {
+			if (!deploymentStore || operation.namespace !== 'project' || operation.operation !== 'web_deployment') return;
+			const deploymentId = operation.input?.deploymentId;
+			if (typeof deploymentId !== 'string' || !deploymentId) return;
+			const deployment = await deploymentStore.findProjectDeploymentById(deploymentId);
+			if (!deployment?.metadata?.cancellation?.requested) return;
+			await deploymentStore.updateProjectDeployment(deployment.id, {
+				status: 'cancelled',
+				summary: 'Deployment was cancelled.',
+				error: {
+					code: 'deployment_cancelled',
+					message: 'Deployment cancellation was requested.',
+					retrySafe: true,
+					resumeSafe: false,
+				},
+			});
+			await deploymentStore.appendProjectDeploymentEvent(deployment.id, {
+				kind: 'deployment.cancelled',
+				message: 'Deployment was cancelled.',
+				status: 'cancelled',
+				severity: 'warning',
+				operationId: operation.id,
+			});
+			await deploymentStore.recordProjectDeploymentAudit?.(deployment.id, 'project_deployment_cancelled', {
+				actorType: 'system',
+				actorId: config.runnerId,
+				actorUserId: deployment.requestedByUserId ?? null,
+				status: 'cancelled',
+				operationId: operation.id,
+				summary: 'Deployment was cancelled.',
+			});
+			throw new Error('Deployment cancellation was requested.');
+		},
 	});
 	console.log(JSON.stringify(result));
 	if (!result.ok) process.exitCode = 1;
@@ -231,10 +316,12 @@ async function runOnce(options = {}) {
 	const config = await loadConfig();
 	const version = await packageVersion();
 	const client = await createClient(config);
+	const deploymentStore = options.deploymentStore ?? createDeploymentStore(config);
 	try {
-		return await runOnceWithClient(config, client, version, options);
+		return await runOnceWithClient(config, client, version, { ...options, deploymentStore });
 	} finally {
 		await client.close?.();
+		await deploymentStore?.db?.close?.();
 	}
 }
 
@@ -268,11 +355,13 @@ async function runLoop() {
 	const healthState = { ready: false, status: 'booting', error: null };
 	startHealthServer(loadHealthConfig(), healthState);
 	const version = await packageVersion();
+	const options = parseRunnerOptions();
 	let stopping = false;
 	process.once('SIGINT', () => { stopping = true; });
 	process.once('SIGTERM', () => { stopping = true; });
 	let client = null;
 	let config = null;
+	let deploymentStore = null;
 	while (!stopping) {
 		try {
 			if (!config) {
@@ -280,12 +369,13 @@ async function runLoop() {
 			}
 			if (!client) {
 				client = await createClient(config);
-				await registerAndHeartbeat(client, config, version);
+				deploymentStore = options.deploymentStore ?? createDeploymentStore(config);
+				await registerAndHeartbeat(client, config, version, { ...options, deploymentStore });
 			}
 			healthState.ready = true;
 			healthState.status = 'running';
 			healthState.error = null;
-			await runOnceWithClient(config, client, version);
+			await runOnceWithClient(config, client, version, { ...options, deploymentStore });
 		} catch (error) {
 			healthState.ready = false;
 			healthState.status = 'degraded';
@@ -297,9 +387,11 @@ async function runLoop() {
 			if (client?.close) {
 				await client.close().catch(() => {});
 			}
+			await deploymentStore?.db?.close?.().catch?.(() => {});
 			client = null;
+			deploymentStore = null;
 		}
-		await new Promise((resolveSleep) => setTimeout(resolveSleep, 5000));
+		await new Promise((resolveSleep) => setTimeout(resolveSleep, options.pollIntervalMs));
 	}
 	if (client && config) {
 		await client.heartbeat({
@@ -310,11 +402,21 @@ async function runLoop() {
 			activeJobCount: 0,
 		}).catch(() => {});
 		await client.close?.();
+		await deploymentStore?.db?.close?.();
 	}
 }
 
 export async function main() {
 	const command = process.argv[2] ?? 'help';
+	const runnerOptions = parseRunnerOptions();
+	if (runnerOptions.once) {
+		await runOnce(runnerOptions);
+		return;
+	}
+	if (runnerOptions.watch) {
+		await runLoop();
+		return;
+	}
 	if (command === 'version') {
 		console.log(JSON.stringify({
 			ok: true,
@@ -333,7 +435,7 @@ export async function main() {
 		return;
 	}
 	if (command === 'once') {
-		await runOnce({ operationId: readArg('--operation-id') });
+		await runOnce(runnerOptions);
 		return;
 	}
 	if (command === 'run') {

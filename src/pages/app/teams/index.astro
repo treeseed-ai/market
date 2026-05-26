@@ -12,22 +12,31 @@ if (!Astro.locals.auth?.principal) {
 }
 
 const context = await loadOperationalContext(Astro.locals, Astro);
+const manageableRoles = new Set(['team_owner', 'project_lead']);
+const teamAccess = new Map(await Promise.all(context.teams.map(async (team: any) => {
+	const access = context.store && typeof context.store.getTeamAccessSummary === 'function'
+		? await context.store.getTeamAccessSummary(team.id, context.principal).catch(() => null)
+		: null;
+	return [team.id, access] as const;
+})));
 const rows = context.teams.map((team: any) => ({
 	id: `team-${esc(team.id)}`,
 	name: `<strong>${esc(team.displayName ?? team.name)}</strong><span>${esc(team.profileSummary ?? team.slug ?? team.id)}</span>`,
 	state: team.id === context.activeTeam?.id ? 'Active' : 'Available',
 	actions: [
-		`<a class="ts-link-button" href="/app/teams?teamId=${encodeURIComponent(team.id)}">Switch</a>`,
-		`<a class="ts-link-button" href="/app/teams/${encodeURIComponent(team.id)}/edit">Edit</a>`,
-		`<a class="ts-link-button" href="/app/teams/${encodeURIComponent(team.id)}/members">Members</a>`,
-		`<a class="ts-link-button" href="/app/teams/${encodeURIComponent(team.id)}/delete">Delete</a>`,
+		`<a class="ts-link-button" href="/t/${encodeURIComponent(team.name ?? team.slug ?? team.id)}">Profile</a>`,
+		...(teamAccess.get(team.id)?.roles?.some((role: string) => manageableRoles.has(role)) ? [
+			`<a class="ts-link-button" href="/app/teams/${encodeURIComponent(team.id)}/edit">Edit</a>`,
+			`<a class="ts-link-button" href="/app/teams/${encodeURIComponent(team.id)}/members">Members</a>`,
+			`<a class="ts-link-button" href="/app/teams/${encodeURIComponent(team.id)}/delete">Delete</a>`,
+		] : []),
 	].join(' '),
 }));
 ---
 
 <TreeseedAppLayout title="Team" description="Create, switch, edit, invite, or remove teams." currentPath={Astro.url.pathname} teams={context.teams} activeTeam={context.activeTeam}>
 	<section class="ts-control-page" aria-label="Teams">
-		<Panel eyebrow="Team" title="Teams" description="Pick the team the rest of the app should manage.">
+		<Panel eyebrow="Team" title="Teams" description="Manage and display your teams">
 			<Button slot="actions" href="/app/teams/new" size="sm">New team</Button>
 			{rows.length > 0 ? (
 				<PlainTable columns={[

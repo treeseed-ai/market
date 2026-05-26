@@ -3,7 +3,6 @@ import TreeseedAppLayout from '../../layouts/TreeseedAppLayout.astro';
 import '../../../packages/core/src/styles/ui.css';
 import '../../../packages/core/src/styles/forms.css';
 import '../../styles/auth.css';
-import ThemeSelector from '../../../packages/core/src/components/ui/theme/ThemeSelector.astro';
 import Panel from '../../../packages/core/src/components/ui/surface/Panel.astro';
 import Field from '../../../packages/core/src/components/ui/forms/Field.astro';
 import TextInput from '../../../packages/core/src/components/ui/forms/TextInput.astro';
@@ -13,50 +12,71 @@ import PasswordMeter from '../../../packages/core/src/components/ui/forms/Passwo
 import Badge from '../../../packages/core/src/components/ui/data/Badge.astro';
 import StatusPill from '../../../packages/core/src/components/ui/data/StatusPill.astro';
 import KeyValueList from '../../../packages/core/src/components/ui/data/KeyValueList.astro';
-import { loadAccessibleTeams } from '../../lib/market/store';
-import { resolveAuthenticatedThemePreference } from '../../lib/auth/appearance';
-
-const DELETE_ACCOUNT_CONFIRMATION = 'DELETE';
+import { DELETE_ACCOUNT_CONFIRMATION } from '../../lib/auth/account';
+import { loadAccessibleTeams, resolveMarketApi } from '../../lib/market/store';
 
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/account')}`);
 }
 
-const teams = await loadAccessibleTeams(Astro);
+const marketApi = resolveMarketApi(Astro);
+const [teams, emailAddresses, webSessions] = await Promise.all([
+	loadAccessibleTeams(Astro),
+	marketApi.request<any[]>('GET', '/v1/auth/web/emails').catch(() => []),
+	marketApi.request<any[]>('GET', '/v1/auth/web/sessions').catch(() => []),
+]);
 const accounts: any[] = [];
-const sessions = Astro.locals.auth?.session
-	? [{
-		id: Astro.locals.auth.session.id,
+const principal = Astro.locals.auth.principal;
+const currentSessionId = Astro.locals.auth?.session?.id ?? (typeof principal.metadata?.sessionId === 'string' ? principal.metadata.sessionId : null);
+const fallbackCurrentSession = currentSessionId
+	? {
+		id: currentSessionId,
 		provider: 'market_api',
-		email: Astro.locals.auth.session.email,
-		displayName: Astro.locals.auth.session.displayName,
+		email: Astro.locals.auth?.session?.email ?? null,
+		displayName: Astro.locals.auth?.session?.displayName ?? null,
 		ipAddress: null,
 		userAgent: null,
 		authenticatedAt: null,
 		lastSeenAt: null,
-		expiresAt: Astro.locals.auth.session.expiresAt,
+		expiresAt: Astro.locals.auth?.session?.expiresAt ?? null,
 		revokedAt: null,
 		current: true,
-	}]
-	: [];
+	}
+	: null;
+const sessionMap = new Map<string, any>();
+for (const session of webSessions) {
+	if (!session?.id) continue;
+	sessionMap.set(session.id, {
+		provider: 'web',
+		userAgent: null,
+		authenticatedAt: null,
+		lastSeenAt: null,
+		...session,
+		current: Boolean(session.current || session.id === currentSessionId),
+	});
+}
+if (fallbackCurrentSession && !sessionMap.has(fallbackCurrentSession.id)) {
+	sessionMap.set(fallbackCurrentSession.id, fallbackCurrentSession);
+}
+const sessions = Array.from(sessionMap.values());
 const passwordStatus = Astro.url.searchParams.get('password') ?? '';
 const profileStatus = Astro.url.searchParams.get('profile') ?? '';
 const emailStatus = Astro.url.searchParams.get('email') ?? '';
 const deleteStatus = Astro.url.searchParams.get('delete') ?? '';
-const appearanceStatus = Astro.url.searchParams.get('appearance') ?? '';
 const statusMessage = Astro.url.searchParams.get('message') ?? '';
 const hasCredential = accounts.some((account: any) => account.providerId === 'credential');
-const principal = Astro.locals.auth.principal;
 const roles = principal.roles ?? [];
 const permissions = principal.permissions ?? [];
 const isPlatformAdmin = roles.includes('platform_admin') || permissions.includes('*:*:*');
-const metadataEmail = typeof principal.metadata?.email === 'string' ? principal.metadata.email : '';
-const currentEmail = metadataEmail;
+const verifiedEmailCount = emailAddresses.filter((email: any) => email.verified).length;
+const emailItems = emailAddresses.map((email: any) => ({
+	...email,
+	deleteDisabled: email.verified && verifiedEmailCount <= 1,
+}));
 const currentName = principal.displayName ?? '';
 const currentImage = typeof principal.metadata?.image === 'string' ? principal.metadata.image : '';
 const currentUsername = typeof principal.metadata?.username === 'string' ? principal.metadata.username : '';
 const deletionBlockers: any[] = [];
-const appearance = await resolveAuthenticatedThemePreference(Astro);
 const profileStatusLabels: Record<string, string> = {
 	updated: 'Profile updated',
 	missing_name: 'Display name is required',
@@ -64,14 +84,18 @@ const profileStatusLabels: Record<string, string> = {
 	failed: 'Profile update failed',
 };
 const emailStatusLabels: Record<string, string> = {
-	sent: 'Verification email sent. Open the link to finish changing your email.',
-	verified: 'Email verified and updated',
+	sent: 'Verification email sent. Open the link to finish adding this email.',
+	verified: 'Email verified',
+	primary: 'Primary email updated',
+	deleted: 'Email removed',
 	missing: 'Email is required',
+	confirm: 'At least one verified email is required',
+	last_verified_email: 'At least one verified email is required',
 	not_configured: statusMessage || 'Auth email is not configured',
 	failed: statusMessage || 'Email update failed',
 };
 const deleteStatusLabels: Record<string, string> = {
-	confirm: `Type ${DELETE_ACCOUNT_CONFIRMATION} to confirm deletion`,
+	confirm: `Type "${DELETE_ACCOUNT_CONFIRMATION}" to delete this account.`,
 	blocked: 'Account deletion is blocked until the items below are resolved',
 	password_required: 'Current password is required to delete this account',
 	invalid_password: 'Current password was not accepted',
@@ -86,19 +110,14 @@ const passwordStatusLabels: Record<string, string> = {
 	change_failed: 'Password change failed',
 	set_failed: 'Password update failed',
 };
-const appearanceStatusLabels: Record<string, string> = {
-	updated: 'Appearance updated',
-	failed: 'Appearance update failed',
-};
 const permissionSummary = isPlatformAdmin
 	? 'This account has every global permission through the platform_admin role.'
 	: 'This account is limited to assigned global roles and market team membership.';
 const activeAccountTab: string = deleteStatus
 	? 'danger'
-	: (passwordStatus ? 'security' : (appearanceStatus ? 'appearance' : (emailStatus || profileStatus ? 'profile' : 'profile')));
+	: (passwordStatus ? 'security' : 'profile');
 const accountTabs = [
 	{ id: 'profile', label: 'Profile' },
-	{ id: 'appearance', label: 'Appearance' },
 	{ id: 'security', label: 'Security' },
 	{ id: 'sessions', label: 'Sessions' },
 	{ id: 'danger', label: 'Delete' },
@@ -159,19 +178,50 @@ const accountTabs = [
 						</Panel>
 					</form>
 
-					<form method="POST" action="/v1/auth/web/email" data-account-api-form="email" data-method="PATCH" data-success="verified" data-failure="failed" data-redirect="/app/account">
-						<Panel eyebrow="Email" title="Verified email">
-							<div class="account-form">
-								{emailStatus ? <Badge tone={emailStatus === 'sent' || emailStatus === 'verified' ? 'success' : 'danger'}>{emailStatusLabels[emailStatus] ?? 'Email update failed'}</Badge> : null}
-								<Field label="Email address" name="email" required>
-									<TextInput name="email" type="email" autocomplete="email" value={currentEmail} required />
+					<Panel eyebrow="Email" title="Attached email addresses">
+						<div class="account-form">
+							{emailStatus ? <Badge tone={['sent', 'verified', 'primary', 'deleted'].includes(emailStatus) ? 'success' : 'danger'}>{emailStatusLabels[emailStatus] ?? 'Email update failed'}</Badge> : null}
+								<div class="account-list">
+									{emailItems.map((email: any) => (
+										<div class="account-list-item">
+											<div class="account-email-row">
+												<div class="account-list-heading">
+													<strong>{email.email}</strong>
+													<div class="account-badges">
+														{email.isPrimary ? <Badge tone="success">Primary</Badge> : null}
+														<StatusPill tone={email.verified ? 'success' : 'warning'}>{email.verified ? 'verified' : 'pending'}</StatusPill>
+													</div>
+												</div>
+												<div class="account-list-actions">
+													{email.verified ? (
+														email.isPrimary ? null : (
+															<form method="POST" action={`/v1/auth/web/emails/${email.id}/primary`} data-account-api-form="email" data-email-action="primary" data-method="POST" data-success="primary" data-failure="failed" data-redirect="/app/account">
+																<Button class="account-email-action" variant="secondary" size="sm" type="submit">Make primary</Button>
+															</form>
+														)
+													) : (
+														<form method="POST" action={`/v1/auth/web/emails/${email.id}/verify`} data-account-api-form="email" data-email-action="verify" data-method="POST" data-success="sent" data-failure="failed" data-redirect="/app/account">
+															<Button class="account-email-action" variant="secondary" size="sm" type="submit">Verify</Button>
+														</form>
+													)}
+													<form method="POST" action={`/v1/auth/web/emails/${email.id}`} data-account-api-form="email" data-email-action="delete" data-method="DELETE" data-success="deleted" data-failure={email.deleteDisabled ? 'last_verified_email' : 'failed'} data-redirect="/app/account">
+														<Button class="account-email-action" variant="danger" size="sm" type="submit" disabled={email.deleteDisabled}>Delete</Button>
+													</form>
+												</div>
+											</div>
+										</div>
+									))}
+							</div>
+								<form class="account-form account-email-add-form" method="POST" action="/v1/auth/web/emails" data-account-api-form="email" data-email-action="add" data-method="POST" data-success="sent" data-failure="failed" data-redirect="/app/account">
+								<Field label="Add email address" name="email" required>
+									<TextInput name="email" type="email" autocomplete="email" required />
 								</Field>
 								<FormActions>
-									<Button type="submit">Send verification</Button>
+									<Button type="submit">Add email</Button>
 								</FormActions>
-							</div>
-						</Panel>
-					</form>
+							</form>
+						</div>
+					</Panel>
 
 					<Panel eyebrow="Platform access" title={isPlatformAdmin ? 'Root user' : 'Standard user'}>
 						<Fragment slot="actions">
@@ -192,41 +242,8 @@ const accountTabs = [
 				</div>
 			</section>
 
-			<section id="account-panel-appearance" class="account-tab-panel" role="tabpanel" aria-labelledby="account-tab-appearance" data-account-panel="appearance" hidden={activeAccountTab !== 'appearance'}>
-				<form method="POST" action="/v1/auth/web/appearance" data-account-api-form="appearance" data-method="PATCH" data-success="updated" data-failure="failed" data-redirect="/app/account">
-					<Panel eyebrow="Appearance" title="Color scheme and mode" description="Choose the color scheme and light/dark behavior used across TreeSeed.">
-						<div class="account-form">
-							{appearanceStatus ? <Badge tone={appearanceStatus === 'updated' ? 'success' : 'danger'}>{appearanceStatusLabels[appearanceStatus] ?? 'Appearance update failed'}</Badge> : null}
-							<ThemeSelector
-								label="Appearance"
-								selectedScheme={appearance.scheme}
-								selectedMode={appearance.mode}
-								includeHiddenFields={true}
-								schemeFieldName="colorScheme"
-								modeFieldName="themeMode"
-								compact={false}
-							/>
-							<FormActions>
-								<Button type="submit">Save appearance</Button>
-							</FormActions>
-						</div>
-					</Panel>
-				</form>
-			</section>
-
 			<section id="account-panel-security" class="account-tab-panel" role="tabpanel" aria-labelledby="account-tab-security" data-account-panel="security" hidden={activeAccountTab !== 'security'}>
 				<div class="account-two-column">
-					<Panel eyebrow="Sign-in methods" title="Connected accounts">
-						<div class="account-list">
-							{accounts.map((account: any) => (
-								<div class="account-list-item">
-									<strong>{account.providerId === 'credential' ? 'Email and password' : account.providerId}</strong>
-									<span>{account.accountId}</span>
-								</div>
-							))}
-						</div>
-					</Panel>
-
 					<form method="POST" action="/v1/auth/web/password" data-account-api-form="password" data-method="PATCH" data-success="updated" data-failure="change_failed" data-redirect="/app/account">
 						<Panel eyebrow="Password" title={hasCredential ? 'Change password' : 'Set password'}>
 							<div class="account-form">
@@ -250,31 +267,44 @@ const accountTabs = [
 							</div>
 						</Panel>
 					</form>
+
+					<Panel eyebrow="Sign-in methods" title="Connected accounts">
+						<div class="account-list">
+							{accounts.map((account: any) => (
+								<div class="account-list-item">
+									<strong>{account.providerId === 'credential' ? 'Email and password' : account.providerId}</strong>
+									<span>{account.accountId}</span>
+								</div>
+							))}
+						</div>
+					</Panel>
 				</div>
 			</section>
 
 			<section id="account-panel-sessions" class="account-tab-panel" role="tabpanel" aria-labelledby="account-tab-sessions" data-account-panel="sessions" hidden={activeAccountTab !== 'sessions'}>
 				<Panel eyebrow="Sessions" title="Active and recent sessions" class="account-stack">
 					<div class="account-list">
-						{sessions.map((session: any) => (
-							<div class="account-list-item">
-								<strong>{session.current ? 'Current session' : session.provider}</strong>
-								<span>{session.userAgent ?? 'Unknown device'}</span>
-								<span>Last seen {session.lastSeenAt ?? session.authenticatedAt}</span>
+						{sessions.length > 0 ? sessions.map((session: any) => (
+								<div class="account-list-item">
+									<strong>{session.current ? 'Current session' : session.provider}</strong>
+									<span>{session.userAgent ?? 'Unknown device'}</span>
+									{session.ipAddress ? <span>IP address {session.ipAddress}</span> : null}
+									{session.lastSeenAt || session.authenticatedAt ? <span>Last seen {session.lastSeenAt ?? session.authenticatedAt}</span> : null}
+									{!session.lastSeenAt && !session.authenticatedAt && session.expiresAt ? <span>Expires {session.expiresAt}</span> : null}
 								{session.revokedAt ? <span>Revoked {session.revokedAt}</span> : null}
-								{!session.current && !session.revokedAt ? (
+								{!session.revokedAt ? (
 									<form method="POST" action={`/v1/auth/web/sessions/${session.id}/revoke`} data-account-api-form="sessions" data-method="POST" data-success="revoked" data-failure="failed" data-redirect="/app/account#sessions">
-										<Button variant="secondary" type="submit">Revoke session</Button>
+										<Button variant={session.current ? 'danger' : 'secondary'} type="submit">{session.current ? 'Sign out this session' : 'Revoke session'}</Button>
 									</form>
 								) : null}
 							</div>
-						))}
+						)) : <p class="ts-empty-inline">No web sessions are available.</p>}
 					</div>
 				</Panel>
 			</section>
 
 			<section id="account-panel-danger" class="account-tab-panel" role="tabpanel" aria-labelledby="account-tab-danger" data-account-panel="danger" hidden={activeAccountTab !== 'danger'}>
-				<Panel class="account-danger-panel" eyebrow="Delete account" title="Remove your personal account">
+					<Panel class="account-danger-panel" eyebrow="Delete account" title="Remove your personal account" description="This action is permanent and cannot be undone.">
 					<div class="account-form">
 						{deleteStatus ? <Badge tone="danger">{deleteStatusLabels[deleteStatus] ?? 'Account deletion failed'}</Badge> : null}
 						{deletionBlockers.length > 0 ? (
@@ -287,35 +317,37 @@ const accountTabs = [
 								))}
 							</div>
 						) : null}
-						<form class="account-form" method="POST" action="/v1/auth/web/account" data-account-api-form="delete" data-method="DELETE" data-success="deleted" data-failure="failed" data-redirect="/">
-							<Field label="Confirmation text" name="confirmation" help={`Type ${DELETE_ACCOUNT_CONFIRMATION} to confirm.`}>
-								<TextInput name="confirmation" type="text" autocomplete="off" />
-							</Field>
+								<form class="account-form" method="POST" action="/v1/auth/web/account" data-account-api-form="delete" data-method="DELETE" data-success="deleted" data-failure="failed" data-redirect="/" data-delete-confirmation={DELETE_ACCOUNT_CONFIRMATION} data-delete-blocked={deletionBlockers.length > 0 ? 'true' : 'false'}>
+									<Field label={`Type "${DELETE_ACCOUNT_CONFIRMATION}"`} name="confirmation" required>
+										<TextInput name="confirmation" type="text" autocomplete="off" data-delete-confirmation-input />
+									</Field>
 							{hasCredential ? (
 								<Field label="Current password" name="password">
 									<TextInput name="password" type="password" autocomplete="current-password" />
 								</Field>
 							) : null}
-							<FormActions>
-								<Button variant="danger" type="submit" disabled={deletionBlockers.length > 0}>Delete account</Button>
-							</FormActions>
-						</form>
+								<FormActions>
+									<Button variant="danger" type="submit" disabled={true}>Delete account</Button>
+								</FormActions>
+							</form>
 					</div>
 				</Panel>
 			</section>
 		</div>
 	</section>
 
-	<script>
+	<script is:inline data-astro-rerun>
 		(() => {
 			const root = document.querySelector('[data-account-tabs-root]');
 			if (!root) return;
-			const tabs = Array.from(root.querySelectorAll<HTMLElement>('[data-account-tab]'));
-			const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-account-panel]'));
+			if (root.dataset.accountTabsReady === 'true') return;
+			root.dataset.accountTabsReady = 'true';
+			const tabs = Array.from(root.querySelectorAll('[data-account-tab]'));
+			const panels = Array.from(root.querySelectorAll('[data-account-panel]'));
 			const ids = new Set(tabs.map((tab) => tab.getAttribute('data-account-tab')));
 			const defaultTab = root.getAttribute('data-default-tab') || 'profile';
 
-			function activate(id: string | null, updateHash = true) {
+			function activate(id, updateHash = true) {
 				const next = ids.has(id) ? id : defaultTab;
 				tabs.forEach((tab) => {
 					const selected = tab.getAttribute('data-account-tab') === next;
@@ -331,13 +363,31 @@ const accountTabs = [
 			}
 
 			tabs.forEach((tab) => {
-				tab.addEventListener('click', () => activate(tab.getAttribute('data-account-tab')));
+				tab.addEventListener('click', (event) => {
+					event.preventDefault();
+					activate(tab.getAttribute('data-account-tab'));
+				});
+				tab.addEventListener('keydown', (event) => {
+					if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+					event.preventDefault();
+					const currentIndex = tabs.indexOf(tab);
+					const nextIndex = event.key === 'Home'
+						? 0
+						: event.key === 'End'
+							? tabs.length - 1
+							: event.key === 'ArrowLeft'
+								? (currentIndex - 1 + tabs.length) % tabs.length
+								: (currentIndex + 1) % tabs.length;
+					const nextTab = tabs[nextIndex];
+					nextTab?.focus();
+					activate(nextTab?.getAttribute('data-account-tab'));
+				});
 			});
 			if (location.hash.length > 1) {
 				activate(location.hash.slice(1), false);
 			}
 
-			function accountRedirect(form: HTMLFormElement, status: string) {
+			function accountRedirect(form, status) {
 				const base = form.getAttribute('data-redirect') || '/app/account';
 				const kind = form.getAttribute('data-account-api-form') || 'profile';
 				if (base === '/') {
@@ -347,14 +397,11 @@ const accountTabs = [
 				const [path, hash = ''] = base.split('#');
 				const url = new URL(path || '/app/account', location.origin);
 				if (kind !== 'sessions') url.searchParams.set(kind, status);
-				location.href = `${url.pathname}${url.search}${hash ? `#${hash}` : `#${kind}`}`;
+				const panel = kind === 'email' ? 'profile' : kind;
+				location.href = `${url.pathname}${url.search}${hash ? `#${hash}` : `#${panel}`}`;
 			}
 
-			function themeCookie(name: string, value: string) {
-				document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
-			}
-
-			function bodyFor(kind: string, formData: FormData) {
+			function bodyFor(kind, formData, form) {
 				if (kind === 'profile') {
 					return {
 						displayName: String(formData.get('name') || '').trim(),
@@ -362,14 +409,13 @@ const accountTabs = [
 					};
 				}
 				if (kind === 'email') {
-					return { email: String(formData.get('email') || '').trim() };
-				}
-				if (kind === 'appearance') {
-					const colorScheme = String(formData.get('colorScheme') || '').trim();
-					const themeMode = String(formData.get('themeMode') || '').trim();
-					themeCookie('treeseed_color_scheme', colorScheme);
-					themeCookie('treeseed_theme_mode', themeMode);
-					return { colorScheme, themeMode };
+					const emailAction = form.getAttribute('data-email-action') || 'add';
+					if (emailAction === 'add') {
+						const email = String(formData.get('email') || '').trim();
+						if (!email) throw new Error('missing');
+						return { email };
+					}
+					return {};
 				}
 				if (kind === 'password') {
 					const newPassword = String(formData.get('newPassword') || '');
@@ -384,19 +430,33 @@ const accountTabs = [
 				}
 				if (kind === 'delete') {
 					const confirmation = String(formData.get('confirmation') || '').trim();
-					if (confirmation !== 'DELETE') throw new Error('confirm');
+					const required = form.getAttribute('data-delete-confirmation') || '';
+					if (confirmation !== required) throw new Error('confirm');
 					return { confirmation };
 				}
 				return {};
 			}
 
-			async function hasDeletionBlockers() {
-				const response = await fetch('/v1/auth/web/account/deletion-blockers', { headers: { accept: 'application/json' } });
-				const envelope = await response.json().catch(() => null);
-				return Array.isArray(envelope?.payload) && envelope.payload.length > 0;
-			}
+				async function hasDeletionBlockers() {
+					const response = await fetch('/v1/auth/web/account/deletion-blockers', { headers: { accept: 'application/json' } });
+					const envelope = await response.json().catch(() => null);
+					return Array.isArray(envelope?.payload) && envelope.payload.length > 0;
+				}
 
-			root.querySelectorAll<HTMLFormElement>('[data-account-api-form]').forEach((form) => {
+				root.querySelectorAll('[data-account-api-form="delete"]').forEach((form) => {
+					const input = form.querySelector('[data-delete-confirmation-input]');
+					const submit = form.querySelector('button[type="submit"]');
+					const required = form.getAttribute('data-delete-confirmation') || '';
+					const blocked = form.getAttribute('data-delete-blocked') === 'true';
+					function updateDeleteButton() {
+						if (!submit) return;
+						submit.disabled = blocked || input?.value !== required;
+					}
+					input?.addEventListener('input', updateDeleteButton);
+					updateDeleteButton();
+				});
+
+				root.querySelectorAll('[data-account-api-form]').forEach((form) => {
 				form.addEventListener('submit', async (event) => {
 					event.preventDefault();
 					const kind = form.getAttribute('data-account-api-form') || '';
@@ -410,7 +470,7 @@ const accountTabs = [
 						const response = await fetch(form.action, {
 							method: form.getAttribute('data-method') || form.method || 'POST',
 							headers: { accept: 'application/json', 'content-type': 'application/json' },
-							body: JSON.stringify(bodyFor(kind, formData)),
+							body: JSON.stringify(bodyFor(kind, formData, form)),
 						});
 						const envelope = await response.json().catch(() => null);
 						if (!response.ok || envelope?.ok === false) {

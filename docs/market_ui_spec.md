@@ -32,6 +32,8 @@ The authenticated app has six primary sections:
 
 Team management lives in the persistent sidebar team selector and `/app/teams`, not in primary navigation. Additional app routes should be one-purpose detail or form surfaces under these sections.
 
+Project controls live under `/app/projects/:projectId`. The expected control order is Settings, Hosts, Deploy, Guidance, Decisions, Artifacts, and Delete. `/app/projects/:projectId/deploy` is a project control rather than a primary section because it depends on the selected project, repository, web host, launch, environment, and operation history.
+
 ## Start
 
 Start is the shortest possible index into the control flow.
@@ -114,6 +116,10 @@ It should contain:
 * policies and diagnostics
 
 Infrastructure may be dense and technical, but it should only expose presentation-safe operational labels and states.
+
+## Project Deploy
+
+The Deploy control should show launch progress, readiness blockers, staging and production environment cards, available actions, active operation timeline, deployment history, runner diagnostics, monitor status, troubleshooting hints, and audit-safe recovery controls. Production deploy and publish actions must require explicit confirmation. The page must not expose secrets, runner tokens, capacity-provider controls, lanes, grants, worker pools, runtime host ids, or raw provider payloads.
 
 ## Resource Language
 
