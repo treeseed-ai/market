@@ -2673,7 +2673,6 @@ export function createMarketApiApp(options = {}) {
 		...config,
 		baseUrl: resolveAuthApprovalBaseUrl(config),
 	};
-	const marketAuthProvider = new D1AuthProvider(authConfig, { db });
 	const sharedSdk = options.sdk ?? AgentSdk.createLocal({
 		repoRoot: config.repoRoot,
 		databaseName: config.d1DatabaseName ?? `${config.projectId}-market`,
@@ -2720,6 +2719,14 @@ export function createMarketApiApp(options = {}) {
 			if (logRequests) {
 				installMarketApiRequestLogger(app);
 			}
+			const runtimeMarketAuthProvider = new D1AuthProvider({
+				...authConfig,
+				...runtime.resolved.config,
+				baseUrl: resolveAuthApprovalBaseUrl({
+					...config,
+					...runtime.resolved.config,
+				}),
+			}, { db });
 			store.setArtifactBucket(resolveAgentArtifactBucket(runtime));
 			app.get('/healthz/deep', async (c) => {
 				try {
@@ -2786,7 +2793,7 @@ export function createMarketApiApp(options = {}) {
 					const email = normalizeEmail(actorInput.email) || `treeseed+${namespace}-${safeActorId}@treeseed.ai`;
 					const username = normalizeUsername(actorInput.username) || `${namespace}-${safeActorId}`.replace(/[^a-z0-9-]+/gu, '-').slice(0, 39).replace(/^-+|-+$/gu, '') || safeActorId;
 					const displayName = optionalTrimmedString(actorInput.displayName) ?? `Acceptance ${actorId}`;
-					const synced = await marketAuthProvider.syncUserIdentity({
+					const synced = await runtimeMarketAuthProvider.syncUserIdentity({
 						provider: 'acceptance',
 						providerSubject: `${namespace}:${actorId}`,
 						email,
@@ -2795,8 +2802,8 @@ export function createMarketApiApp(options = {}) {
 						displayName,
 						profile: { acceptance: true, namespace, actorId },
 					});
-					if (marketAuthProvider.setUserRoles) {
-						await marketAuthProvider.setUserRoles(synced.principal.id, Array.isArray(actorInput.siteRoles) ? actorInput.siteRoles.map(String) : ['viewer']);
+					if (runtimeMarketAuthProvider.setUserRoles) {
+						await runtimeMarketAuthProvider.setUserRoles(synced.principal.id, Array.isArray(actorInput.siteRoles) ? actorInput.siteRoles.map(String) : ['viewer']);
 					}
 					const now = new Date().toISOString();
 					await store.run(`DELETE FROM market_auth_credentials WHERE user_id = ? OR email = ? OR username = ?`, [synced.principal.id, email, username]);
@@ -2812,7 +2819,7 @@ export function createMarketApiApp(options = {}) {
 						) VALUES (?, ?, ?, ?, 'verified', 1, ?, ?, ?, ?)`,
 						[randomUUID(), synced.principal.id, email, email, now, now, now, now],
 					).catch(() => null);
-					const session = await createMarketWebSession(marketAuthProvider, synced.principal.id, {
+					const session = await createMarketWebSession(runtimeMarketAuthProvider, synced.principal.id, {
 						source: 'acceptance_seed',
 						namespace,
 						actorId,
@@ -3348,7 +3355,7 @@ export function createMarketApiApp(options = {}) {
 
 			app.post('/v1/auth/device/start', async (c) => {
 				const body = await c.req.json().catch(() => ({}));
-				const started = await marketAuthProvider.startDeviceFlow({
+				const started = await runtimeMarketAuthProvider.startDeviceFlow({
 					clientName: typeof body.clientName === 'string' ? body.clientName : 'treeseed-cli',
 					scopes: Array.isArray(body.scopes) ? body.scopes.map(String) : ['auth:me'],
 				});
@@ -3357,7 +3364,7 @@ export function createMarketApiApp(options = {}) {
 
 			app.post('/v1/auth/device/poll', async (c) => {
 				const body = await c.req.json().catch(() => ({}));
-				const response = await marketAuthProvider.pollDeviceFlow({ deviceCode: String(body.deviceCode ?? '') });
+				const response = await runtimeMarketAuthProvider.pollDeviceFlow({ deviceCode: String(body.deviceCode ?? '') });
 				return c.json(response, { status: response.ok ? 200 : response.status === 'expired' ? 410 : 400 });
 			});
 
@@ -3371,7 +3378,7 @@ export function createMarketApiApp(options = {}) {
 			app.post('/v1/auth/device/approve', async (c) => {
 				const body = await c.req.json().catch(() => ({}));
 				try {
-					return c.json(await marketAuthProvider.approveDeviceFlow({
+					return c.json(await runtimeMarketAuthProvider.approveDeviceFlow({
 						userCode: String(body.userCode ?? ''),
 						principalId: String(body.principalId ?? ''),
 						displayName: typeof body.displayName === 'string' ? body.displayName : undefined,
@@ -3407,7 +3414,7 @@ export function createMarketApiApp(options = {}) {
 					[email],
 				);
 				if (existingEmailAddress) return jsonError(c, 409, 'An account already exists for this email or username.');
-				const synced = await marketAuthProvider.syncUserIdentity({
+				const synced = await runtimeMarketAuthProvider.syncUserIdentity({
 					provider: 'credential',
 					providerSubject: email,
 					email,
@@ -3516,7 +3523,7 @@ export function createMarketApiApp(options = {}) {
 					).catch(() => null);
 				}
 				await store.run(`DELETE FROM better_auth_verification WHERE id = ?`, [row.id]).catch(() => null);
-					const session = await createMarketWebSession(marketAuthProvider, emailAddress.user_id, webSessionData(c, 'web_email_confirmed'), { store, authSecret: runtime.resolved.config.authSecret });
+					const session = await createMarketWebSession(runtimeMarketAuthProvider, emailAddress.user_id, webSessionData(c, 'web_email_confirmed'), { store, authSecret: runtime.resolved.config.authSecret });
 				if (credential.status !== 'active') {
 					await sendWelcomeEmail(marketAuthContext(c), {
 						email,
@@ -3565,7 +3572,7 @@ export function createMarketApiApp(options = {}) {
 						code: 'email_confirmation_required',
 					});
 				}
-					const session = await createMarketWebSession(marketAuthProvider, row.user_id, webSessionData(c, 'web_sign_in'), { store, authSecret: runtime.resolved.config.authSecret });
+					const session = await createMarketWebSession(runtimeMarketAuthProvider, row.user_id, webSessionData(c, 'web_sign_in'), { store, authSecret: runtime.resolved.config.authSecret });
 				return c.json({ ok: true, payload: webAuthPayload(session) });
 			});
 
@@ -3654,7 +3661,7 @@ export function createMarketApiApp(options = {}) {
 				if (auth.response) return auth.response;
 				const result = await setPrimaryEmailAddress(store, auth.principal.id, c.req.param('emailId'));
 				if (!result.ok) return jsonError(c, result.status, result.error);
-				const session = await createMarketWebSession(marketAuthProvider, auth.principal.id, webSessionData(c, 'email_primary_update'), { store, authSecret: runtime.resolved.config.authSecret });
+				const session = await createMarketWebSession(runtimeMarketAuthProvider, auth.principal.id, webSessionData(c, 'email_primary_update'), { store, authSecret: runtime.resolved.config.authSecret });
 				return c.json({ ok: true, payload: { ...webAuthPayload(session), emailAddress: result.emailAddress } });
 			});
 
@@ -3728,7 +3735,7 @@ export function createMarketApiApp(options = {}) {
 					new Date().toISOString(),
 					auth.principal.id,
 				]);
-				const session = await createMarketWebSession(marketAuthProvider, auth.principal.id, webSessionData(c, 'profile_update'), { store, authSecret: runtime.resolved.config.authSecret });
+				const session = await createMarketWebSession(runtimeMarketAuthProvider, auth.principal.id, webSessionData(c, 'profile_update'), { store, authSecret: runtime.resolved.config.authSecret });
 				return c.json({ ok: true, payload: webAuthPayload(session) });
 			});
 
@@ -3755,7 +3762,7 @@ export function createMarketApiApp(options = {}) {
 					new Date().toISOString(),
 					auth.principal.id,
 				]);
-				const session = await createMarketWebSession(marketAuthProvider, auth.principal.id, webSessionData(c, 'appearance_update'), { store, authSecret: runtime.resolved.config.authSecret });
+				const session = await createMarketWebSession(runtimeMarketAuthProvider, auth.principal.id, webSessionData(c, 'appearance_update'), { store, authSecret: runtime.resolved.config.authSecret });
 				return c.json({ ok: true, payload: { ...webAuthPayload(session), ...appearance } });
 			});
 
@@ -3776,7 +3783,7 @@ export function createMarketApiApp(options = {}) {
 					if (result.emailAddress?.status === 'verified') {
 						await setPrimaryEmailAddress(store, auth.principal.id, result.emailAddress.id);
 					}
-						const session = await createMarketWebSession(marketAuthProvider, auth.principal.id, webSessionData(c, 'email_update'), { store, authSecret: runtime.resolved.config.authSecret });
+						const session = await createMarketWebSession(runtimeMarketAuthProvider, auth.principal.id, webSessionData(c, 'email_update'), { store, authSecret: runtime.resolved.config.authSecret });
 					return c.json({ ok: true, payload: { ...webAuthPayload(session), ...result } });
 				} catch (error) {
 					console.warn('[market-auth] Email verification setup failed:', error instanceof Error ? error.message : String(error));
@@ -3914,7 +3921,7 @@ export function createMarketApiApp(options = {}) {
 			app.post('/v1/auth/token/refresh', async (c) => {
 				const body = await c.req.json().catch(() => ({}));
 				try {
-					return c.json(await marketAuthProvider.refreshAccessToken({ refreshToken: String(body.refreshToken ?? '') }));
+					return c.json(await runtimeMarketAuthProvider.refreshAccessToken({ refreshToken: String(body.refreshToken ?? '') }));
 				} catch (error) {
 					return jsonError(c, 401, error instanceof Error ? error.message : String(error));
 				}
