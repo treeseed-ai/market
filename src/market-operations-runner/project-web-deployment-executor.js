@@ -1,10 +1,10 @@
 import {
+	buildProjectWebMonitorResult,
 	cancelGitHubWorkflowRun,
 	dispatchGitHubWorkflowRun,
 	formatGitHubWorkflowFailure,
 	waitForGitHubWorkflowRunCompletion,
-} from '../../packages/sdk/src/operations/services/github-api.ts';
-import { buildProjectWebMonitorResult } from '../../packages/sdk/src/operations/services/project-web-monitor.ts';
+} from '@treeseed/sdk';
 import { redactDeploymentValue } from '../lib/market/deployment-actions.ts';
 
 const ACTIONS = new Set(['deploy_web', 'publish_content', 'monitor']);

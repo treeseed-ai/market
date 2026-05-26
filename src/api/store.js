@@ -4,7 +4,7 @@ import {
 	calculateActualCredits,
 	deriveAvailableCredits,
 	nativeUsageUnit,
-} from '../../packages/sdk/src/capacity.ts';
+} from '@treeseed/sdk/capacity';
 import { redactDeploymentValue } from '../lib/market/deployment-actions.ts';
 import { projectDeploymentAuditPayload } from '../lib/market/deployment-governance.ts';
 

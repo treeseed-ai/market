@@ -5,14 +5,12 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
 	PlatformRunnerClient,
+	executePlatformRepositoryOperation,
 	runPlatformOperationOnce,
-} from '../../packages/sdk/src/platform-operations.ts';
+} from '@treeseed/sdk';
 import {
 	createPlatformOperationStoreFromEnv,
-} from '../../packages/sdk/src/platform-operation-store.ts';
-import {
-	executePlatformRepositoryOperation,
-} from '../../packages/sdk/src/operations/repository-operations.ts';
+} from '@treeseed/sdk/platform-operation-store';
 import { createMarketPostgresDatabase } from '../api/market-postgres.js';
 import { MarketControlPlaneStore } from '../api/store.js';
 import { createProjectWebDeploymentExecutor } from './project-web-deployment-executor.js';
