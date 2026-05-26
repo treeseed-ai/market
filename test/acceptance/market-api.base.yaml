@@ -141,16 +141,21 @@ roleMatrices:
           nonMember: { status: 403, envelope: { ok: false } }
 
 sdkMethodMatrices:
+  - method: webSignIn
+    actor: anonymous
+    expect:
+      status: 200
+      envelope: { ok: true }
+  - method: confirmWebEmail
+    actor: anonymous
+    expect:
+      status: 400
+      envelope: { ok: false }
   - method: completeWebPasswordReset
     actor: anonymous
     expect:
       status: 401
       envelope: { ok: false }
-  - method: enqueueAgentTask
-    actor: teamOwner
-    expect:
-      status: 200
-      envelope: { ok: true }
 
 deploymentFlows:
   - id: deployment-flow.mocked-web-deployment

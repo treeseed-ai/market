@@ -109,6 +109,17 @@ function serviceHeaders(spec) {
 	};
 }
 
+function optionalAcceptanceServiceHeaders() {
+	const serviceId = process.env.TREESEED_ACCEPTANCE_SERVICE_ID;
+	const serviceSecret = process.env.TREESEED_ACCEPTANCE_SERVICE_SECRET;
+	if (!serviceId || !serviceSecret) return {};
+	return {
+		'x-treeseed-service-id': serviceId,
+		'x-treeseed-service-secret': serviceSecret,
+		'x-treeseed-acceptance-email-bypass': '1',
+	};
+}
+
 function getPath(value, path) {
 	return String(path).split('.').filter(Boolean).reduce((current, part) => {
 		if (current == null) return undefined;
@@ -565,6 +576,9 @@ async function requestAcceptanceJson({ variables, actors, actorId, method = 'GET
 		throw new Error(`Actor ${actorId} is unavailable for acceptance request ${method} ${path}.`);
 	}
 	headers.set('accept', 'application/json');
+	for (const [key, value] of Object.entries(optionalAcceptanceServiceHeaders())) {
+		headers.set(key, value);
+	}
 	if (body !== undefined) headers.set('content-type', 'application/json');
 	const response = await fetch(`${variables.baseUrl}${path}`, {
 		method,
@@ -735,6 +749,7 @@ async function actorForCase(caseSpec, actor, variables) {
 		headers: {
 			accept: 'application/json',
 			'content-type': 'application/json',
+			...optionalAcceptanceServiceHeaders(),
 		},
 		body: JSON.stringify({ email: actor.email, password: variables.seed.password }),
 	});
@@ -864,9 +879,19 @@ async function main() {
 						continue;
 					}
 					headers.set('accept', 'application/json');
+					for (const [key, value] of Object.entries(optionalAcceptanceServiceHeaders())) {
+						headers.set(key, value);
+					}
 					if (caseSpec.body !== undefined) headers.set('content-type', 'application/json');
 					if (caseSpec.sdkMethod) {
 						const { MarketClient } = await loadMarketClient();
+						const sdkFetch = (url, init = {}) => {
+							const sdkHeaders = new Headers(init.headers ?? {});
+							for (const [key, value] of Object.entries(optionalAcceptanceServiceHeaders())) {
+								sdkHeaders.set(key, value);
+							}
+							return fetch(url, { ...init, headers: sdkHeaders });
+						};
 						const client = new MarketClient({
 							profile: {
 								id: args.environment,
@@ -875,7 +900,7 @@ async function main() {
 								kind: 'specialized',
 							},
 							accessToken: actor.token ?? null,
-							fetchImpl: fetch,
+							fetchImpl: sdkFetch,
 							userAgent: 'treeseed-acceptance/1',
 						});
 						try {

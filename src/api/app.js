@@ -236,6 +236,15 @@ function marketAuthContext(c) {
 	};
 }
 
+function shouldBypassAcceptanceAuthEmailDelivery(c, config) {
+	const serviceId = c.req.header('x-treeseed-service-id') ?? '';
+	const serviceSecret = c.req.header('x-treeseed-service-secret') ?? '';
+	return c.req.header('x-treeseed-acceptance-email-bypass') === '1'
+		&& Boolean(config.webServiceId && config.webServiceSecret)
+		&& serviceId === config.webServiceId
+		&& serviceSecret === config.webServiceSecret;
+}
+
 function marketEmailTokenHash(token) {
 	return createHash('sha256').update(String(token)).digest('hex');
 }
@@ -276,12 +285,14 @@ async function createMarketEmailConfirmation(store, context, input) {
 			[new Date(now).toISOString(), new Date(now).toISOString(), input.emailAddressId],
 		).catch(() => null);
 	}
-	await sendEmailConfirmation(context, {
-		email: input.email,
-		displayName: input.displayName,
-		confirmationUrl: confirmationUrlFor(context, token, input.returnTo),
-		expiresInSeconds,
-	});
+	if (!input.skipDelivery) {
+		await sendEmailConfirmation(context, {
+			email: input.email,
+			displayName: input.displayName,
+			confirmationUrl: confirmationUrlFor(context, token, input.returnTo),
+			expiresInSeconds,
+		});
+	}
 	return {
 		email: input.email,
 		expiresInSeconds,
@@ -416,6 +427,7 @@ async function createOrResendUserEmailAddress(store, context, userId, input) {
 			emailAddressId: row.id,
 			displayName: input.displayName,
 			returnTo: input.returnTo ?? '/app/account',
+			skipDelivery: input.skipDelivery,
 		});
 		row = await getUserEmailAddress(store, userId, row.id);
 	}
@@ -3455,6 +3467,7 @@ export function createMarketApiApp(options = {}) {
 						emailAddressId,
 						displayName,
 						returnTo,
+						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, config),
 					});
 				} catch (error) {
 					await store.run(`DELETE FROM market_auth_credentials WHERE user_id = ?`, [synced.principal.id]).catch(() => null);
@@ -3613,6 +3626,7 @@ export function createMarketApiApp(options = {}) {
 						email: body.email,
 						displayName: auth.principal.displayName,
 						returnTo: '/app/account',
+						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, config),
 					});
 					if (!result.ok) return jsonError(c, result.status, result.error);
 					return c.json({ ok: true, payload: result });
@@ -3639,6 +3653,7 @@ export function createMarketApiApp(options = {}) {
 						emailAddressId: row.id,
 						displayName: auth.principal.displayName,
 						returnTo: '/app/account',
+						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, config),
 					});
 					return c.json({
 						ok: true,
@@ -3779,6 +3794,7 @@ export function createMarketApiApp(options = {}) {
 						email,
 						displayName: auth.principal.displayName,
 						returnTo: '/app/account',
+						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, config),
 					});
 					if (!result.ok) return jsonError(c, result.status, result.error);
 					if (result.emailAddress?.status === 'verified') {
