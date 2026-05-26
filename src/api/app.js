@@ -2805,6 +2805,13 @@ export function createMarketApiApp(options = {}) {
 						 VALUES (?, ?, ?, ?, 'active', ?, ?)`,
 						[synced.principal.id, email, username, hashMarketPassword(password), now, now],
 					);
+					await store.run(`DELETE FROM user_email_addresses WHERE user_id = ? OR normalized_email = ?`, [synced.principal.id, email]).catch(() => null);
+					await store.run(
+						`INSERT INTO user_email_addresses (
+							id, user_id, email, normalized_email, status, is_primary, verification_requested_at, verified_at, created_at, updated_at
+						) VALUES (?, ?, ?, ?, 'verified', 1, ?, ?, ?, ?)`,
+						[randomUUID(), synced.principal.id, email, email, now, now, now, now],
+					).catch(() => null);
 					const session = await createMarketWebSession(marketAuthProvider, synced.principal.id, {
 						source: 'acceptance_seed',
 						namespace,
