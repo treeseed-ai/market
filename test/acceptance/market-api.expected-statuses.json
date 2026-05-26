@@ -4,13 +4,13 @@
   "statuses": {
     "delete.v1.auth.web.account": {
       "anonymous": 401,
-      "siteAdmin": 200,
-      "marketSteward": 200,
-      "teamOwner": 200,
-      "teamOperator": 200,
-      "teamViewer": 200,
-      "nonMember": 200,
-      "providerOperator": 200,
+      "siteAdmin": 409,
+      "marketSteward": 409,
+      "teamOwner": 409,
+      "teamOperator": 409,
+      "teamViewer": 409,
+      "nonMember": 409,
+      "providerOperator": 409,
       "providerKey": 401,
       "platformRunner": 401
     },

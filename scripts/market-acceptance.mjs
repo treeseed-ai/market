@@ -721,6 +721,30 @@ function junit(report) {
 	].join('\n');
 }
 
+function caseNeedsIsolatedSession(caseSpec) {
+	return caseSpec.descriptorId === 'post.v1.auth.logout'
+		|| caseSpec.sdkMethod === 'logout';
+}
+
+async function actorForCase(caseSpec, actor, variables) {
+	if (!caseNeedsIsolatedSession(caseSpec) || !actor?.email || !variables.seed?.password || !variables.baseUrl) {
+		return actor;
+	}
+	const response = await fetch(`${variables.baseUrl}/v1/auth/web/sign-in`, {
+		method: 'POST',
+		headers: {
+			accept: 'application/json',
+			'content-type': 'application/json',
+		},
+		body: JSON.stringify({ email: actor.email, password: variables.seed.password }),
+	});
+	const envelope = await response.json().catch(() => null);
+	const token = envelope?.payload?.accessToken;
+	return response.ok && typeof token === 'string' && token.trim()
+		? { ...actor, token }
+		: actor;
+}
+
 async function main() {
 	const args = parseArgs(process.argv.slice(2));
 	if (args.help || (!args.baseUrl && !args.expandJson)) {
@@ -822,7 +846,7 @@ async function main() {
 					response = { status: failures.length > 0 ? 500 : Number(caseSpec.expect?.status ?? 200) };
 					body = { ok: failures.length === 0 };
 				} else {
-					const actor = actors[caseSpec.actor ?? 'anonymous'] ?? {};
+					const actor = await actorForCase(caseSpec, actors[caseSpec.actor ?? 'anonymous'] ?? {}, variables);
 					const headers = actorHeaders(actor);
 					if (!headers) {
 						results.push({

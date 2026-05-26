@@ -48,6 +48,7 @@ import {
 } from '../lib/market/managed-hosts.js';
 import { decryptHostConfig } from '../lib/cloudflare-host-crypto.js';
 import { getSiteAuthConfig } from '../lib/auth/config.ts';
+import { accountDeletionConfirmationMatches } from '../lib/auth/account.ts';
 import { sendEmailConfirmation } from '../lib/auth/email-confirmation.ts';
 import { sendWelcomeEmail } from '../lib/auth/welcome-email.ts';
 import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicKey, createVerify, pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -3907,6 +3908,10 @@ export function createMarketApiApp(options = {}) {
 				await ensureMarketCredentialSchema(store);
 				const auth = await ensurePrincipal(c);
 				if (auth.response) return auth.response;
+				const body = await readJsonOrFormBody(c);
+				if (!accountDeletionConfirmationMatches(String(body.confirmation ?? ''))) {
+					return jsonError(c, 409, 'Type "DELETE MY ACCOUNT" to delete this account.', { code: 'confirmation' });
+				}
 				await store.run(`UPDATE users SET status = 'deleted', updated_at = ? WHERE id = ?`, [new Date().toISOString(), auth.principal.id]);
 				await store.run(`UPDATE market_auth_credentials SET status = 'deleted', updated_at = ? WHERE user_id = ?`, [new Date().toISOString(), auth.principal.id]);
 				await store.run(`DELETE FROM user_email_addresses WHERE user_id = ?`, [auth.principal.id]).catch(() => null);
