@@ -1791,18 +1791,6 @@
       "platformRunner": 404
     },
     "post.v1.auth.web.sign-in": {
-      "anonymous": 401,
-      "siteAdmin": 401,
-      "marketSteward": 401,
-      "teamOwner": 401,
-      "teamOperator": 401,
-      "teamViewer": 401,
-      "nonMember": 401,
-      "providerOperator": 401,
-      "providerKey": 401,
-      "platformRunner": 401
-    },
-    "post.v1.auth.web.sign-up": {
       "anonymous": 200,
       "siteAdmin": 200,
       "marketSteward": 200,
@@ -1813,6 +1801,18 @@
       "providerOperator": 200,
       "providerKey": 200,
       "platformRunner": 200
+    },
+    "post.v1.auth.web.sign-up": {
+      "anonymous": 503,
+      "siteAdmin": 503,
+      "marketSteward": 503,
+      "teamOwner": 503,
+      "teamOperator": 503,
+      "teamViewer": 503,
+      "nonMember": 503,
+      "providerOperator": 503,
+      "providerKey": 503,
+      "platformRunner": 503
     },
     "post.v1.capacity.providers.providerId.api-keys": {
       "anonymous": 410,
@@ -2020,7 +2020,7 @@
     },
     "post.v1.platform.operations.operationId.retry": {
       "anonymous": 401,
-      "siteAdmin": 202,
+      "siteAdmin": 409,
       "marketSteward": 409,
       "teamOwner": 409,
       "teamOperator": 409,
@@ -2064,7 +2064,7 @@
       "nonMember": 401,
       "providerOperator": 401,
       "providerKey": 401,
-      "platformRunner": 200
+      "platformRunner": 409
     },
     "post.v1.platform.runners.jobs.operationId.checkpoint": {
       "anonymous": 401,
@@ -2100,7 +2100,7 @@
       "nonMember": 401,
       "providerOperator": 401,
       "providerKey": 401,
-      "platformRunner": 200
+      "platformRunner": 409
     },
     "post.v1.platform.runners.jobs.operationId.fail": {
       "anonymous": 401,

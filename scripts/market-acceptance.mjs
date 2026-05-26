@@ -252,6 +252,7 @@ function descriptorPath(descriptor) {
 function bodyForFactory(factory, descriptor, actor) {
 	if (!factory || factory === 'empty') return undefined;
 	const stamp = 'acc-${runNonce}';
+	const actorEmail = `treeseed+\${seed.namespace}-${String(actor).replace(/[^a-z0-9-]+/giu, '-').replace(/^-+|-+$/gu, '').toLowerCase() || 'actor'}@treeseed.ai`;
 	const byFactory = {
 		deviceStart: { clientId: 'treeseed-acceptance', scopes: ['auth:me'] },
 		devicePoll: { deviceCode: `acceptance-device-${stamp}` },
@@ -268,7 +269,7 @@ function bodyForFactory(factory, descriptor, actor) {
 		sessionRevoke: {},
 		webProfile: { name: `Acceptance ${actor}` },
 		webAppearance: { colorScheme: 'fern', themeMode: 'system' },
-		webEmail: { email: `treeseed+${stamp}-${actor}-email@treeseed.ai` },
+		webEmail: { email: actorEmail },
 		webPassword: { currentPassword: '${seed.password}', password: '${seed.password}' },
 		passwordResetRequest: { email: '${actors.teamOwner.email}' },
 		passwordResetComplete: { token: '${fixtures.passwordReset.token}', password: '${seed.password}' },
@@ -435,12 +436,12 @@ function sdkArgsForMethod(method) {
 		webSignIn: [{ email: '${actors.siteAdmin.email}', password: '${seed.password}' }],
 		checkWebUsername: ['${actors.teamOwner.username}'],
 		webSessions: [],
-		addWebEmail: [{ email: `treeseed+${stamp}-sdk-added-email@treeseed.ai` }],
+		addWebEmail: [{ email: '${actors.teamOwner.email}' }],
 		revokeWebSession: ['${fixtures.session.id}'],
 		updateWebProfile: [{ name: 'Acceptance SDK Profile' }],
 		webAppearance: [],
 		updateWebAppearance: [{ colorScheme: 'fern', themeMode: 'system' }],
-		updateWebEmail: [{ email: `treeseed+${stamp}-sdk-email@treeseed.ai` }],
+		updateWebEmail: [{ email: '${actors.teamOwner.email}' }],
 		updateWebPassword: [{ currentPassword: '${seed.password}', password: '${seed.password}' }],
 		requestWebPasswordReset: [{ email: '${actors.teamOwner.email}' }],
 		completeWebPasswordReset: [{ token: '${fixtures.passwordReset.token}', password: '${seed.password}' }],
