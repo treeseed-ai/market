@@ -74,10 +74,10 @@ export const ALL: APIRoute = async (context) => {
 	upstream.search = context.url.search;
 
 	const headers = copyClientHeaders(context.request);
-	for (const [name, value] of marketApiServiceHeaders(context)) {
+	const token = apiAccessTokenFromCookies(context);
+	for (const [name, value] of marketApiServiceHeaders(context, { skipUserAssertion: Boolean(token) })) {
 		headers.set(name, value);
 	}
-	const token = apiAccessTokenFromCookies(context);
 	if (token) headers.set('authorization', `Bearer ${token}`);
 
 	let method = context.request.method.toUpperCase();
