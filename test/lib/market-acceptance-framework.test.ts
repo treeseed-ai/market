@@ -34,8 +34,9 @@ describe('Market API acceptance framework', () => {
 
 	it('requires a live sign-up case that sends confirmation email', () => {
 		const spec = loadSpec('test/acceptance/market-api.base.yaml');
+		const explicitCases = (spec.cases ?? []) as Array<{ id?: string }>;
 		expect(spec.coverage.requiredCaseIds).toContain('auth.web.sign-up.sends-confirmation-email');
-		expect(spec.cases.find((entry) => entry.id === 'auth.web.sign-up.sends-confirmation-email')).toMatchObject({
+		expect(explicitCases.find((entry) => entry.id === 'auth.web.sign-up.sends-confirmation-email')).toMatchObject({
 			actor: 'anonymous',
 			method: 'POST',
 			path: '${apiVersionPath}/auth/web/sign-up',
