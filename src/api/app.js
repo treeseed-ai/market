@@ -299,11 +299,23 @@ async function createMarketEmailConfirmation(store, context, input) {
 	const storedExpiresAt = authTokenTimestampSeconds(expiresAt);
 	const identifier = `${MARKET_EMAIL_CONFIRMATION_PREFIX}${input.emailAddressId ?? input.email}`;
 	await store.run(`DELETE FROM better_auth_verification WHERE identifier = ?`, [identifier]).catch(() => null);
-	await store.run(
-		`INSERT INTO better_auth_verification (id, identifier, value, "expiresAt", "createdAt", "updatedAt")
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		[randomUUID(), identifier, marketEmailTokenHash(token), storedExpiresAt, createdAt, createdAt],
-	);
+	const verificationId = randomUUID();
+	const verificationValues = [verificationId, identifier, marketEmailTokenHash(token), storedExpiresAt, createdAt, createdAt];
+	try {
+		await store.run(
+			`INSERT INTO better_auth_verification (id, identifier, value, "expiresAt", "createdAt", "updatedAt")
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			verificationValues,
+		);
+	} catch (error) {
+		await store.run(
+			`INSERT INTO better_auth_verification (id, identifier, value, expiresat, createdat, updatedat)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			verificationValues,
+		).catch(() => {
+			throw error;
+		});
+	}
 	if (input.emailAddressId) {
 		await store.run(
 			`UPDATE user_email_addresses SET verification_requested_at = ?, updated_at = ? WHERE id = ?`,
