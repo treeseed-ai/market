@@ -30,6 +30,8 @@ describe('auth and account UI primitive conversion', () => {
 		expect(shell).toContain('ThemeMenu');
 		expect(shell).toContain('auth-shell__appearance');
 		expect(shell).toContain('DevWatchReload');
+		expect(shell).toContain('treeseed:auth-form:');
+		expect(shell).toContain("document.querySelectorAll('form.auth-form')");
 	});
 
 	it('shows the app header brand on primary auth forms', () => {
@@ -70,6 +72,10 @@ describe('auth and account UI primitive conversion', () => {
 		expect(register).toContain('name="colorScheme"');
 		expect(register).toContain('name="themeMode"');
 		expect(register).toContain('treeseed:theme-change');
+		expect(register).toContain('submittedFirstName');
+		expect(register).toContain('data-username-status');
+		expect(register).toContain('payload = result?.payload || result');
+		expect(register).toContain("submitButton.disabled = status === 'taken'");
 
 		const account = source('src/pages/app/account.astro');
 		expect(account).not.toContain('account-tab-appearance');

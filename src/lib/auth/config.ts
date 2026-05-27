@@ -147,6 +147,7 @@ export function getSiteAuthConfig(context?: Pick<APIContext, 'locals'> & Partial
 			password: localAuthEmail ? '' : envValue('TREESEED_SMTP_PASSWORD', env),
 			from: authEmailFrom,
 			replyTo: firstEnvValue(env, 'TREESEED_AUTH_EMAIL_REPLY_TO', 'TREESEED_SMTP_REPLY_TO'),
+			secure: localAuthEmail ? '' : envValue('TREESEED_SMTP_SECURE', env),
 		},
 		providers: {
 			github: {

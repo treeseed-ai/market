@@ -22,6 +22,10 @@ const returnTo = normalizeReturnTo(Astro);
 const capabilities = authProviderCapabilities(Astro);
 let error = Astro.url.searchParams.get('error') ?? '';
 let appearance = resolveAnonymousThemePreference(Astro);
+let submittedFirstName = '';
+let submittedLastName = '';
+let submittedUsername = '';
+let submittedEmail = '';
 
 if (!capabilities.internal.signupEnabled) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}&error=${encodeURIComponent('Registration is not open in this environment.')}`, 302);
@@ -37,6 +41,10 @@ if (Astro.request.method === 'POST') {
 	const email = String(form.get('email') ?? '').trim();
 	const password = String(form.get('password') ?? '');
 	const confirmPassword = String(form.get('confirmPassword') ?? '');
+	submittedFirstName = firstName;
+	submittedLastName = lastName;
+	submittedUsername = username;
+	submittedEmail = email;
 	const usernameValidation = validateUsername(username);
 	if (!firstName || !lastName || !username || !email || !password || !confirmPassword) {
 		error = 'First name, last name, username, email, password, and password confirmation are required.';
@@ -91,10 +99,10 @@ if (Astro.request.method === 'POST') {
 			<input type="hidden" name="themeMode" value={appearance.mode} data-auth-theme-mode-field />
 			<div class="auth-form-grid">
 				<Field label="First name" name="firstName" required>
-					<TextInput name="firstName" type="text" autocomplete="given-name" required />
+					<TextInput name="firstName" type="text" autocomplete="given-name" value={submittedFirstName} required />
 				</Field>
 				<Field label="Last name" name="lastName" required>
-					<TextInput name="lastName" type="text" autocomplete="family-name" required />
+					<TextInput name="lastName" type="text" autocomplete="family-name" value={submittedLastName} required />
 				</Field>
 			</div>
 			<Field label="Username" name="username" required>
@@ -103,6 +111,7 @@ if (Astro.request.method === 'POST') {
 					name="username"
 					type="text"
 					autocomplete="username"
+					value={submittedUsername}
 					required
 					minlength={1}
 					maxlength={39}
@@ -112,7 +121,7 @@ if (Astro.request.method === 'POST') {
 				<span id="username-status" data-username-status class="auth-field-help">Username is public and cannot be changed after registration.</span>
 			</Field>
 			<Field label="Email" name="email" required>
-				<TextInput name="email" type="email" autocomplete="email" required />
+				<TextInput name="email" type="email" autocomplete="email" value={submittedEmail} required />
 			</Field>
 			<Field label="Password" name="password" required>
 				<TextInput id="registerPassword" data-password-input name="password" type="password" autocomplete="new-password" required minlength={12} />
@@ -133,6 +142,7 @@ if (Astro.request.method === 'POST') {
 		const usernameStatus = document.querySelector('[data-username-status]');
 		const schemeField = document.querySelector('[data-auth-theme-scheme-field]');
 		const modeField = document.querySelector('[data-auth-theme-mode-field]');
+		const submitButton = document.querySelector('form.auth-form button[type="submit"]');
 
 		function currentThemePreference() {
 			const root = document.documentElement;
@@ -157,30 +167,44 @@ if (Astro.request.method === 'POST') {
 				return;
 			}
 			usernameInput.setAttribute('data-username-state', status);
-			usernameStatus.setAttribute('data-tone', status === 'available' ? 'success' : 'danger');
+			if (status === 'checking') {
+				usernameStatus.removeAttribute('data-tone');
+			} else {
+				usernameStatus.setAttribute('data-tone', status === 'available' ? 'success' : 'danger');
+			}
 			usernameStatus.textContent = message;
+			if (submitButton) submitButton.disabled = status === 'taken' || status === 'invalid' || status === 'reserved' || status === 'error';
 		}
 
 		let usernameCheckSequence = 0;
+		let usernameCheckTimer = 0;
 		async function updateUsernameAvailability() {
 			if (!usernameInput) return;
 			const value = usernameInput.value.trim();
 			const sequence = ++usernameCheckSequence;
 			if (!value) {
 				setUsernameState('empty', 'Username is public and cannot be changed after registration.');
+				if (submitButton) submitButton.disabled = false;
 				return;
 			}
+			setUsernameState('checking', 'Checking username availability...');
 			try {
 				const response = await fetch(`/v1/auth/web/username/check?username=${encodeURIComponent(value)}`, {
 					headers: { accept: 'application/json' },
 				});
 				const result = await response.json();
 				if (sequence !== usernameCheckSequence || usernameInput.value.trim() !== value) return;
-				setUsernameState(result.status, result.message);
+				const payload = result?.payload || result;
+				setUsernameState(payload.status, payload.message);
 			} catch {
 				if (sequence !== usernameCheckSequence) return;
 				setUsernameState('error', 'Username availability could not be checked.');
 			}
+		}
+
+		function scheduleUsernameAvailability() {
+			clearTimeout(usernameCheckTimer);
+			usernameCheckTimer = setTimeout(updateUsernameAvailability, 250);
 		}
 
 		function updateConfirmState() {
@@ -195,7 +219,7 @@ if (Astro.request.method === 'POST') {
 		}
 
 		input?.addEventListener('input', updateConfirmState);
-		usernameInput?.addEventListener('input', updateUsernameAvailability);
+		usernameInput?.addEventListener('input', scheduleUsernameAvailability);
 		usernameInput?.addEventListener('change', updateUsernameAvailability);
 		confirmInput?.addEventListener('input', updateConfirmState);
 		window.addEventListener('treeseed:theme-change', syncThemeFields);

@@ -37,5 +37,54 @@ const { title, description = 'TreeSeed account access.', appearance } = Astro.pr
 			<slot />
 		</main>
 		<DevWatchReload />
+		<script is:inline data-astro-rerun>
+			(() => {
+				const storagePrefix = 'treeseed:auth-form:';
+				const hasError = Boolean(document.querySelector('.auth-alert[data-tone="danger"]'));
+
+				function storageKey(form) {
+					const action = form.getAttribute('action') || location.pathname;
+					return `${storagePrefix}${new URL(action, location.origin).pathname}`;
+				}
+
+				function restoreForm(form) {
+					if (!hasError) {
+						sessionStorage.removeItem(storageKey(form));
+						return;
+					}
+					let values = null;
+					try {
+						values = JSON.parse(sessionStorage.getItem(storageKey(form)) || 'null');
+					} catch {
+						values = null;
+					}
+					if (!values || typeof values !== 'object') return;
+					for (const field of form.elements) {
+						if (!field?.name || field.type === 'hidden' || field.type === 'submit') continue;
+						const value = values[field.name];
+						if (typeof value !== 'string') continue;
+						if (field.type === 'checkbox' || field.type === 'radio') {
+							field.checked = value === field.value;
+						} else {
+							field.value = value;
+						}
+					}
+				}
+
+				for (const form of document.querySelectorAll('form.auth-form')) {
+					restoreForm(form);
+					form.addEventListener('submit', () => {
+						const values = {};
+						for (const field of form.elements) {
+							if (!field?.name || field.type === 'hidden' || field.type === 'submit') continue;
+							values[field.name] = field.type === 'checkbox' || field.type === 'radio'
+								? (field.checked ? field.value : '')
+								: field.value;
+						}
+						sessionStorage.setItem(storageKey(form), JSON.stringify(values));
+					});
+				}
+			})();
+		</script>
 	</body>
 </html>
