@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.6.11] - 2026-05-27
+
+### Added
+
+- feat(api): support bypassing email delivery for acceptance tests (fe85028d3c05)
+- feat(api): require confirmation for account deletion (9e47469ccc8a)
+- feat(market): implement web deployment, authentication, and team (b249f927cb75)
+
+### Fixed
+
+- fix(deps): sync integrated package updates (86379958a615)
+
+### Infrastructure
+
+- ci(ci): serialize market deploy acceptance workflows (151b09b9a100)
+- release: sync package staging heads (50ac36a7b290)
+
+### Tests
+
+- chore(deps): update treeseed dependencies and core submodule (bb3186725887)
+- build(deps): sync integrated package updates (822cad9e37cb)
+- build(deps): sync integrated package updates (301eb511f72a)
+
+### Dependencies
+
+- refactor(auth): extract account deletion confirmation to separate file (17d2135c8c5d)
+- refactor(api): use resolved config for email delivery bypass (caf5ccad96f6)
+- build(deps): sync integrated package updates (e459be9e4c33)
+- chore(workspace): bump package versions and submodule pointers (47a5e6ca4db2)
+- build(deps): sync integrated package updates (80a78284ab49)
+- build(deps): update internal package dependencies and submodules (497e4ceef096)
+- Release @treeseed/market 0.6.11.
+- Release package @treeseed/agent: 0.10.7.
+- Release package @treeseed/cli: 0.10.7.
+- Release package @treeseed/core: 0.10.7.
+- Release package @treeseed/sdk: 0.10.13.
+
 ## [0.6.10] - 2026-05-24
 
 ### Added
