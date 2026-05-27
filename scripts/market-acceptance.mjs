@@ -603,11 +603,11 @@ async function requestAcceptanceJson({ variables, actors, actorId, method = 'GET
 	}
 	headers.set('accept', 'application/json');
 	if (body !== undefined) headers.set('content-type', 'application/json');
-	const response = await fetch(`${variables.baseUrl}${path}`, {
+	const response = await fetchWithTimeout(`${variables.baseUrl}${path}`, {
 		method,
 		headers,
 		body: body === undefined ? undefined : JSON.stringify(body),
-	});
+	}, `${method} ${path}`);
 	const envelope = await response.json().catch(() => null);
 	if (!response.ok || envelope?.ok === false) {
 		throw new Error(`${method} ${path} failed with ${response.status}: ${JSON.stringify(envelope)}`);
@@ -767,14 +767,14 @@ async function actorForCase(caseSpec, actor, variables) {
 	if (!caseNeedsIsolatedSession(caseSpec) || !actor?.email || !variables.seed?.password || !variables.baseUrl) {
 		return actor;
 	}
-	const response = await fetch(`${variables.baseUrl}/v1/auth/web/sign-in`, {
+	const response = await fetchWithTimeout(`${variables.baseUrl}/v1/auth/web/sign-in`, {
 		method: 'POST',
 		headers: {
 			accept: 'application/json',
 			'content-type': 'application/json',
 		},
 		body: JSON.stringify({ email: actor.email, password: variables.seed.password }),
-	});
+	}, 'POST /v1/auth/web/sign-in isolated session');
 	const envelope = await response.json().catch(() => null);
 	const token = envelope?.payload?.accessToken;
 	return response.ok && typeof token === 'string' && token.trim()
