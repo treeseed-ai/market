@@ -155,8 +155,8 @@ sdkMethodMatrices:
   - method: completeWebPasswordReset
     actor: anonymous
     expect:
-      status: 401
-      envelope: { ok: false }
+      status: 200
+      envelope: { ok: true }
 
 deploymentFlows:
   - id: deployment-flow.mocked-web-deployment
