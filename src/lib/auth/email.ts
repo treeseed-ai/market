@@ -15,6 +15,7 @@ interface SmtpConfig {
 	password: string;
 	from: string;
 	replyTo: string;
+	secure?: string;
 }
 
 interface StreamSocketContext {
@@ -119,9 +120,17 @@ async function sendStreamCommand(context: StreamSocketContext, command: string) 
 
 async function sendWithCloudflareSockets(message: AuthEmailMessage, smtp: SmtpConfig, siteUrl: string) {
 	const { connect } = await import('cloudflare:sockets');
+	const secureMode = String(smtp.secure ?? '').toLowerCase();
+	const secureTransport = ['true', '1', 'tls', 'ssl', 'on'].includes(secureMode)
+		? 'on'
+		: ['starttls', 'required'].includes(secureMode)
+			? 'starttls'
+			: ['false', '0', 'plain', 'off'].includes(secureMode)
+				? 'off'
+				: smtp.port === 465 ? 'on' : smtp.port === 587 ? 'starttls' : 'off';
 	let socket = connect(
 		{ hostname: smtp.host, port: smtp.port },
-		{ secureTransport: smtp.port === 465 ? 'on' : smtp.port === 587 ? 'starttls' : 'off' },
+		{ secureTransport },
 	);
 	let context: StreamSocketContext = {
 		socket,
@@ -133,7 +142,7 @@ async function sendWithCloudflareSockets(message: AuthEmailMessage, smtp: SmtpCo
 	assertSmtpResponse(await readStreamSmtpResponse(context.reader), [220]);
 	assertSmtpResponse(await sendStreamCommand(context, `EHLO ${hostname}`), [250]);
 
-	if (smtp.port === 587) {
+	if (secureTransport === 'starttls') {
 		assertSmtpResponse(await sendStreamCommand(context, 'STARTTLS'), [220]);
 		if (!context.socket?.startTls) {
 			throw new Error('SMTP socket does not support STARTTLS.');

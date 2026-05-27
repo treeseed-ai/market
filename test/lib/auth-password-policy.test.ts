@@ -77,6 +77,7 @@ describe('market auth password policy', () => {
 			TREESEED_SMTP_PORT: '1025',
 			TREESEED_SMTP_FROM: 'contact@example.com',
 			TREESEED_SMTP_REPLY_TO: 'support@example.com',
+			TREESEED_SMTP_SECURE: 'starttls',
 			TREESEED_AUTH_EMAIL_FROM: 'Treeseed Auth <auth@example.com>',
 			TREESEED_AUTH_EMAIL_REPLY_TO: 'auth-support@example.com',
 		}, () => {
@@ -88,6 +89,7 @@ describe('market auth password policy', () => {
 			expect(config.authEmail.password).toBe('smtp-password');
 			expect(config.authEmail.from).toBe('Treeseed Auth <auth@example.com>');
 			expect(config.authEmail.replyTo).toBe('auth-support@example.com');
+			expect(config.authEmail.secure).toBe('starttls');
 		});
 	});
 

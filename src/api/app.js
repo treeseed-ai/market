@@ -49,6 +49,7 @@ import {
 import { decryptHostConfig } from '../lib/cloudflare-host-crypto.js';
 import { getSiteAuthConfig } from '../lib/auth/config.ts';
 import { accountDeletionConfirmationMatches } from '../lib/auth/account.ts';
+import { validateUsername as validatePublicUsername } from '../lib/auth/profile-validation.ts';
 import { sendEmailConfirmation } from '../lib/auth/email-confirmation.ts';
 import { sendWelcomeEmail } from '../lib/auth/welcome-email.ts';
 import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicKey, createVerify, pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -3412,21 +3413,25 @@ export function createMarketApiApp(options = {}) {
 				const displayName = String(body.displayName ?? body.name ?? email).trim();
 				const returnTo = sanitizedReturnTo(body.returnTo);
 				const appearance = normalizeAppearancePreference(body.appearance && typeof body.appearance === 'object' ? body.appearance : body);
+				const usernameValidation = validatePublicUsername(username);
 				if (!email || !email.includes('@')) return jsonError(c, 400, 'A valid email is required.');
-				if (!username || !/^[a-z0-9-]{1,39}$/u.test(username) || username.startsWith('-') || username.endsWith('-') || username.includes('--')) {
-					return jsonError(c, 400, 'A valid username is required.');
-				}
+				if (!usernameValidation.ok) return jsonError(c, 400, usernameValidation.message);
 				if (!validateMarketPassword(password)) return jsonError(c, 400, 'Password must be at least 12 characters.');
-				const existing = await store.first(
-					`SELECT user_id FROM market_auth_credentials WHERE email = ? OR username = ? LIMIT 1`,
-					[email, username],
+				const existingEmailCredential = await store.first(
+					`SELECT user_id FROM market_auth_credentials WHERE email = ? LIMIT 1`,
+					[email],
 				);
-				if (existing) return jsonError(c, 409, 'An account already exists for this email or username.');
+				if (existingEmailCredential) return jsonError(c, 409, 'An account already exists for this email.');
+				const existingUsernameCredential = await store.first(
+					`SELECT user_id FROM market_auth_credentials WHERE username = ? LIMIT 1`,
+					[username],
+				);
+				if (existingUsernameCredential) return jsonError(c, 409, 'Username is already taken.');
 				const existingEmailAddress = await store.first(
 					`SELECT user_id FROM user_email_addresses WHERE normalized_email = ? LIMIT 1`,
 					[email],
 				);
-				if (existingEmailAddress) return jsonError(c, 409, 'An account already exists for this email or username.');
+				if (existingEmailAddress) return jsonError(c, 409, 'An account already exists for this email.');
 				const synced = await runtimeMarketAuthProvider.syncUserIdentity({
 					provider: 'credential',
 					providerSubject: email,
@@ -3603,10 +3608,20 @@ export function createMarketApiApp(options = {}) {
 			app.get('/v1/auth/web/username/check', async (c) => {
 				await ensureMarketCredentialSchema(store);
 				const username = normalizeUsername(c.req.query('username'));
-				const valid = Boolean(username && /^[a-z0-9-]{1,39}$/u.test(username) && !username.startsWith('-') && !username.endsWith('-') && !username.includes('--'));
-				if (!valid) return c.json({ ok: true, payload: { username, available: false, status: username ? 'invalid' : 'empty' } });
+				const validation = validatePublicUsername(username);
+				if (!validation.ok) {
+					return c.json({
+						ok: true,
+						payload: {
+							username,
+							available: false,
+							status: validation.code === 'missing' ? 'empty' : validation.code,
+							message: validation.code === 'missing' ? 'Username is public and cannot be changed after registration.' : validation.message,
+						},
+					});
+				}
 				const row = await store.first(`SELECT user_id FROM market_auth_credentials WHERE username = ? LIMIT 1`, [username]);
-				return c.json({ ok: true, payload: { username, available: !row, status: row ? 'taken' : 'available' } });
+				return c.json({ ok: true, payload: { username, available: !row, status: row ? 'taken' : 'available', message: row ? 'Username is already taken.' : 'Username is available.' } });
 			});
 
 			app.get('/v1/auth/web/emails', async (c) => {
