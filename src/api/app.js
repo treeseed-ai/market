@@ -50,6 +50,7 @@ import { decryptHostConfig } from '../lib/cloudflare-host-crypto.js';
 import { getSiteAuthConfig } from '../lib/auth/config.ts';
 import { accountDeletionConfirmationMatches } from '../lib/auth/account.ts';
 import { validateUsername as validatePublicUsername } from '../lib/auth/profile-validation.ts';
+import { authEmailDeliveryFailureReason } from '../lib/auth/email.ts';
 import { sendEmailConfirmation } from '../lib/auth/email-confirmation.ts';
 import { sendWelcomeEmail } from '../lib/auth/welcome-email.ts';
 import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicKey, createVerify, pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -3481,6 +3482,7 @@ export function createMarketApiApp(options = {}) {
 					console.warn('[market-auth] Email confirmation setup failed:', error instanceof Error ? error.message : String(error));
 					return jsonError(c, 503, 'Email confirmation could not be sent. Please try again shortly.', {
 						code: 'email_confirmation_delivery_failed',
+						reason: authEmailDeliveryFailureReason(error),
 					});
 				}
 				return c.json({

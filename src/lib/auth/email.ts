@@ -92,6 +92,14 @@ function assertSmtpResponse(response: { code: number; raw: string }, acceptedCod
 	}
 }
 
+function base64(value: string) {
+	return btoa(value);
+}
+
+function authPlainPayload(username: string, password: string) {
+	return base64(`\0${username}\0${password}`);
+}
+
 async function readStreamSmtpResponse(reader: ReadableStreamDefaultReader<Uint8Array>) {
 	const decoder = new TextDecoder();
 	let buffer = '';
@@ -116,6 +124,17 @@ async function readStreamSmtpResponse(reader: ReadableStreamDefaultReader<Uint8A
 async function sendStreamCommand(context: StreamSocketContext, command: string) {
 	await context.writer.write(new TextEncoder().encode(`${command}\r\n`));
 	return readStreamSmtpResponse(context.reader);
+}
+
+async function authenticateStreamSmtp(context: StreamSocketContext, smtp: SmtpConfig) {
+	const plain = await sendStreamCommand(context, `AUTH PLAIN ${authPlainPayload(smtp.username, smtp.password)}`);
+	if (plain.code === 235) return;
+	if (![500, 502, 504].includes(plain.code)) {
+		assertSmtpResponse(plain, [235]);
+	}
+	assertSmtpResponse(await sendStreamCommand(context, 'AUTH LOGIN'), [334]);
+	assertSmtpResponse(await sendStreamCommand(context, base64(smtp.username)), [334]);
+	assertSmtpResponse(await sendStreamCommand(context, base64(smtp.password)), [235]);
 }
 
 async function sendWithCloudflareSockets(message: AuthEmailMessage, smtp: SmtpConfig, siteUrl: string) {
@@ -159,9 +178,7 @@ async function sendWithCloudflareSockets(message: AuthEmailMessage, smtp: SmtpCo
 	}
 
 	if (smtp.username) {
-		assertSmtpResponse(await sendStreamCommand(context, 'AUTH LOGIN'), [334]);
-		assertSmtpResponse(await sendStreamCommand(context, btoa(smtp.username)), [334]);
-		assertSmtpResponse(await sendStreamCommand(context, btoa(smtp.password)), [235]);
+		await authenticateStreamSmtp(context, smtp);
 	}
 
 	assertSmtpResponse(await sendStreamCommand(context, `MAIL FROM:<${toEnvelopeAddress(smtp.from)}>`), [250]);
@@ -213,13 +230,22 @@ async function sendWithNodeSockets(message: AuthEmailMessage, smtp: SmtpConfig, 
 		return readResponse();
 	}
 
+	async function authenticate() {
+		const plain = await send(`AUTH PLAIN ${authPlainPayload(smtp.username, smtp.password)}`);
+		if (plain.code === 235) return;
+		if (![500, 502, 504].includes(plain.code)) {
+			assertSmtpResponse(plain, [235]);
+		}
+		assertSmtpResponse(await send('AUTH LOGIN'), [334]);
+		assertSmtpResponse(await send(base64(smtp.username)), [334]);
+		assertSmtpResponse(await send(base64(smtp.password)), [235]);
+	}
+
 	const hostname = new URL(siteUrl).hostname || 'localhost';
 	assertSmtpResponse(await readResponse(), [220]);
 	assertSmtpResponse(await send(`EHLO ${hostname}`), [250]);
 	if (smtp.username) {
-		assertSmtpResponse(await send('AUTH LOGIN'), [334]);
-		assertSmtpResponse(await send(btoa(smtp.username)), [334]);
-		assertSmtpResponse(await send(btoa(smtp.password)), [235]);
+		await authenticate();
 	}
 	assertSmtpResponse(await send(`MAIL FROM:<${toEnvelopeAddress(smtp.from)}>`), [250]);
 	assertSmtpResponse(await send(`RCPT TO:<${message.to}>`), [250, 251]);
@@ -235,6 +261,17 @@ function logConsoleFallback(message: AuthEmailMessage) {
 
 function errorMessage(error: unknown) {
 	return error instanceof Error ? error.message : String(error);
+}
+
+export function authEmailDeliveryFailureReason(error: unknown) {
+	const message = errorMessage(error).toLowerCase();
+	if (/not fully configured|must be configured/u.test(message)) return 'not_configured';
+	if (/auth|535|credentials|password|username/u.test(message)) return 'auth_failed';
+	if (/mail from|sender|550|553/u.test(message)) return 'sender_rejected';
+	if (/rcpt to|recipient|relay/u.test(message)) return 'recipient_rejected';
+	if (/starttls|tls|certificate/u.test(message)) return 'tls_failed';
+	if (/timeout|timed out|connect|closed unexpectedly|network|unreachable/u.test(message)) return 'connection_failed';
+	return 'smtp_failed';
 }
 
 function isLocalAuthUrl(value: string) {
