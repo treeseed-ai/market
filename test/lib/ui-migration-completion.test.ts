@@ -123,7 +123,7 @@ describe('UI migration completion', () => {
 	it('keeps book routes resilient to published-runtime fallback content', () => {
 		const route = source('packages/core/src/pages/books/[slug].astro');
 		expect(route).toContain("candidate.id === slug || candidate.data.slug === slug");
-		expect(route).toContain('publishedBook?.entry ?? localBook');
+		expect(route).toContain('publishedRuntime ? publishedBook?.entry ?? null : localBook');
 		expect(route).toContain('publishedBook?.html ? <PublishedContentBody');
 	});
 
