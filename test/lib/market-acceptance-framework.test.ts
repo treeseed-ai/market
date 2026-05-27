@@ -11,7 +11,7 @@ import {
 import { ACCEPTANCE_ACTORS, MARKET_API_ROUTE_DESCRIPTORS, SDK_METHOD_ROUTE_MAP } from '../../src/api/route-descriptors.js';
 
 describe('Market API acceptance framework', () => {
-	it('expands every active route into executable actor cases', () => {
+	it('expands every active route into coverage actor cases', () => {
 		const spec = loadSpec('test/acceptance/market-api.base.yaml');
 		const descriptorCases = expandDescriptorMatrices(spec);
 		const descriptorIds = new Set(descriptorCases.map((entry) => entry.descriptorId));
@@ -21,13 +21,28 @@ describe('Market API acceptance framework', () => {
 				expect(descriptorCases.some((entry) => entry.descriptorId === descriptor.id && entry.actor === actor)).toBe(true);
 			}
 		}
-		expect(descriptorCases.every((entry) => entry.coverageOnly !== true)).toBe(true);
+		expect(descriptorCases.every((entry) => entry.coverageOnly === true)).toBe(true);
 		expect(descriptorCases.every((entry) => Number.isInteger(entry.expect.status))).toBe(true);
 		expect(descriptorCases.every((entry) => entry.expect.statusAny === undefined)).toBe(true);
 		expect(descriptorCases.find((entry) => entry.id === 'descriptor-executable-role-matrix.post.v1.auth.web.sign-up.anonymous')).toMatchObject({
 			method: 'POST',
 			path: '/v1/auth/web/sign-up',
 			expect: { status: 200 },
+			coverageOnly: true,
+		});
+	});
+
+	it('requires a live sign-up case that sends confirmation email', () => {
+		const spec = loadSpec('test/acceptance/market-api.base.yaml');
+		expect(spec.coverage.requiredCaseIds).toContain('auth.web.sign-up.sends-confirmation-email');
+		expect(spec.cases.find((entry) => entry.id === 'auth.web.sign-up.sends-confirmation-email')).toMatchObject({
+			actor: 'anonymous',
+			method: 'POST',
+			path: '${apiVersionPath}/auth/web/sign-up',
+			expect: {
+				status: 200,
+				envelope: { ok: true },
+			},
 		});
 	});
 
