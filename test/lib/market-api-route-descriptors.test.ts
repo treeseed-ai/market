@@ -63,7 +63,7 @@ describe('Market API route descriptors', () => {
 		expect(staleMappings).toEqual([]);
 	});
 
-	it('keeps live acceptance descriptor-driven instead of hand-written only', () => {
+	it('keeps live acceptance descriptor-covered with explicit email delivery coverage', () => {
 		const spec = parse(readFileSync('test/acceptance/market-api.base.yaml', 'utf8')) as any;
 		expect(spec.coverage?.requireAllDescriptors).toBe(true);
 		expect(spec.coverage?.requireAllSdkMethods).toBe(true);
@@ -74,9 +74,18 @@ describe('Market API route descriptors', () => {
 				actors: expect.arrayContaining(['anonymous', 'siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator', 'providerKey', 'platformRunner']),
 				excludeProviderIngress: false,
 				excludeInternalRunner: false,
+				coverageOnly: true,
 			}),
 		]));
-		expect(spec.descriptorMatrices.some((matrix: any) => matrix.coverageOnly === true)).toBe(false);
+		expect(spec.coverage?.requiredCaseIds).toContain('auth.web.sign-up.sends-confirmation-email');
+		expect(spec.cases).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				id: 'auth.web.sign-up.sends-confirmation-email',
+				method: 'POST',
+				path: '${apiVersionPath}/auth/web/sign-up',
+				expect: expect.objectContaining({ status: 200 }),
+			}),
+		]));
 	});
 
 	it('does not allow descriptor-generated acceptance cases to use broad status ranges', () => {

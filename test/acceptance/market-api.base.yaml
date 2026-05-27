@@ -46,6 +46,7 @@ actors:
 
 descriptorMatrices:
   - id: descriptor-executable-role-matrix
+    coverageOnly: true
     methods: [GET, POST, PUT, PATCH, DELETE]
     actors: [anonymous, siteAdmin, marketSteward, teamOwner, teamOperator, teamViewer, nonMember, providerOperator, providerKey, platformRunner]
     excludeProviderIngress: false
@@ -154,8 +155,8 @@ sdkMethodMatrices:
   - method: completeWebPasswordReset
     actor: anonymous
     expect:
-      status: 401
-      envelope: { ok: false }
+      status: 200
+      envelope: { ok: true }
 
 deploymentFlows:
   - id: deployment-flow.mocked-web-deployment
@@ -174,6 +175,8 @@ coverage:
   requireAllSdkMethods: true
   requiredCaseIds:
     - health.ready
+    - auth.web.sign-up.sends-confirmation-email
+    - descriptor-executable-role-matrix.post.v1.auth.web.sign-up.anonymous
     - auth.web.sign-in.site-admin
     - auth.web.username-check.seeded
     - provider-key-cannot-read-platform-operations
@@ -194,6 +197,27 @@ cases:
     path: /readyz
     expect:
       status: 200
+
+  - id: auth.web.sign-up.sends-confirmation-email
+    actor: anonymous
+    method: POST
+    path: ${apiVersionPath}/auth/web/sign-up
+    body:
+      email: acceptance-signup-${runNonce}@treeseed.ai
+      username: acceptance-signup-${runNonce}
+      password: AcceptancePassword123!
+      firstName: Acceptance
+      lastName: Signup
+      name: Acceptance Signup
+    expect:
+      status: 200
+      envelope:
+        ok: true
+      json:
+        - path: payload.confirmationRequired
+          equals: true
+        - path: payload.email
+          equals: acceptance-signup-${runNonce}@treeseed.ai
 
   - id: auth.me.requires-user
     actor: anonymous

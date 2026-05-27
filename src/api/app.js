@@ -50,6 +50,7 @@ import { decryptHostConfig } from '../lib/cloudflare-host-crypto.js';
 import { getSiteAuthConfig } from '../lib/auth/config.ts';
 import { accountDeletionConfirmationMatches } from '../lib/auth/account.ts';
 import { validateUsername as validatePublicUsername } from '../lib/auth/profile-validation.ts';
+import { authEmailDeliveryFailureDetail, authEmailDeliveryFailureReason } from '../lib/auth/email.ts';
 import { sendEmailConfirmation } from '../lib/auth/email-confirmation.ts';
 import { sendWelcomeEmail } from '../lib/auth/welcome-email.ts';
 import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicKey, createVerify, pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -82,6 +83,17 @@ function shouldLogMarketApiRequests(config, options = {}) {
 	if (process.env.NODE_ENV === 'test') return false;
 	const environment = String(config?.environment ?? process.env.TREESEED_API_ENVIRONMENT ?? process.env.TREESEED_ENVIRONMENT ?? '').trim();
 	return environment === 'local';
+}
+
+function shouldExposeNonProductionAuthDiagnostics(c, runtime) {
+	const environment = String(runtime?.resolved?.config?.environment ?? process.env.TREESEED_API_ENVIRONMENT ?? process.env.TREESEED_ENVIRONMENT ?? '').trim().toLowerCase();
+	if (environment && !['prod', 'production'].includes(environment)) return true;
+	try {
+		const host = new URL(c.req.url).hostname.toLowerCase();
+		return host.includes('staging') || host.endsWith('.localhost') || host === 'localhost';
+	} catch {
+		return false;
+	}
 }
 
 const SENSITIVE_QUERY_PARAM_PATTERN = /(?:token|secret|password|credential|assertion|signature|api[_-]?key|access[_-]?key|private[_-]?key|code)/iu;
@@ -254,6 +266,16 @@ function exposeAuthTokenForTests() {
 	return process.env.NODE_ENV === 'test' || process.env.TREESEED_ACCEPTANCE_EXPOSE_AUTH_TOKENS === '1';
 }
 
+function authTokenTimestampSeconds(value = Date.now()) {
+	return Math.floor(Number(value) / 1000);
+}
+
+function authTokenTimestampMillis(value) {
+	const number = Number(value ?? 0);
+	if (!Number.isFinite(number) || number <= 0) return 0;
+	return number < 10_000_000_000 ? number * 1000 : number;
+}
+
 function sanitizedReturnTo(value) {
 	const target = String(value ?? '/app/');
 	return target.startsWith('/') && !target.startsWith('//') ? target : '/app/';
@@ -273,13 +295,27 @@ async function createMarketEmailConfirmation(store, context, input) {
 	const now = Date.now();
 	const expiresInSeconds = authConfig.emailVerificationTtlSeconds;
 	const expiresAt = now + expiresInSeconds * 1000;
+	const createdAt = authTokenTimestampSeconds(now);
+	const storedExpiresAt = authTokenTimestampSeconds(expiresAt);
 	const identifier = `${MARKET_EMAIL_CONFIRMATION_PREFIX}${input.emailAddressId ?? input.email}`;
 	await store.run(`DELETE FROM better_auth_verification WHERE identifier = ?`, [identifier]).catch(() => null);
-	await store.run(
-		`INSERT INTO better_auth_verification (id, identifier, value, "expiresAt", "createdAt", "updatedAt")
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		[randomUUID(), identifier, marketEmailTokenHash(token), expiresAt, now, now],
-	);
+	const verificationId = randomUUID();
+	const verificationValues = [verificationId, identifier, marketEmailTokenHash(token), storedExpiresAt, createdAt, createdAt];
+	try {
+		await store.run(
+			`INSERT INTO better_auth_verification (id, identifier, value, "expiresAt", "createdAt", "updatedAt")
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			verificationValues,
+		);
+	} catch (error) {
+		await store.run(
+			`INSERT INTO better_auth_verification (id, identifier, value, expiresat, createdat, updatedat)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			verificationValues,
+		).catch(() => {
+			throw error;
+		});
+	}
 	if (input.emailAddressId) {
 		await store.run(
 			`UPDATE user_email_addresses SET verification_requested_at = ?, updated_at = ? WHERE id = ?`,
@@ -3479,8 +3515,11 @@ export function createMarketApiApp(options = {}) {
 					await store.run(`DELETE FROM user_email_addresses WHERE user_id = ?`, [synced.principal.id]).catch(() => null);
 					await store.run(`DELETE FROM better_auth_verification WHERE identifier = ?`, [`${MARKET_EMAIL_CONFIRMATION_PREFIX}${emailAddressId}`]).catch(() => null);
 					console.warn('[market-auth] Email confirmation setup failed:', error instanceof Error ? error.message : String(error));
+					const reason = authEmailDeliveryFailureReason(error);
 					return jsonError(c, 503, 'Email confirmation could not be sent. Please try again shortly.', {
 						code: 'email_confirmation_delivery_failed',
+						reason,
+						...(shouldExposeNonProductionAuthDiagnostics(c, runtime) ? { detail: authEmailDeliveryFailureDetail(error) } : {}),
 					});
 				}
 				return c.json({
@@ -3503,7 +3542,7 @@ export function createMarketApiApp(options = {}) {
 					`SELECT * FROM better_auth_verification WHERE value = ? AND identifier LIKE ? LIMIT 1`,
 					[marketEmailTokenHash(token), `${MARKET_EMAIL_CONFIRMATION_PREFIX}%`],
 				);
-				const expiresAt = Number(row?.expiresAt ?? row?.expiresat ?? 0);
+				const expiresAt = authTokenTimestampMillis(row?.expiresAt ?? row?.expiresat ?? 0);
 				if (!row || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
 					return jsonError(c, 401, 'Email confirmation token is invalid or expired.');
 				}

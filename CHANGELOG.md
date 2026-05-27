@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.6.13] - 2026-05-27
+
+### Added
+
+- feat(auth): support TLS and STARTTLS in Node SMTP fallback (23242720ab9b)
+- feat(deps): sync integrated package updates (8eff2e2b3e3e)
+- feat(deps): sync integrated package updates (5db4ff14be7f)
+- feat(auth): include email delivery error details in non-prod responses (01c1a6e7b9a4)
+- feat(auth): improve SMTP authentication and error classification (b902cf224803)
+
+### Changed
+
+- Keep SMTP env ownership unique (05dc78e76588)
+- Align password reset acceptance expectation (b05006c05e1f)
+
+### Fixed
+
+- Fix acceptance test type check (ffbd40544a10)
+- fix(api): normalize authentication token timestamps (75b3f0d39f3e)
+
+### Tests
+
+- test(deps): sync integrated package updates (6f1685fabf2f)
+- ci(tests): record repository changes (7ed4e683f3a8)
+
+### Dependencies
+
+- chore(deps): update treeseed dependencies and core submodule (c85cee0501d8)
+- refactor(scripts): use fetchWithTimeout in market-acceptance script (605746addab5)
+- build(deps): sync integrated package updates (eadab1e5d6e2)
+- refactor(api): conditionally expose auth diagnostic details (fa58e0e6984b)
+- chore(deps): bump internal package versions (6da636b6a62b)
+- Release @treeseed/market 0.6.13.
+- Release package @treeseed/agent: 0.10.9.
+- Release package @treeseed/cli: 0.10.9.
+- Release package @treeseed/core: 0.10.9.
+- Release package @treeseed/sdk: 0.10.15.
+
 ## [0.6.12] - 2026-05-27
 
 ### Infrastructure

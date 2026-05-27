@@ -120,6 +120,30 @@ function optionalAcceptanceServiceHeaders() {
 	};
 }
 
+function acceptanceRequestTimeoutMs() {
+	const value = Number.parseInt(process.env.TREESEED_ACCEPTANCE_REQUEST_TIMEOUT_MS ?? '30000', 10);
+	return Number.isFinite(value) && value > 0 ? value : 30000;
+}
+
+async function fetchWithTimeout(url, init = {}, label = String(url)) {
+	const timeoutMs = acceptanceRequestTimeoutMs();
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(new Error(`Acceptance request timed out after ${timeoutMs}ms: ${label}`)), timeoutMs);
+	try {
+		return await fetch(url, {
+			...init,
+			signal: init.signal ?? controller.signal,
+		});
+	} catch (error) {
+		if (controller.signal.aborted) {
+			throw new Error(`Acceptance request timed out after ${timeoutMs}ms: ${label}`);
+		}
+		throw error;
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
 function getPath(value, path) {
 	return String(path).split('.').filter(Boolean).reduce((current, part) => {
 		if (current == null) return undefined;
@@ -579,11 +603,11 @@ async function requestAcceptanceJson({ variables, actors, actorId, method = 'GET
 	}
 	headers.set('accept', 'application/json');
 	if (body !== undefined) headers.set('content-type', 'application/json');
-	const response = await fetch(`${variables.baseUrl}${path}`, {
+	const response = await fetchWithTimeout(`${variables.baseUrl}${path}`, {
 		method,
 		headers,
 		body: body === undefined ? undefined : JSON.stringify(body),
-	});
+	}, `${method} ${path}`);
 	const envelope = await response.json().catch(() => null);
 	if (!response.ok || envelope?.ok === false) {
 		throw new Error(`${method} ${path} failed with ${response.status}: ${JSON.stringify(envelope)}`);
@@ -743,14 +767,14 @@ async function actorForCase(caseSpec, actor, variables) {
 	if (!caseNeedsIsolatedSession(caseSpec) || !actor?.email || !variables.seed?.password || !variables.baseUrl) {
 		return actor;
 	}
-	const response = await fetch(`${variables.baseUrl}/v1/auth/web/sign-in`, {
+	const response = await fetchWithTimeout(`${variables.baseUrl}/v1/auth/web/sign-in`, {
 		method: 'POST',
 		headers: {
 			accept: 'application/json',
 			'content-type': 'application/json',
 		},
 		body: JSON.stringify({ email: actor.email, password: variables.seed.password }),
-	});
+	}, 'POST /v1/auth/web/sign-in isolated session');
 	const envelope = await response.json().catch(() => null);
 	const token = envelope?.payload?.accessToken;
 	return response.ok && typeof token === 'string' && token.trim()
@@ -779,11 +803,12 @@ async function main() {
 			password: spec.seed?.password ?? undefined,
 			actors: spec.seed?.actors ?? undefined,
 		}, variables);
-		const seedResponse = await fetch(`${variables.baseUrl}${spec.seed?.path ?? '/v1/acceptance/seed'}`, {
+		const seedPath = spec.seed?.path ?? '/v1/acceptance/seed';
+		const seedResponse = await fetchWithTimeout(`${variables.baseUrl}${seedPath}`, {
 			method: 'POST',
 			headers: serviceHeaders(spec),
 			body: JSON.stringify(seedBody),
-		});
+		}, `POST ${seedPath}`);
 		const seedEnvelope = await seedResponse.json().catch(() => null);
 		if (!seedResponse.ok || seedEnvelope?.ok === false) {
 			throw new Error(seedEnvelope?.error ?? `Acceptance seed failed with status ${seedResponse.status}.`);
@@ -885,7 +910,7 @@ async function main() {
 							for (const [key, value] of Object.entries(optionalAcceptanceServiceHeaders())) {
 								sdkHeaders.set(key, value);
 							}
-							return fetch(url, { ...init, headers: sdkHeaders });
+							return fetchWithTimeout(url, { ...init, headers: sdkHeaders }, `${caseSpec.sdkMethod} ${url}`);
 						};
 						const client = new MarketClient({
 							profile: {
@@ -910,11 +935,11 @@ async function main() {
 							}
 						}
 					} else {
-						response = await fetch(`${variables.baseUrl}${caseSpec.path}`, {
+						response = await fetchWithTimeout(`${variables.baseUrl}${caseSpec.path}`, {
 							method: caseSpec.method ?? 'GET',
 							headers,
 							body: caseSpec.body === undefined ? undefined : JSON.stringify(caseSpec.body),
-						});
+						}, `${caseSpec.method ?? 'GET'} ${caseSpec.path}`);
 						body = await response.json().catch(() => null);
 					}
 					failures = assertCase(caseSpec, response, body);
