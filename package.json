@@ -74,7 +74,7 @@
     "@react-email/render": "^2.0.8",
     "@treeseed/agent": "^0.10.9-dev.staging.20260527T045917Z",
     "@treeseed/cli": "^0.10.9-dev.staging.20260527T045917Z",
-    "@treeseed/core": "^0.10.9-dev.staging.20260527T045917Z",
+    "@treeseed/core": "^0.10.9-dev.staging.20260527T095015Z",
     "@treeseed/sdk": "^0.10.15-dev.staging.20260527T045532Z",
     "codemirror": "^6.0.2",
     "drizzle-orm": "^0.45.2",
