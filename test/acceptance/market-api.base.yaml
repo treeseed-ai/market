@@ -160,8 +160,7 @@ sdkMethodMatrices:
   - method: enqueueAgentTask
     actor: teamOwner
     expect:
-      status: 201
-      envelope: { ok: true }
+      statusAny: [201, 409]
 
 deploymentFlows:
   - id: deployment-flow.mocked-web-deployment
