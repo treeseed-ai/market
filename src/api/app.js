@@ -85,6 +85,17 @@ function shouldLogMarketApiRequests(config, options = {}) {
 	return environment === 'local';
 }
 
+function shouldExposeNonProductionAuthDiagnostics(c, runtime) {
+	const environment = String(runtime?.resolved?.config?.environment ?? process.env.TREESEED_API_ENVIRONMENT ?? process.env.TREESEED_ENVIRONMENT ?? '').trim().toLowerCase();
+	if (environment && !['prod', 'production'].includes(environment)) return true;
+	try {
+		const host = new URL(c.req.url).hostname.toLowerCase();
+		return host.includes('staging') || host.endsWith('.localhost') || host === 'localhost';
+	} catch {
+		return false;
+	}
+}
+
 const SENSITIVE_QUERY_PARAM_PATTERN = /(?:token|secret|password|credential|assertion|signature|api[_-]?key|access[_-]?key|private[_-]?key|code)/iu;
 
 function redactedRequestTarget(requestUrl) {
@@ -3481,11 +3492,10 @@ export function createMarketApiApp(options = {}) {
 					await store.run(`DELETE FROM better_auth_verification WHERE identifier = ?`, [`${MARKET_EMAIL_CONFIRMATION_PREFIX}${emailAddressId}`]).catch(() => null);
 					console.warn('[market-auth] Email confirmation setup failed:', error instanceof Error ? error.message : String(error));
 					const reason = authEmailDeliveryFailureReason(error);
-					const environment = String(runtime.resolved.config.environment ?? process.env.TREESEED_ENVIRONMENT ?? '').trim();
 					return jsonError(c, 503, 'Email confirmation could not be sent. Please try again shortly.', {
 						code: 'email_confirmation_delivery_failed',
 						reason,
-						...(environment && environment !== 'prod' ? { detail: authEmailDeliveryFailureDetail(error) } : {}),
+						...(shouldExposeNonProductionAuthDiagnostics(c, runtime) ? { detail: authEmailDeliveryFailureDetail(error) } : {}),
 					});
 				}
 				return c.json({
