@@ -1,4 +1,3 @@
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { APIContext } from 'astro';
 import { TREESEED_REMOTE_CONTRACT_HEADER, TREESEED_REMOTE_CONTRACT_VERSION } from '@treeseed/sdk/remote';
 import { getSiteAuthConfig } from '../auth/config';
@@ -6,6 +5,29 @@ import { getSiteAuthConfig } from '../auth/config';
 type AstroLike = Pick<APIContext, 'locals' | 'cookies' | 'url' | 'request'>;
 
 const API_SESSION_COOKIE = 'ts_market_api_access';
+
+function getNodeCrypto():
+	| {
+		createHmac?: (algorithm: string, secret: string) => { update: (value: string) => { digest: (encoding: 'base64url') => string } };
+		randomUUID?: () => string;
+		timingSafeEqual?: (left: Uint8Array, right: Uint8Array) => boolean;
+	}
+	| null {
+	return (globalThis as { process?: { getBuiltinModule?: (name: string) => unknown } }).process
+		?.getBuiltinModule?.('crypto') as ReturnType<typeof getNodeCrypto> ?? null;
+}
+
+function randomId() {
+	const nodeCrypto = getNodeCrypto();
+	if (nodeCrypto?.randomUUID) return nodeCrypto.randomUUID();
+	if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+	const bytes = new Uint8Array(16);
+	globalThis.crypto?.getRandomValues?.(bytes);
+	bytes[6] = (bytes[6] & 0x0f) | 0x40;
+	bytes[8] = (bytes[8] & 0x3f) | 0x80;
+	const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 function runtimeEnv(locals: App.Locals | Record<string, unknown> | null | undefined) {
 	return (locals as App.Locals | undefined)?.runtime?.env as Record<string, unknown> | undefined;
@@ -31,7 +53,11 @@ function encodeAssertionPayload(payload: Record<string, unknown>) {
 }
 
 function signAssertionPayload(payload: string, secret: string) {
-	return createHmac('sha256', secret).update(payload).digest('base64url');
+	const nodeCrypto = getNodeCrypto();
+	if (!nodeCrypto?.createHmac) {
+		throw new Error('Trusted web user assertions require an HMAC-capable runtime.');
+	}
+	return nodeCrypto.createHmac('sha256', secret).update(payload).digest('base64url');
 }
 
 export function createTrustedWebUserAssertion(context: Pick<APIContext, 'locals' | 'url'>) {
@@ -45,7 +71,7 @@ export function createTrustedWebUserAssertion(context: Pick<APIContext, 'locals'
 		identityId: session?.identityId ?? principal.metadata?.identityId ?? null,
 		authTime: session?.authenticatedAt ?? principal.metadata?.authTime ?? new Date().toISOString(),
 		expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-		nonce: randomUUID(),
+		nonce: randomId(),
 	});
 	return `${payload}.${signAssertionPayload(payload, config.apiAssertionSecret)}`;
 }
@@ -348,7 +374,17 @@ export function createMarketApiFacade(context: AstroLike) {
 }
 
 export function safeTokenEquals(left: string, right: string) {
-	const leftBuffer = Buffer.from(left);
-	const rightBuffer = Buffer.from(right);
-	return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+	const encoder = new TextEncoder();
+	const leftBuffer = encoder.encode(left);
+	const rightBuffer = encoder.encode(right);
+	const nodeCrypto = getNodeCrypto();
+	if (nodeCrypto?.timingSafeEqual) {
+		return leftBuffer.length === rightBuffer.length && nodeCrypto.timingSafeEqual(leftBuffer, rightBuffer);
+	}
+	let diff = leftBuffer.length ^ rightBuffer.length;
+	const length = Math.max(leftBuffer.length, rightBuffer.length);
+	for (let index = 0; index < length; index += 1) {
+		diff |= (leftBuffer[index] ?? 0) ^ (rightBuffer[index] ?? 0);
+	}
+	return diff === 0;
 }
