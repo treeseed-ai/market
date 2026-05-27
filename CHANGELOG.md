@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.6.14] - 2026-05-27
+
+### Fixed
+
+- Fix browser session API auth forwarding (39445c62be9b)
+
+### Infrastructure
+
+- release: sync package staging heads (153f7e2afde9)
+
+### Dependencies
+
+- Release @treeseed/market 0.6.14.
+- Release package @treeseed/agent: 0.10.10.
+- Release package @treeseed/cli: 0.10.10.
+- Release package @treeseed/core: 0.10.10.
+- Release package @treeseed/sdk: 0.10.16.
+
 ## [0.6.13] - 2026-05-27
 
 ### Added

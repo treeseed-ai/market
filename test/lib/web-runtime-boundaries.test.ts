@@ -110,9 +110,13 @@ describe('web runtime boundaries', () => {
 		const proxy = readFileSync('src/pages/v1/[...all].ts', 'utf8');
 		expect(proxy).toContain('resolveMarketApiBaseUrl');
 		expect(proxy).toContain('marketApiServiceHeaders');
+		expect(proxy).toContain('skipUserAssertion: Boolean(token)');
 		expect(proxy).toContain('setApiAccessTokenCookie');
 		expect(proxy).toContain('redactAuthTokens');
 		expect(proxy).not.toMatch(/resolveMarketStore|loadSiteWebSession|AGENT_WORK_QUEUE|SITE_DATA_DB/u);
+
+		const apiClient = readFileSync('src/lib/market/api-client.ts', 'utf8');
+		expect(apiClient).toContain('skipUserAssertion: Boolean(token)');
 
 		const middleware = readFileSync('src/middleware.ts', 'utf8');
 		expect(middleware).toContain('/v1/me');

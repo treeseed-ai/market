@@ -50,13 +50,16 @@ export function createTrustedWebUserAssertion(context: Pick<APIContext, 'locals'
 	return `${payload}.${signAssertionPayload(payload, config.apiAssertionSecret)}`;
 }
 
-export function marketApiServiceHeaders(context: Pick<APIContext, 'locals' | 'url'>, options: { forceService?: boolean } = {}) {
+export function marketApiServiceHeaders(
+	context: Pick<APIContext, 'locals' | 'url'>,
+	options: { forceService?: boolean; skipUserAssertion?: boolean } = {},
+) {
 	const config = getSiteAuthConfig(context);
 	const headers = new Headers({
 		accept: 'application/json',
 		[TREESEED_REMOTE_CONTRACT_HEADER]: String(TREESEED_REMOTE_CONTRACT_VERSION),
 	});
-	const assertion = createTrustedWebUserAssertion(context);
+	const assertion = options.skipUserAssertion ? null : createTrustedWebUserAssertion(context);
 	if (assertion || options.forceService) {
 		headers.set('x-treeseed-service-id', config.apiServiceId);
 		headers.set('x-treeseed-service-secret', config.apiServiceSecret);
@@ -101,8 +104,8 @@ export class MarketApiClientFacade {
 	constructor(private readonly context: AstroLike) {}
 
 	private headers(body = false) {
-		const headers = marketApiServiceHeaders(this.context);
 		const token = apiAccessTokenFromCookies(this.context);
+		const headers = marketApiServiceHeaders(this.context, { skipUserAssertion: Boolean(token) });
 		if (token) headers.set('authorization', `Bearer ${token}`);
 		if (body) headers.set('content-type', 'application/json');
 		return headers;
