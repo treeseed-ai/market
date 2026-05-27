@@ -190,19 +190,28 @@ async function sendWithCloudflareSockets(message: AuthEmailMessage, smtp: SmtpCo
 }
 
 async function sendWithNodeSockets(message: AuthEmailMessage, smtp: SmtpConfig, siteUrl: string) {
-	if (smtp.port === 465 || smtp.port === 587) {
-		throw new Error('Node auth email fallback only supports plain SMTP, such as Mailpit on port 1025.');
-	}
-
 	const netSpecifier = 'node:net';
+	const tlsSpecifier = 'node:tls';
 	const net = await import(/* @vite-ignore */ netSpecifier) as typeof import('node:net');
-	const socket = net.connect({ host: smtp.host, port: smtp.port });
+	const tls = await import(/* @vite-ignore */ tlsSpecifier) as typeof import('node:tls');
+	const secureMode = String(smtp.secure ?? '').toLowerCase();
+	const secureTransport = ['true', '1', 'tls', 'ssl', 'on'].includes(secureMode)
+		? 'on'
+		: ['starttls', 'required'].includes(secureMode)
+			? 'starttls'
+			: ['false', '0', 'plain', 'off'].includes(secureMode)
+				? 'off'
+				: smtp.port === 465 ? 'on' : smtp.port === 587 ? 'starttls' : 'off';
+	let socket = secureTransport === 'on'
+		? tls.connect({ host: smtp.host, port: smtp.port, servername: smtp.host })
+		: net.connect({ host: smtp.host, port: smtp.port });
 	socket.setEncoding('utf8');
 	const pending: Array<(value: { code: number; raw: string }) => void> = [];
 	const failures: Array<(error: Error) => void> = [];
 	let buffer = '';
 
-	socket.on('data', (chunk) => {
+	function attachSocketListeners() {
+		socket.on('data', (chunk) => {
 		buffer += String(chunk);
 		const lines = buffer.split('\r\n').filter(Boolean);
 		const lastLine = lines.at(-1);
@@ -213,10 +222,12 @@ async function sendWithNodeSockets(message: AuthEmailMessage, smtp: SmtpConfig, 
 		};
 		buffer = '';
 		pending.shift()?.(response);
-	});
-	socket.on('error', (error) => {
-		failures.splice(0).forEach((reject) => reject(error));
-	});
+		});
+		socket.on('error', (error) => {
+			failures.splice(0).forEach((reject) => reject(error));
+		});
+	}
+	attachSocketListeners();
 
 	function readResponse() {
 		return new Promise<{ code: number; raw: string }>((resolve, reject) => {
@@ -244,6 +255,16 @@ async function sendWithNodeSockets(message: AuthEmailMessage, smtp: SmtpConfig, 
 	const hostname = new URL(siteUrl).hostname || 'localhost';
 	assertSmtpResponse(await readResponse(), [220]);
 	assertSmtpResponse(await send(`EHLO ${hostname}`), [250]);
+	if (secureTransport === 'starttls') {
+		assertSmtpResponse(await send('STARTTLS'), [220]);
+		socket.removeAllListeners('data');
+		socket.removeAllListeners('error');
+		socket = tls.connect({ socket, servername: smtp.host });
+		socket.setEncoding('utf8');
+		buffer = '';
+		attachSocketListeners();
+		assertSmtpResponse(await send(`EHLO ${hostname}`), [250]);
+	}
 	if (smtp.username) {
 		await authenticate();
 	}
@@ -329,9 +350,6 @@ export async function sendAuthEmail(context: Pick<APIContext, 'locals'> | undefi
 		await sendWithCloudflareSockets(message, smtp, config.siteBaseUrl);
 		return;
 	} catch (cloudflareError) {
-		if (smtp.port === 465 || smtp.port === 587) {
-			throw new Error(`Cloudflare SMTP delivery failed: ${errorMessage(cloudflareError)}`);
-		}
 		try {
 			await sendWithNodeSockets(message, smtp, config.siteBaseUrl);
 			return;
@@ -341,7 +359,7 @@ export async function sendAuthEmail(context: Pick<APIContext, 'locals'> | undefi
 				logConsoleFallback(message);
 				return;
 			}
-			throw nodeError;
+			throw new Error(`SMTP delivery failed: ${errorMessage(cloudflareError)}; ${errorMessage(nodeError)}`);
 		}
 	}
 }
