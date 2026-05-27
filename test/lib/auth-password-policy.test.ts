@@ -168,6 +168,10 @@ describe('market auth password policy', () => {
 		await withEnv({
 			BETTER_AUTH_URL: 'http://127.0.0.1:4321',
 			TREESEED_SITE_URL: undefined,
+			TREESEED_WEB_SERVICE_ID: undefined,
+			TREESEED_WEB_SERVICE_SECRET: undefined,
+			TREESEED_API_WEB_SERVICE_ID: 'web-runtime',
+			TREESEED_API_WEB_SERVICE_SECRET: 'api-runtime-secret',
 			TREESEED_AUTH_ALLOW_MEMORY_DB: 'true',
 			TREESEED_AUTH_MODE: 'internal-first',
 			TREESEED_AUTH_INTERNAL_SIGNUP: 'open',
@@ -177,7 +181,8 @@ describe('market auth password policy', () => {
 		}, async () => {
 			const config = getSiteAuthConfig();
 			expect(config.betterAuthBaseUrl).toBe('http://127.0.0.1:4321/v1/auth');
-			expect(config.apiServiceId).toBeTruthy();
+			expect(config.apiServiceId).toBe('web-runtime');
+			expect(config.apiServiceSecret).toBe('api-runtime-secret');
 		});
 	}, 20_000);
 

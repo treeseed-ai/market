@@ -4,7 +4,9 @@ import '../../../../packages/core/src/styles/theme.css';
 import '../../../../packages/core/src/styles/ui.css';
 import '../../../../packages/core/src/styles/forms.css';
 import '../../../styles/auth.css';
+import { ClientRouter } from 'astro:transitions';
 import ThemeScript from '../../../../packages/core/src/components/ui/theme/ThemeScript.astro';
+import ThemeMenu from '../../../../packages/core/src/components/ui/theme/ThemeMenu.astro';
 import DevWatchReload from '../../../../packages/core/src/components/DevWatchReload.astro';
 import type { ThemePreference } from '../../../../packages/core/src/utils/theme.ts';
 
@@ -25,8 +27,12 @@ const { title, description = 'TreeSeed account access.', appearance } = Astro.pr
 		<title>{title}</title>
 		<meta name="description" content={description} />
 		<ThemeScript defaultScheme={appearance.scheme} defaultMode={appearance.mode} />
+		<ClientRouter />
 	</head>
 	<body>
+		<div class="auth-shell__appearance">
+			<ThemeMenu selectedScheme={appearance.scheme} selectedMode={appearance.mode} />
+		</div>
 		<main class="auth-shell">
 			<slot />
 		</main>

@@ -89,6 +89,14 @@ const appearance = resolveAnonymousThemePreference(Astro);
 		notice={notice}
 		appearance={appearance}
 	>
+		<Fragment slot="sidebarLinks">
+			{capabilities.internal.enabled ? (
+				<a href={`/auth/forgot-password?returnTo=${encodeURIComponent(returnTo)}`}>Forgot password?</a>
+			) : null}
+			{capabilities.internal.signupEnabled ? (
+				<a href={`/auth/register?returnTo=${encodeURIComponent(returnTo)}`}>Create account</a>
+			) : null}
+		</Fragment>
 		{capabilities.internal.enabled ? (
 			<form class="auth-form" method="POST" action={`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`}>
 				<Field label="Email or username" name="login" required>
@@ -102,21 +110,11 @@ const appearance = resolveAnonymousThemePreference(Astro);
 				</FormActions>
 			</form>
 		) : null}
-		{capabilities.internal.enabled ? (
-			<p class="auth-card__footer">
-				<a href={`/auth/forgot-password?returnTo=${encodeURIComponent(returnTo)}`}>Forgot password?</a>
-			</p>
-		) : null}
 		{enabledProviders.length > 0 ? (
 			<>
 				<AuthDivider />
 				<ProviderButtonList providers={enabledProviders} returnTo={returnTo} />
 			</>
-		) : null}
-		{capabilities.internal.signupEnabled ? (
-			<p class="auth-card__footer">
-				Need an account? <a href={`/auth/register?returnTo=${encodeURIComponent(returnTo)}`}>Create one</a>
-			</p>
 		) : null}
 	</AuthCard>
 </AuthShell>

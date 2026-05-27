@@ -97,6 +97,18 @@ export const ALL: APIRoute = async (context) => {
 	for (const [name, value] of response.headers) {
 		if (!hopByHopHeaders.has(name.toLowerCase())) responseHeaders.set(name, value);
 	}
+	if (logoutRedirect) {
+		clearApiAccessTokenCookie(context);
+		for (const cookie of context.cookies.headers()) {
+			responseHeaders.append('set-cookie', cookie);
+		}
+		const target = logoutRedirect.startsWith('/') && !logoutRedirect.startsWith('//') ? logoutRedirect : '/';
+		responseHeaders.set('location', target);
+		return new Response(null, {
+			status: 303,
+			headers: responseHeaders,
+		});
+	}
 	if (isAuthPath(path) && (response.headers.get('content-type') ?? '').includes('application/json')) {
 		const envelope = await response.clone().json().catch(() => null);
 		const token = envelope?.payload?.accessToken;
@@ -110,10 +122,6 @@ export const ALL: APIRoute = async (context) => {
 			responseHeaders.append('set-cookie', cookie);
 		}
 		if (envelope && typeof envelope === 'object') {
-			if (logoutRedirect && response.ok) {
-				const target = logoutRedirect.startsWith('/') && !logoutRedirect.startsWith('//') ? logoutRedirect : '/';
-				return context.redirect(target, 303);
-			}
 			return new Response(JSON.stringify(redactAuthTokens(envelope)), {
 				status: response.status,
 				statusText: response.statusText,

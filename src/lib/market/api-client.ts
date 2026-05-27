@@ -223,6 +223,10 @@ export class MarketApiClientFacade {
 		return this.request<any[]>('GET', `/v1/teams/${encodeURIComponent(teamId)}/members`);
 	}
 
+	getTeamAccessSummary(teamId: string) {
+		return this.request<any>('GET', `/v1/teams/${encodeURIComponent(teamId)}/permissions`);
+	}
+
 	evaluateTeamDeletionBlockers(teamId: string) {
 		return this.request<any>('GET', `/v1/teams/${encodeURIComponent(teamId)}/deletion-blockers`);
 	}

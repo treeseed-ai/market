@@ -1,8 +1,36 @@
 import { defineMiddleware } from 'astro:middleware';
 import { resolveEditorialPreview } from '@treeseed/core/middleware/editorial-preview';
 import { getSiteAuthConfig, localAuthCanonicalRedirectUrl } from './lib/auth/config';
-import { apiAccessTokenFromCookies, resolveMarketApiBaseUrl } from './lib/market/api-client';
+import { apiAccessTokenFromCookies, clearApiAccessTokenCookie, resolveMarketApiBaseUrl } from './lib/market/api-client';
 import { ensureLocalCloudflareRuntime } from './lib/runtime/local-cloudflare';
+
+const DEV_RESET_COOKIE = 'ts_market_dev_reset';
+
+function runtimeEnv(context: any) {
+	return context.locals?.runtime?.env as Record<string, unknown> | undefined;
+}
+
+function envValue(context: any, name: string) {
+	const runtimeValue = runtimeEnv(context)?.[name];
+	if (typeof runtimeValue === 'string' && runtimeValue.trim()) return runtimeValue.trim();
+	const processValue = process.env[name];
+	return typeof processValue === 'string' && processValue.trim() ? processValue.trim() : '';
+}
+
+function applyLocalDevResetCookieBoundary(context: any) {
+	const resetId = envValue(context, 'TREESEED_DEV_RESET_ID');
+	if (!resetId) return false;
+	if (context.cookies.get(DEV_RESET_COOKIE)?.value === resetId) return false;
+	clearApiAccessTokenCookie(context);
+	context.cookies.set(DEV_RESET_COOKIE, resetId, {
+		httpOnly: true,
+		path: '/',
+		sameSite: 'lax',
+		secure: context.url.protocol === 'https:',
+		maxAge: 30 * 24 * 60 * 60,
+	});
+	return true;
+}
 
 async function loadApiBackedWebSession(context: any) {
 	const token = apiAccessTokenFromCookies(context);
@@ -30,11 +58,18 @@ async function loadApiBackedWebSession(context: any) {
 export const onRequest = defineMiddleware(async (context, next) => {
 	await ensureLocalCloudflareRuntime(context.locals);
 	const config = getSiteAuthConfig(context);
+	const resetClearedAuthCookie = applyLocalDevResetCookieBoundary(context);
 	const canonicalLocalUrl = localAuthCanonicalRedirectUrl(context.url, config.siteBaseUrl);
 	if (canonicalLocalUrl && ['GET', 'HEAD'].includes(context.request.method.toUpperCase())) {
-		return context.redirect(canonicalLocalUrl.toString(), 308);
+		const response = context.redirect(canonicalLocalUrl.toString(), 308);
+		if (resetClearedAuthCookie) {
+			for (const cookie of context.cookies.headers()) {
+				response.headers.append('set-cookie', cookie);
+			}
+		}
+		return response;
 	}
-	const webSession = await loadApiBackedWebSession(context);
+	const webSession = resetClearedAuthCookie ? null : await loadApiBackedWebSession(context);
 	context.locals.auth = webSession
 		? {
 			session: webSession,
@@ -42,5 +77,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		}
 		: null;
 	resolveEditorialPreview(context);
-	return next();
+	const response = await next();
+	if (resetClearedAuthCookie) {
+		for (const cookie of context.cookies.headers()) {
+			response.headers.append('set-cookie', cookie);
+		}
+	}
+	return response;
 });

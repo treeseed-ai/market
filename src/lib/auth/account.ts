@@ -4,12 +4,12 @@ import {
 	normalizeUsername,
 	validateUsername,
 	type UsernameValidationResult,
-} from './profile-validation';
+} from './profile-validation.ts';
+import { DELETE_ACCOUNT_CONFIRMATION } from './delete-confirmation.ts';
 
 export { RESERVED_USERNAMES, composeDisplayNameFromParts, normalizeUsername, validateUsername };
 export type { UsernameValidationResult };
-
-export const DELETE_ACCOUNT_CONFIRMATION = 'DELETE MY ACCOUNT';
+export { DELETE_ACCOUNT_CONFIRMATION };
 
 export interface AccountProfileInput {
 	name: string;

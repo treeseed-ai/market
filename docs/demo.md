@@ -121,9 +121,10 @@ Open:
 ```text
 /app/projects
 /app/projects/new
+/app/projects/:projectId/deploy
 ```
 
-Create or open a hosted project. Show one focused control at a time: settings, hosts, guidance, decisions, artifacts, or delete.
+Create or open a hosted project. Show one focused control at a time: settings, hosts, deploy, guidance, decisions, artifacts, or delete.
 
 Narration:
 
@@ -131,7 +132,43 @@ Narration:
 TreeSeed guides project development through explicit controls, not a dashboard maze.
 ```
 
-### 3. Capacity and Work
+### 3. Deploy
+
+Open:
+
+```text
+/app/projects/:projectId/deploy
+```
+
+Show launch status, readiness, staging and production cards, active timeline, latest monitor status, deployment history, and event inspection. The normal local demo starts everything with:
+
+```bash
+npx trsd dev --web-runtime local --force
+```
+
+That command supervises the Market API, managed local PostgreSQL, migrations, and the deployment runner. For a focused mocked rehearsal outside the integrated supervisor, queue staging deploy or monitor, then run:
+
+```bash
+npm run market:operations-runner -- --market local --once --operation project:web_deployment --mock-external
+```
+
+Walk through:
+
+```text
+Deploy staging
+Monitor staging
+Publish content
+Deploy production with explicit confirmation
+Inspect deployment history and events
+```
+
+Narration:
+
+```text
+TreeSeed makes deployment a governed project operation: visible, auditable, retryable, and inspectable.
+```
+
+### 4. Capacity and Work
 
 Open:
 
@@ -149,7 +186,7 @@ Narration:
 Project changes and publishing stay deliberate because decisions are explicit.
 ```
 
-### 4. Knowledge
+### 5. Knowledge
 
 Open:
 
@@ -172,6 +209,7 @@ A healthy local demo should show:
 
 * at least one seeded project;
 * repository metadata for the market project;
+* deployment readiness, staging/prod environment cards, and at least one mocked deployment or monitor record;
 * local capacity provider, lanes, grants, and work policy;
 * one active or recent workday;
 * task events and outputs from the manager or worker;
@@ -212,6 +250,16 @@ npx trsd dev:manager --with-worker --docs-automation dry-run --approval-policy m
 ### Tasks Do Not Run
 
 Inspect capacity readiness, worker runner logs, task state, and queue polling. The local seed must provide capacity provider, lanes, grants, and work policy before the worker loop can look healthy.
+
+### Deployment Does Not Progress
+
+Confirm the project has repository and web host readiness. In normal local development, the deployment runner is already supervised by `npx trsd dev --web-runtime local --force`. For focused mocked debugging outside the integrated supervisor, run:
+
+```bash
+npm run market:operations-runner -- --market local --once --operation project:web_deployment --mock-external
+```
+
+If the runner cannot authenticate, unlock or configure the local Market runner secret. If a real external staging proof is required, use a disposable GitHub/Cloudflare target or document the missing credential/target blocker.
 
 ### UI Shows Nothing
 

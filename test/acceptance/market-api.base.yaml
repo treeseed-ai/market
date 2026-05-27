@@ -141,11 +141,33 @@ roleMatrices:
           nonMember: { status: 403, envelope: { ok: false } }
 
 sdkMethodMatrices:
+  - method: webSignIn
+    actor: anonymous
+    expect:
+      status: 200
+      envelope: { ok: true }
+  - method: confirmWebEmail
+    actor: anonymous
+    expect:
+      status: 400
+      envelope: { ok: false }
   - method: completeWebPasswordReset
     actor: anonymous
     expect:
       status: 401
       envelope: { ok: false }
+
+deploymentFlows:
+  - id: deployment-flow.mocked-web-deployment
+    actor: teamOwner
+    runnerActor: platformRunner
+    market: local
+    environment: staging
+    mockResult: success
+    environments: [local]
+    expect:
+      status: 200
+      envelope: { ok: true }
 
 coverage:
   requireAllDescriptors: true
@@ -163,6 +185,7 @@ coverage:
     - sdk.teams.team-owner
     - sdk.me.teamOwner
     - sdk.rotateCapacityProviderApiKey.teamOwner
+    - deployment-flow.mocked-web-deployment
 
 cases:
   - id: health.ready

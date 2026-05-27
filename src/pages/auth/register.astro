@@ -55,10 +55,15 @@ if (Astro.request.method === 'POST') {
 			username: usernameValidation.username,
 			email,
 			password,
+			appearance,
 			rememberMe: true,
+			returnTo,
 		});
 		if (result.ok) {
 			setAnonymousThemeCookies(Astro, appearance);
+			if (result.confirmationRequired) {
+				return Astro.redirect(`/auth/check-email?kind=verify&email=${encodeURIComponent(email)}&returnTo=${encodeURIComponent(returnTo)}`, 303);
+			}
 			const response = Astro.redirect(returnTo, 303);
 			for (const cookie of Astro.cookies.headers()) {
 				response.headers.append('set-cookie', cookie);
@@ -78,7 +83,12 @@ if (Astro.request.method === 'POST') {
 		appearance={appearance}
 		showAppearance={false}
 	>
+		<Fragment slot="sidebarLinks">
+			<a href={`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`}>Sign in</a>
+		</Fragment>
 		<form class="auth-form" method="POST" action={`/auth/register?returnTo=${encodeURIComponent(returnTo)}`}>
+			<input type="hidden" name="colorScheme" value={appearance.scheme} data-auth-theme-scheme-field />
+			<input type="hidden" name="themeMode" value={appearance.mode} data-auth-theme-mode-field />
 			<div class="auth-form-grid">
 				<Field label="First name" name="firstName" required>
 					<TextInput name="firstName" type="text" autocomplete="given-name" required />
@@ -115,15 +125,28 @@ if (Astro.request.method === 'POST') {
 				<Button type="submit">Create account</Button>
 			</FormActions>
 		</form>
-		<p class="auth-card__footer">
-			Already have an account? <a href={`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`}>Sign in</a>
-		</p>
 	</AuthCard>
-	<script is:inline>
+	<script is:inline data-astro-rerun>
 		const input = document.querySelector('[data-password-input]');
 		const confirmInput = document.querySelector('[data-confirm-password-input]');
 		const usernameInput = document.querySelector('[data-username-input]');
 		const usernameStatus = document.querySelector('[data-username-status]');
+		const schemeField = document.querySelector('[data-auth-theme-scheme-field]');
+		const modeField = document.querySelector('[data-auth-theme-mode-field]');
+
+		function currentThemePreference() {
+			const root = document.documentElement;
+			return {
+				scheme: root.dataset.tsScheme || schemeField?.value || 'fern',
+				mode: root.dataset.tsModeSource === 'system' ? 'system' : (root.dataset.tsMode || modeField?.value || 'system'),
+			};
+		}
+
+		function syncThemeFields(event) {
+			const detail = event?.detail || currentThemePreference();
+			if (schemeField) schemeField.value = detail.scheme || currentThemePreference().scheme;
+			if (modeField) modeField.value = detail.mode || currentThemePreference().mode;
+		}
 
 		function setUsernameState(status, message) {
 			if (!usernameInput || !usernameStatus) return;
@@ -175,7 +198,10 @@ if (Astro.request.method === 'POST') {
 		usernameInput?.addEventListener('input', updateUsernameAvailability);
 		usernameInput?.addEventListener('change', updateUsernameAvailability);
 		confirmInput?.addEventListener('input', updateConfirmState);
+		window.addEventListener('treeseed:theme-change', syncThemeFields);
+		document.querySelector('form.auth-form')?.addEventListener('submit', () => syncThemeFields());
 		updateConfirmState();
 		updateUsernameAvailability();
+		syncThemeFields();
 	</script>
 </AuthShell>

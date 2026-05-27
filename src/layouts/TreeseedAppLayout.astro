@@ -42,7 +42,7 @@ const quickActions = [
 		? { label: 'New project', href: '/app/projects/new', variant: 'primary' as const }
 		: { label: 'New team', href: '/app/teams/new', variant: 'primary' as const },
 	{ label: 'Account', href: '/app/account', variant: 'secondary' as const },
-	{ label: 'Sign out', href: '/v1/auth/logout?returnTo=/', variant: 'secondary' as const },
+	{ label: 'Sign out', href: '/v1/auth/logout?returnTo=/', variant: 'secondary' as const, reload: true },
 ];
 const teamOptions = teams.map((team) => ({
 	id: team.id,
@@ -97,4 +97,25 @@ const teamOptions = teams.map((team) => ({
 			window.location.href = url.toString();
 		});
 	});
+</script>
+
+<script is:inline data-astro-rerun>
+	(() => {
+		const bindingKey = '__treeseedAuthenticatedAppearanceSyncBound';
+		if (window[bindingKey]) return;
+		window[bindingKey] = true;
+
+		window.addEventListener('treeseed:theme-change', (event) => {
+			const detail = event.detail || {};
+			if (detail.persist !== true || !detail.scheme || !detail.mode) return;
+			fetch('/v1/auth/web/appearance', {
+				method: 'PATCH',
+				headers: { accept: 'application/json', 'content-type': 'application/json' },
+				body: JSON.stringify({ colorScheme: detail.scheme, themeMode: detail.mode }),
+				keepalive: true,
+			}).catch(() => {
+				// Local cookies already carry the immediate preference; the next change can retry persistence.
+			});
+		});
+	})();
 </script>

@@ -117,7 +117,20 @@ describe('web runtime boundaries', () => {
 		const middleware = readFileSync('src/middleware.ts', 'utf8');
 		expect(middleware).toContain('/v1/me');
 		expect(middleware).toContain('apiAccessTokenFromCookies');
+		expect(middleware).toContain('clearApiAccessTokenCookie');
+		expect(middleware).toContain('TREESEED_DEV_RESET_ID');
 		expect(middleware).not.toContain('loadSiteWebSession');
+	});
+
+	it('keeps browser logout redirecting even when upstream session revocation fails', () => {
+		const proxy = readFileSync('src/pages/v1/[...all].ts', 'utf8');
+		expect(proxy).toContain("const logoutRedirect = path === 'auth/logout' && method === 'GET'");
+		expect(proxy).toContain('if (logoutRedirect) {');
+		expect(proxy).toContain('clearApiAccessTokenCookie(context)');
+		expect(proxy).toContain("responseHeaders.set('location', target)");
+		expect(proxy).toContain('status: 303');
+		expect(proxy).toContain('if (shouldClearAuthCookie(path, method, response.ok))');
+		expect(proxy).not.toContain('if (logoutRedirect && response.ok)');
 	});
 
 	it('keeps the Astro endpoint surface thin and routes Market APIs through v1', () => {

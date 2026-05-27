@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appSourcePath = resolve(here, 'app.js');
+const projectDeploymentRoutesSourcePath = resolve(here, 'project-deployment-routes.js');
 
 export const SDK_METHOD_ROUTE_MAP = {
 	startDeviceLogin: 'post.v1.auth.device.start',
@@ -11,8 +12,14 @@ export const SDK_METHOD_ROUTE_MAP = {
 	refreshToken: 'post.v1.auth.token.refresh',
 	logout: 'post.v1.auth.logout',
 	webSignUp: 'post.v1.auth.web.sign-up',
+	confirmWebEmail: 'post.v1.auth.web.confirm-email',
 	webSignIn: 'post.v1.auth.web.sign-in',
 	checkWebUsername: 'get.v1.auth.web.username.check',
+	webEmails: 'get.v1.auth.web.emails',
+	addWebEmail: 'post.v1.auth.web.emails',
+	verifyWebEmail: 'post.v1.auth.web.emails.emailId.verify',
+	setPrimaryWebEmail: 'post.v1.auth.web.emails.emailId.primary',
+	deleteWebEmail: 'delete.v1.auth.web.emails.emailId',
 	webSessions: 'get.v1.auth.web.sessions',
 	revokeWebSession: 'post.v1.auth.web.sessions.sessionId.revoke',
 	updateWebProfile: 'patch.v1.auth.web.profile',
@@ -32,6 +39,14 @@ export const SDK_METHOD_ROUTE_MAP = {
 	teamPermissions: 'get.v1.teams.teamId.permissions',
 	projects: 'get.v1.projects',
 	projectAccess: 'get.v1.projects.projectId.access',
+	projectDeploymentState: 'get.v1.projects.projectId.deployment-state',
+	projectDeployments: 'get.v1.projects.projectId.deployments',
+	projectDeployment: 'get.v1.projects.projectId.deployments.deploymentId',
+	projectDeploymentEvents: 'get.v1.projects.projectId.deployments.deploymentId.events',
+	createProjectWebDeployment: 'post.v1.projects.projectId.deployments.web',
+	retryProjectDeployment: 'post.v1.projects.projectId.deployments.deploymentId.retry',
+	resumeProjectDeployment: 'post.v1.projects.projectId.deployments.deploymentId.resume',
+	cancelProjectDeployment: 'post.v1.projects.projectId.deployments.deploymentId.cancel',
 	teamCapacity: 'get.v1.teams.teamId.capacity',
 	teamCapacityProviders: 'get.v1.teams.teamId.capacity-providers',
 	updateCapacityProvider: 'patch.v1.teams.teamId.capacity-providers.providerId',
@@ -149,7 +164,7 @@ function successActorsFor(path, method) {
 	if (path.startsWith('/v1/platform/operations/:operationId')) return ['siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator'];
 	if (path === '/v1/platform/operations' && method !== 'get') return ['siteAdmin', 'marketSteward', 'teamOwner', 'teamOperator', 'teamViewer', 'nonMember', 'providerOperator'];
 	if (path.startsWith('/v1/platform/operations')) return PLATFORM_ADMIN_ACTORS;
-	if (path === '/v1/markets/current' || path.includes('/username/check') || path.includes('/password-reset/request') || path.includes('/password-reset/complete') || path.includes('/auth/device/')) {
+	if (path === '/v1/markets/current' || path.includes('/username/check') || path.includes('/confirm-email') || path.includes('/password-reset/request') || path.includes('/password-reset/complete') || path.includes('/auth/device/')) {
 		return ACCEPTANCE_ACTORS;
 	}
 	if (path.startsWith('/v1/auth/web/sign-up')) return ACCEPTANCE_ACTORS;
@@ -185,6 +200,7 @@ function bodyFactoryFor(path, method) {
 	if (path.includes('/auth/device/poll')) return 'devicePoll';
 	if (path.includes('/auth/device/approve')) return 'deviceApprove';
 	if (path.includes('/auth/web/sign-up')) return 'webSignUp';
+	if (path.includes('/auth/web/confirm-email')) return 'emailConfirm';
 	if (path.includes('/auth/web/sign-in')) return 'webSignIn';
 	if (path.includes('/auth/web/sessions/')) return 'sessionRevoke';
 	if (path.includes('/auth/web/profile')) return 'webProfile';
@@ -204,6 +220,7 @@ function bodyFactoryFor(path, method) {
 	if (path.includes('/platform/runners/jobs/') && path.endsWith('/events')) return 'platformRunnerEvent';
 	if (path.includes('/platform/runners/jobs/') && path.endsWith('/checkpoint')) return 'platformRunnerCheckpoint';
 	if (path.includes('/platform/runners/jobs/') && path.endsWith('/renew-lease')) return 'platformRunnerRenew';
+	if (path.includes('/platform/runners/jobs/') && path.endsWith('/cancel')) return 'platformRunnerCancel';
 	if (path.includes('/platform/runners/jobs/') && path.endsWith('/complete')) return 'platformRunnerComplete';
 	if (path.includes('/platform/runners/jobs/') && path.endsWith('/fail')) return 'platformRunnerFail';
 	if (path.includes('/provider/register')) return 'providerRegister';
@@ -269,7 +286,7 @@ function acceptancePolicy(path, method) {
 	};
 }
 
-export function extractActiveMarketApiRoutes(source = readFileSync(appSourcePath, 'utf8')) {
+export function extractActiveMarketApiRoutes(source = `${readFileSync(appSourcePath, 'utf8')}\n${readFileSync(projectDeploymentRoutesSourcePath, 'utf8')}`) {
 	const routes = [];
 	const pattern = /app\.(get|post|put|patch|delete)\(\s*['"]([^'"]+)['"]/gu;
 	for (const match of source.matchAll(pattern)) {

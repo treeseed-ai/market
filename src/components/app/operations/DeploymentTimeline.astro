@@ -1,0 +1,49 @@
+---
+import StatusPill from '../../../../packages/core/src/components/ui/data/StatusPill.astro';
+
+interface TimelineItem {
+	id: string;
+	phase: string;
+	title: string;
+	description: string;
+	status: string;
+	tone: 'default' | 'info' | 'success' | 'warning' | 'danger';
+	createdAt: string | null;
+	meta: string;
+}
+
+interface Props {
+	items: TimelineItem[];
+	emptyTitle?: string;
+	emptyDescription?: string;
+}
+
+const {
+	items,
+	emptyTitle = 'No deployment events',
+	emptyDescription = 'Deployment timeline events appear after an operation is queued.',
+} = Astro.props as Props;
+---
+
+{items.length > 0 ? (
+	<ol class="ts-deploy-timeline" aria-label="Deployment timeline events">
+		{items.map((item) => (
+			<li class="ts-deploy-timeline__item" data-phase={item.phase.toLowerCase()} id={`deployment-event-${item.id}`}>
+				<div class="ts-deploy-timeline__marker" aria-hidden="true"></div>
+				<div class="ts-deploy-timeline__content">
+					<header class="ts-deploy-timeline__header">
+						<div>
+							<p class="ts-deploy-timeline__phase">{item.phase}</p>
+							<h3>{item.title}</h3>
+						</div>
+						<StatusPill tone={item.tone} label={item.status} />
+					</header>
+					<p>{item.description}</p>
+					{item.meta ? <p class="ts-deploy-timeline__meta">{item.meta}</p> : null}
+				</div>
+			</li>
+		))}
+	</ol>
+) : (
+	<p class="ts-empty-inline"><strong>{emptyTitle}</strong> {emptyDescription}</p>
+)}

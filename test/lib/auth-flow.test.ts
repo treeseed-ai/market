@@ -39,15 +39,9 @@ describe('market auth page flow', () => {
 		const fetchMock = vi.fn(async () => new Response(JSON.stringify({
 			ok: true,
 			payload: {
-				accessToken: 'access-token',
-				expiresInSeconds: 900,
-				principal: {
-					id: 'user-1',
-					displayName: 'Hosted Flow User',
-					metadata: {
-						email: 'hosted-flow-test@example.com',
-					},
-				},
+				confirmationRequired: true,
+				email: 'hosted-flow-test@example.com',
+				expiresInSeconds: 3600,
 			},
 		}), { status: 200, headers: { 'content-type': 'application/json' } }));
 		vi.stubGlobal('fetch', fetchMock);
@@ -67,8 +61,10 @@ describe('market auth page flow', () => {
 					headers: {
 						origin,
 						'content-type': 'application/x-www-form-urlencoded',
+						'user-agent': 'Hosted Signup Browser/1.0',
 					},
 				}),
+				clientAddress: '198.51.100.12',
 				cookies: {},
 			} as any, 'sign-up/email', {
 				name: 'Hosted Flow User',
@@ -77,8 +73,14 @@ describe('market auth page flow', () => {
 			}, { finalize: false });
 
 			expect(fetchMock).toHaveBeenCalledWith('https://api.example.test/v1/auth/web/sign-up', expect.any(Object));
+			const [, requestInit] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+			const headers = requestInit.headers as Headers;
+			expect(headers.get('user-agent')).toBe('Hosted Signup Browser/1.0');
+			expect(headers.get('x-treeseed-client-ip')).toBe('198.51.100.12');
+			expect(headers.get('x-forwarded-for')).toBe('198.51.100.12');
 			expect(result.ok).toBe(true);
 			if (result.ok) {
+				expect(result.confirmationRequired).toBe(true);
 				expect(result.user.email).toBe('hosted-flow-test@example.com');
 			}
 		} finally {
@@ -126,6 +128,52 @@ describe('market auth page flow', () => {
 		} finally {
 			vi.unstubAllGlobals();
 			consoleError.mockRestore();
+		}
+	});
+
+	it('locks authenticated appearance cookies from the signed-in principal', async () => {
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+			ok: true,
+			payload: {
+				accessToken: 'token-1',
+				expiresInSeconds: 900,
+				principal: {
+					id: 'user-1',
+					displayName: 'Theme User',
+					metadata: {
+						appearance: { scheme: 'cedar', mode: 'dark' },
+					},
+				},
+			},
+		}), { status: 200, headers: { 'content-type': 'application/json' } }));
+		vi.stubGlobal('fetch', fetchMock);
+		const setCookie = vi.fn();
+		const origin = 'https://treeseed-market-staging-479e4625.treeseed.ai';
+		try {
+			const result = await submitMarketEmailAuthFlow({
+				locals: {
+					runtime: {
+						env: {
+							TREESEED_MARKET_API_BASE_URL: 'https://api.example.test',
+						},
+					},
+				},
+				url: new URL(`${origin}/auth/sign-in?returnTo=%2Fapp%2F`),
+				request: new Request(`${origin}/auth/sign-in?returnTo=%2Fapp%2F`, { method: 'POST' }),
+				cookies: {
+					set: setCookie,
+				},
+			} as any, 'sign-in/email', {
+				email: 'theme-user@example.com',
+				password: 'StrongPassword1!',
+				rememberMe: true,
+			});
+
+			expect(result.ok).toBe(true);
+			expect(setCookie).toHaveBeenCalledWith('treeseed_color_scheme', 'cedar', expect.any(Object));
+			expect(setCookie).toHaveBeenCalledWith('treeseed_theme_mode', 'dark', expect.any(Object));
+		} finally {
+			vi.unstubAllGlobals();
 		}
 	});
 });

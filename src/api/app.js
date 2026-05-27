@@ -33,6 +33,7 @@ import {
 } from '@treeseed/sdk/api';
 import { MarketControlPlaneStore, validateProjectSlug } from './store.js';
 import { createMarketPostgresDatabase } from './market-postgres.js';
+import { installProjectDeploymentRoutes } from './project-deployment-routes.js';
 import { applySeedWithStore, exportSeedWithStore, planSeedWithStore } from '../lib/market/seeds/apply.js';
 import { buildGovernanceApprovalProjection, buildGovernanceProjection } from '../lib/market/governance-projection.js';
 import { buildInfrastructureProjection } from '../lib/market/infrastructure-projection.js';
@@ -46,6 +47,10 @@ import {
 	resolveTreeseedManagedCloudflareHostConfigFromConfig,
 } from '../lib/market/managed-hosts.js';
 import { decryptHostConfig } from '../lib/cloudflare-host-crypto.js';
+import { getSiteAuthConfig } from '../lib/auth/config.ts';
+import { accountDeletionConfirmationMatches } from '../lib/auth/account.ts';
+import { sendEmailConfirmation } from '../lib/auth/email-confirmation.ts';
+import { sendWelcomeEmail } from '../lib/auth/welcome-email.ts';
 import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicKey, createVerify, pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -59,6 +64,51 @@ function jsonError(c, status, error, details = {}) {
 		error,
 		...details,
 	}, { status });
+}
+
+function parseBooleanEnvValue(value) {
+	const normalized = String(value ?? '').trim().toLowerCase();
+	if (!normalized) return null;
+	if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+	if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+	return null;
+}
+
+function shouldLogMarketApiRequests(config, options = {}) {
+	if (typeof options.logRequests === 'boolean') return options.logRequests;
+	const explicit = parseBooleanEnvValue(process.env.TREESEED_MARKET_API_REQUEST_LOGS ?? process.env.TREESEED_API_REQUEST_LOGS);
+	if (explicit != null) return explicit;
+	if (process.env.NODE_ENV === 'test') return false;
+	const environment = String(config?.environment ?? process.env.TREESEED_API_ENVIRONMENT ?? process.env.TREESEED_ENVIRONMENT ?? '').trim();
+	return environment === 'local';
+}
+
+const SENSITIVE_QUERY_PARAM_PATTERN = /(?:token|secret|password|credential|assertion|signature|api[_-]?key|access[_-]?key|private[_-]?key|code)/iu;
+
+function redactedRequestTarget(requestUrl) {
+	const url = new URL(requestUrl);
+	const query = [...url.searchParams.entries()]
+		.map(([key, value]) => {
+			const safeValue = SENSITIVE_QUERY_PARAM_PATTERN.test(key) ? '[redacted]' : encodeURIComponent(value);
+			return `${encodeURIComponent(key)}=${safeValue}`;
+		})
+		.join('&');
+	return `${url.pathname}${query ? `?${query}` : ''}`;
+}
+
+function installMarketApiRequestLogger(app) {
+	app.use('*', async (c, next) => {
+		const startedAt = Date.now();
+		const method = c.req.method;
+		const target = redactedRequestTarget(c.req.url);
+		try {
+			await next();
+		} finally {
+			const elapsedMs = Date.now() - startedAt;
+			const status = c.res?.status ?? 500;
+			process.stdout.write(`[market-api] ${method} ${target} -> ${status} ${elapsedMs}ms\n`);
+		}
+	});
 }
 
 const AGENT_PROMOTION_APPROVAL_DECISIONS = new Set([
@@ -97,6 +147,52 @@ function normalizeUsername(value) {
 	return String(value ?? '').trim().toLowerCase();
 }
 
+function parseJsonObject(value, fallback = {}) {
+	if (!value) return fallback;
+	try {
+		const parsed = JSON.parse(String(value));
+		return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
+	} catch {
+		return fallback;
+	}
+}
+
+function trimmedHeaderValue(c, name) {
+	const value = c.req.header(name);
+	return typeof value === 'string' ? value.trim() : '';
+}
+
+function requestClientIp(c) {
+	const forwardedFor = trimmedHeaderValue(c, 'x-forwarded-for')
+		.split(',')
+		.map((part) => part.trim())
+		.find(Boolean);
+	return (
+		trimmedHeaderValue(c, 'cf-connecting-ip')
+		|| trimmedHeaderValue(c, 'true-client-ip')
+		|| trimmedHeaderValue(c, 'x-real-ip')
+		|| trimmedHeaderValue(c, 'x-treeseed-client-ip')
+		|| forwardedFor
+		|| null
+	);
+}
+
+function requestSessionMetadata(c) {
+	const userAgent = trimmedHeaderValue(c, 'user-agent');
+	const ipAddress = requestClientIp(c);
+	return {
+		ipAddress: ipAddress ? ipAddress.slice(0, 128) : null,
+		userAgent: userAgent ? userAgent.slice(0, 512) : null,
+	};
+}
+
+function webSessionData(c, source) {
+	return {
+		source,
+		...requestSessionMetadata(c),
+	};
+}
+
 function validateMarketPassword(value) {
 	return typeof value === 'string' && value.length >= 12;
 }
@@ -121,6 +217,226 @@ function verifyMarketPassword(password, envelope) {
 
 async function ensureMarketCredentialSchema(store) {
 	await store.ensureInitialized();
+	await backfillUserEmailAddresses(store);
+}
+
+const MARKET_EMAIL_CONFIRMATION_PREFIX = 'market_email_confirmation:';
+
+function marketAuthContext(c) {
+	return {
+		locals: {
+			runtime: {
+				env: {
+					...process.env,
+					...(c.env ?? {}),
+				},
+			},
+		},
+		url: new URL(c.req.url),
+	};
+}
+
+function shouldBypassAcceptanceAuthEmailDelivery(c, config) {
+	const serviceId = c.req.header('x-treeseed-service-id') ?? '';
+	const serviceSecret = c.req.header('x-treeseed-service-secret') ?? '';
+	return c.req.header('x-treeseed-acceptance-email-bypass') === '1'
+		&& Boolean(config.webServiceId && config.webServiceSecret)
+		&& serviceId === config.webServiceId
+		&& serviceSecret === config.webServiceSecret;
+}
+
+function marketEmailTokenHash(token) {
+	return createHash('sha256').update(String(token)).digest('hex');
+}
+
+function exposeAuthTokenForTests() {
+	return process.env.NODE_ENV === 'test' || process.env.TREESEED_ACCEPTANCE_EXPOSE_AUTH_TOKENS === '1';
+}
+
+function sanitizedReturnTo(value) {
+	const target = String(value ?? '/app/');
+	return target.startsWith('/') && !target.startsWith('//') ? target : '/app/';
+}
+
+function confirmationUrlFor(context, token, returnTo) {
+	const authConfig = getSiteAuthConfig(context);
+	const target = new URL('/auth/confirm-email', `${authConfig.siteBaseUrl.replace(/\/+$/u, '')}/`);
+	target.searchParams.set('token', token);
+	target.searchParams.set('returnTo', sanitizedReturnTo(returnTo));
+	return target.toString();
+}
+
+async function createMarketEmailConfirmation(store, context, input) {
+	const authConfig = getSiteAuthConfig(context);
+	const token = `confirm_${randomBytes(24).toString('base64url')}`;
+	const now = Date.now();
+	const expiresInSeconds = authConfig.emailVerificationTtlSeconds;
+	const expiresAt = now + expiresInSeconds * 1000;
+	const identifier = `${MARKET_EMAIL_CONFIRMATION_PREFIX}${input.emailAddressId ?? input.email}`;
+	await store.run(`DELETE FROM better_auth_verification WHERE identifier = ?`, [identifier]).catch(() => null);
+	await store.run(
+		`INSERT INTO better_auth_verification (id, identifier, value, "expiresAt", "createdAt", "updatedAt")
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		[randomUUID(), identifier, marketEmailTokenHash(token), expiresAt, now, now],
+	);
+	if (input.emailAddressId) {
+		await store.run(
+			`UPDATE user_email_addresses SET verification_requested_at = ?, updated_at = ? WHERE id = ?`,
+			[new Date(now).toISOString(), new Date(now).toISOString(), input.emailAddressId],
+		).catch(() => null);
+	}
+	if (!input.skipDelivery) {
+		await sendEmailConfirmation(context, {
+			email: input.email,
+			displayName: input.displayName,
+			confirmationUrl: confirmationUrlFor(context, token, input.returnTo),
+			expiresInSeconds,
+		});
+	}
+	return {
+		email: input.email,
+		expiresInSeconds,
+		token,
+	};
+}
+
+function serializeUserEmailAddress(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		userId: row.user_id,
+		email: row.email,
+		status: row.status,
+		verified: row.status === 'verified',
+		isPrimary: Number(row.is_primary ?? 0) === 1,
+		verificationRequestedAt: row.verification_requested_at ?? null,
+		verifiedAt: row.verified_at ?? null,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+async function backfillUserEmailAddresses(store) {
+	const now = new Date().toISOString();
+	await store.run(
+		`INSERT INTO user_email_addresses (
+			id, user_id, email, normalized_email, status, is_primary, verification_requested_at, verified_at, created_at, updated_at
+		)
+		SELECT 'email_' || md5(user_id || ':' || LOWER(email)), user_id, email, LOWER(email), 'verified', 1, created_at, COALESCE(updated_at, created_at), created_at, updated_at
+		  FROM market_auth_credentials
+		 WHERE email IS NOT NULL
+		   AND email != ''
+		   AND status = 'active'
+		ON CONFLICT (normalized_email) DO NOTHING`,
+	).catch(() => null);
+	await store.run(
+		`UPDATE user_email_addresses
+		    SET updated_at = ?
+		  WHERE is_primary = 1
+		    AND status != 'verified'`,
+		[now],
+	).catch(() => null);
+}
+
+async function listUserEmailAddresses(store, userId) {
+	await backfillUserEmailAddresses(store);
+	const rows = await store.all(
+		`SELECT * FROM user_email_addresses
+		 WHERE user_id = ?
+		 ORDER BY is_primary DESC, status DESC, verified_at ASC, created_at ASC`,
+		[userId],
+	).catch(() => []);
+	return rows.map(serializeUserEmailAddress);
+}
+
+async function getUserEmailAddress(store, userId, emailId) {
+	await backfillUserEmailAddresses(store);
+	const row = await store.first(
+		`SELECT * FROM user_email_addresses WHERE id = ? AND user_id = ? LIMIT 1`,
+		[emailId, userId],
+	);
+	return row ?? null;
+}
+
+async function verifiedEmailCount(store, userId) {
+	const row = await store.first(
+		`SELECT COUNT(*) AS count FROM user_email_addresses WHERE user_id = ? AND status = 'verified'`,
+		[userId],
+	);
+	return Number(row?.count ?? 0);
+}
+
+async function setPrimaryEmailAddress(store, userId, emailId) {
+	const email = await getUserEmailAddress(store, userId, emailId);
+	if (!email) return { ok: false, status: 404, error: 'Email address was not found.' };
+	if (email.status !== 'verified') return { ok: false, status: 409, error: 'Email must be verified before it can be primary.' };
+	const now = new Date().toISOString();
+	await store.run(`UPDATE user_email_addresses SET is_primary = 0, updated_at = ? WHERE user_id = ?`, [now, userId]);
+	await store.run(`UPDATE user_email_addresses SET is_primary = 1, updated_at = ? WHERE id = ? AND user_id = ?`, [now, emailId, userId]);
+	await syncPrimaryEmailCaches(store, userId);
+	return { ok: true, emailAddress: serializeUserEmailAddress(await getUserEmailAddress(store, userId, emailId)) };
+}
+
+async function syncPrimaryEmailCaches(store, userId) {
+	const primary = await store.first(
+		`SELECT * FROM user_email_addresses
+		 WHERE user_id = ? AND status = 'verified'
+		 ORDER BY is_primary DESC, verified_at ASC, created_at ASC
+		 LIMIT 1`,
+		[userId],
+	);
+	if (!primary?.id) return null;
+	const now = new Date().toISOString();
+	await store.run(`UPDATE user_email_addresses SET is_primary = CASE WHEN id = ? THEN 1 ELSE 0 END, updated_at = ? WHERE user_id = ?`, [
+		primary.id,
+		now,
+		userId,
+	]);
+	await store.run(`UPDATE users SET email = ?, updated_at = ? WHERE id = ?`, [primary.email, now, userId]);
+	await store.run(`UPDATE market_auth_credentials SET email = ?, updated_at = ? WHERE user_id = ?`, [primary.email, now, userId]).catch(() => null);
+	return serializeUserEmailAddress(await getUserEmailAddress(store, userId, primary.id));
+}
+
+async function createOrResendUserEmailAddress(store, context, userId, input) {
+	const email = normalizeEmail(input.email);
+	if (!email || !email.includes('@')) return { ok: false, status: 400, error: 'A valid email is required.' };
+	const now = new Date().toISOString();
+	const existing = await store.first(
+		`SELECT * FROM user_email_addresses WHERE normalized_email = ? LIMIT 1`,
+		[email],
+	);
+	if (existing?.id && existing.user_id !== userId) {
+		return { ok: false, status: 409, error: 'Email is already in use.' };
+	}
+	let row = existing;
+	if (!row?.id) {
+		const id = randomUUID();
+		const primary = (await verifiedEmailCount(store, userId)) === 0 ? 1 : 0;
+		await store.run(
+			`INSERT INTO user_email_addresses (
+				id, user_id, email, normalized_email, status, is_primary, verification_requested_at, verified_at, created_at, updated_at
+			) VALUES (?, ?, ?, ?, 'pending', ?, NULL, NULL, ?, ?)`,
+			[id, userId, email, email, primary, now, now],
+		);
+		row = await getUserEmailAddress(store, userId, id);
+	}
+	let confirmation = null;
+	if (row?.status !== 'verified') {
+		confirmation = await createMarketEmailConfirmation(store, context, {
+			email: row.email,
+			emailAddressId: row.id,
+			displayName: input.displayName,
+			returnTo: input.returnTo ?? '/app/account',
+			skipDelivery: input.skipDelivery,
+		});
+		row = await getUserEmailAddress(store, userId, row.id);
+	}
+	return {
+		ok: true,
+		emailAddress: serializeUserEmailAddress(row),
+		verificationSent: Boolean(confirmation),
+		confirmationToken: exposeAuthTokenForTests() ? confirmation?.token : undefined,
+	};
 }
 
 async function createMarketWebSession(marketAuthProvider, userId, data = {}, options = {}) {
@@ -2370,7 +2686,6 @@ export function createMarketApiApp(options = {}) {
 		...config,
 		baseUrl: resolveAuthApprovalBaseUrl(config),
 	};
-	const marketAuthProvider = new D1AuthProvider(authConfig, { db });
 	const sharedSdk = options.sdk ?? AgentSdk.createLocal({
 		repoRoot: config.repoRoot,
 		databaseName: config.d1DatabaseName ?? `${config.projectId}-market`,
@@ -2393,6 +2708,7 @@ export function createMarketApiApp(options = {}) {
 		: {
 			...(options.runtimeProviders ?? {}),
 		};
+	const logRequests = shouldLogMarketApiRequests(config, options);
 
 	return createTreeseedApiApp({
 		...options,
@@ -2413,6 +2729,17 @@ export function createMarketApiApp(options = {}) {
 		extensions: [
 			createMarketApiExtension({
 				mount(app, runtime) {
+			if (logRequests) {
+				installMarketApiRequestLogger(app);
+			}
+			const runtimeMarketAuthProvider = new D1AuthProvider({
+				...authConfig,
+				...runtime.resolved.config,
+				baseUrl: resolveAuthApprovalBaseUrl({
+					...config,
+					...runtime.resolved.config,
+				}),
+			}, { db });
 			store.setArtifactBucket(resolveAgentArtifactBucket(runtime));
 			app.get('/healthz/deep', async (c) => {
 				try {
@@ -2479,7 +2806,7 @@ export function createMarketApiApp(options = {}) {
 					const email = normalizeEmail(actorInput.email) || `treeseed+${namespace}-${safeActorId}@treeseed.ai`;
 					const username = normalizeUsername(actorInput.username) || `${namespace}-${safeActorId}`.replace(/[^a-z0-9-]+/gu, '-').slice(0, 39).replace(/^-+|-+$/gu, '') || safeActorId;
 					const displayName = optionalTrimmedString(actorInput.displayName) ?? `Acceptance ${actorId}`;
-					const synced = await marketAuthProvider.syncUserIdentity({
+					const synced = await runtimeMarketAuthProvider.syncUserIdentity({
 						provider: 'acceptance',
 						providerSubject: `${namespace}:${actorId}`,
 						email,
@@ -2488,8 +2815,8 @@ export function createMarketApiApp(options = {}) {
 						displayName,
 						profile: { acceptance: true, namespace, actorId },
 					});
-					if (marketAuthProvider.setUserRoles) {
-						await marketAuthProvider.setUserRoles(synced.principal.id, Array.isArray(actorInput.siteRoles) ? actorInput.siteRoles.map(String) : ['viewer']);
+					if (runtimeMarketAuthProvider.setUserRoles) {
+						await runtimeMarketAuthProvider.setUserRoles(synced.principal.id, Array.isArray(actorInput.siteRoles) ? actorInput.siteRoles.map(String) : ['viewer']);
 					}
 					const now = new Date().toISOString();
 					await store.run(`DELETE FROM market_auth_credentials WHERE user_id = ? OR email = ? OR username = ?`, [synced.principal.id, email, username]);
@@ -2498,7 +2825,14 @@ export function createMarketApiApp(options = {}) {
 						 VALUES (?, ?, ?, ?, 'active', ?, ?)`,
 						[synced.principal.id, email, username, hashMarketPassword(password), now, now],
 					);
-					const session = await createMarketWebSession(marketAuthProvider, synced.principal.id, {
+					await store.run(`DELETE FROM user_email_addresses WHERE user_id = ? OR normalized_email = ?`, [synced.principal.id, email]).catch(() => null);
+					await store.run(
+						`INSERT INTO user_email_addresses (
+							id, user_id, email, normalized_email, status, is_primary, verification_requested_at, verified_at, created_at, updated_at
+						) VALUES (?, ?, ?, ?, 'verified', 1, ?, ?, ?, ?)`,
+						[randomUUID(), synced.principal.id, email, email, now, now, now, now],
+					).catch(() => null);
+					const session = await createMarketWebSession(runtimeMarketAuthProvider, synced.principal.id, {
 						source: 'acceptance_seed',
 						namespace,
 						actorId,
@@ -2544,6 +2878,54 @@ export function createMarketApiApp(options = {}) {
 					});
 					project = details.project ?? details;
 				}
+				await store.upsertHubRepository(project.id, {
+					teamId: team.id,
+					role: 'software',
+					provider: 'github',
+					owner: 'treeseed-acceptance',
+					name: projectSlug,
+					url: `https://github.com/treeseed-acceptance/${projectSlug}`,
+					defaultBranch: 'staging',
+					status: 'ready',
+					metadata: { acceptance: true, namespace, workflowFile: 'deploy-web.yml' },
+				}).catch(() => null);
+				const acceptanceWebHostId = `web-host-${namespace}`.replace(/[^a-z0-9-]+/giu, '-').slice(0, 96);
+				const existingWebHost = await store.getTeamWebHost?.(team.id, acceptanceWebHostId).catch(() => null);
+				if (!existingWebHost) {
+					await store.createTeamWebHost(team.id, {
+						id: acceptanceWebHostId,
+						provider: 'cloudflare',
+						ownership: 'team_owned',
+						name: `Acceptance ${namespace} Web`,
+						accountLabel: 'Acceptance Cloudflare',
+						allowedEnvironments: ['staging', 'prod'],
+						status: 'active',
+						encryptedPayload: {
+							version: 1,
+							algorithm: 'acceptance-redacted',
+							kdf: {},
+							salt: 'acceptance',
+							nonce: 'acceptance',
+							ciphertext: 'redacted',
+						},
+						metadata: { acceptance: true, namespace },
+						createdById: owner?.userId,
+					}).catch(() => null);
+				}
+				await store.upsertProjectEnvironment(project.id, {
+					environment: 'staging',
+					deploymentProfile: 'hosted_project',
+					baseUrl: `https://${projectSlug}.staging.example.test`,
+					pagesProjectName: `${projectSlug}-staging`,
+					metadata: { acceptance: true, namespace },
+				}).catch(() => null);
+				await store.upsertProjectEnvironment(project.id, {
+					environment: 'prod',
+					deploymentProfile: 'hosted_project',
+					baseUrl: `https://${projectSlug}.example.test`,
+					pagesProjectName: `${projectSlug}-prod`,
+					metadata: { acceptance: true, namespace },
+				}).catch(() => null);
 				const provider = await store.upsertCapacityProvider(team.id, {
 					id: `provider-${namespace}`.replace(/[^a-z0-9-]+/giu, '-').slice(0, 96),
 					name: `Acceptance ${namespace} Provider`,
@@ -2602,7 +2984,7 @@ export function createMarketApiApp(options = {}) {
 					runnerId: platformRunnerId,
 					name: `Acceptance ${namespace} Runner`,
 					environment: runtime.resolved.config.environment ?? 'local',
-					capabilities: ['market:noop'],
+					capabilities: ['market:noop', 'project:web_deployment'],
 					maxConcurrentJobs: 1,
 					metadata: { acceptance: true, namespace, dataDir: '/data' },
 				}).catch(() => null);
@@ -2716,7 +3098,7 @@ export function createMarketApiApp(options = {}) {
 							invite: { id: invite?.invite?.id ?? null },
 							approvalRequest: { id: approvalRequest?.id ?? `approval-${namespace}` },
 							passwordReset: { token: resetToken },
-							host: { id: `host-${namespace}` },
+							host: { id: acceptanceWebHostId },
 							environment: { id: 'staging' },
 						},
 					},
@@ -2859,6 +3241,7 @@ export function createMarketApiApp(options = {}) {
 				const operation = await store.claimPlatformOperation({
 					runnerId,
 					operationId: optionalTrimmedString(body.operationId),
+					capabilities: Array.isArray(body.capabilities) ? body.capabilities.map(String) : [],
 					limit: body.limit,
 					leaseSeconds: body.leaseSeconds,
 				});
@@ -2927,6 +3310,24 @@ export function createMarketApiApp(options = {}) {
 				return c.json({ ok: true, operation: decoratePlatformOperation(runtime.resolved.config.baseUrl, renewed) });
 			});
 
+			app.post('/v1/platform/runners/jobs/:operationId/cancel', async (c) => {
+				const auth = await requirePlatformRunner(c, runtime.resolved.config);
+				if (auth.response) return auth.response;
+				const operation = await store.findPlatformOperationById(c.req.param('operationId'));
+				if (!operation) return jsonError(c, 404, `Unknown platform operation "${c.req.param('operationId')}".`);
+				const body = await c.req.json().catch(() => ({}));
+				const runnerId = optionalTrimmedString(body.runnerId);
+				if (runnerId && operation.assignedRunnerId && operation.assignedRunnerId !== runnerId) {
+					return jsonError(c, 409, 'Platform operation is assigned to a different runner.', { assignedRunnerId: operation.assignedRunnerId });
+				}
+				const cancelled = await store.cancelPlatformOperation(operation.id);
+				const event = body.event && typeof body.event === 'object' ? body.event : null;
+				if (event) {
+					await store.appendPlatformOperationEvent(operation.id, optionalTrimmedString(event.kind) ?? 'runner.cancelled', event.data && typeof event.data === 'object' ? event.data : {});
+				}
+				return c.json({ ok: true, operation: decoratePlatformOperation(runtime.resolved.config.baseUrl, cancelled) });
+			});
+
 			app.post('/v1/platform/runners/jobs/:operationId/complete', async (c) => {
 				const auth = await requirePlatformRunner(c, runtime.resolved.config);
 				if (auth.response) return auth.response;
@@ -2967,7 +3368,7 @@ export function createMarketApiApp(options = {}) {
 
 			app.post('/v1/auth/device/start', async (c) => {
 				const body = await c.req.json().catch(() => ({}));
-				const started = await marketAuthProvider.startDeviceFlow({
+				const started = await runtimeMarketAuthProvider.startDeviceFlow({
 					clientName: typeof body.clientName === 'string' ? body.clientName : 'treeseed-cli',
 					scopes: Array.isArray(body.scopes) ? body.scopes.map(String) : ['auth:me'],
 				});
@@ -2976,7 +3377,7 @@ export function createMarketApiApp(options = {}) {
 
 			app.post('/v1/auth/device/poll', async (c) => {
 				const body = await c.req.json().catch(() => ({}));
-				const response = await marketAuthProvider.pollDeviceFlow({ deviceCode: String(body.deviceCode ?? '') });
+				const response = await runtimeMarketAuthProvider.pollDeviceFlow({ deviceCode: String(body.deviceCode ?? '') });
 				return c.json(response, { status: response.ok ? 200 : response.status === 'expired' ? 410 : 400 });
 			});
 
@@ -2990,7 +3391,7 @@ export function createMarketApiApp(options = {}) {
 			app.post('/v1/auth/device/approve', async (c) => {
 				const body = await c.req.json().catch(() => ({}));
 				try {
-					return c.json(await marketAuthProvider.approveDeviceFlow({
+					return c.json(await runtimeMarketAuthProvider.approveDeviceFlow({
 						userCode: String(body.userCode ?? ''),
 						principalId: String(body.principalId ?? ''),
 						displayName: typeof body.displayName === 'string' ? body.displayName : undefined,
@@ -3009,6 +3410,8 @@ export function createMarketApiApp(options = {}) {
 				const username = normalizeUsername(body.username);
 				const password = String(body.password ?? '');
 				const displayName = String(body.displayName ?? body.name ?? email).trim();
+				const returnTo = sanitizedReturnTo(body.returnTo);
+				const appearance = normalizeAppearancePreference(body.appearance && typeof body.appearance === 'object' ? body.appearance : body);
 				if (!email || !email.includes('@')) return jsonError(c, 400, 'A valid email is required.');
 				if (!username || !/^[a-z0-9-]{1,39}$/u.test(username) || username.startsWith('-') || username.endsWith('-') || username.includes('--')) {
 					return jsonError(c, 400, 'A valid username is required.');
@@ -3019,11 +3422,16 @@ export function createMarketApiApp(options = {}) {
 					[email, username],
 				);
 				if (existing) return jsonError(c, 409, 'An account already exists for this email or username.');
-				const synced = await marketAuthProvider.syncUserIdentity({
+				const existingEmailAddress = await store.first(
+					`SELECT user_id FROM user_email_addresses WHERE normalized_email = ? LIMIT 1`,
+					[email],
+				);
+				if (existingEmailAddress) return jsonError(c, 409, 'An account already exists for this email or username.');
+				const synced = await runtimeMarketAuthProvider.syncUserIdentity({
 					provider: 'credential',
 					providerSubject: email,
 					email,
-					emailVerified: true,
+					emailVerified: false,
 					username,
 					displayName,
 					profile: {
@@ -3031,13 +3439,113 @@ export function createMarketApiApp(options = {}) {
 						lastName: optionalTrimmedString(body.lastName),
 					},
 				});
+				await store.run(`UPDATE users SET metadata_json = ?, updated_at = ? WHERE id = ?`, [
+					JSON.stringify({
+						...(synced.principal.metadata ?? {}),
+						appearance,
+					}),
+					new Date().toISOString(),
+					synced.principal.id,
+				]).catch(() => null);
 				const now = new Date().toISOString();
 				await store.run(
 					`INSERT INTO market_auth_credentials (user_id, email, username, password_hash, status, created_at, updated_at)
-					 VALUES (?, ?, ?, ?, 'active', ?, ?)`,
+					 VALUES (?, ?, ?, ?, 'pending_email_confirmation', ?, ?)`,
 					[synced.principal.id, email, username, hashMarketPassword(password), now, now],
 				);
-				const session = await createMarketWebSession(marketAuthProvider, synced.principal.id, { source: 'web_sign_up' }, { store, authSecret: runtime.resolved.config.authSecret });
+				const emailAddressId = randomUUID();
+				await store.run(
+					`INSERT INTO user_email_addresses (
+						id, user_id, email, normalized_email, status, is_primary, verification_requested_at, verified_at, created_at, updated_at
+					) VALUES (?, ?, ?, ?, 'pending', 1, NULL, NULL, ?, ?)`,
+					[emailAddressId, synced.principal.id, email, email, now, now],
+				);
+				let confirmation;
+				try {
+					confirmation = await createMarketEmailConfirmation(store, marketAuthContext(c), {
+						email,
+						emailAddressId,
+						displayName,
+						returnTo,
+						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, runtime.resolved.config),
+					});
+				} catch (error) {
+					await store.run(`DELETE FROM market_auth_credentials WHERE user_id = ?`, [synced.principal.id]).catch(() => null);
+					await store.run(`DELETE FROM user_email_addresses WHERE user_id = ?`, [synced.principal.id]).catch(() => null);
+					await store.run(`DELETE FROM better_auth_verification WHERE identifier = ?`, [`${MARKET_EMAIL_CONFIRMATION_PREFIX}${emailAddressId}`]).catch(() => null);
+					console.warn('[market-auth] Email confirmation setup failed:', error instanceof Error ? error.message : String(error));
+					return jsonError(c, 503, 'Email confirmation could not be sent. Please try again shortly.', {
+						code: 'email_confirmation_delivery_failed',
+					});
+				}
+				return c.json({
+					ok: true,
+					payload: {
+						confirmationRequired: true,
+						email,
+						expiresInSeconds: confirmation.expiresInSeconds,
+						confirmationToken: exposeAuthTokenForTests() ? confirmation.token : undefined,
+					},
+				});
+			});
+
+			app.post('/v1/auth/web/confirm-email', async (c) => {
+				await ensureMarketCredentialSchema(store);
+				const body = await readJsonOrFormBody(c);
+				const token = String(body.token ?? '').trim();
+				if (!token) return jsonError(c, 400, 'Email confirmation token is required.');
+				const row = await store.first(
+					`SELECT * FROM better_auth_verification WHERE value = ? AND identifier LIKE ? LIMIT 1`,
+					[marketEmailTokenHash(token), `${MARKET_EMAIL_CONFIRMATION_PREFIX}%`],
+				);
+				const expiresAt = Number(row?.expiresAt ?? row?.expiresat ?? 0);
+				if (!row || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+					return jsonError(c, 401, 'Email confirmation token is invalid or expired.');
+				}
+				const emailAddressId = String(row.identifier ?? '').slice(MARKET_EMAIL_CONFIRMATION_PREFIX.length);
+				const emailAddress = await store.first(`SELECT * FROM user_email_addresses WHERE id = ? LIMIT 1`, [emailAddressId]);
+				if (!emailAddress?.id) {
+					return jsonError(c, 401, 'Email confirmation token is invalid or expired.');
+				}
+				const email = String(emailAddress.email ?? '').trim().toLowerCase();
+				const credential = await store.first(
+					`SELECT user_id, email, username, status FROM market_auth_credentials WHERE user_id = ? LIMIT 1`,
+					[emailAddress.user_id],
+				);
+				if (!credential || credential.status === 'deleted') {
+					return jsonError(c, 401, 'Email confirmation token is invalid or expired.');
+				}
+				const now = new Date().toISOString();
+				const firstVerified = (await verifiedEmailCount(store, emailAddress.user_id)) === 0;
+				await store.run(
+					`UPDATE user_email_addresses
+					 SET status = 'verified', verified_at = COALESCE(verified_at, ?), updated_at = ?
+					 WHERE id = ?`,
+					[now, now, emailAddress.id],
+				);
+				if (Number(emailAddress.is_primary ?? 0) === 1 || firstVerified) {
+					await setPrimaryEmailAddress(store, emailAddress.user_id, emailAddress.id);
+				}
+				if (credential.status !== 'active') {
+					await store.run(
+						`UPDATE market_auth_credentials SET status = 'active', updated_at = ? WHERE user_id = ?`,
+						[now, credential.user_id],
+					);
+					await store.run(
+						`UPDATE user_identities SET email_verified = 1, updated_at = ? WHERE user_id = ? AND provider = 'credential'`,
+						[now, credential.user_id],
+					).catch(() => null);
+				}
+				await store.run(`DELETE FROM better_auth_verification WHERE id = ?`, [row.id]).catch(() => null);
+					const session = await createMarketWebSession(runtimeMarketAuthProvider, emailAddress.user_id, webSessionData(c, 'web_email_confirmed'), { store, authSecret: runtime.resolved.config.authSecret });
+				if (credential.status !== 'active') {
+					await sendWelcomeEmail(marketAuthContext(c), {
+						email,
+						displayName: credential.username ?? email,
+					}).catch((error) => {
+						console.info(`[auth-email] Welcome email skipped after confirmation: ${error instanceof Error ? error.message : String(error)}`);
+					});
+				}
 				return c.json({ ok: true, payload: webAuthPayload(session) });
 			});
 
@@ -3047,15 +3555,38 @@ export function createMarketApiApp(options = {}) {
 				const identifier = normalizeEmail(body.email ?? body.login ?? body.username);
 				const password = String(body.password ?? '');
 				if (!identifier || !password) return jsonError(c, 400, 'Email or username and password are required.');
-				const row = await store.first(
-					`SELECT user_id, password_hash, status FROM market_auth_credentials
-					 WHERE email = ? OR username = ? LIMIT 1`,
+				let row = await store.first(
+					`SELECT market_auth_credentials.user_id, market_auth_credentials.password_hash, market_auth_credentials.status
+					   FROM market_auth_credentials
+					   LEFT JOIN user_email_addresses
+					     ON user_email_addresses.user_id = market_auth_credentials.user_id
+					    AND user_email_addresses.normalized_email = ?
+					    AND user_email_addresses.status = 'verified'
+					  WHERE market_auth_credentials.username = ?
+					     OR user_email_addresses.id IS NOT NULL
+					  LIMIT 1`,
 					[identifier, identifier],
 				);
-				if (!row || row.status !== 'active' || !verifyMarketPassword(password, row.password_hash)) {
+				if (!row) {
+					row = await store.first(
+						`SELECT market_auth_credentials.user_id, market_auth_credentials.password_hash, market_auth_credentials.status, user_email_addresses.status AS email_status
+						   FROM market_auth_credentials
+						   INNER JOIN user_email_addresses
+						      ON user_email_addresses.user_id = market_auth_credentials.user_id
+						     AND user_email_addresses.normalized_email = ?
+						  LIMIT 1`,
+						[identifier],
+					);
+				}
+				if (!row || row.status === 'deleted' || !verifyMarketPassword(password, row.password_hash)) {
 					return jsonError(c, 401, 'Authentication failed.');
 				}
-				const session = await createMarketWebSession(marketAuthProvider, row.user_id, { source: 'web_sign_in' }, { store, authSecret: runtime.resolved.config.authSecret });
+				if (row.status !== 'active' || (row.email_status && row.email_status !== 'verified')) {
+					return jsonError(c, 403, 'Email confirmation is required before signing in.', {
+						code: 'email_confirmation_required',
+					});
+				}
+					const session = await createMarketWebSession(runtimeMarketAuthProvider, row.user_id, webSessionData(c, 'web_sign_in'), { store, authSecret: runtime.resolved.config.authSecret });
 				return c.json({ ok: true, payload: webAuthPayload(session) });
 			});
 
@@ -3078,6 +3609,94 @@ export function createMarketApiApp(options = {}) {
 				return c.json({ ok: true, payload: { username, available: !row, status: row ? 'taken' : 'available' } });
 			});
 
+			app.get('/v1/auth/web/emails', async (c) => {
+				await ensureMarketCredentialSchema(store);
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				return c.json({ ok: true, payload: await listUserEmailAddresses(store, auth.principal.id) });
+			});
+
+			app.post('/v1/auth/web/emails', async (c) => {
+				await ensureMarketCredentialSchema(store);
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const body = await readJsonOrFormBody(c);
+				try {
+					const result = await createOrResendUserEmailAddress(store, marketAuthContext(c), auth.principal.id, {
+						email: body.email,
+						displayName: auth.principal.displayName,
+						returnTo: '/app/account',
+						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, runtime.resolved.config),
+					});
+					if (!result.ok) return jsonError(c, result.status, result.error);
+					return c.json({ ok: true, payload: result });
+				} catch (error) {
+					console.warn('[market-auth] Email verification setup failed:', error instanceof Error ? error.message : String(error));
+					return jsonError(c, 503, 'Email verification could not be sent. Please try again shortly.', {
+						code: 'email_verification_delivery_failed',
+					});
+				}
+			});
+
+			app.post('/v1/auth/web/emails/:emailId/verify', async (c) => {
+				await ensureMarketCredentialSchema(store);
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const row = await getUserEmailAddress(store, auth.principal.id, c.req.param('emailId'));
+				if (!row) return jsonError(c, 404, 'Email address was not found.');
+				if (row.status === 'verified') {
+					return c.json({ ok: true, payload: { emailAddress: row, verificationSent: false } });
+				}
+				try {
+					const confirmation = await createMarketEmailConfirmation(store, marketAuthContext(c), {
+						email: row.email,
+						emailAddressId: row.id,
+						displayName: auth.principal.displayName,
+						returnTo: '/app/account',
+						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, runtime.resolved.config),
+					});
+					return c.json({
+						ok: true,
+						payload: {
+							emailAddress: serializeUserEmailAddress(await getUserEmailAddress(store, auth.principal.id, row.id)),
+							verificationSent: true,
+							confirmationToken: exposeAuthTokenForTests() ? confirmation.token : undefined,
+						},
+					});
+				} catch (error) {
+					console.warn('[market-auth] Email verification setup failed:', error instanceof Error ? error.message : String(error));
+					return jsonError(c, 503, 'Email verification could not be sent. Please try again shortly.', {
+						code: 'email_verification_delivery_failed',
+					});
+				}
+			});
+
+			app.post('/v1/auth/web/emails/:emailId/primary', async (c) => {
+				await ensureMarketCredentialSchema(store);
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const result = await setPrimaryEmailAddress(store, auth.principal.id, c.req.param('emailId'));
+				if (!result.ok) return jsonError(c, result.status, result.error);
+				const session = await createMarketWebSession(runtimeMarketAuthProvider, auth.principal.id, webSessionData(c, 'email_primary_update'), { store, authSecret: runtime.resolved.config.authSecret });
+				return c.json({ ok: true, payload: { ...webAuthPayload(session), emailAddress: result.emailAddress } });
+			});
+
+			app.delete('/v1/auth/web/emails/:emailId', async (c) => {
+				await ensureMarketCredentialSchema(store);
+				const auth = await ensurePrincipal(c);
+				if (auth.response) return auth.response;
+				const row = await getUserEmailAddress(store, auth.principal.id, c.req.param('emailId'));
+				if (!row) return jsonError(c, 404, 'Email address was not found.');
+				if (row.status === 'verified' && await verifiedEmailCount(store, auth.principal.id) <= 1) {
+					return jsonError(c, 409, 'At least one verified email is required.', { code: 'last_verified_email' });
+				}
+				await store.run(`DELETE FROM user_email_addresses WHERE id = ? AND user_id = ?`, [row.id, auth.principal.id]);
+				if (row.status === 'verified' && row.isPrimary) {
+					await syncPrimaryEmailCaches(store, auth.principal.id);
+				}
+				return c.json({ ok: true, payload: await listUserEmailAddresses(store, auth.principal.id) });
+			});
+
 			app.get('/v1/auth/web/sessions', async (c) => {
 				const auth = await ensurePrincipal(c);
 				if (auth.response) return auth.response;
@@ -3088,15 +3707,20 @@ export function createMarketApiApp(options = {}) {
 				).catch(() => []);
 				return c.json({
 					ok: true,
-					payload: sessions.map((session) => ({
-						id: session.id,
-						provider: session.session_type,
-						expiresAt: session.expires_at,
-						revokedAt: session.revoked_at,
-						authenticatedAt: session.created_at,
-						lastSeenAt: session.updated_at,
-						current: auth.principal.metadata?.sessionId === session.id,
-					})),
+					payload: sessions.map((session) => {
+						const data = parseJsonObject(session.data_json);
+						return {
+							id: session.id,
+							provider: session.session_type,
+							expiresAt: session.expires_at,
+							revokedAt: session.revoked_at,
+							authenticatedAt: session.created_at,
+							lastSeenAt: session.updated_at,
+							ipAddress: typeof data.ipAddress === 'string' ? data.ipAddress : null,
+							userAgent: typeof data.userAgent === 'string' ? data.userAgent : null,
+							current: auth.principal.metadata?.sessionId === session.id,
+						};
+					}),
 				});
 			});
 
@@ -3127,7 +3751,7 @@ export function createMarketApiApp(options = {}) {
 					new Date().toISOString(),
 					auth.principal.id,
 				]);
-				const session = await createMarketWebSession(marketAuthProvider, auth.principal.id, { source: 'profile_update' }, { store, authSecret: runtime.resolved.config.authSecret });
+				const session = await createMarketWebSession(runtimeMarketAuthProvider, auth.principal.id, webSessionData(c, 'profile_update'), { store, authSecret: runtime.resolved.config.authSecret });
 				return c.json({ ok: true, payload: webAuthPayload(session) });
 			});
 
@@ -3154,7 +3778,8 @@ export function createMarketApiApp(options = {}) {
 					new Date().toISOString(),
 					auth.principal.id,
 				]);
-				return c.json({ ok: true, payload: appearance });
+				const session = await createMarketWebSession(runtimeMarketAuthProvider, auth.principal.id, webSessionData(c, 'appearance_update'), { store, authSecret: runtime.resolved.config.authSecret });
+				return c.json({ ok: true, payload: { ...webAuthPayload(session), ...appearance } });
 			});
 
 			app.patch('/v1/auth/web/email', async (c) => {
@@ -3164,15 +3789,25 @@ export function createMarketApiApp(options = {}) {
 				const body = await readJsonOrFormBody(c);
 				const email = normalizeEmail(body.email ?? body.newEmail);
 				if (!email || !email.includes('@')) return jsonError(c, 400, 'A valid email is required.');
-				const existing = await store.first(
-					`SELECT user_id FROM market_auth_credentials WHERE email = ? AND user_id != ? LIMIT 1`,
-					[email, auth.principal.id],
-				);
-				if (existing) return jsonError(c, 409, 'Email is already in use.');
-				await store.run(`UPDATE users SET email = ?, updated_at = ? WHERE id = ?`, [email, new Date().toISOString(), auth.principal.id]);
-				await store.run(`UPDATE market_auth_credentials SET email = ?, updated_at = ? WHERE user_id = ?`, [email, new Date().toISOString(), auth.principal.id]);
-				const session = await createMarketWebSession(marketAuthProvider, auth.principal.id, { source: 'email_update' }, { store, authSecret: runtime.resolved.config.authSecret });
-				return c.json({ ok: true, payload: webAuthPayload(session) });
+				try {
+					const result = await createOrResendUserEmailAddress(store, marketAuthContext(c), auth.principal.id, {
+						email,
+						displayName: auth.principal.displayName,
+						returnTo: '/app/account',
+						skipDelivery: shouldBypassAcceptanceAuthEmailDelivery(c, runtime.resolved.config),
+					});
+					if (!result.ok) return jsonError(c, result.status, result.error);
+					if (result.emailAddress?.status === 'verified') {
+						await setPrimaryEmailAddress(store, auth.principal.id, result.emailAddress.id);
+					}
+						const session = await createMarketWebSession(runtimeMarketAuthProvider, auth.principal.id, webSessionData(c, 'email_update'), { store, authSecret: runtime.resolved.config.authSecret });
+					return c.json({ ok: true, payload: { ...webAuthPayload(session), ...result } });
+				} catch (error) {
+					console.warn('[market-auth] Email verification setup failed:', error instanceof Error ? error.message : String(error));
+					return jsonError(c, 503, 'Email verification could not be sent. Please try again shortly.', {
+						code: 'email_verification_delivery_failed',
+					});
+				}
 			});
 
 			app.patch('/v1/auth/web/password', async (c) => {
@@ -3210,7 +3845,17 @@ export function createMarketApiApp(options = {}) {
 				const body = await readJsonOrFormBody(c);
 				const email = normalizeEmail(body.email);
 				const row = email
-					? await store.first(`SELECT user_id FROM market_auth_credentials WHERE email = ? AND status = 'active' LIMIT 1`, [email])
+					? await store.first(
+						`SELECT market_auth_credentials.user_id
+						   FROM market_auth_credentials
+						   INNER JOIN user_email_addresses
+						      ON user_email_addresses.user_id = market_auth_credentials.user_id
+						     AND user_email_addresses.normalized_email = ?
+						     AND user_email_addresses.status = 'verified'
+						  WHERE market_auth_credentials.status = 'active'
+						  LIMIT 1`,
+						[email],
+					)
 					: null;
 				let resetToken = null;
 				if (row) {
@@ -3279,8 +3924,13 @@ export function createMarketApiApp(options = {}) {
 				await ensureMarketCredentialSchema(store);
 				const auth = await ensurePrincipal(c);
 				if (auth.response) return auth.response;
+				const body = await readJsonOrFormBody(c);
+				if (!accountDeletionConfirmationMatches(String(body.confirmation ?? ''))) {
+					return jsonError(c, 409, 'Type "DELETE MY ACCOUNT" to delete this account.', { code: 'confirmation' });
+				}
 				await store.run(`UPDATE users SET status = 'deleted', updated_at = ? WHERE id = ?`, [new Date().toISOString(), auth.principal.id]);
 				await store.run(`UPDATE market_auth_credentials SET status = 'deleted', updated_at = ? WHERE user_id = ?`, [new Date().toISOString(), auth.principal.id]);
+				await store.run(`DELETE FROM user_email_addresses WHERE user_id = ?`, [auth.principal.id]).catch(() => null);
 				await store.run(`UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, ?), updated_at = ? WHERE user_id = ?`, [
 					new Date().toISOString(),
 					new Date().toISOString(),
@@ -3292,7 +3942,7 @@ export function createMarketApiApp(options = {}) {
 			app.post('/v1/auth/token/refresh', async (c) => {
 				const body = await c.req.json().catch(() => ({}));
 				try {
-					return c.json(await marketAuthProvider.refreshAccessToken({ refreshToken: String(body.refreshToken ?? '') }));
+					return c.json(await runtimeMarketAuthProvider.refreshAccessToken({ refreshToken: String(body.refreshToken ?? '') }));
 				} catch (error) {
 					return jsonError(c, 401, error instanceof Error ? error.message : String(error));
 				}
@@ -5411,7 +6061,7 @@ export function createMarketApiApp(options = {}) {
 					title: 'Launch queued',
 					summary: 'TreeSeed queued the Knowledge Hub launch for backend processing.',
 				});
-				const href = await projectAppHref(store, teamId, details.project.slug, 'overview');
+				const deployHref = `/app/projects/${encodeURIComponent(details.project.id)}/deploy?launch=${encodeURIComponent(hubLaunch.id)}`;
 
 				const projectSummary = await store.getProjectSummary(details.project.id, access.principal);
 				if (projectSummary) {
@@ -5419,11 +6069,15 @@ export function createMarketApiApp(options = {}) {
 				}
 				return c.json({
 					ok: true,
+					projectId: details.project.id,
+					launchId: hubLaunch.id,
+					operationId: launchJob.id,
+					deployHref,
 					payload: {
 						project: projectSummary ?? await store.getProjectDetails(details.project.id),
 						launchJob: decorateJob(normalizeBaseUrl(runtime.resolved.config.baseUrl ?? ''), launchJob),
 						launch: hubLaunch,
-						next: href,
+						next: deployHref,
 					},
 				}, 202);
 
@@ -6163,41 +6817,7 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
-			app.get('/v1/projects/:projectId/deployments', async (c) => {
-				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
-				if (access.response) return access.response;
-				const environment = typeof c.req.query('environment') === 'string' ? c.req.query('environment') : null;
-				return c.json({
-					ok: true,
-					payload: await store.listProjectDeployments(c.req.param('projectId'), environment),
-				});
-			});
-
-			app.post('/v1/projects/:projectId/deployments', async (c) => {
-				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
-				if (access.response) return access.response;
-				const body = await c.req.json().catch(() => ({}));
-				if (!body.environment || !body.deploymentKind) {
-					return jsonError(c, 400, 'environment and deploymentKind are required.');
-				}
-				return c.json({
-					ok: true,
-					payload: await store.createProjectDeployment(c.req.param('projectId'), {
-						id: typeof body.id === 'string' ? body.id : undefined,
-						environment: String(body.environment),
-						deploymentKind: String(body.deploymentKind),
-						status: typeof body.status === 'string' ? body.status : 'pending',
-						sourceRef: typeof body.sourceRef === 'string' ? body.sourceRef : null,
-						releaseTag: typeof body.releaseTag === 'string' ? body.releaseTag : null,
-						commitSha: typeof body.commitSha === 'string' ? body.commitSha : null,
-						triggeredByType: typeof body.triggeredByType === 'string' ? body.triggeredByType : null,
-						triggeredById: typeof body.triggeredById === 'string' ? body.triggeredById : access.principal.id,
-						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
-						startedAt: typeof body.startedAt === 'string' ? body.startedAt : null,
-						finishedAt: typeof body.finishedAt === 'string' ? body.finishedAt : null,
-					}),
-				});
-			});
+			installProjectDeploymentRoutes(app, { store, requireProjectAccess });
 
 			app.get('/v1/projects/:projectId/agent-pools', async (c) => {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');

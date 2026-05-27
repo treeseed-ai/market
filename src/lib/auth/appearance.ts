@@ -57,6 +57,22 @@ function appearanceFromPrincipal(context: Pick<AppearanceContext, 'locals'>): Th
 	return normalizeThemePreference(appearance);
 }
 
+export function themePreferenceFromPrincipal(principal: { metadata?: Record<string, unknown> | null } | null | undefined): ThemePreference | null {
+	const appearance = principal?.metadata?.appearance;
+	if (!appearance || typeof appearance !== 'object') return null;
+	return normalizeThemePreference(appearance);
+}
+
+export function setPrincipalThemeCookies(
+	context: AnonymousAppearanceContext,
+	principal: { metadata?: Record<string, unknown> | null } | null | undefined,
+): ThemePreference | null {
+	const preference = themePreferenceFromPrincipal(principal);
+	if (!preference) return null;
+	setAnonymousThemeCookies(context, preference);
+	return preference;
+}
+
 export async function resolveAuthenticatedThemePreference(context: AppearanceContext): Promise<ThemePreference> {
 	return appearanceFromPrincipal(context) ?? resolveAnonymousThemePreference(context);
 }

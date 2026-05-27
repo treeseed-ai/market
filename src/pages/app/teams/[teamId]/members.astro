@@ -17,18 +17,35 @@ if (!Astro.locals.auth?.principal) {
 }
 const context = await loadOperationalContext(Astro.locals, Astro);
 const team = context.teams.find((entry: any) => entry.id === teamParam || entry.slug === teamParam) ?? null;
-const members = team && context.store ? await context.store.listTeamMembers(team.id).catch(() => []) : [];
+const manageableRoles = new Set(['team_owner', 'project_lead']);
+const access = team && context.store && typeof context.store.getTeamAccessSummary === 'function'
+	? await context.store.getTeamAccessSummary(team.id, context.principal).catch(() => null)
+	: null;
+const canManageTeam = Boolean(access?.roles?.some((role: string) => manageableRoles.has(role)));
+const members = team && canManageTeam && context.store ? await context.store.listTeamMembers(team.id).catch(() => []) : [];
 if (!team) Astro.response.status = 404;
+else if (!canManageTeam) Astro.response.status = 403;
+const roleOptions = [
+	{ label: 'Contributor', value: 'contributor' },
+	{ label: 'Reviewer', value: 'reviewer' },
+	{ label: 'Project lead', value: 'project_lead' },
+	{ label: 'Market steward', value: 'market_steward' },
+	{ label: 'Finance', value: 'finance' },
+	{ label: 'Owner', value: 'team_owner' },
+];
+function roleSelectOptions(roleKey: string) {
+	return roleOptions.map((option) => `<option value="${esc(option.value)}" ${roleKey === option.value ? 'selected' : ''}>${esc(option.label)}</option>`).join('');
+}
 const rows = members.map((member: any) => ({
 	id: `member-${esc(member.id ?? member.userId)}`,
 	name: `<strong>${esc(member.displayName ?? member.email ?? member.userId ?? 'Member')}</strong><span>${esc(member.email ?? member.userId ?? '')}</span>`,
-	role: esc(member.roleKey ?? member.role ?? 'member'),
-	actions: `<form class="ts-inline-form" data-member-form="${esc(member.id)}"><select class="ts-control" name="roleKey"><option value="viewer" ${member.roleKey === 'viewer' ? 'selected' : ''}>viewer</option><option value="contributor" ${member.roleKey === 'contributor' ? 'selected' : ''}>contributor</option><option value="project_lead" ${member.roleKey === 'project_lead' ? 'selected' : ''}>project lead</option><option value="owner" ${member.roleKey === 'owner' ? 'selected' : ''}>owner</option></select><button class="ts-link-button" type="submit">Save</button><button class="ts-link-button" type="button" data-remove-member="${esc(member.id)}">Remove</button></form>`,
+	role: esc(roleOptions.find((option) => option.value === (member.roleKey ?? member.role))?.label ?? member.roleKey ?? member.role ?? 'member'),
+	actions: `<form class="ts-inline-form" data-member-form="${esc(member.id)}"><select class="ts-control" name="roleKey">${roleSelectOptions(String(member.roleKey ?? member.role ?? 'contributor'))}</select><button class="ts-link-button" type="submit">Save</button><button class="ts-link-button" type="button" data-remove-member="${esc(member.id)}">Remove</button></form>`,
 }));
 ---
 
 <TreeseedAppLayout title={team ? `${team.displayName ?? team.name} members` : 'Team not found'} description="Invite and manage team members." currentPath="/app/teams" teams={context.teams} activeTeam={context.activeTeam}>
-	{team ? (
+	{team && canManageTeam ? (
 		<section class="ts-control-page" aria-label="Team members">
 			<Panel eyebrow="Team" title="Invite member" description="Send an invitation to this team.">
 				<form id="invite-form" class="ts-form-stack">
@@ -38,10 +55,12 @@ const rows = members.map((member: any) => ({
 						</Field>
 						<Field label="Role" name="roleKey" required>
 							<Select name="roleKey" required options={[
-								{ label: 'Viewer', value: 'viewer' },
 								{ label: 'Contributor', value: 'contributor' },
+								{ label: 'Reviewer', value: 'reviewer' },
 								{ label: 'Project lead', value: 'project_lead' },
-								{ label: 'Owner', value: 'owner' },
+								{ label: 'Market steward', value: 'market_steward' },
+								{ label: 'Finance', value: 'finance' },
+								{ label: 'Owner', value: 'team_owner' },
 							]} />
 						</Field>
 					</div>
@@ -60,6 +79,8 @@ const rows = members.map((member: any) => ({
 				]} rows={rows} emptyTitle="No members listed" emptyDescription="Invite the first member above." />
 			</Panel>
 		</section>
+	) : team ? (
+		<EmptyState title="Team controls unavailable" description="Team editing, member management, and deletion require the team owner or project lead role." actions={[{ label: 'Back to teams', href: '/app/teams' }]} />
 	) : (
 		<EmptyState title="Team not found" description="This team is not available." actions={[{ label: 'Back to teams', href: '/app/teams' }]} />
 	)}

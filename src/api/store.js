@@ -4,7 +4,9 @@ import {
 	calculateActualCredits,
 	deriveAvailableCredits,
 	nativeUsageUnit,
-} from '../../packages/sdk/src/capacity.ts';
+} from '@treeseed/sdk/capacity';
+import { redactDeploymentValue } from '../lib/market/deployment-actions.ts';
+import { projectDeploymentAuditPayload } from '../lib/market/deployment-governance.ts';
 
 function getNodeBuiltin(name) {
 	return globalThis.process?.getBuiltinModule?.(name) ?? null;
@@ -81,6 +83,12 @@ function equalHash(left, right) {
 
 function tokenPrefix(token) {
 	return token.slice(0, 16);
+}
+
+function normalizeOperationCapabilities(capabilities) {
+	return Array.isArray(capabilities)
+		? capabilities.map((entry) => String(entry ?? '').trim()).filter(Boolean)
+		: [];
 }
 
 const PHASE4_CAPACITY_PROVIDER_SCOPES = [
@@ -292,7 +300,7 @@ const CAPABILITY_PERMISSIONS = {
 	approve_remote_execution: 'remote:execution:approve',
 };
 const TEAM_DELETION_CONFIRMATION_PREFIX = 'DELETE ';
-const TEAM_MANAGEMENT_ROLES = new Set(['team_owner']);
+const TEAM_MANAGEMENT_ROLES = new Set(['team_owner', 'project_lead']);
 const TEAM_RESERVED_NAMES = new Set([
 	'app',
 	'api',
@@ -387,6 +395,17 @@ function uniqueCapabilities(roles = []) {
 	return [...new Set(capabilities)];
 }
 
+function normalizeTeamRoleKey(value, fallback = 'contributor') {
+	const key = String(value ?? '').trim();
+	if (key === 'owner') return 'team_owner';
+	return TEAM_ROLE_CAPABILITIES[key] ? key : fallback;
+}
+
+function primaryTeamRole(roles = []) {
+	const preferredOrder = ['team_owner', 'project_lead', 'market_steward', 'contributor', 'reviewer', 'finance'];
+	return preferredOrder.find((role) => roles.includes(role)) ?? roles[0] ?? null;
+}
+
 function projectConnectionModeFromHosting(kind, registration = 'none') {
 	if (kind === 'hosted_project') {
 		return 'hosted';
@@ -416,6 +435,7 @@ function serializeTeam(row) {
 
 function serializeTeamMember(row, roles = []) {
 	if (!row) return null;
+	const roleKey = primaryTeamRole(roles);
 	return {
 		id: row.id,
 		teamId: row.team_id,
@@ -423,6 +443,8 @@ function serializeTeamMember(row, roles = []) {
 		status: row.status,
 		displayName: row.display_name,
 		email: row.email,
+		roleKey,
+		role: roleKey,
 		roles,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
@@ -1128,6 +1150,22 @@ function uniqueStrings(values) {
 	return [...new Set(values.filter((value) => typeof value === 'string' && value.trim()).map((value) => value.trim()))];
 }
 
+const PROJECT_DEPLOYMENT_TERMINAL_STATUSES = new Set(['succeeded', 'failed', 'cancelled', 'timed_out']);
+const PROJECT_DEPLOYMENT_ACTIVE_STATUSES = new Set(['queued', 'claimed', 'dispatching', 'running', 'monitoring']);
+
+function normalizeProjectDeploymentStatus(value, fallback = 'queued') {
+	const status = typeof value === 'string' ? value.trim() : '';
+	if (status === 'success') return 'succeeded';
+	if (status === 'pending') return 'queued';
+	return status || fallback;
+}
+
+function deploymentKindForAction(action) {
+	if (action === 'publish_content') return 'content';
+	if (action === 'monitor') return 'mixed';
+	return 'code';
+}
+
 function summarizeProjectHealth({ hosting, connection, deployments, jobs }) {
 	const failedDeployment = deployments.find((deployment) => deployment.status === 'failed');
 	if (failedDeployment) {
@@ -1558,7 +1596,7 @@ function serializeAuditEvent(row) {
 		eventType: row.event_type,
 		targetType: row.target_type,
 		targetId: row.target_id,
-		data: parseJson(row.data_json, {}),
+		data: redactDeploymentValue(parseJson(row.data_json, {})),
 		createdAt: row.created_at,
 	};
 }
@@ -1691,22 +1729,55 @@ function serializeProjectInfrastructureResource(row) {
 
 function serializeProjectDeployment(row) {
 	if (!row) return null;
+	const metadata = redactDeploymentValue(parseJson(row.metadata_json, {}));
 	return {
 		id: row.id,
+		teamId: row.team_id ?? metadata.teamId ?? null,
 		projectId: row.project_id,
 		environment: row.environment,
 		deploymentKind: row.deployment_kind,
+		action: row.action ?? metadata.action ?? (row.deployment_kind === 'content' ? 'publish_content' : 'deploy_web'),
 		status: row.status,
+		platformOperationId: row.platform_operation_id ?? null,
+		retryOfDeploymentId: row.retry_of_deployment_id ?? null,
+		resumedFromDeploymentId: row.resumed_from_deployment_id ?? null,
+		idempotencyKey: row.idempotency_key ?? null,
+		requestedByUserId: row.requested_by_user_id ?? null,
 		sourceRef: row.source_ref,
 		releaseTag: row.release_tag,
 		commitSha: row.commit_sha,
 		triggeredByType: row.triggered_by_type,
 		triggeredById: row.triggered_by_id,
-		metadata: parseJson(row.metadata_json, {}),
+		repository: redactDeploymentValue(parseJson(row.repository_json, metadata.repository ?? {})),
+		externalWorkflow: redactDeploymentValue(parseJson(row.external_workflow_json, metadata.externalWorkflow ?? {})),
+		target: redactDeploymentValue(parseJson(row.target_json, metadata.target ?? {})),
+		monitor: redactDeploymentValue(parseJson(row.monitor_json, metadata.monitor ?? {})),
+		summary: row.summary ?? metadata.summary ?? null,
+		error: redactDeploymentValue(parseJson(row.error_json, metadata.error ?? {})),
+		metadata,
 		startedAt: row.started_at,
 		finishedAt: row.finished_at,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
+		completedAt: row.completed_at ?? row.finished_at ?? null,
+	};
+}
+
+function serializeProjectDeploymentEvent(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		deploymentId: row.deployment_id,
+		projectId: row.project_id,
+		teamId: row.team_id,
+		operationId: row.operation_id ?? null,
+		kind: row.kind,
+		message: row.message,
+		status: row.status ?? null,
+		severity: row.severity ?? 'info',
+		sequence: Number(row.sequence ?? 0),
+		payload: redactDeploymentValue(parseJson(row.payload_json, {})),
+		createdAt: row.created_at,
 	};
 }
 
@@ -2327,13 +2398,7 @@ export class MarketControlPlaneStore {
 			],
 		);
 		if (input.ownerUserId) {
-			const membershipId = randomUUID();
-			await this.run(
-				`INSERT OR IGNORE INTO team_memberships (id, team_id, user_id, status, created_at, updated_at)
-				 VALUES (?, ?, ?, 'active', ?, ?)`,
-				[membershipId, id, input.ownerUserId, timestamp, timestamp],
-			);
-			await this.bindRoleToMembership(membershipId, 'team_owner');
+			await this.upsertTeamMember(id, input.ownerUserId, 'team_owner');
 		}
 		return this.getTeam(id);
 	}
@@ -5213,7 +5278,22 @@ export class MarketControlPlaneStore {
 		await this.ensureInitialized();
 		const normalized = String(email ?? '').trim().toLowerCase();
 		if (!normalized) return null;
-		return this.first(`SELECT * FROM users WHERE LOWER(email) = LOWER(?) AND status = 'active' LIMIT 1`, [normalized]);
+		const verified = await this.first(
+			`SELECT users.*
+			   FROM users
+			   INNER JOIN user_email_addresses
+			     ON user_email_addresses.user_id = users.id
+			    AND user_email_addresses.normalized_email = ?
+			    AND user_email_addresses.status = 'verified'
+			  WHERE users.status = 'active'
+			  LIMIT 1`,
+			[normalized],
+		);
+		if (verified) return verified;
+		const legacy = await this.first(`SELECT * FROM users WHERE LOWER(email) = LOWER(?) AND status = 'active' LIMIT 1`, [normalized]);
+		if (!legacy?.id) return null;
+		const emailRows = await this.first(`SELECT COUNT(*) AS count FROM user_email_addresses WHERE user_id = ?`, [legacy.id]);
+		return Number(emailRows?.count ?? 0) === 0 ? legacy : null;
 	}
 
 	async listActiveUsers(limit = 50) {
@@ -5241,7 +5321,7 @@ export class MarketControlPlaneStore {
 	async upsertTeamMember(teamId, userId, roleKey = 'contributor') {
 		await this.ensureInitialized();
 		const timestamp = isoNow();
-		const role = TEAM_ROLE_CAPABILITIES[roleKey] ? roleKey : 'contributor';
+		const role = normalizeTeamRoleKey(roleKey);
 		let membership = await this.first(
 			`SELECT * FROM team_memberships WHERE team_id = ? AND user_id = ? LIMIT 1`,
 			[teamId, userId],
@@ -5266,20 +5346,21 @@ export class MarketControlPlaneStore {
 
 	async replaceMembershipRole(membershipId, roleKey) {
 		await this.ensureInitialized();
-		const role = TEAM_ROLE_CAPABILITIES[roleKey] ? roleKey : 'contributor';
+		const role = normalizeTeamRoleKey(roleKey);
 		await this.run(`DELETE FROM team_role_bindings WHERE team_membership_id = ?`, [membershipId]);
 		await this.bindRoleToMembership(membershipId, role);
 	}
 
 	async updateTeamMemberRole(teamId, membershipId, roleKey) {
 		await this.ensureInitialized();
+		const role = normalizeTeamRoleKey(roleKey);
 		const membership = await this.first(`SELECT * FROM team_memberships WHERE id = ? AND team_id = ? LIMIT 1`, [membershipId, teamId]);
 		if (!membership?.id) return { ok: false, code: 'missing', message: 'Team member not found.' };
 		const currentRoles = await this.listRoleKeysForMembership(membershipId);
-		if (currentRoles.includes('team_owner') && roleKey !== 'team_owner' && (await this.membershipOwnerCount(teamId)) <= 1) {
+		if (currentRoles.includes('team_owner') && role !== 'team_owner' && (await this.membershipOwnerCount(teamId)) <= 1) {
 			return { ok: false, code: 'last_owner', message: 'A team must keep at least one owner.' };
 		}
-		await this.replaceMembershipRole(membershipId, roleKey);
+		await this.replaceMembershipRole(membershipId, role);
 		await this.run(`UPDATE team_memberships SET updated_at = ? WHERE id = ?`, [isoNow(), membershipId]);
 		return { ok: true, member: (await this.listTeamMembers(teamId)).find((member) => member.id === membershipId) ?? null };
 	}
@@ -5302,7 +5383,7 @@ export class MarketControlPlaneStore {
 		if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email)) {
 			return { ok: false, code: 'invalid_email', message: 'A valid invite email is required.' };
 		}
-		const roleKey = TEAM_ROLE_CAPABILITIES[input.roleKey] ? input.roleKey : 'contributor';
+		const roleKey = normalizeTeamRoleKey(input.roleKey);
 		const token = `tiv_${randomUUID().replaceAll('-', '')}${randomUUID().replaceAll('-', '')}`;
 		const timestamp = isoNow();
 		const expiresAt = input.expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -6534,45 +6615,255 @@ export class MarketControlPlaneStore {
 
 	async createProjectDeployment(projectId, input) {
 		await this.ensureInitialized();
+		const project = await this.getProject(projectId);
+		if (!project) {
+			throw new Error(`Unknown project "${projectId}".`);
+		}
+		if (input.idempotencyKey) {
+			const existing = await this.findProjectDeploymentByIdempotencyKey(projectId, input.idempotencyKey);
+			if (existing) return existing;
+		}
 		const timestamp = isoNow();
 		const id = input.id ?? randomUUID();
+		const action = input.action ?? (input.deploymentKind === 'content' ? 'publish_content' : 'deploy_web');
+		const status = normalizeProjectDeploymentStatus(input.status, 'queued');
+		const completedAt = PROJECT_DEPLOYMENT_TERMINAL_STATUSES.has(status)
+			? input.completedAt ?? input.finishedAt ?? timestamp
+			: input.completedAt ?? null;
 		await this.run(
 			`INSERT INTO project_deployments (
-				id, project_id, environment, deployment_kind, status, source_ref, release_tag, commit_sha, triggered_by_type, triggered_by_id, metadata_json, started_at, finished_at, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				id, team_id, project_id, environment, deployment_kind, action, status,
+				platform_operation_id, retry_of_deployment_id, resumed_from_deployment_id, idempotency_key, requested_by_user_id,
+				source_ref, release_tag, commit_sha, triggered_by_type, triggered_by_id,
+				repository_json, external_workflow_json, target_json, monitor_json, summary, error_json, metadata_json,
+				started_at, finished_at, created_at, updated_at, completed_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[
 				id,
+				input.teamId ?? project.teamId,
 				projectId,
 				input.environment,
-				input.deploymentKind,
-				input.status ?? 'pending',
+				input.deploymentKind ?? deploymentKindForAction(action),
+				action,
+				status,
+				input.platformOperationId ?? null,
+				input.retryOfDeploymentId ?? null,
+				input.resumedFromDeploymentId ?? null,
+				input.idempotencyKey ?? null,
+				input.requestedByUserId ?? null,
 				input.sourceRef ?? null,
 				input.releaseTag ?? null,
 				input.commitSha ?? null,
 				input.triggeredByType ?? null,
 				input.triggeredById ?? null,
-				JSON.stringify(input.metadata ?? {}),
+				JSON.stringify(redactDeploymentValue(input.repository ?? {})),
+				JSON.stringify(redactDeploymentValue(input.externalWorkflow ?? {})),
+				JSON.stringify(redactDeploymentValue(input.target ?? {})),
+				JSON.stringify(redactDeploymentValue(input.monitor ?? {})),
+				input.summary ?? null,
+				JSON.stringify(redactDeploymentValue(input.error ?? {})),
+				JSON.stringify(redactDeploymentValue(input.metadata ?? {})),
 				input.startedAt ?? timestamp,
 				input.finishedAt ?? null,
 				timestamp,
 				timestamp,
+				completedAt,
 			],
 		);
-		return serializeProjectDeployment(await this.first(`SELECT * FROM project_deployments WHERE id = ?`, [id]));
+		const deployment = serializeProjectDeployment(await this.first(`SELECT * FROM project_deployments WHERE id = ?`, [id]));
+		await this.appendProjectDeploymentEvent(id, {
+			kind: 'deployment.requested',
+			message: input.summary ?? `Queued ${action} for ${input.environment}.`,
+			status,
+			payload: { source: input.triggeredByType ?? input.source ?? null },
+		}).catch(() => null);
+		return deployment;
 	}
 
-	async listProjectDeployments(projectId, environment = null) {
+	async findProjectDeploymentById(deploymentId) {
 		await this.ensureInitialized();
-		const rows = environment
-			? await this.all(
-				`SELECT * FROM project_deployments WHERE project_id = ? AND environment = ? ORDER BY created_at DESC`,
-				[projectId, environment],
-			)
-			: await this.all(
-				`SELECT * FROM project_deployments WHERE project_id = ? ORDER BY created_at DESC`,
-				[projectId],
-			);
+		return serializeProjectDeployment(await this.first(`SELECT * FROM project_deployments WHERE id = ? LIMIT 1`, [deploymentId]));
+	}
+
+	async findProjectDeploymentByOperationId(operationId) {
+		await this.ensureInitialized();
+		return serializeProjectDeployment(await this.first(`SELECT * FROM project_deployments WHERE platform_operation_id = ? LIMIT 1`, [operationId]));
+	}
+
+	async findProjectDeploymentByIdempotencyKey(projectId, idempotencyKey) {
+		await this.ensureInitialized();
+		if (!idempotencyKey) return null;
+		return serializeProjectDeployment(await this.first(
+			`SELECT * FROM project_deployments WHERE project_id = ? AND idempotency_key = ? ORDER BY created_at DESC LIMIT 1`,
+			[projectId, idempotencyKey],
+		));
+	}
+
+	async listProjectDeployments(projectId, filters = null) {
+		await this.ensureInitialized();
+		const normalized = typeof filters === 'string' ? { environment: filters } : (filters && typeof filters === 'object' ? filters : {});
+		const where = ['project_id = ?'];
+		const params = [projectId];
+		if (normalized.environment) {
+			where.push('environment = ?');
+			params.push(normalized.environment);
+		}
+		if (normalized.action) {
+			where.push('action = ?');
+			params.push(normalized.action);
+		}
+		if (normalized.status) {
+			where.push('status = ?');
+			params.push(normalized.status);
+		}
+		const limit = Math.max(1, Math.min(Number(normalized.limit ?? 100) || 100, 100));
+		params.push(limit);
+		const rows = await this.all(
+			`SELECT * FROM project_deployments WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT ?`,
+			params,
+		);
 		return rows.map(serializeProjectDeployment);
+	}
+
+	async updateProjectDeployment(deploymentId, patch = {}) {
+		await this.ensureInitialized();
+		const existing = await this.findProjectDeploymentById(deploymentId);
+		if (!existing) return null;
+		const timestamp = isoNow();
+		const status = patch.status ? normalizeProjectDeploymentStatus(patch.status, existing.status) : existing.status;
+		const completedAt = existing.completedAt ?? (PROJECT_DEPLOYMENT_TERMINAL_STATUSES.has(status) ? patch.completedAt ?? patch.finishedAt ?? timestamp : null);
+		await this.run(
+			`UPDATE project_deployments
+			 SET status = ?, platform_operation_id = ?, repository_json = ?, external_workflow_json = ?,
+			     target_json = ?, monitor_json = ?, summary = ?, error_json = ?, metadata_json = ?,
+			     finished_at = ?, updated_at = ?, completed_at = ?
+			 WHERE id = ?`,
+			[
+				status,
+				patch.platformOperationId ?? existing.platformOperationId ?? null,
+				JSON.stringify(redactDeploymentValue(patch.repository ?? existing.repository ?? {})),
+				JSON.stringify(redactDeploymentValue(patch.externalWorkflow ?? existing.externalWorkflow ?? {})),
+				JSON.stringify(redactDeploymentValue(patch.target ?? existing.target ?? {})),
+				JSON.stringify(redactDeploymentValue(patch.monitor ?? existing.monitor ?? {})),
+				patch.summary ?? existing.summary ?? null,
+				JSON.stringify(redactDeploymentValue(patch.error ?? existing.error ?? {})),
+				JSON.stringify(redactDeploymentValue(patch.metadata ?? existing.metadata ?? {})),
+				patch.finishedAt ?? existing.finishedAt ?? null,
+				timestamp,
+				completedAt,
+				deploymentId,
+			],
+		);
+		return this.findProjectDeploymentById(deploymentId);
+	}
+
+	async findLatestProjectDeployment(projectId, environment, action = null) {
+		const rows = await this.listProjectDeployments(projectId, { environment, action: action ?? undefined, limit: 1 });
+		return rows[0] ?? null;
+	}
+
+	async listActiveProjectDeployments(projectId, environment = null, action = null) {
+		const deployments = await this.listProjectDeployments(projectId, { environment: environment ?? undefined, action: action ?? undefined, limit: 100 });
+		return deployments.filter((deployment) => PROJECT_DEPLOYMENT_ACTIVE_STATUSES.has(deployment.status));
+	}
+
+	async createProjectDeploymentRetry(originalDeploymentId, input = {}) {
+		const original = await this.findProjectDeploymentById(originalDeploymentId);
+		if (!original) return null;
+		return this.createProjectDeployment(original.projectId, {
+			...input,
+			environment: input.environment ?? original.environment,
+			action: input.action ?? original.action,
+			deploymentKind: input.deploymentKind ?? original.deploymentKind,
+			retryOfDeploymentId: original.id,
+			repository: input.repository ?? original.repository,
+			target: input.target ?? original.target,
+			metadata: { ...(original.metadata ?? {}), ...(input.metadata ?? {}) },
+			sourceRef: input.sourceRef ?? original.sourceRef,
+			triggeredByType: input.triggeredByType ?? 'user',
+		});
+	}
+
+	async markProjectDeploymentCancellationRequested(deploymentId, actor = null) {
+		const deployment = await this.findProjectDeploymentById(deploymentId);
+		if (!deployment) return null;
+		const metadata = {
+			...(deployment.metadata ?? {}),
+			cancellation: {
+				requested: true,
+				requestedAt: isoNow(),
+				actor,
+			},
+		};
+		const nextStatus = deployment.status === 'queued' ? 'cancelled' : deployment.status;
+		const updated = await this.updateProjectDeployment(deploymentId, { status: nextStatus, metadata });
+		await this.appendProjectDeploymentEvent(deploymentId, {
+			kind: nextStatus === 'cancelled' ? 'deployment.cancelled' : 'deployment.cancellation_requested',
+			message: nextStatus === 'cancelled' ? 'Deployment was cancelled before runner claim.' : 'Deployment cancellation was requested.',
+			status: nextStatus,
+			severity: 'warning',
+		});
+		return updated;
+	}
+
+	async appendProjectDeploymentEvent(deploymentId, event = {}) {
+		await this.ensureInitialized();
+		const deployment = await this.findProjectDeploymentById(deploymentId);
+		if (!deployment) return null;
+		const row = await this.first(
+			`SELECT COALESCE(MAX(sequence), 0) + 1 AS next_sequence FROM project_deployment_events WHERE deployment_id = ?`,
+			[deploymentId],
+		);
+		const sequence = Number(row?.next_sequence ?? 1);
+		const id = event.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO project_deployment_events (
+				id, deployment_id, project_id, team_id, operation_id, kind, message, status, severity, sequence, payload_json, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				deploymentId,
+				deployment.projectId,
+				deployment.teamId,
+				event.operationId ?? deployment.platformOperationId ?? null,
+				event.kind ?? 'deployment.event',
+				event.message ?? event.kind ?? 'Deployment event recorded.',
+				event.status ?? deployment.status ?? null,
+				event.severity ?? 'info',
+				sequence,
+				JSON.stringify(redactDeploymentValue(event.payload ?? {})),
+				event.createdAt ?? isoNow(),
+			],
+		);
+		return serializeProjectDeploymentEvent(await this.first(`SELECT * FROM project_deployment_events WHERE id = ?`, [id]));
+	}
+
+	async listProjectDeploymentEvents(deploymentId, filters = {}) {
+		await this.ensureInitialized();
+		const limit = Math.max(1, Math.min(Number(filters.limit ?? 200) || 200, 200));
+		const rows = await this.all(
+			`SELECT * FROM project_deployment_events WHERE deployment_id = ? ORDER BY sequence ASC LIMIT ?`,
+			[deploymentId, limit],
+		);
+		const deploymentEvents = rows.map(serializeProjectDeploymentEvent);
+		const deployment = await this.findProjectDeploymentById(deploymentId);
+		if (!deployment?.platformOperationId) return deploymentEvents;
+		const platformEvents = await this.listPlatformOperationEvents(deployment.platformOperationId).catch(() => []);
+		const mapped = platformEvents.map((event) => ({
+			id: `platform:${event.id}`,
+			deploymentId,
+			projectId: deployment.projectId,
+			teamId: deployment.teamId,
+			operationId: deployment.platformOperationId,
+			kind: event.kind,
+			message: event.data?.message ?? event.kind,
+			status: event.data?.status ?? null,
+			severity: event.data?.severity ?? 'info',
+			sequence: 100000 + Number(event.seq ?? 0),
+			payload: redactDeploymentValue(event.data ?? {}),
+			createdAt: event.createdAt,
+		}));
+		return [...deploymentEvents, ...mapped].sort((left, right) => left.sequence - right.sequence);
 	}
 
 	async upsertAgentPool(projectId, input) {
@@ -8624,6 +8915,16 @@ export class MarketControlPlaneStore {
 		return serializeMarketOperationRunner(await this.first(`SELECT * FROM market_operation_runners WHERE id = ?`, [runnerId]));
 	}
 
+	async listMarketOperationRunners(input = {}) {
+		await this.ensureInitialized();
+		const limit = Math.max(1, Math.min(Number(input.limit ?? 20) || 20, 100));
+		const rows = await this.all(
+			`SELECT * FROM market_operation_runners ORDER BY heartbeat_at DESC, updated_at DESC LIMIT ?`,
+			[limit],
+		);
+		return rows.map(serializeMarketOperationRunner);
+	}
+
 	async upsertPlatformRepositoryClaim(input = {}) {
 		await this.ensureInitialized();
 		const repository = input.repository && typeof input.repository === 'object' ? input.repository : {};
@@ -8746,6 +9047,10 @@ export class MarketControlPlaneStore {
 		const leaseSeconds = Math.max(30, Math.min(Number(input.leaseSeconds ?? 300), 3600));
 		const now = isoNow();
 		const leaseExpiresAt = new Date(Date.now() + leaseSeconds * 1000).toISOString();
+		const capabilities = normalizeOperationCapabilities(input.capabilities);
+		const capabilityWhere = capabilities.length > 0
+			? ` AND (${capabilities.map(() => `(namespace || ':' || operation) = ?`).join(' OR ')})`
+			: '';
 		const rows = input.operationId
 			? await this.all(
 				`SELECT * FROM platform_operations
@@ -8753,15 +9058,19 @@ export class MarketControlPlaneStore {
 				    status = 'queued'
 				    OR (status = 'leased' AND lease_expires_at IS NOT NULL AND lease_expires_at < ?)
 				 )
+				 ${capabilityWhere}
 				 ORDER BY created_at ASC LIMIT ?`,
-				[input.operationId, now, limit],
+				[input.operationId, now, ...capabilities, limit],
 			)
 			: await this.all(
 				`SELECT * FROM platform_operations
-				 WHERE status = 'queued'
+				 WHERE (
+				    status = 'queued'
 				    OR (status = 'leased' AND lease_expires_at IS NOT NULL AND lease_expires_at < ?)
+				 )
+				 ${capabilityWhere}
 				 ORDER BY created_at ASC LIMIT ?`,
-				[now, limit],
+				[now, ...capabilities, limit],
 			);
 		const row = rows[0];
 		if (!row) return null;
@@ -8913,6 +9222,47 @@ export class MarketControlPlaneStore {
 			[jobId],
 		);
 		return rows.map(serializeJobEvent);
+	}
+
+	async recordAuditEvent(input = {}) {
+		await this.ensureInitialized();
+		const timestamp = input.createdAt ?? isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO audit_events (id, actor_type, actor_id, event_type, target_type, target_id, data_json, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				input.actorType ?? input.actor?.type ?? 'system',
+				input.actorId ?? input.actor?.id ?? null,
+				input.eventType,
+				input.targetType ?? null,
+				input.targetId ?? null,
+				JSON.stringify(redactDeploymentValue(input.data ?? {})),
+				timestamp,
+			],
+		);
+		return serializeAuditEvent(await this.first(`SELECT * FROM audit_events WHERE id = ?`, [id]));
+	}
+
+	async recordProjectDeploymentAudit(deploymentOrId, eventType, input = {}) {
+		const deployment = typeof deploymentOrId === 'string'
+			? await this.findProjectDeploymentById(deploymentOrId)
+			: deploymentOrId;
+		if (!deployment || !eventType) return null;
+		return this.recordAuditEvent({
+			eventType,
+			actorType: input.actorType ?? input.actor?.type ?? 'system',
+			actorId: input.actorId ?? input.actor?.id ?? null,
+			targetType: 'project',
+			targetId: deployment.projectId,
+			data: projectDeploymentAuditPayload(deployment, {
+				actorUserId: input.actorUserId ?? input.actorId ?? input.actor?.id ?? null,
+				operationId: input.operationId ?? deployment.platformOperationId ?? null,
+				status: input.status ?? deployment.status,
+				summary: input.summary ?? deployment.summary ?? null,
+			}),
+		});
 	}
 
 	async listAuditEventsForTarget(targetType, targetId, limit = 50) {

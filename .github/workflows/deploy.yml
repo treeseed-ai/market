@@ -34,6 +34,10 @@ on:
         required: false
         type: string
 
+concurrency:
+  group: treeseed-market-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   classify:
     runs-on: ubuntu-latest

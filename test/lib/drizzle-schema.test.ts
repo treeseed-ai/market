@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const marketMigrationPath = join(repoRoot, 'packages/sdk/drizzle/market/0000_market_control_plane.sql');
 const marketPhase9MigrationPath = join(repoRoot, 'packages/sdk/drizzle/market/0001_capacity_budget_mode_default.sql');
+const marketUserEmailsMigrationPath = join(repoRoot, 'packages/sdk/drizzle/market/0002_user_email_addresses.sql');
 const d1MigrationPath = join(repoRoot, 'packages/sdk/drizzle/d1/0000_treeseed_d1.sql');
 
 function readSql(path: string) {
@@ -28,6 +29,7 @@ describe('Treeseed Drizzle schema baseline', () => {
 			'betterAuthVerification',
 			'users',
 			'userIdentities',
+			'userEmailAddresses',
 			'roles',
 			'permissions',
 			'teams',
@@ -43,6 +45,7 @@ describe('Treeseed Drizzle schema baseline', () => {
 			'platformOperations',
 			'platformOperationEvents',
 			'marketOperationRunners',
+			'projectDeploymentEvents',
 			'marketAuthCredentials',
 			'marketAuthPasswordResets',
 		]));
@@ -51,10 +54,12 @@ describe('Treeseed Drizzle schema baseline', () => {
 	it('has checked-in Drizzle artifacts for Market PostgreSQL and SDK D1', () => {
 		expect(existsSync(marketMigrationPath)).toBe(true);
 		expect(existsSync(marketPhase9MigrationPath)).toBe(true);
+		expect(existsSync(marketUserEmailsMigrationPath)).toBe(true);
 		expect(existsSync(d1MigrationPath)).toBe(true);
 
 		const marketSql = readSql(marketMigrationPath);
 		const marketPhase9Sql = readSql(marketPhase9MigrationPath);
+		const marketUserEmailsSql = readSql(marketUserEmailsMigrationPath);
 		const d1Sql = readSql(d1MigrationPath);
 		for (const tableName of [
 			'users',
@@ -74,13 +79,18 @@ describe('Treeseed Drizzle schema baseline', () => {
 			'platform_operations',
 			'platform_operation_events',
 			'market_operation_runners',
+			'project_deployment_events',
 			'market_auth_credentials',
+			'user_email_addresses',
 			'market_auth_password_resets',
 		]) {
 			expect(marketSql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS "${tableName}"\\s*\\(`, 'u'));
 		}
 		expect(marketSql).toContain('-- Treeseed Market schema adoption columns');
 		expect(marketSql).toContain('ALTER TABLE "better_auth_account" ADD COLUMN IF NOT EXISTS "userId" text;');
+		expect(marketSql).toContain('"expiresAt" bigint NOT NULL');
+		expect(marketSql).toContain('"accessTokenExpiresAt" bigint');
+		expect(marketSql).toContain('ALTER TABLE "better_auth_verification" ALTER COLUMN "expiresAt" TYPE bigint;');
 		expect(marketSql).toContain('ALTER TABLE "capacity_providers" ADD COLUMN IF NOT EXISTS "credit_budget_mode" text DEFAULT \'derived\';');
 		expect(marketSql).toContain('CREATE INDEX IF NOT EXISTS "idx_capacity_reservations_provider_state"');
 		expect(marketSql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "idx_credit_conversion_profiles_profile_key"');
@@ -132,6 +142,16 @@ describe('Treeseed Drizzle schema baseline', () => {
 		expect(marketSql).toContain('"consumed_native_amount" real');
 		expect(marketSql).toContain('CREATE TABLE IF NOT EXISTS "native_usage_observations"');
 		expect(marketSql).toContain('CREATE TABLE IF NOT EXISTS "credit_conversion_profiles"');
+		expect(marketSql).toContain('CREATE TABLE IF NOT EXISTS "project_deployment_events"');
+		expect(marketSql).toContain('CREATE TABLE IF NOT EXISTS "user_email_addresses"');
+		expect(marketSql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "idx_user_email_addresses_normalized"');
+		expect(marketSql).toContain('INSERT INTO user_email_addresses');
+		expect(marketUserEmailsSql).toContain('CREATE TABLE IF NOT EXISTS "user_email_addresses"');
+		expect(marketUserEmailsSql).toContain('ON CONFLICT (normalized_email) DO NOTHING');
+		expect(marketSql).toContain('"platform_operation_id" text');
+		expect(marketSql).toContain('"idempotency_key" text');
+		expect(marketSql).toContain('CREATE INDEX IF NOT EXISTS "idx_project_deployments_operation"');
+		expect(marketSql).toContain('CREATE INDEX IF NOT EXISTS "idx_project_deployment_events_deployment_sequence"');
 		expect(marketSql).toContain('"confidence" text DEFAULT \'low\' NOT NULL');
 		expect(marketSql).toContain('"id" text PRIMARY KEY NOT NULL');
 		expect(marketSql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "idx_credit_conversion_profiles_profile_key"');
