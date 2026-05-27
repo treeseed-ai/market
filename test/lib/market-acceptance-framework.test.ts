@@ -24,6 +24,11 @@ describe('Market API acceptance framework', () => {
 		expect(descriptorCases.every((entry) => entry.coverageOnly !== true)).toBe(true);
 		expect(descriptorCases.every((entry) => Number.isInteger(entry.expect.status))).toBe(true);
 		expect(descriptorCases.every((entry) => entry.expect.statusAny === undefined)).toBe(true);
+		expect(descriptorCases.find((entry) => entry.id === 'descriptor-executable-role-matrix.post.v1.auth.web.sign-up.anonymous')).toMatchObject({
+			method: 'POST',
+			path: '/v1/auth/web/sign-up',
+			expect: { status: 200 },
+		});
 	});
 
 	it('generates safe request bodies for non-GET route descriptors', () => {
