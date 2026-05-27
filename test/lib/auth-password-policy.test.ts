@@ -7,7 +7,7 @@ import {
 	normalizeBetterAuthBaseUrl,
 	normalizeSiteBaseUrl,
 } from '../../src/lib/auth/config';
-import { authEmailDeliveryFailureReason } from '../../src/lib/auth/email';
+import { authEmailDeliveryFailureDetail, authEmailDeliveryFailureReason } from '../../src/lib/auth/email';
 import { evaluatePasswordStrength, passwordMeetsPolicy, passwordPolicyMessage } from '../../src/lib/auth/password-policy';
 
 async function withEnv<T>(values: Record<string, string | undefined>, action: () => T | Promise<T>) {
@@ -37,6 +37,7 @@ describe('market auth password policy', () => {
 		expect(authEmailDeliveryFailureReason(new Error('SMTP command failed: 535 Authentication failed'))).toBe('auth_failed');
 		expect(authEmailDeliveryFailureReason(new Error('SMTP command failed: 550 sender rejected'))).toBe('sender_rejected');
 		expect(authEmailDeliveryFailureReason(new Error('SMTP connection closed unexpectedly.'))).toBe('connection_failed');
+		expect(authEmailDeliveryFailureDetail(new Error('SMTP command failed:\r\n451 temporary failure'))).toBe('SMTP command failed: 451 temporary failure');
 	});
 
 	it('requires all strength rules', () => {

@@ -274,6 +274,13 @@ export function authEmailDeliveryFailureReason(error: unknown) {
 	return 'smtp_failed';
 }
 
+export function authEmailDeliveryFailureDetail(error: unknown) {
+	return errorMessage(error)
+		.replace(/[\r\n\t]+/gu, ' ')
+		.replace(/\s+/gu, ' ')
+		.slice(0, 500);
+}
+
 function isLocalAuthUrl(value: string) {
 	const hostname = new URL(value).hostname;
 	return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
