@@ -266,6 +266,16 @@ function exposeAuthTokenForTests() {
 	return process.env.NODE_ENV === 'test' || process.env.TREESEED_ACCEPTANCE_EXPOSE_AUTH_TOKENS === '1';
 }
 
+function authTokenTimestampSeconds(value = Date.now()) {
+	return Math.floor(Number(value) / 1000);
+}
+
+function authTokenTimestampMillis(value) {
+	const number = Number(value ?? 0);
+	if (!Number.isFinite(number) || number <= 0) return 0;
+	return number < 10_000_000_000 ? number * 1000 : number;
+}
+
 function sanitizedReturnTo(value) {
 	const target = String(value ?? '/app/');
 	return target.startsWith('/') && !target.startsWith('//') ? target : '/app/';
@@ -285,12 +295,14 @@ async function createMarketEmailConfirmation(store, context, input) {
 	const now = Date.now();
 	const expiresInSeconds = authConfig.emailVerificationTtlSeconds;
 	const expiresAt = now + expiresInSeconds * 1000;
+	const createdAt = authTokenTimestampSeconds(now);
+	const storedExpiresAt = authTokenTimestampSeconds(expiresAt);
 	const identifier = `${MARKET_EMAIL_CONFIRMATION_PREFIX}${input.emailAddressId ?? input.email}`;
 	await store.run(`DELETE FROM better_auth_verification WHERE identifier = ?`, [identifier]).catch(() => null);
 	await store.run(
 		`INSERT INTO better_auth_verification (id, identifier, value, "expiresAt", "createdAt", "updatedAt")
 		 VALUES (?, ?, ?, ?, ?, ?)`,
-		[randomUUID(), identifier, marketEmailTokenHash(token), expiresAt, now, now],
+		[randomUUID(), identifier, marketEmailTokenHash(token), storedExpiresAt, createdAt, createdAt],
 	);
 	if (input.emailAddressId) {
 		await store.run(
@@ -3518,7 +3530,7 @@ export function createMarketApiApp(options = {}) {
 					`SELECT * FROM better_auth_verification WHERE value = ? AND identifier LIKE ? LIMIT 1`,
 					[marketEmailTokenHash(token), `${MARKET_EMAIL_CONFIRMATION_PREFIX}%`],
 				);
-				const expiresAt = Number(row?.expiresAt ?? row?.expiresat ?? 0);
+				const expiresAt = authTokenTimestampMillis(row?.expiresAt ?? row?.expiresat ?? 0);
 				if (!row || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
 					return jsonError(c, 401, 'Email confirmation token is invalid or expired.');
 				}
