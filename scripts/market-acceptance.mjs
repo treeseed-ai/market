@@ -494,7 +494,7 @@ function sdkArgsForMethod(method) {
 		capacityProvider: ['${fixtures.provider.id}'],
 		rotateCapacityProviderApiKey: ['${fixtures.team.id}', '${fixtures.provider.id}'],
 		capacityGrants: ['${fixtures.team.id}'],
-		createCapacityGrant: ['${fixtures.team.id}', { projectId: '${fixtures.project.id}', environment: 'local', dailyCreditBudget: 1 }],
+		createCapacityGrant: ['${fixtures.team.id}', { projectId: '${fixtures.project.id}', environment: '${environment}', dailyCreditBudget: 1000 }],
 		executionProviders: ['${fixtures.team.id}', '${fixtures.provider.id}'],
 		createExecutionProvider: ['${fixtures.team.id}', '${fixtures.provider.id}', {
 			id: '${fixtures.provider.id}:codex-subscription:acceptance-native-capacity',
@@ -523,7 +523,7 @@ function sdkArgsForMethod(method) {
 		applySeed: ['acceptance', { environment: '${environment}', dryRun: true }],
 		listSeedRuns: [25],
 		exportSeed: ['${fixtures.team.id}', { includeSecrets: false }],
-		enqueueAgentTask: ['${fixtures.project.id}', { agentId: 'acceptance-agent', type: 'dry_run', payload: { dryRun: true } }],
+		enqueueAgentTask: ['${fixtures.project.id}', { agentId: 'acceptance-agent', type: 'dry_run', taskSignature: 'proposal.draft', estimatedCreditsP50: 1, estimatedCreditsP90: 1, idempotencyKey: 'acceptance-${runNonce}-agent-task', payload: { dryRun: true, runNonce: '${runNonce}' } }],
 		catalog: ['template'],
 		artifactDownload: ['${fixtures.catalogItem.id}', '${fixtures.catalogArtifact.version}'],
 	};
