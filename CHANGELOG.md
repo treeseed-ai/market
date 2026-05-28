@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.18] - 2026-05-28
+
+### Dependencies
+
+- build(deps): redeploy staging from clean provider state (9aec2f58fe14)
+- build(deps): allow railway context link by project id (b485c0a54d06)
+- build(deps): link railway context before cli volume fallback (6d3db026b641)
+- build(deps): fallback railway environment creation when API is opaque (8a7c236e2969)
+- Release @treeseed/market 0.6.18.
+- Release package @treeseed/agent: 0.10.14.
+- Release package @treeseed/cli: 0.10.14.
+- Release package @treeseed/core: 0.10.14.
+- Release package @treeseed/sdk: 0.10.20.
+
 ## [0.6.17] - 2026-05-28
 
 ### Dependencies
