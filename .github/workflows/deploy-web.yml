@@ -71,6 +71,13 @@ jobs:
       TREESEED_WEB_SERVICE_SECRET: ${{ secrets.TREESEED_WEB_SERVICE_SECRET }}
       TREESEED_WEB_ASSERTION_SECRET: ${{ secrets.TREESEED_WEB_ASSERTION_SECRET }}
       TREESEED_WEB_CSRF_SECRET: ${{ secrets.TREESEED_WEB_CSRF_SECRET }}
+      TREESEED_API_WEB_SERVICE_ID: ${{ vars.TREESEED_API_WEB_SERVICE_ID || vars.TREESEED_WEB_SERVICE_ID || 'web' }}
+      TREESEED_API_WEB_SERVICE_SECRET: ${{ secrets.TREESEED_API_WEB_SERVICE_SECRET || secrets.TREESEED_WEB_SERVICE_SECRET }}
+      TREESEED_API_WEB_ASSERTION_SECRET: ${{ secrets.TREESEED_API_WEB_ASSERTION_SECRET || secrets.TREESEED_WEB_ASSERTION_SECRET }}
+      TREESEED_API_AUTH_SECRET: ${{ secrets.TREESEED_API_AUTH_SECRET || secrets.TREESEED_BETTER_AUTH_SECRET }}
+      TREESEED_PLATFORM_RUNNER_SECRET: ${{ secrets.TREESEED_PLATFORM_RUNNER_SECRET }}
+      TREESEED_HOSTED_HUBS_GITHUB_OWNER: ${{ vars.TREESEED_HOSTED_HUBS_GITHUB_OWNER }}
+      TREESEED_HOSTED_HUBS_GITHUB_TOKEN: ${{ secrets.TREESEED_HOSTED_HUBS_GITHUB_TOKEN }}
       TREESEED_SITE_URL: ${{ vars.TREESEED_SITE_URL || (inputs.environment == 'prod' && 'https://treeseed.ai' || 'https://treeseed-market-staging-479e4625.treeseed.ai') }}
       BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL || vars.TREESEED_SITE_URL || (inputs.environment == 'prod' && 'https://treeseed.ai' || 'https://treeseed-market-staging-479e4625.treeseed.ai') }}
       TREESEED_CENTRAL_MARKET_API_BASE_URL: ${{ inputs.environment == 'prod' && (vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-market-staging-ca844c56.treeseed.ai') }}
@@ -82,7 +89,7 @@ jobs:
       TREESEED_PROJECT_ID: ${{ inputs.project_id || vars.TREESEED_PROJECT_ID }}
       TREESEED_WORKFLOW_ACTION: ${{ inputs.action_kind }}
       TREESEED_WORKFLOW_ENVIRONMENT: ${{ inputs.environment }}
-      TREESEED_WORKFLOW_PLANE: web
+      TREESEED_WORKFLOW_PLANE: all
       TREESEED_WORKFLOW_PROJECT: ${{ inputs.project_id || vars.TREESEED_PROJECT_ID }}
       TREESEED_WORKFLOW_PREVIEW_ID: ${{ inputs.preview_id }}
     steps:

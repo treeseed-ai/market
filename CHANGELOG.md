@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.6.15] - 2026-05-28
+
+### Added
+
+- feat(deps): debug staging save from clean provider state (ae37e30fa8c3)
+
+### Infrastructure
+
+- release: sync package staging heads (4f3a20b3ed49)
+
+### Tests
+
+- test(deps): allow repeatable staging capacity acceptance (96db33a0477f)
+- test(deps): debug staging save from clean provider state (cce9ba104e8f)
+- test(deps): debug staging save from clean provider state (5db1e0601d13)
+
+### Dependencies
+
+- build(deps): retry railway volume attach during clean redeploy (f6245c9028fc)
+- build(deps): bump internal packages to staging versions (38127ee0ade0)
+- build(deps): make staging acceptance repeatable after clean redeploy (952f15d5f08d)
+- build(deps): debug staging save from clean provider state (726c236ea74d)
+- build(deps): debug staging save from clean provider state (d73947e5ce9c)
+- ci(deps): debug staging save from clean provider state (84f0cec0dbbf)
+- ci(deps): debug staging save from clean provider state (ad3f7334c104)
+- build(deps): debug staging save from clean provider state (5e2be10f90c8)
+- build(deps): debug staging save from clean provider state (984545ba3a60)
+- build(deps): debug staging save from clean provider state (dc6f3e41f415)
+- build(deps): debug staging save from clean provider state (95d5e258ba34)
+- build(deps): debug staging save from clean provider state (8b035784d8e5)
+- build(deps): debug staging save from clean provider state (4e1e7f55ba11)
+- build(deps): debug staging save from clean provider state (2521d7e0f21b)
+- Release @treeseed/market 0.6.15.
+- Release package @treeseed/agent: 0.10.11.
+- Release package @treeseed/cli: 0.10.11.
+- Release package @treeseed/core: 0.10.11.
+- Release package @treeseed/sdk: 0.10.17.
+
 ## [0.6.14] - 2026-05-27
 
 ### Fixed

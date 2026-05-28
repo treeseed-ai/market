@@ -158,7 +158,7 @@ describe('one-purpose control app information architecture', () => {
 			expect(contents).toContain('deploy_web');
 			expect(contents).toContain('publish_content');
 			expect(contents).toContain('monitor');
-			for (const forbidden of ['capacityProviderId', 'runnerToken', 'TREESEED_PLATFORM_RUNNER_SECRET', 'RAILWAY_API_TOKEN', 'TREESEED_RAILWAY_PROJECT_ID', 'WORKER_POOL', 'CAPACITY_PROVIDER']) {
+			for (const forbidden of ['capacityProviderId', 'runnerToken', 'RAILWAY_API_TOKEN', 'TREESEED_RAILWAY_PROJECT_ID', 'WORKER_POOL', 'CAPACITY_PROVIDER']) {
 				expect(contents, path).not.toContain(forbidden);
 			}
 		}
