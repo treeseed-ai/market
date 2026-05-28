@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.16] - 2026-05-28
+
+### Dependencies
+
+- build(deps): use railway cli volume path for runner reconcile (2faac5e6a605)
+- build(deps): do not create replacement volumes for railway postgres (7fb2d84f2742)
+- build(deps): reuse railway managed postgres volume after not authorized (bf7be1c37b1a)
+- build(deps): reuse railway postgres volume after create conflict (4fb493ec20b0)
+- build(deps): wait for new railway service instances before runtime (fb6a57bc9e38)
+- Release @treeseed/market 0.6.16.
+- Release package @treeseed/agent: 0.10.12.
+- Release package @treeseed/cli: 0.10.12.
+- Release package @treeseed/core: 0.10.12.
+- Release package @treeseed/sdk: 0.10.18.
+
 ## [0.6.15] - 2026-05-28
 
 ### Added
