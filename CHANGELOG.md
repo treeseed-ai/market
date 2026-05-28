@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.19] - 2026-05-28
+
+### Dependencies
+
+- build(deps): force fresh deployed-resource verification on staging save (8f8fbabdee56)
+- build(deps): bump internal packages to staging versions (2bd58f7e2f62)
+- Release @treeseed/market 0.6.19.
+- Release package @treeseed/agent: 0.10.15.
+- Release package @treeseed/cli: 0.10.15.
+- Release package @treeseed/core: 0.10.15.
+- Release package @treeseed/sdk: 0.10.21.
+
 ## [0.6.18] - 2026-05-28
 
 ### Dependencies
