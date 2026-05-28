@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.17] - 2026-05-28
+
+### Dependencies
+
+- build(deps): stabilize clean redeploy railway volume verification (852f8d22fb68)
+- build(deps): update subpackages to handle mounted railway volumes (3cf9287f2cab)
+- build(deps): attach railway runner volume before verifying mount (eca52fd9270d)
+- build(deps): wait for railway service instance config to settle (6e581c078438)
+- Release @treeseed/market 0.6.17.
+- Release package @treeseed/agent: 0.10.13.
+- Release package @treeseed/cli: 0.10.13.
+- Release package @treeseed/core: 0.10.13.
+- Release package @treeseed/sdk: 0.10.19.
+
 ## [0.6.16] - 2026-05-28
 
 ### Dependencies
