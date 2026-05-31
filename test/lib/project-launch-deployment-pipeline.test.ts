@@ -68,6 +68,10 @@ describe('project launch deployment pipeline contracts', () => {
 		expect(statusPage).toContain('function rememberStatus');
 		expect(statusPage).toContain('function restoreStoredStatus');
 		expect(statusPage).toContain('window.localStorage.getItem(currentStatusKey)');
+		expect(statusPage).toContain('Started live polling for launch job.');
+		expect(statusPage).toContain('Observed launch job status.');
+		expect(statusPage).toContain('Launch API responded.');
+		expect(statusPage).toContain('Market operations runner claimed the launch job.');
 		expect(statusPage).toContain('Retry requested from deployment status page.');
 		expect(statusPage).toContain('## Log by step');
 		expect(statusPage).toContain('function renderAudit');
@@ -77,6 +81,7 @@ describe('project launch deployment pipeline contracts', () => {
 		expect(statusPage).toContain('audit?.missingConfig');
 		expect(statusPage).toContain('fetch(`/v1/jobs/${encodeURIComponent(jobId)}`)');
 		expect(statusPage).toContain('fetch(`/v1/jobs/${encodeURIComponent(jobId)}/events`)');
+		expect(statusPage).toContain("document.execCommand?.('copy')");
 	});
 
 	it('commits generated workflow files before pushing launch branches and migrates both D1 environments', () => {

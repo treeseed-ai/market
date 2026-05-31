@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { createDecipheriv, createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
 	PlatformRunnerClient,
+	TreeseedOperationsSdk,
 	executePlatformRepositoryOperation,
 	runPlatformOperationOnce,
 } from '@treeseed/sdk';
@@ -13,6 +15,7 @@ import {
 } from '@treeseed/sdk/platform-operation-store';
 import { createMarketPostgresDatabase } from '../api/market-postgres.js';
 import { MarketControlPlaneStore } from '../api/store.js';
+import { applyHubLaunchFailure, applyHubLaunchResult } from '../api/app.js';
 import { createProjectWebDeploymentExecutor } from './project-web-deployment-executor.js';
 
 function readArg(name, fallback = null) {
@@ -306,8 +309,259 @@ export async function runOnceWithClient(config, client, version, options = {}) {
 		},
 	});
 	console.log(JSON.stringify(result));
-	if (!result.ok) process.exitCode = 1;
+	if (!result.ok) {
+		process.exitCode = 1;
+		return result;
+	}
+	const launchResult = await runManagedLaunchJobs(config, deploymentStore, version, options);
+	if (launchResult.processed > 0 || launchResult.failed > 0) {
+		const combined = {
+			...result,
+			managedLaunch: launchResult,
+		};
+		console.log(JSON.stringify(combined));
+		if (!launchResult.ok) process.exitCode = 1;
+		return combined;
+	}
 	return result;
+}
+
+function objectValue(value) {
+	return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+async function consumeLaunchCredentialSession(store, runtime, jobId, sessionId) {
+	const consumed = await store.consumeProviderCredentialSession(jobId, sessionId);
+	if (!consumed.ok) {
+		throw new Error(`Unable to consume provider credential session: ${consumed.error}`);
+	}
+	const session = consumed.payload;
+	const payload = decryptCredentialSessionPayloadForRunner(runtime, session.encryptedPayload);
+	return {
+		id: session.id,
+		hostKind: session.hostKind,
+		hostId: session.hostId,
+		purpose: session.purpose,
+		provider: payload.provider ?? null,
+		config: payload.config && typeof payload.config === 'object' ? payload.config : {},
+	};
+}
+
+function credentialSessionSecretForRunner(runtime) {
+	const configured = process.env.TREESEED_MARKET_CREDENTIAL_SESSION_SECRET
+		?? runtime?.resolved?.config?.credentialSessionSecret
+		?? null;
+	if (configured && String(configured).trim()) return String(configured);
+	if (process.env.NODE_ENV === 'test' || process.env.TREESEED_LOCAL_DEV_MODE) {
+		return 'treeseed-local-test-credential-session-secret';
+	}
+	throw new Error('TREESEED_MARKET_CREDENTIAL_SESSION_SECRET is required for provider credential sessions.');
+}
+
+function decryptCredentialSessionPayloadForRunner(runtime, envelope) {
+	if (!envelope || typeof envelope !== 'object') {
+		throw new Error('Credential session payload is missing.');
+	}
+	const key = createHash('sha256').update(credentialSessionSecretForRunner(runtime)).digest();
+	const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(String(envelope.iv ?? ''), 'base64url'));
+	decipher.setAuthTag(Buffer.from(String(envelope.tag ?? ''), 'base64url'));
+	const plaintext = Buffer.concat([
+		decipher.update(Buffer.from(String(envelope.ciphertext ?? ''), 'base64url')),
+		decipher.final(),
+	]);
+	return JSON.parse(plaintext.toString('utf8'));
+}
+
+async function prepareLaunchIntentForMarketRunner(store, runtime, job) {
+	const launchJobInput = objectValue(job.input);
+	const launchIntent = objectValue(launchJobInput.launchIntent);
+	const nextIntent = JSON.parse(JSON.stringify(launchIntent));
+	const execution = objectValue(nextIntent.execution);
+	const providerLaunchInput = objectValue(execution.providerLaunchInput);
+	const sessions = objectValue(launchJobInput.credentialSessions);
+	const envOverlay = {};
+	const consume = async (key) => {
+		const sessionId = typeof sessions[key] === 'string' ? sessions[key].trim() : '';
+		if (!sessionId) return null;
+		return consumeLaunchCredentialSession(store, runtime, job.id, sessionId);
+	};
+	const repositorySession = await consume('repositoryHost');
+	if (repositorySession?.config) {
+		const token = repositorySession.config.GH_TOKEN ?? repositorySession.config.GITHUB_TOKEN;
+		if (token) {
+			envOverlay.GH_TOKEN = token;
+			envOverlay.GITHUB_TOKEN = repositorySession.config.GITHUB_TOKEN ?? token;
+		}
+		const owner = repositorySession.config.organizationOrOwner ?? repositorySession.config.owner;
+		if (owner) {
+			nextIntent.repository = {
+				...objectValue(nextIntent.repository),
+				owner,
+			};
+			providerLaunchInput.repoOwner = owner;
+		}
+	}
+	const webSession = await consume('webHost');
+	if (webSession?.config) {
+		const webConfig = objectValue(webSession.config);
+		for (const [key, value] of Object.entries(webConfig)) {
+			if (typeof value === 'string' && value.trim()) envOverlay[key] = value;
+		}
+		providerLaunchInput.cloudflareHost = {
+			...objectValue(providerLaunchInput.cloudflareHost),
+			config: webConfig,
+		};
+	}
+	const emailSession = await consume('emailHost');
+	if (emailSession?.config) {
+		const emailConfig = objectValue(emailSession.config);
+		for (const [key, value] of Object.entries(emailConfig)) {
+			if (typeof value === 'string' && value.trim()) envOverlay[key] = value;
+		}
+		providerLaunchInput.emailHost = {
+			...objectValue(providerLaunchInput.emailHost),
+			config: emailConfig,
+		};
+	}
+	nextIntent.execution = {
+		...execution,
+		providerLaunchInput,
+	};
+	return { intent: nextIntent, envOverlay, resume: launchJobInput.resume === true };
+}
+
+async function runManagedLaunchJobs(config, store, _version, options = {}) {
+	if (!store) return { ok: true, processed: 0, failed: 0 };
+	const runtime = { resolved: { config: { baseUrl: config.marketUrl ?? null, environment: config.environment } } };
+	const jobs = await store.pullManagedLaunchJobs({
+		runnerId: config.runnerId,
+		limit: Math.max(1, Number(options.maxJobs ?? 1) || 1),
+	});
+	let processed = 0;
+	let failed = 0;
+	const errors = [];
+	for (const job of jobs) {
+		try {
+			await store.recordJobProgress(job.id, {
+				summary: 'Market operations runner claimed the project launch job.',
+				data: {
+					runnerId: config.runnerId,
+					phase: 'launch_claimed',
+					status: 'running',
+					title: 'Launch job claimed',
+				},
+			});
+			const prepared = await prepareLaunchIntentForMarketRunner(store, runtime, job);
+			await store.recordJobProgress(job.id, {
+				summary: 'Executing managed project launch.',
+				data: {
+					runnerId: config.runnerId,
+					phase: 'launch_execution_running',
+					status: 'running',
+					title: 'Executing launch',
+				},
+			});
+			const result = options.mockExternal === true
+				? {
+					mode: 'inline',
+					payload: mockedManagedLaunchResult(prepared.intent),
+				}
+				: await new TreeseedOperationsSdk().execute({
+					operationName: prepared.resume ? 'hub.resume_launch' : 'hub.execute_launch',
+					input: prepared.intent,
+				}, {
+					cwd: env('TREESEED_MARKET_REPO_ROOT', process.cwd()),
+					env: {
+						...process.env,
+						...prepared.envOverlay,
+					},
+					transport: 'sdk',
+					onProgress: async (event) => {
+						if (event.kind !== 'hub_launch_phase') return;
+						await store.recordJobProgress(job.id, {
+							summary: typeof event.summary === 'string' ? event.summary : null,
+							data: {
+								...event,
+								runnerId: config.runnerId,
+							},
+						});
+					},
+				});
+			await applyHubLaunchResult(store, runtime, job, result.mode === 'inline' ? result.payload : result, {
+				id: config.runnerId,
+				type: 'service',
+			});
+			await store.completeJob(job.id, {
+				output: result.mode === 'inline' ? result.payload : result,
+			});
+			processed += 1;
+		} catch (error) {
+			failed += 1;
+			const message = error instanceof Error ? error.message : String(error);
+			errors.push({ jobId: job.id, message });
+			await applyHubLaunchFailure(store, job, {
+				code: 'market_operations_runner_failed',
+				message,
+			}).catch(() => {});
+			await store.failJob(job.id, {
+				code: 'market_operations_runner_failed',
+				message,
+			});
+		}
+	}
+	return { ok: failed === 0, processed, failed, errors };
+}
+
+function mockedManagedLaunchResult(intent) {
+	const hub = objectValue(intent.hub);
+	const repository = objectValue(intent.repository);
+	const slug = String(hub.slug ?? hub.id ?? 'project');
+	const owner = String(repository.owner ?? 'treeseed-ai');
+	return {
+		plan: {
+			repository: {
+				hostId: repository.hostId ?? 'platform:github:hosted-hubs',
+				topology: repository.topology ?? 'split_software_content',
+			},
+			contentResolution: {},
+		},
+		repository: {
+			slug: `${owner}/${slug}`,
+			owner,
+			name: slug,
+			url: `https://github.com/${owner}/${slug}`,
+			defaultBranch: 'main',
+			stagingBranch: 'staging',
+			visibility: repository.visibility ?? 'private',
+		},
+		repositories: [{
+			role: 'software',
+			owner,
+			name: `${slug}-site`,
+			url: `https://github.com/${owner}/${slug}-site`,
+			defaultBranch: 'main',
+			create: true,
+		}, {
+			role: 'content',
+			owner,
+			name: `${slug}-content`,
+			url: `https://github.com/${owner}/${slug}-content`,
+			defaultBranch: 'main',
+			create: true,
+		}],
+		cloudflare: {
+			staging: { siteUrl: `https://${slug}-staging.pages.dev` },
+			prod: { siteUrl: `https://${slug}.pages.dev` },
+		},
+		railway: { services: [], deployments: [], schedules: [] },
+		projectApiBaseUrl: `https://${slug}-api.example.test`,
+		projectSiteUrl: `https://${slug}.pages.dev`,
+		projectMetadata: { mocked: true },
+		phases: [
+			{ phase: 'repo_provision', status: 'completed', detail: 'Mocked repository provisioning completed.' },
+			{ phase: 'runtime_connection', status: 'completed', detail: 'Mocked runtime connection completed.' },
+		],
+	};
 }
 
 async function runOnce(options = {}) {

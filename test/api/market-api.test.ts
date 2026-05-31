@@ -2968,6 +2968,7 @@ describe('market api', () => {
 				idempotencyKey: 'runner-web-deploy-success',
 			}),
 		}));
+		expect(JSON.stringify(queued)).not.toMatch(/railway/i);
 
 		await withHttpMarketApp(app, async (baseUrl) => {
 			const client = new PlatformRunnerClient({
@@ -3008,6 +3009,7 @@ describe('market api', () => {
 		const completedOperation = await store.findPlatformOperationById(queued.operation.id);
 		expect(completedOperation).not.toBeNull();
 		expect(completedOperation!.status).toBe('succeeded');
+		expect(JSON.stringify(completedOperation)).not.toMatch(/railway/i);
 		const deployment = await store.findProjectDeploymentById(queued.deployment.id);
 		expect(deployment).not.toBeNull();
 		expect(deployment).toMatchObject({
@@ -5157,6 +5159,7 @@ describe('market api', () => {
 		expect(payload.payload.project.project.metadata.coreObjective).toBe('# Core Objective\n\nKeep launch work aligned around reliable project deployment.');
 		expect(payload.payload.project.latestLaunch.state).toBe('queued');
 		expect(payload.payload.launchJob.status).toBe('pending');
+		expect(payload.payload.launchJob.selectedTarget).toBe('market_operations_runner');
 		expect(payload.payload.launchJob.input.launchIntent.hub.coreObjective).toBe('# Core Objective\n\nKeep launch work aligned around reliable project deployment.');
 		expect(payload.payload.launchJob.input.launchIntent.execution.providerLaunchInput.coreObjective).toBe('# Core Objective\n\nKeep launch work aligned around reliable project deployment.');
 		expect(launchSpy).not.toHaveBeenCalled();
@@ -5235,6 +5238,113 @@ describe('market api', () => {
 			},
 		}));
 		expect(inbox.payload.some((entry: { kind: string }) => entry.kind === 'launch_failure')).toBe(false);
+	}, 15000);
+
+	it('lets the market operations runner claim and complete managed project launch jobs', async () => {
+		const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeHubProviderLaunch').mockResolvedValue({
+			workingRoot: '/tmp/market-runner-launch-success',
+			plan: {
+				repository: {
+					hostId: 'platform:github:hosted-hubs',
+					topology: 'split_software_content',
+				},
+				contentResolution: {},
+			},
+			repository: {
+				slug: 'treeseed-ai/runner-launch-project',
+				owner: 'treeseed-ai',
+				name: 'runner-launch-project',
+				url: 'https://github.com/treeseed-ai/runner-launch-project',
+				defaultBranch: 'main',
+				stagingBranch: 'staging',
+				visibility: 'private',
+			},
+			repositories: [{
+				role: 'software',
+				owner: 'treeseed-ai',
+				name: 'runner-launch-project-site',
+				url: 'https://github.com/treeseed-ai/runner-launch-project-site',
+				defaultBranch: 'main',
+				create: true,
+			}, {
+				role: 'content',
+				owner: 'treeseed-ai',
+				name: 'runner-launch-project-content',
+				url: 'https://github.com/treeseed-ai/runner-launch-project-content',
+				defaultBranch: 'main',
+				create: true,
+			}],
+			cloudflare: {
+				staging: { siteUrl: 'https://runner-launch-project-staging.pages.dev' },
+				prod: { siteUrl: 'https://runner-launch-project.pages.dev' },
+			},
+			railway: { services: [], deployments: [], schedules: [] },
+			projectApiBaseUrl: 'https://runner-launch-project-api.example.test',
+			projectSiteUrl: 'https://runner-launch-project.pages.dev',
+			projectMetadata: { objectiveCount: 1 },
+			phases: [
+				{ phase: 'repo_provision', status: 'completed', detail: 'Created repositories.' },
+				{ phase: 'runtime_connection', status: 'completed', detail: 'Connected runtime.' },
+			],
+		} as unknown as Awaited<ReturnType<typeof treeseedCore.executeKnowledgeHubProviderLaunch>>);
+		const db = createTestPostgresDatabase();
+		const store = createTestStore(db);
+		const app = createTestApp({
+			db,
+			store,
+			config: {
+				platformRunnerSecret: 'platform-runner-secret',
+			},
+		});
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+
+		const launched = await json(await app.request(`/v1/teams/${team.id}/projects/launch`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({
+				slug: 'runner-launch-project',
+				name: 'Runner Launch Project',
+				coreObjective: '# Core Objective\n\nVerify managed launch jobs are picked up.',
+				sourceKind: 'template',
+				sourceRef: 'starter-basic',
+				hostingMode: 'managed',
+			}),
+		}));
+		expect(launched.payload.launchJob.selectedTarget).toBe('market_operations_runner');
+		await store.run('UPDATE remote_jobs SET selected_target = ? WHERE id = ?', ['project_runner', launched.operationId]);
+
+		await withHttpMarketApp(app, async (baseUrl) => {
+			const client = new PlatformRunnerClient({
+				marketUrl: baseUrl,
+				marketId: 'local',
+				runnerSecret: 'platform-runner-secret',
+			});
+			const result = await runOnceWithClient({
+				runnerId: 'market-ops-launch-runner-01',
+				environment: 'staging',
+				dataDir: packageRoot,
+				marketUrl: baseUrl,
+			}, client, 'test', {
+				deploymentStore: store,
+				mockExternal: true,
+			});
+			expect((result as { managedLaunch?: unknown }).managedLaunch).toMatchObject({ ok: true, processed: 1, failed: 0 });
+		});
+
+		expect(launchSpy).not.toHaveBeenCalled();
+		const job = await json(await app.request(`/v1/jobs/${launched.operationId}`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(job.payload.status).toBe('completed');
+		const state = await json(await app.request(`/v1/projects/${launched.projectId}/deployment-state`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(state.launch).toMatchObject({
+			status: 'complete',
+			active: false,
+			currentPhase: 'launch_completed',
+		});
 	}, 15000);
 
 	it('exchanges GitHub OIDC for managed operation jobs without exposing provider secrets', async () => {

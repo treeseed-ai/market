@@ -128,6 +128,8 @@ const requestId = Astro.url.searchParams.get('request') ?? '';
 	let currentStorageKey = '';
 	let currentStatusKey = '';
 	let launchRunning = false;
+	let lastObservedJobStatus = '';
+	let lastObservedEventCount = 0;
 
 	function text(value: unknown, fallback = '') {
 		return typeof value === 'string' && value.trim() ? value.trim() : fallback;
@@ -427,6 +429,7 @@ const requestId = Astro.url.searchParams.get('request') ?? '';
 		const seenEvents = new Set<string>();
 		setStep('runner', 'running');
 		setProgress(68, 'Launch job queued. Waiting for runner events.');
+		appendLog('Started live polling for launch job.', { jobId }, 'runner');
 		rememberStatus({ jobId, deployHref, terminal: false });
 		for (let attempt = 0; attempt < 180; attempt += 1) {
 			const [jobPayload, eventsPayload] = await Promise.all([
@@ -435,18 +438,26 @@ const requestId = Astro.url.searchParams.get('request') ?? '';
 			]);
 			const job = jobFrom(jobPayload);
 			const events = eventRows(eventsPayload);
+			if (!job) {
+				appendLog('Job polling response did not include a job payload.', { attempt, jobPayload }, 'runner');
+			}
 			logJobEvents(events, seenEvents);
 			const status = text(job?.status, 'queued');
+			if (status !== lastObservedJobStatus || events.length !== lastObservedEventCount) {
+				appendLog('Observed launch job status.', { status, eventCount: events.length }, 'runner');
+				lastObservedJobStatus = status;
+				lastObservedEventCount = events.length;
+			}
 			setHeading(`Launch ${status.replaceAll('_', ' ')}`, `Job ${jobId}`);
 			if (status === 'pending') {
 				setStatePill('Queued', 'warning');
-				setProgress(72, 'Launch job is waiting for an available runner.');
+				setProgress(72, 'Launch job is waiting for the Market operations runner.');
 			} else if (status === 'claimed') {
 				setStatePill('Claimed', 'info');
-				setProgress(78, 'Runner claimed the launch job.');
+				setProgress(78, 'Market operations runner claimed the launch job.');
 			} else if (status === 'running') {
 				setStatePill('Running', 'info');
-				setProgress(86, 'Runner is provisioning project resources.');
+				setProgress(86, 'Market operations runner is provisioning project resources.');
 			} else if (status === 'waiting_for_approval') {
 				setStatePill('Approval', 'warning');
 				setProgress(82, 'Launch is waiting for approval.');
@@ -497,6 +508,12 @@ const requestId = Astro.url.searchParams.get('request') ?? '';
 			body: JSON.stringify(request.body ?? {}),
 		});
 		const payload = await readJson(response);
+		appendLog('Launch API responded.', {
+			status: response.status,
+			ok: response.ok,
+			payloadOk: payload?.ok ?? null,
+			operationId: payload?.operationId ?? payload?.payload?.launchJob?.id ?? null,
+		}, 'preflight');
 		if (!response.ok || payload?.ok === false) {
 			appendLog('Launch request failed.', {
 				status: response.status,
@@ -574,6 +591,9 @@ const requestId = Astro.url.searchParams.get('request') ?? '';
 		if (!copied && logCopy) {
 			logCopy.focus();
 			logCopy.select();
+			const fallbackCopied = document.execCommand?.('copy') === true;
+			if (copyStatus) copyStatus.textContent = fallbackCopied ? 'Troubleshooting report copied.' : 'Report selected. Use your browser copy command.';
+			return;
 		}
 		if (copyStatus) copyStatus.textContent = copied ? 'Troubleshooting report copied.' : 'Report selected. Use your browser copy command.';
 	});

@@ -2435,7 +2435,7 @@ function hubRepositoryPolicies(role) {
 	};
 }
 
-async function applyHubLaunchResult(store, runtime, job, output, principal = null) {
+export async function applyHubLaunchResult(store, runtime, job, output, principal = null) {
 	const launchResult = unwrapLaunchOperationOutput(output);
 	if (!launchResult) return null;
 	const hubLaunch = await store.getHubLaunchByJobId(job.id);
@@ -2616,7 +2616,7 @@ async function applyHubLaunchResult(store, runtime, job, output, principal = nul
 	return launchResult;
 }
 
-async function applyHubLaunchFailure(store, job, input) {
+export async function applyHubLaunchFailure(store, job, input) {
 	const hubLaunch = await store.getHubLaunchByJobId(job.id);
 	const project = await store.getProject(job.projectId);
 	if (!hubLaunch || !project) return null;
@@ -6355,7 +6355,7 @@ export function createMarketApiApp(options = {}) {
 					operation: 'launch_project',
 					status: 'pending',
 					preferredMode: 'auto',
-					selectedTarget: 'project_runner',
+					selectedTarget: hostingMode === 'managed' ? 'market_operations_runner' : 'project_runner',
 					requestedByType: c.get('actorType') === 'service' ? 'service' : 'user',
 					requestedById: typeof access.principal.id === 'string' ? access.principal.id : null,
 					idempotencyKey: `launch:${details.project.id}`,

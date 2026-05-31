@@ -9493,6 +9493,47 @@ export class MarketControlPlaneStore {
 		return claimed;
 	}
 
+	async pullManagedLaunchJobs(input = {}) {
+		await this.ensureInitialized();
+		const limit = Math.max(1, Math.min(Number(input.limit ?? 1), 20));
+		const rows = await this.all(
+			`SELECT * FROM remote_jobs
+			 WHERE namespace = 'workflow'
+			   AND operation = 'launch_project'
+			   AND status = 'pending'
+			   AND selected_target IN ('market_operations_runner', 'project_runner')
+			 ORDER BY created_at ASC
+			 LIMIT ?`,
+			[limit * 4],
+		);
+		const claimed = [];
+		for (const row of rows) {
+			const job = serializeJob(row);
+			const inputJson = job.input && typeof job.input === 'object' ? job.input : {};
+			if (inputJson.hostingMode && inputJson.hostingMode !== 'managed') continue;
+			if (inputJson.launchIntent?.hosting?.mode && inputJson.launchIntent.hosting.mode !== 'treeseed_managed') continue;
+			const timestamp = isoNow();
+			await this.run(
+				`UPDATE remote_jobs
+				 SET status = 'claimed',
+				     selected_target = 'market_operations_runner',
+				     assigned_runner_id = ?,
+				     started_at = COALESCE(started_at, ?),
+				     updated_at = ?
+				 WHERE id = ? AND status = 'pending'`,
+				[input.runnerId ?? 'market-operations-runner', timestamp, timestamp, row.id],
+			);
+			await this.appendJobEvent(row.id, 'claimed', {
+				runnerId: input.runnerId ?? 'market-operations-runner',
+				target: 'market_operations_runner',
+			});
+			const next = await this.findJobById(row.id);
+			if (next) claimed.push(next);
+			if (claimed.length >= limit) break;
+		}
+		return claimed;
+	}
+
 	async pullCapacityProviderJobs(capacityProviderId, projectId, input = {}) {
 		await this.ensureInitialized();
 		const limit = Math.max(1, Math.min(Number(input.limit ?? 1), 20));
