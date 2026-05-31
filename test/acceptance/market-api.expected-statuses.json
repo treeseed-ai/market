@@ -1286,6 +1286,18 @@
       "providerKey": 401,
       "platformRunner": 401
     },
+    "get.v1.teams.teamId.hosts.hostId": {
+      "anonymous": 401,
+      "siteAdmin": 404,
+      "marketSteward": 404,
+      "teamOwner": 404,
+      "teamOperator": 404,
+      "teamViewer": 404,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
     "get.v1.teams.teamId.inbox": {
       "anonymous": 401,
       "siteAdmin": 200,
@@ -1377,6 +1389,18 @@
       "teamOwner": 200,
       "teamOperator": 200,
       "teamViewer": 200,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "get.v1.teams.teamId.web-hosts.hostId": {
+      "anonymous": 401,
+      "siteAdmin": 404,
+      "marketSteward": 404,
+      "teamOwner": 404,
+      "teamOperator": 404,
+      "teamViewer": 404,
       "nonMember": 403,
       "providerOperator": 403,
       "providerKey": 401,

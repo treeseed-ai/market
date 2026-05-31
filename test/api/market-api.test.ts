@@ -11,6 +11,7 @@ import { PlatformRunnerClient } from '../../packages/sdk/src/platform-operations
 import { createMarketApiApp } from '../../src/api/app.js';
 import { MarketPostgresDatabase } from '../../src/api/market-postgres.js';
 import { MarketControlPlaneStore } from '../../src/api/store.js';
+import { encryptHostConfig } from '../../src/lib/host-crypto.ts';
 import { listTreeseedManagedHostsFromConfig } from '../../src/lib/market/managed-hosts.js';
 import { runOnceWithClient } from '../../src/market-operations-runner/entrypoint.js';
 
@@ -361,6 +362,26 @@ describe('market api', () => {
 		expect(confirmed.ok).toBe(true);
 		expect(confirmed.payload.accessToken).toEqual(expect.any(String));
 		expect(confirmed.payload.principal.metadata.appearance).toEqual({ scheme: 'cedar', mode: 'dark' });
+		const personalTeam = await store.getTeamBySlug('api-auth-user');
+		expect(personalTeam).toMatchObject({
+			name: 'api-auth-user',
+			displayName: 'API Auth User',
+			metadata: {
+				kind: 'personal_research',
+				ownerUserId: confirmed.payload.principal.id,
+			},
+		});
+		expect(await store.listTeamMembers(personalTeam!.id)).toEqual([
+			expect.objectContaining({
+				userId: confirmed.payload.principal.id,
+				roles: expect.arrayContaining(['team_owner']),
+			}),
+		]);
+		await expect(store.ensurePersonalResearchTeamForUser(confirmed.payload.principal.id)).resolves.toMatchObject({
+			ok: true,
+			created: false,
+		});
+		expect((await store.all(`SELECT id FROM teams WHERE slug = ?`, ['api-auth-user'])).length).toBe(1);
 		const signin = await json(await app.request('/v1/auth/web/sign-in', {
 			method: 'POST',
 			headers: {
@@ -433,7 +454,64 @@ describe('market api', () => {
 		]));
 		const runners = await store.listMarketOperationRunners({ limit: 10 });
 		expect(runners.find((runner: any) => runner.id === seeded.payload.fixtures.platformRunner.id)?.capabilities).toContain('project:web_deployment');
-	}, 15000);
+	}, 30000);
+
+	it('keeps public usernames and team slugs in one namespace', async () => {
+		const db = createTestPostgresDatabase();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
+		await store.createTeam({
+			name: 'reserved-team',
+			displayName: 'Reserved Team',
+		});
+
+		const unavailable = await json(await app.request('/v1/auth/web/username/check?username=reserved-team'));
+		expect(unavailable.payload).toMatchObject({
+			username: 'reserved-team',
+			available: false,
+			status: 'taken',
+			message: 'Username is already taken by a team.',
+		});
+
+		const signup = await json(await app.request('/v1/auth/web/sign-up', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				email: 'reserved-team@example.com',
+				username: 'reserved-team',
+				password: 'TreeSeed-auth-test-123!',
+				name: 'Reserved User',
+			}),
+		}));
+		expect(signup.ok).toBe(false);
+		expect(signup.code).toBe('namespace_taken');
+
+		const userSignup = await json(await app.request('/v1/auth/web/sign-up', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				email: 'team-slug-user@example.com',
+				username: 'team-slug-user',
+				password: 'TreeSeed-auth-test-123!',
+				name: 'Team Slug User',
+			}),
+		}));
+		const confirmed = await json(await app.request('/v1/auth/web/confirm-email', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ token: userSignup.payload.confirmationToken }),
+		}));
+		const teamResponse = await json(await app.request('/v1/teams', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${confirmed.payload.accessToken}`,
+			},
+			body: JSON.stringify({ slug: 'team-slug-user', name: 'Team Slug User Duplicate' }),
+		}));
+		expect(teamResponse.ok).toBe(false);
+		expect(teamResponse.code).toBe('namespace_taken');
+	});
 
 	it('supports multiple verified account emails for login, primary selection, deletion, reset, and invite lookup', async () => {
 		const db = createTestPostgresDatabase();
@@ -650,6 +728,50 @@ describe('market api', () => {
 		expect(rejected.code).toBe('slug_taken');
 	});
 
+	it('scopes project slug uniqueness to a team', async () => {
+		const db = createTestPostgresDatabase();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
+		const token = await authorizeApp(app);
+		const headers = {
+			'content-type': 'application/json',
+			authorization: `Bearer ${token}`,
+		};
+		const firstTeam = await json(await app.request('/v1/teams', {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({ slug: 'slug-team-one', name: 'Slug Team One' }),
+		}));
+		const secondTeam = await json(await app.request('/v1/teams', {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({ slug: 'slug-team-two', name: 'Slug Team Two' }),
+		}));
+
+		const firstProject = await json(await app.request(`/v1/teams/${firstTeam.payload.id}/projects`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({ slug: 'shared-slug', name: 'Shared Slug One' }),
+		}));
+		const secondProject = await json(await app.request(`/v1/teams/${secondTeam.payload.id}/projects`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({ slug: 'shared-slug', name: 'Shared Slug Two' }),
+		}));
+		expect(firstProject.ok).toBe(true);
+		expect(secondProject.ok).toBe(true);
+		expect(firstProject.payload.project.teamId).toBe(firstTeam.payload.id);
+		expect(secondProject.payload.project.teamId).toBe(secondTeam.payload.id);
+
+		const duplicate = await json(await app.request(`/v1/teams/${firstTeam.payload.id}/projects`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({ slug: 'shared-slug', name: 'Duplicate Shared Slug' }),
+		}));
+		expect(duplicate.ok).toBe(false);
+		expect(duplicate.code).toBe('slug_taken');
+	});
+
 	it('blocks project deletion while active work is attached', async () => {
 		const app = createTestApp();
 		const token = await authorizeApp(app);
@@ -701,6 +823,7 @@ describe('market api', () => {
 				allowedEnvironments: ['staging', 'prod'],
 				encryptedPayload: encryptedHostEnvelope(),
 				metadata: {
+					hostType: 'web',
 					accountHint: 'example',
 				},
 			}),
@@ -729,13 +852,177 @@ describe('market api', () => {
 			}),
 		}));
 		expect(updated.payload.name).toBe('Team Cloudflare Updated');
+		expect(updated.payload.accountLabel).toBe('Example Account');
+		expect(updated.payload.metadata.hostType).toBe('web');
+		expect(updated.payload.metadata.accountHint).toBe('updated');
 		expect(updated.payload.encryptedPayload.ciphertext).toBe('Y2lwaGVydGV4dA==');
+
+		const direct = await json(await app.request(`/v1/teams/${team.id}/web-hosts/${payload.payload.id}`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(direct.payload.name).toBe('Team Cloudflare Updated');
+
+		const genericUpdated = await json(await app.request(`/v1/teams/${team.id}/hosts/${payload.payload.id}`, {
+			method: 'PUT',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Team Cloudflare Generic Rename',
+				metadata: { hostType: 'web', accountHint: 'updated' },
+			}),
+		}));
+		expect(genericUpdated.payload.name).toBe('Team Cloudflare Generic Rename');
+		expect(genericUpdated.payload.accountLabel).toBe('Example Account');
+		expect(genericUpdated.payload.encryptedPayload.ciphertext).toBe('Y2lwaGVydGV4dA==');
+		const genericDirect = await json(await app.request(`/v1/teams/${team.id}/hosts/${payload.payload.id}`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(genericDirect.payload.name).toBe('Team Cloudflare Generic Rename');
+		expect(genericDirect.payload.encryptedPayload.ciphertext).toBe('Y2lwaGVydGV4dA==');
 
 		const deleted = await json(await app.request(`/v1/teams/${team.id}/web-hosts/${payload.payload.id}`, {
 			method: 'DELETE',
 			headers: { authorization: `Bearer ${token}` },
 		}));
 		expect(deleted.ok).toBe(true);
+	});
+
+	it('preserves generic email host encrypted payloads during metadata-only updates', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+		const created = await json(await app.request(`/v1/teams/${team.id}/hosts`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Team SMTP',
+				provider: 'smtp',
+				ownership: 'team_owned',
+				accountLabel: 'Example Mail',
+				encryptedPayload: encryptedHostEnvelope(),
+				metadata: { hostType: 'email' },
+			}),
+		}));
+		expect(created.payload.encryptedPayload.ciphertext).toBe('Y2lwaGVydGV4dA==');
+
+		const updated = await json(await app.request(`/v1/teams/${team.id}/hosts/${created.payload.id}`, {
+			method: 'PUT',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				name: 'Team SMTP Renamed',
+				metadata: { hostType: 'email', purpose: 'transactional' },
+			}),
+		}));
+		expect(updated.payload.name).toBe('Team SMTP Renamed');
+		expect(updated.payload.accountLabel).toBe('Example Mail');
+		expect(updated.payload.metadata).toMatchObject({ hostType: 'email', purpose: 'transactional' });
+		expect(updated.payload.encryptedPayload.ciphertext).toBe('Y2lwaGVydGV4dA==');
+	});
+
+	it('rejects plaintext host credential fields on every host write route', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+		const headers = {
+			'content-type': 'application/json',
+			authorization: `Bearer ${token}`,
+		};
+		const encryptedPayload = encryptedHostEnvelope();
+
+		const repositoryPlaintext = await json(await app.request(`/v1/teams/${team.id}/repository-hosts`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				name: 'Unsafe GitHub',
+				organizationOrOwner: 'example-org',
+				ownership: 'team_owned',
+				githubToken: 'ghp_plaintext',
+				encryptedPayload,
+			}),
+		}));
+		expect(repositoryPlaintext.ok).toBe(false);
+		expect(repositoryPlaintext.error).toBe('Host credential values must be encrypted in encryptedPayload before submission.');
+		expect(repositoryPlaintext.fields).toContain('githubToken');
+
+		const genericPlaintext = await json(await app.request(`/v1/teams/${team.id}/hosts`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				name: 'Unsafe SMTP',
+				provider: 'smtp',
+				ownership: 'team_owned',
+				metadata: {
+					hostType: 'email',
+					smtp: {
+						host: 'smtp.example.com',
+						port: '587',
+						fromEmail: 'hello@example.com',
+						replyTo: 'support@example.com',
+						secure: 'false',
+					},
+				},
+				smtpPassword: 'plain-smtp-password',
+				encryptedPayload,
+			}),
+		}));
+		expect(genericPlaintext.ok).toBe(false);
+		expect(genericPlaintext.error).toBe('Host credential values must be encrypted in encryptedPayload before submission.');
+		expect(genericPlaintext.fields).toContain('smtpPassword');
+		expect(genericPlaintext.fields).not.toContain('metadata.smtp.host');
+		expect(genericPlaintext.fields).not.toContain('metadata.smtp.port');
+
+		const smtpPublicSettings = await json(await app.request(`/v1/teams/${team.id}/hosts`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				name: 'SMTP public settings',
+				provider: 'smtp',
+				ownership: 'team_owned',
+				metadata: {
+					hostType: 'email',
+					smtp: {
+						host: 'smtp.example.com',
+						port: '587',
+						fromEmail: 'hello@example.com',
+						replyTo: 'support@example.com',
+						secure: 'false',
+					},
+				},
+				encryptedPayload,
+			}),
+		}));
+		expect(smtpPublicSettings.ok).toBe(true);
+		expect(smtpPublicSettings.payload.metadata.smtp).toMatchObject({
+			host: 'smtp.example.com',
+			port: '587',
+			fromEmail: 'hello@example.com',
+			replyTo: 'support@example.com',
+			secure: 'false',
+		});
+
+		const webPlaintext = await json(await app.request(`/v1/teams/${team.id}/hosts`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				name: 'Unsafe Cloudflare',
+				provider: 'cloudflare',
+				ownership: 'team_owned',
+				metadata: { hostType: 'web' },
+				cloudflareApiToken: 'plain-cloudflare-token',
+				encryptedPayload,
+			}),
+		}));
+		expect(webPlaintext.ok).toBe(false);
+		expect(webPlaintext.error).toBe('Host credential values must be encrypted in encryptedPayload before submission.');
+		expect(webPlaintext.fields).toContain('cloudflareApiToken');
 	});
 
 	it('audits team hosting readiness without exposing secrets', async () => {
@@ -990,6 +1277,10 @@ describe('market api', () => {
 			body: JSON.stringify({
 				name: 'Team Cloudflare',
 				ownership: 'team_owned',
+				metadata: {
+					hostType: 'web',
+					dns: { managed: true, zoneName: 'example.test', zoneId: 'zone-1' },
+				},
 				encryptedPayload: encryptedTestHostEnvelope({
 					CLOUDFLARE_API_TOKEN: 'cf-secret-token',
 					CLOUDFLARE_ACCOUNT_ID: 'account-1',
@@ -1026,6 +1317,13 @@ describe('market api', () => {
 				cloudflareHostMode: 'team_owned',
 				cloudflareHostId: host.payload.id,
 				targetEnvironments: ['staging', 'prod'],
+				domains: {
+					productionDomain: 'example.test',
+					stagingDomain: 'staging.example.test',
+					zoneName: 'example.test',
+					zoneId: 'zone-1',
+					manageDns: true,
+				},
 				credentialSessions: {
 					webHost: session.payload.id,
 				},
@@ -1050,8 +1348,34 @@ describe('market api', () => {
 		}));
 		expect(details.payload.project.metadata.cloudflareHost.mode).toBe('team_owned');
 		expect(details.payload.project.metadata.cloudflareHost.hostId).toBe(host.payload.id);
+		expect(details.payload.project.metadata.domains).toMatchObject({
+			productionDomain: 'example.test',
+			stagingDomain: 'staging.example.test',
+			zoneName: 'example.test',
+			zoneId: 'zone-1',
+			manageDns: true,
+		});
 		expect(details.payload.latestLaunch.state).toBe('queued');
 		expect(JSON.stringify(details)).not.toContain('cf-secret-token');
+		const environments = await json(await app.request(`/v1/projects/${projectId}/environments`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(environments.payload).toContainEqual(expect.objectContaining({
+			environment: 'prod',
+			baseUrl: 'https://example.test',
+			cloudflareAccountId: null,
+			metadata: expect.objectContaining({
+				domain: 'example.test',
+				cloudflareZoneName: 'example.test',
+				cloudflareZoneId: 'zone-1',
+				dnsManagedByHost: true,
+			}),
+		}));
+		expect(environments.payload).toContainEqual(expect.objectContaining({
+			environment: 'staging',
+			baseUrl: 'https://staging.example.test',
+			metadata: expect.objectContaining({ domain: 'staging.example.test' }),
+		}));
 		const connection = await json(await app.request(`/v1/projects/${projectId}/connection`, {
 			method: 'POST',
 			headers: {
@@ -1074,6 +1398,64 @@ describe('market api', () => {
 			headers: { authorization: `Bearer ${connection.payload.runnerToken}` },
 		});
 		expect(consumedAgain.status).toBe(404);
+	});
+
+	it('does not persist a project when launch hosting readiness fails', async () => {
+		await withEnv({
+			CLOUDFLARE_API_TOKEN: 'managed-token',
+			CLOUDFLARE_ACCOUNT_ID: 'managed-account',
+		}, async () => {
+			runTreeseedHostingAuditMock.mockResolvedValueOnce({
+				ok: false,
+				environment: 'staging',
+				requestedEnvironment: 'current',
+				repairMode: false,
+				repaired: false,
+				target: { kind: 'persistent', scope: 'staging', label: 'staging' },
+				hostKinds: ['repository', 'web', 'email'],
+				checkedAt: '2026-01-01T00:00:00.000Z',
+				checks: [],
+				missingConfig: ['CLOUDFLARE_ACCOUNT_ID'] as any,
+				resources: {},
+				warnings: [],
+				blockers: [{ code: 'missing_config', message: 'Cloudflare account is missing.' }] as any,
+				nextActions: ['Fix hosting configuration.'],
+			});
+			const app = createTestApp();
+			const token = await authorizeApp(app);
+			const team = await createTeam(app, token);
+
+			const launched = await app.request(`/v1/teams/${team.id}/projects/launch`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					slug: 'audit-fails-before-persist',
+					name: 'Audit Fails Before Persist',
+					sourceKind: 'template',
+					sourceRef: 'starter-basic',
+					hostingMode: 'managed',
+					cloudflareHostMode: 'treeseed_managed',
+					emailHostMode: 'treeseed_managed',
+					repositoryHostId: 'platform:github:hosted-hubs',
+				}),
+			});
+
+			expect(launched.status).toBe(424);
+			const launchError = await json(launched);
+			expect(launchError.audit.blockers).toContainEqual(expect.objectContaining({
+				code: 'missing_config',
+				message: 'Cloudflare account is missing.',
+			}));
+			expect(launchError.audit.missingConfig).toContain('CLOUDFLARE_ACCOUNT_ID');
+			expect(launchError.audit.nextActions).toContain('Fix hosting configuration.');
+			const projects = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
+				headers: { authorization: `Bearer ${token}` },
+			}));
+			expect(projects.payload.some((project: { slug: string }) => project.slug === 'audit-fails-before-persist')).toBe(false);
+		});
 	});
 
 	it('launch with TreeSeed managed Cloudflare host records paid hosting metadata', async () => {
@@ -4756,6 +5138,7 @@ describe('market api', () => {
 			body: JSON.stringify({
 				slug: 'launch-project',
 				name: 'Launch Project',
+				coreObjective: '# Core Objective\n\nKeep launch work aligned around reliable project deployment.',
 				sourceKind: 'template',
 				sourceRef: 'starter-basic',
 				hostingMode: 'managed',
@@ -4770,8 +5153,12 @@ describe('market api', () => {
 		expect(payload.operationId).toBe(payload.payload.launchJob.id);
 		expect(payload.deployHref).toBe(`/app/projects/${payload.projectId}/deploy?launch=${payload.launchId}`);
 		expect(payload.payload.project.project.slug).toBe('launch-project');
+		expect(payload.payload.project.project.description).toBe('Core Objective Keep launch work aligned around reliable project deployment.');
+		expect(payload.payload.project.project.metadata.coreObjective).toBe('# Core Objective\n\nKeep launch work aligned around reliable project deployment.');
 		expect(payload.payload.project.latestLaunch.state).toBe('queued');
 		expect(payload.payload.launchJob.status).toBe('pending');
+		expect(payload.payload.launchJob.input.launchIntent.hub.coreObjective).toBe('# Core Objective\n\nKeep launch work aligned around reliable project deployment.');
+		expect(payload.payload.launchJob.input.launchIntent.execution.providerLaunchInput.coreObjective).toBe('# Core Objective\n\nKeep launch work aligned around reliable project deployment.');
 		expect(launchSpy).not.toHaveBeenCalled();
 
 		const details = await json(await app.request(`/v1/projects/${payload.payload.project.project.id}`, {
@@ -5901,6 +6288,58 @@ describe('market api', () => {
 			}),
 		});
 		expect(rejectedPlaintext.status).toBe(400);
+	});
+
+	it('creates repository credential sessions from real secretbox envelopes in the API runtime', async () => {
+		await withEnv({
+			NODE_ENV: undefined,
+			TREESEED_LOCAL_DEV_MODE: undefined,
+			TREESEED_MARKET_CREDENTIAL_SESSION_SECRET: undefined,
+			TREESEED_ENVIRONMENT: 'local',
+		}, async () => {
+			const app = createTestApp({ config: { environment: 'local' } });
+			const token = await authorizeApp(app);
+			const team = await createTeam(app, token);
+			const passphrase = 'api runtime passphrase';
+			const encryptedPayload = await encryptHostConfig({
+				GH_TOKEN: 'ghp_runtime_test',
+				GITHUB_TOKEN: 'ghp_runtime_test',
+				organizationOrOwner: 'example-org',
+				owner: 'example-org',
+			}, passphrase, { opsLimit: 2, memLimit: 8192 });
+
+			const host = await json(await app.request(`/v1/teams/${team.id}/repository-hosts`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					name: 'Runtime GitHub Host',
+					organizationOrOwner: 'example-org',
+					ownership: 'team_owned',
+					encryptedPayload,
+				}),
+			}));
+			expect(host.ok).toBe(true);
+
+			const session = await json(await app.request(`/v1/teams/${team.id}/provider-credential-sessions`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					hostKind: 'repository_host',
+					hostId: host.payload.id,
+					passphrase,
+					purpose: 'launch_project',
+				}),
+			}));
+			expect(session.ok).toBe(true);
+			expect(session.payload.hostKind).toBe('repository_host');
+			expect(JSON.stringify(session)).not.toContain('ghp_runtime_test');
+		});
 	});
 
 	it('deploys connected Railway capacity providers with one-use credential sessions', async () => {

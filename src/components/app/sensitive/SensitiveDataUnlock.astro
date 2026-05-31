@@ -38,22 +38,22 @@ const { part = 'modal' } = Astro.props as Props;
 					<button class="ts-tab" type="button" role="tab" data-sensitive-modal-mode-button="unlock" aria-selected="true">Unlock/Create</button>
 					<button class="ts-tab" type="button" role="tab" data-sensitive-modal-mode-button="reset" aria-selected="false">Reset passphrase</button>
 				</div>
-				<form class="ts-sensitive-mode" data-sensitive-mode="unlock">
+				<form class="ts-sensitive-mode" data-sensitive-mode="unlock" action="javascript:void(0)">
 					<label class="ts-list-item ts-field">
 						<span class="ts-field__label">Team sensitive data passphrase</span>
 						<span class="ts-field__help">Use the same passphrase for Repository, Web, Capacity provider, and Email host secrets.</span>
-						<input class="ts-control" name="treeseedSensitivePassphrase" type="password" autocomplete="current-password" required />
+						<input class="ts-control" name="treeseedSensitivePassphrase" type="password" autocomplete="new-password" required />
 					</label>
 					<div class="ts-inline-actions">
 						<button class="ts-button" type="submit">Unlock sensitive data</button>
 						<button class="ts-button-secondary" type="button" data-sensitive-lock-now>Lock</button>
 					</div>
 				</form>
-				<form class="ts-sensitive-mode" data-sensitive-mode="reset" hidden>
+				<form class="ts-sensitive-mode" data-sensitive-mode="reset" action="javascript:void(0)" hidden>
 					<label class="ts-list-item ts-field">
 						<span class="ts-field__label">Current passphrase</span>
 						<span class="ts-field__help">Reset needs the current passphrase so saved encrypted values can be re-encrypted.</span>
-						<input class="ts-control" name="currentPassphrase" type="password" autocomplete="current-password" required />
+						<input class="ts-control" name="currentPassphrase" type="password" autocomplete="new-password" required />
 					</label>
 					<label class="ts-list-item ts-field">
 						<span class="ts-field__label">New passphrase</span>
@@ -80,21 +80,57 @@ const { part = 'modal' } = Astro.props as Props;
 			</aside>
 		</section>
 	</div>
-	<script>
-		type SensitiveResetHandler = (input: { currentPassphrase: string; newPassphrase: string }) => Promise<void> | void;
-		const sensitiveApiWindow = window as Window & typeof globalThis & { treeseedSensitiveUnlock?: any };
-		const sensitiveState = { passphrase: '' };
-		const resetHandlers = new Set<SensitiveResetHandler>();
-		const unlockButton = document.querySelector<HTMLElement>('[data-sensitive-unlock-button]');
-		const unlockLabel = document.querySelector<HTMLElement>('[data-sensitive-unlock-label]');
-		const modal = document.querySelector<HTMLElement>('[data-sensitive-modal]');
-		const statusElement = document.querySelector<HTMLElement>('[data-sensitive-modal-status]');
-		const modeButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-sensitive-modal-mode-button]')];
-		const modePanels = [...document.querySelectorAll<HTMLElement>('[data-sensitive-mode]')];
-		const unlockForm = document.querySelector<HTMLFormElement>('[data-sensitive-mode="unlock"]');
-		const resetForm = document.querySelector<HTMLFormElement>('[data-sensitive-mode="reset"]');
+	<script is:inline data-astro-rerun>
+		const sensitiveApiWindow = window;
+		sensitiveApiWindow.treeseedSensitiveUnlock?.destroy?.();
+		const sensitiveStateKey = '__treeseedSensitiveUnlockState';
+		const sensitiveState = sensitiveApiWindow[sensitiveStateKey] ??= {
+			passphrase: '',
+			pendingPassphraseRequests: [],
+		};
+		const resetHandlers = new Set();
+		const cleanups = [];
 
-		function setSensitiveStatus(message: string, tone = '') {
+		function currentUnlockButton() {
+			return document.querySelector('[data-sensitive-unlock-button]');
+		}
+
+		function currentUnlockLabel() {
+			return document.querySelector('[data-sensitive-unlock-label]');
+		}
+
+		function currentModal() {
+			return document.querySelector('[data-sensitive-modal]');
+		}
+
+		function currentStatusElement() {
+			return document.querySelector('[data-sensitive-modal-status]');
+		}
+
+		function currentModeButtons() {
+			return [...document.querySelectorAll('[data-sensitive-modal-mode-button]')];
+		}
+
+		function currentModePanels() {
+			return [...document.querySelectorAll('[data-sensitive-mode]')];
+		}
+
+		function bindSensitiveEvent(target, type, listener, options) {
+			if (!target) return;
+			target.addEventListener(type, listener, options);
+			cleanups.push(() => target.removeEventListener(type, listener, options));
+		}
+
+		function currentUnlockForm() {
+			return document.querySelector('[data-sensitive-mode="unlock"]');
+		}
+
+		function currentResetForm() {
+			return document.querySelector('[data-sensitive-mode="reset"]');
+		}
+
+		function setSensitiveStatus(message, tone = '') {
+			const statusElement = currentStatusElement();
 			if (!statusElement) return;
 			statusElement.textContent = message;
 			statusElement.setAttribute('data-tone', tone);
@@ -112,6 +148,8 @@ const { part = 'modal' } = Astro.props as Props;
 
 		function refreshSensitiveUi() {
 			const unlocked = isSensitiveUnlocked();
+			const unlockButton = currentUnlockButton();
+			const unlockLabel = currentUnlockLabel();
 			document.documentElement.dataset.sensitiveUnlocked = unlocked ? 'true' : 'false';
 			unlockButton?.setAttribute('data-state', unlocked ? 'unlocked' : 'locked');
 			if (unlockLabel) unlockLabel.textContent = unlocked ? 'Sensitive data unlocked' : 'Unlock sensitive data';
@@ -120,101 +158,89 @@ const { part = 'modal' } = Astro.props as Props;
 				element.setAttribute('aria-disabled', unlocked ? 'false' : 'true');
 				element.closest('[data-sensitive-lock-wrap]')?.classList.toggle('ts-sensitive-locked', !unlocked);
 			}
-			for (const message of document.querySelectorAll<HTMLElement>('[data-sensitive-lock-message]')) {
+			for (const message of document.querySelectorAll('[data-sensitive-lock-message]')) {
 				message.hidden = unlocked;
 			}
 			dispatchSensitiveChange();
 		}
 
-		function selectSensitiveMode(mode: string | null) {
+		function selectSensitiveMode(mode) {
 			const selected = mode === 'reset' ? 'reset' : 'unlock';
-			for (const button of modeButtons) {
+			for (const button of currentModeButtons()) {
 				const active = button.getAttribute('data-sensitive-modal-mode-button') === selected;
 				button.setAttribute('aria-selected', active ? 'true' : 'false');
 				button.setAttribute('aria-current', active ? 'page' : 'false');
 			}
-			for (const panel of modePanels) {
+			for (const panel of currentModePanels()) {
 				panel.hidden = panel.getAttribute('data-sensitive-mode') !== selected;
 			}
 		}
 
 		function openSensitiveModal(mode = 'unlock') {
+			const modal = currentModal();
 			selectSensitiveMode(mode);
 			modal?.removeAttribute('hidden');
 			setSensitiveStatus('');
 			setTimeout(() => {
-				const input = modal?.querySelector<HTMLElement>(`[data-sensitive-mode="${mode === 'reset' ? 'reset' : 'unlock'}"] input`);
+				const input = modal?.querySelector(`[data-sensitive-mode="${mode === 'reset' ? 'reset' : 'unlock'}"] input`);
 				input?.focus();
 			}, 0);
 		}
 
 		function closeSensitiveModal() {
+			const modal = currentModal();
 			modal?.setAttribute('hidden', '');
+			if (!sensitiveState.passphrase) resolvePendingPassphraseRequests(null);
 		}
 
-		function setPassphrase(passphrase: string) {
+		function resolvePendingPassphraseRequests(passphrase) {
+			const requests = sensitiveState.pendingPassphraseRequests.splice(0);
+			for (const resolve of requests) resolve(passphrase || null);
+		}
+
+		function setPassphrase(passphrase) {
 			sensitiveState.passphrase = passphrase;
 			refreshSensitiveUi();
+			resolvePendingPassphraseRequests(passphrase);
 		}
 
-		// Keep window.treeseedSensitiveUnlock as the stable page API for market forms.
-		sensitiveApiWindow.treeseedSensitiveUnlock = {
-			isUnlocked: isSensitiveUnlocked,
-			getPassphrase() {
-				return sensitiveState.passphrase || null;
-			},
-			requirePassphrase() {
-				if (!sensitiveState.passphrase) openSensitiveModal('unlock');
-				return sensitiveState.passphrase || null;
-			},
-			open: openSensitiveModal,
-			lock() {
-				setPassphrase('');
-				setSensitiveStatus('Sensitive data is locked.', 'info');
-			},
-			refresh: refreshSensitiveUi,
-			registerResetHandler(handler: SensitiveResetHandler) {
-				resetHandlers.add(handler);
-				return () => resetHandlers.delete(handler);
-			},
-		};
+		function clearPagePassphrase() {
+			setPassphrase('');
+		}
 
-		unlockButton?.addEventListener('click', () => openSensitiveModal('unlock'));
-		for (const closeButton of document.querySelectorAll('[data-sensitive-modal-close]')) {
-			closeButton.addEventListener('click', closeSensitiveModal);
-		}
-		for (const button of modeButtons) {
-			button.addEventListener('click', () => selectSensitiveMode(button.getAttribute('data-sensitive-modal-mode-button')));
-		}
-		document.querySelector('[data-sensitive-lock-now]')?.addEventListener('click', () => {
-			sensitiveApiWindow.treeseedSensitiveUnlock?.lock();
-			closeSensitiveModal();
-		});
-		unlockForm?.addEventListener('submit', (event) => {
-			event.preventDefault();
+		function handleUnlockSubmit(event) {
+			event?.preventDefault?.();
+			event?.stopPropagation?.();
+			const unlockForm = event?.target?.matches?.('[data-sensitive-mode="unlock"]') ? event.target : currentUnlockForm();
+			if (!unlockForm) return false;
 			const form = new FormData(unlockForm);
 			const passphrase = String(form.get('treeseedSensitivePassphrase') ?? '');
 			if (!passphrase) {
 				setSensitiveStatus('Enter the team sensitive data passphrase.', 'error');
-				return;
+				return false;
 			}
 			setPassphrase(passphrase);
 			setSensitiveStatus('Sensitive data unlocked for this page.', 'success');
 			closeSensitiveModal();
-		});
-		resetForm?.addEventListener('submit', async (event) => {
-			event.preventDefault();
+			return false;
+		}
+
+		async function handleResetSubmit(event) {
+			event?.preventDefault?.();
+			event?.stopPropagation?.();
+			const resetForm = event?.target?.matches?.('[data-sensitive-mode="reset"]') ? event.target : currentResetForm();
+			if (!resetForm) return false;
 			const form = new FormData(resetForm);
 			const currentPassphrase = String(form.get('currentPassphrase') ?? '');
 			const newPassphrase = String(form.get('newPassphrase') ?? '');
 			const confirmPassphrase = String(form.get('confirmPassphrase') ?? '');
 			if (!currentPassphrase || !newPassphrase) {
 				setSensitiveStatus('Enter the current and new passphrases.', 'error');
-				return;
+				return false;
 			}
 			if (newPassphrase !== confirmPassphrase) {
 				setSensitiveStatus('The new passphrases do not match.', 'error');
-				return;
+				return false;
 			}
 			setSensitiveStatus('Re-encrypting saved sensitive data...');
 			try {
@@ -227,10 +253,86 @@ const { part = 'modal' } = Astro.props as Props;
 			} catch (error) {
 				setSensitiveStatus(error instanceof Error ? error.message : String(error), 'error');
 			}
+			return false;
+		}
+
+		// Keep window.treeseedSensitiveUnlock as the stable page API for market forms.
+		sensitiveApiWindow.treeseedSensitiveUnlock = {
+			isUnlocked: isSensitiveUnlocked,
+			getPassphrase() {
+				return sensitiveState.passphrase || null;
+			},
+			requirePassphrase() {
+				if (!sensitiveState.passphrase) openSensitiveModal('unlock');
+				return sensitiveState.passphrase || null;
+			},
+			requestPassphrase() {
+				if (sensitiveState.passphrase) return Promise.resolve(sensitiveState.passphrase);
+				openSensitiveModal('unlock');
+				return new Promise((resolve) => {
+					sensitiveState.pendingPassphraseRequests.push(resolve);
+				});
+			},
+			promptPassphrase() {
+				setPassphrase('');
+				openSensitiveModal('unlock');
+				return new Promise((resolve) => {
+					sensitiveState.pendingPassphraseRequests.push(resolve);
+				});
+			},
+			open: openSensitiveModal,
+			lock() {
+				setPassphrase('');
+				setSensitiveStatus('Sensitive data is locked.', 'info');
+			},
+			refresh: refreshSensitiveUi,
+			registerResetHandler(handler) {
+				resetHandlers.add(handler);
+				return () => resetHandlers.delete(handler);
+			},
+			submitUnlock: handleUnlockSubmit,
+			submitReset: handleResetSubmit,
+			destroy() {
+				clearPagePassphrase();
+				for (const cleanup of cleanups.splice(0)) cleanup();
+			},
+		};
+
+		bindSensitiveEvent(document, 'click', (event) => {
+			const target = event.target instanceof Element ? event.target.closest('[data-sensitive-unlock-button]') : null;
+			if (!target) return;
+			event.preventDefault();
+			openSensitiveModal('unlock');
 		});
-		document.addEventListener('keydown', (event) => {
+		for (const closeButton of document.querySelectorAll('[data-sensitive-modal-close]')) {
+			bindSensitiveEvent(closeButton, 'click', closeSensitiveModal);
+		}
+		bindSensitiveEvent(document, 'click', (event) => {
+			const button = event.target instanceof Element ? event.target.closest('[data-sensitive-modal-mode-button]') : null;
+			if (!button) return;
+			selectSensitiveMode(button.getAttribute('data-sensitive-modal-mode-button'));
+		});
+		bindSensitiveEvent(document.querySelector('[data-sensitive-lock-now]'), 'click', () => {
+			sensitiveApiWindow.treeseedSensitiveUnlock?.lock();
+			closeSensitiveModal();
+		});
+		bindSensitiveEvent(currentUnlockForm(), 'submit', handleUnlockSubmit);
+		bindSensitiveEvent(currentResetForm(), 'submit', handleResetSubmit);
+		bindSensitiveEvent(document, 'submit', (event) => {
+			const sensitiveForm = event.target?.matches?.('[data-sensitive-mode]') ? event.target : null;
+			if (!sensitiveForm) return;
+			if (sensitiveForm.getAttribute('data-sensitive-mode') === 'reset') {
+				handleResetSubmit(event);
+			} else {
+				handleUnlockSubmit(event);
+			}
+		}, true);
+		bindSensitiveEvent(document, 'keydown', (event) => {
+			const modal = currentModal();
 			if (event.key === 'Escape' && !modal?.hasAttribute('hidden')) closeSensitiveModal();
 		});
+		bindSensitiveEvent(document, 'astro:before-swap', clearPagePassphrase);
+		bindSensitiveEvent(window, 'pagehide', clearPagePassphrase);
 		refreshSensitiveUi();
 	</script>
 </>

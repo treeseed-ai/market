@@ -27,8 +27,8 @@ if (!project) Astro.response.status = 404;
 			<Panel eyebrow="Projects" title={project.name ?? project.slug} description="Update project fields.">
 				<form id="project-settings-form" class="ts-form-stack">
 					<div class="ts-form-grid">
-						<Field label="Project name" name="name" required><TextInput name="name" required value={project.name ?? ''} /></Field>
-						<Field label="Handle" name="slug" required><TextInput name="slug" required value={project.slug ?? ''} pattern="[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?" /></Field>
+						<Field label="Project name" name="name" required help="The readable name people see in TreeSeed, project headings, and generated project content."><TextInput name="name" required value={project.name ?? ''} /></Field>
+						<Field label="Project web address" name="slug" required help="The short lowercase address used in project links, repository names, and hosted resources."><TextInput name="slug" required value={project.slug ?? ''} pattern="[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?" /></Field>
 						<Field label="Tier" name="entitlementTier"><Select name="entitlementTier" value={project.entitlementTier ?? 'free'} options={[{ label: 'Free', value: 'free' }, { label: 'Paid hosting', value: 'paid_hosting' }]} /></Field>
 						<Field label="Description" name="description" class="ts-field--full"><Textarea name="description" rows={4} value={project.description ?? project.summary ?? ''} /></Field>
 					</div>

@@ -101,16 +101,12 @@ function summarizeProviderWork(provider: any) {
 const rows = providers.map((provider: any) => ({
 	id: `provider-${esc(provider.id)}`,
 	name: `<strong>${esc(provider.name)}</strong><span>${esc(provider.launchMode ?? 'self_hosted')}</span>`,
-	connection: esc(provider.connectionState ?? provider.metadata?.connectionState ?? 'waiting_for_provider'),
-	heartbeat: esc(provider.lastSeenAt ?? provider.metadata?.lastSeenAt ?? 'never'),
-	key: esc(provider.activeKeyPrefix ?? provider.metadata?.apiKey?.activeKeyPrefix ?? 'none'),
-	capabilities: esc(summarizeCapabilities(provider)),
-	nativeCapacity: esc(summarizeNativeCapacity(nativeCapacityByProvider.get(provider.id) ?? [])),
-	derivedCapacity: esc(summarizeDerivedCapacity(provider)),
-	portfolioAllocation: esc(summarizePortfolioAllocation(grantsByProvider.get(provider.id) ?? [])),
-	compatibilityBudget: esc(summarizeCompatibilityBudget(provider)),
-	deployment: esc(summarizeDeployment(provider)),
-	providerWork: esc(summarizeProviderWork(provider)),
+	health: esc(`${provider.connectionState ?? provider.metadata?.connectionState ?? 'waiting_for_provider'} · heartbeat ${provider.lastSeenAt ?? provider.metadata?.lastSeenAt ?? 'never'}`),
+	hosting: esc(`${summarizeDeployment(provider)} · ${provider.launchMode ?? provider.metadata?.launchMode ?? 'self_hosted'}`),
+	capacity: esc(`${summarizeNativeCapacity(nativeCapacityByProvider.get(provider.id) ?? [])} · ${summarizeDerivedCapacity(provider)}`),
+	allocation: esc(summarizePortfolioAllocation(grantsByProvider.get(provider.id) ?? [])),
+	operations: esc(`key ${provider.activeKeyPrefix ?? provider.metadata?.apiKey?.activeKeyPrefix ?? 'none'} · ${summarizeCapabilities(provider)} · ${summarizeProviderWork(provider)}`),
+	compatibility: esc(summarizeCompatibilityBudget(provider)),
 	actions: `<a class="ts-link-button" href="/app/capacity/providers/${encodeURIComponent(provider.id)}/edit">Open</a> <a class="ts-link-button" href="/app/capacity/providers/${encodeURIComponent(provider.id)}/keys">Rotate key</a>`,
 }));
 ---
@@ -122,16 +118,12 @@ const rows = providers.map((provider: any) => ({
 			{team ? (
 				<PlainTable columns={[
 					{ key: 'name', label: 'Provider' },
-					{ key: 'connection', label: 'Connection' },
-					{ key: 'heartbeat', label: 'Last heartbeat' },
-					{ key: 'key', label: 'Active key' },
-					{ key: 'capabilities', label: 'Capabilities' },
-					{ key: 'nativeCapacity', label: 'Native capacity' },
-					{ key: 'derivedCapacity', label: 'Derived availability' },
-					{ key: 'portfolioAllocation', label: 'Portfolio allocation' },
-					{ key: 'compatibilityBudget', label: 'Compatibility credits' },
-					{ key: 'deployment', label: 'Deployment' },
-					{ key: 'providerWork', label: 'Provider work' },
+					{ key: 'health', label: 'Connection' },
+					{ key: 'hosting', label: 'Host and deployment' },
+					{ key: 'capacity', label: 'Capacity' },
+					{ key: 'allocation', label: 'Portfolio allocation' },
+					{ key: 'operations', label: 'Operations' },
+					{ key: 'compatibility', label: 'Compatibility credits' },
 					{ key: 'actions', label: 'Actions' },
 				]} rows={rows} emptyTitle="No providers yet" emptyDescription="Create a provider to make capacity available." />
 			) : (

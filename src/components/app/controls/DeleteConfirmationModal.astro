@@ -1,0 +1,121 @@
+---
+interface Props {
+	id?: string;
+}
+
+const { id = 'delete-confirmation-modal' } = Astro.props as Props;
+---
+
+<div class="ts-delete-modal" id={id} data-delete-confirmation-modal hidden>
+	<div class="ts-delete-modal__scrim" data-delete-confirmation-cancel></div>
+	<section class="ts-delete-dialog" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} aria-describedby={`${id}-message`}>
+		<div class="ts-delete-dialog__header">
+			<p class="ts-section__eyebrow">Permanent Action</p>
+			<h2 id={`${id}-title`} data-delete-confirmation-title>Confirm deletion</h2>
+			<p id={`${id}-message`} data-delete-confirmation-message>This action cannot be undone.</p>
+		</div>
+		<div class="ts-delete-dialog__warning">
+			<strong data-delete-confirmation-item>Selected record</strong>
+			<span data-delete-confirmation-detail>Deleting this record may remove saved configuration and credentials.</span>
+		</div>
+		<label class="ts-field" data-delete-confirmation-input-wrap>
+			<span class="ts-field__label" data-delete-confirmation-input-label>Type the confirmation text</span>
+			<input class="ts-control" type="text" autocomplete="off" spellcheck="false" data-delete-confirmation-input />
+		</label>
+		<div class="ts-inline-actions">
+			<button class="ts-button" data-variant="danger" type="button" data-delete-confirmation-confirm disabled>Delete</button>
+			<button class="ts-button-secondary" type="button" data-delete-confirmation-cancel>Cancel</button>
+		</div>
+		<p class="ts-subtle" data-delete-confirmation-status role="status"></p>
+	</section>
+</div>
+
+<script is:inline data-astro-rerun>
+	(() => {
+		const apiWindow = window;
+		apiWindow.treeseedDeleteConfirmation?.destroy?.();
+
+		const modal = document.querySelector('[data-delete-confirmation-modal]');
+		const title = modal?.querySelector('[data-delete-confirmation-title]');
+		const message = modal?.querySelector('[data-delete-confirmation-message]');
+		const item = modal?.querySelector('[data-delete-confirmation-item]');
+		const detail = modal?.querySelector('[data-delete-confirmation-detail]');
+		const inputWrap = modal?.querySelector('[data-delete-confirmation-input-wrap]');
+		const inputLabel = modal?.querySelector('[data-delete-confirmation-input-label]');
+		const input = modal?.querySelector('[data-delete-confirmation-input]');
+		const confirmButton = modal?.querySelector('[data-delete-confirmation-confirm]');
+		const status = modal?.querySelector('[data-delete-confirmation-status]');
+		let pendingResolve = null;
+		let requiredText = '';
+		const cleanups = [];
+
+		function bind(target, type, listener) {
+			if (!target) return;
+			target.addEventListener(type, listener);
+			cleanups.push(() => target.removeEventListener(type, listener));
+		}
+
+		function setText(element, value) {
+			if (element) element.textContent = value;
+		}
+
+		function close(result = false) {
+			modal?.setAttribute('hidden', '');
+			if (status) status.textContent = '';
+			if (input) input.value = '';
+			const resolve = pendingResolve;
+			pendingResolve = null;
+			resolve?.(result);
+		}
+
+		function updateConfirmState() {
+			if (!confirmButton) return;
+			confirmButton.disabled = Boolean(requiredText) && input?.value !== requiredText;
+		}
+
+		function open(options = {}) {
+			if (!modal) return Promise.resolve(false);
+			close(false);
+			requiredText = String(options.requiredText ?? '').trim();
+			setText(title, String(options.title ?? 'Confirm deletion'));
+			setText(message, String(options.message ?? 'This action cannot be undone.'));
+			setText(item, String(options.itemName ?? 'Selected record'));
+			setText(detail, String(options.detail ?? 'Deleting this record may remove saved configuration and credentials.'));
+			setText(inputLabel, requiredText ? `Type "${requiredText}" to continue` : 'Confirm this permanent deletion');
+			if (confirmButton) confirmButton.textContent = String(options.actionLabel ?? 'Delete');
+			if (inputWrap) inputWrap.hidden = !requiredText;
+			modal.removeAttribute('hidden');
+			updateConfirmState();
+			window.setTimeout(() => {
+				if (requiredText) input?.focus();
+				else confirmButton?.focus();
+			}, 0);
+			return new Promise((resolve) => {
+				pendingResolve = resolve;
+			});
+		}
+
+		bind(input, 'input', updateConfirmState);
+		bind(confirmButton, 'click', () => {
+			if (requiredText && input?.value !== requiredText) {
+				if (status) status.textContent = 'The confirmation text does not match.';
+				return;
+			}
+			close(true);
+		});
+		for (const cancel of modal?.querySelectorAll('[data-delete-confirmation-cancel]') ?? []) {
+			bind(cancel, 'click', () => close(false));
+		}
+		bind(document, 'keydown', (event) => {
+			if (event.key === 'Escape' && !modal?.hasAttribute('hidden')) close(false);
+		});
+
+		apiWindow.treeseedDeleteConfirmation = {
+			confirm: open,
+			destroy() {
+				for (const cleanup of cleanups.splice(0)) cleanup();
+				close(false);
+			},
+		};
+	})();
+</script>

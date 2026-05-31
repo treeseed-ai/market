@@ -4,7 +4,7 @@ import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.
 import PlainTable from '../../../../components/app/controls/PlainTable.astro';
 import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
-import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
+import { escapeHtml as esc, hostTypeLabel, ownershipLabel, providerLabel } from '../../../../lib/market/control-ui.js';
 import { loadOperationalContext } from '../../../../view-models/shared.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
@@ -15,22 +15,55 @@ const projectId = projectEntry?.id ?? projectParam;
 const details = projectEntry && context.store ? await context.store.getProjectDetails(projectId).catch(() => null) : null;
 if (!projectEntry || !details) Astro.response.status = 404;
 const project = details?.project ?? projectEntry;
+const configuredHostMetadata = {
+	...(details?.hosting?.metadata ?? {}),
+	...(details?.connection?.metadata ?? {}),
+	...(project?.metadata ?? {}),
+};
+const configuredRows: Array<Record<string, any>> = [];
+if (configuredHostMetadata.cloudflareHost) {
+	configuredRows.push({
+		id: 'configured-web',
+		name: `<strong>${esc(configuredHostMetadata.cloudflareHost.hostName ?? 'Web host')}</strong><span>${esc(configuredHostMetadata.cloudflareHost.billing?.fee ?? 'Project web deployment')}</span>`,
+		type: esc(hostTypeLabel('web')),
+		ownership: esc(ownershipLabel(configuredHostMetadata.cloudflareHost.ownership ?? configuredHostMetadata.cloudflareHost.mode)),
+		provider: esc(providerLabel(configuredHostMetadata.cloudflareHost.provider ?? 'cloudflare')),
+		state: esc(configuredHostMetadata.cloudflareHost.billing?.status ?? configuredHostMetadata.cloudflareHost.mode ?? 'configured'),
+		environments: esc((configuredHostMetadata.cloudflareHost.targetEnvironments ?? ['staging', 'prod']).join(', ')),
+	});
+}
+if (configuredHostMetadata.emailHost) {
+	configuredRows.push({
+		id: 'configured-email',
+		name: `<strong>${esc(configuredHostMetadata.emailHost.hostName ?? 'Email host')}</strong><span>${esc(configuredHostMetadata.emailHost.billing?.price ?? 'Project email delivery')}</span>`,
+		type: esc(hostTypeLabel('email')),
+		ownership: esc(ownershipLabel(configuredHostMetadata.emailHost.ownership ?? configuredHostMetadata.emailHost.mode)),
+		provider: esc(providerLabel(configuredHostMetadata.emailHost.provider ?? 'smtp')),
+		state: esc(configuredHostMetadata.emailHost.billing?.status ?? configuredHostMetadata.emailHost.mode ?? 'configured'),
+		environments: esc((configuredHostMetadata.emailHost.targetEnvironments ?? ['staging', 'prod']).join(', ')),
+	});
+}
 const repositoryRows = [
 	...(Array.isArray(details?.repositories) ? details.repositories : []),
 ].map((repo: any, index: number) => ({
 	id: `repo-${esc(repo.id ?? index)}`,
 	name: `<strong>${esc(repo.name ?? repo.fullName ?? repo.repository ?? 'Repository')}</strong><span>${esc(repo.url ?? repo.remoteUrl ?? '')}</span>`,
-	kind: esc(repo.kind ?? repo.type ?? repo.role ?? 'repository'),
+	role: esc(repo.kind ?? repo.type ?? repo.role ?? 'repository'),
+	owner: esc(repo.owner ?? repo.organizationOrOwner ?? repo.fullName?.split('/')?.[0] ?? 'GitHub'),
 	state: esc(repo.state ?? repo.status ?? 'configured'),
+	url: repo.url || repo.remoteUrl ? `<a href="${esc(repo.url ?? repo.remoteUrl)}">${esc(repo.url ?? repo.remoteUrl)}</a>` : '',
 }));
 const hostRows = [
 	...(Array.isArray(details?.resources) ? details.resources : []),
 	...(Array.isArray(details?.deployments) ? details.deployments : []),
 ].map((item: any, index: number) => ({
 	id: `host-${esc(item.id ?? index)}`,
-	name: `<strong>${esc(item.name ?? item.resourceName ?? item.environment ?? 'Host')}</strong><span>${esc(item.provider ?? item.resourceType ?? item.sourceRef ?? '')}</span>`,
+	name: `<strong>${esc(item.name ?? item.resourceName ?? item.environment ?? 'Deployment host')}</strong><span>${esc(item.sourceRef ?? item.releaseTag ?? item.provider ?? '')}</span>`,
+	environment: esc(item.environment ?? item.metadata?.environment ?? 'project'),
+	provider: esc(providerLabel(item.provider ?? item.metadata?.provider ?? item.resourceType ?? item.deploymentKind ?? 'provider')),
 	kind: esc(item.resourceType ?? item.deploymentKind ?? item.kind ?? 'host'),
 	state: esc(item.status ?? item.state ?? 'configured'),
+	updated: esc(item.finishedAt ?? item.startedAt ?? item.updatedAt ?? item.createdAt ?? 'not reported'),
 }));
 ---
 
@@ -38,11 +71,34 @@ const hostRows = [
 	{projectEntry && details ? (
 		<section class="ts-control-page" aria-label="Project hosts">
 			<ProjectControlNav projectId={project.id} current="hosts" />
-			<Panel eyebrow="Projects" title="Repositories" description="Repository records created for this project.">
-				<PlainTable columns={[{ key: 'name', label: 'Repository' }, { key: 'kind', label: 'Kind' }, { key: 'state', label: 'State' }]} rows={repositoryRows} emptyTitle="No repositories recorded" emptyDescription="Repository records appear after project launch completes." />
+			<Panel eyebrow="Projects" title="Configured host choices" description="The hosts chosen when this project was created or last configured.">
+				<PlainTable columns={[
+					{ key: 'name', label: 'Host' },
+					{ key: 'type', label: 'Type' },
+					{ key: 'ownership', label: 'Ownership' },
+					{ key: 'provider', label: 'Provider' },
+					{ key: 'state', label: 'State' },
+					{ key: 'environments', label: 'Environments' },
+				]} rows={configuredRows} emptyTitle="No configured hosts recorded" emptyDescription="Create a new project with explicit host choices, or relaunch deployment activity to record host metadata." />
 			</Panel>
-			<Panel eyebrow="Projects" title="Hosts" description="Host and deployment records for this project.">
-				<PlainTable columns={[{ key: 'name', label: 'Host' }, { key: 'kind', label: 'Kind' }, { key: 'state', label: 'State' }]} rows={hostRows} emptyTitle="No host records" emptyDescription="Host records appear after launch and deployment activity." />
+			<Panel eyebrow="Projects" title="Repositories" description="Repository records created for this project.">
+				<PlainTable columns={[
+					{ key: 'name', label: 'Repository' },
+					{ key: 'role', label: 'Role' },
+					{ key: 'owner', label: 'Owner' },
+					{ key: 'state', label: 'State' },
+					{ key: 'url', label: 'URL' },
+				]} rows={repositoryRows} emptyTitle="No repositories recorded" emptyDescription="Repository records appear after project launch completes." />
+			</Panel>
+			<Panel eyebrow="Projects" title="Deployment and runtime hosts" description="Infrastructure resources and deployment records attached to this project.">
+				<PlainTable columns={[
+					{ key: 'name', label: 'Host' },
+					{ key: 'environment', label: 'Environment' },
+					{ key: 'provider', label: 'Provider' },
+					{ key: 'kind', label: 'Kind' },
+					{ key: 'state', label: 'State' },
+					{ key: 'updated', label: 'Updated' },
+				]} rows={hostRows} emptyTitle="No deployment host records" emptyDescription="Deployment host records appear after launch and deployment activity." />
 			</Panel>
 		</section>
 	) : (

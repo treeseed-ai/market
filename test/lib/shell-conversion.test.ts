@@ -15,6 +15,10 @@ describe('app and public shell conversion', () => {
 		expect(contents).toContain('slot="railContext"');
 		expect(contents).toContain('slot="headerAction"');
 		expect(contents).toContain('slot="sensitiveModal"');
+		expect(contents).toContain('showSensitiveUnlock');
+		expect(contents).toContain('Astro.url.pathname');
+		expect(contents).toContain('/app/hosts');
+		expect(contents).toContain('/app/projects/new');
 		expect(contents).toContain('resolveAuthenticatedThemePreference');
 		expect(contents).toContain('Start');
 		expect(contents).not.toContain(`label: 'Team'`);
@@ -66,6 +70,18 @@ describe('app and public shell conversion', () => {
 		expect(contents).toContain('data-sensitive-modal-mode-button');
 		expect(contents).toContain('data-sensitive-mode');
 		expect(contents).toContain('data-sensitive-lock-now');
+		expect(contents).toContain('data-astro-rerun');
+		expect(contents).toContain('__treeseedSensitiveUnlockState');
+		expect(contents).toContain('requestPassphrase()');
+		expect(contents).toContain('promptPassphrase()');
+		expect(contents).toContain('action="javascript:void(0)"');
+		expect(contents).toContain('submitUnlock: handleUnlockSubmit');
+		expect(contents).toContain("bindSensitiveEvent(currentUnlockForm(), 'submit', handleUnlockSubmit)");
+		expect(contents).toContain('pendingPassphraseRequests');
+		expect(contents).toContain('clearPagePassphrase');
+		expect(contents).toContain("'astro:before-swap'");
+		expect(contents).toContain("'pagehide'");
+		expect(contents).toContain('destroy()');
 	});
 
 	it('removes inline styling and retired tokens from converted layouts', () => {

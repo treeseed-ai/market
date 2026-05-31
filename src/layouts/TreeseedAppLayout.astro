@@ -1,6 +1,7 @@
 ---
 import '../styles/treeseed.css';
 import AppShell from '../../packages/core/src/components/ui/shell/AppShell.astro';
+import DeleteConfirmationModal from '../components/app/controls/DeleteConfirmationModal.astro';
 import SensitiveDataUnlock from '../components/app/sensitive/SensitiveDataUnlock.astro';
 import { resolveAuthenticatedThemePreference } from '../lib/auth/appearance';
 
@@ -48,6 +49,18 @@ const teamOptions = teams.map((team) => ({
 	id: team.id,
 	label: team.displayName ?? team.name ?? team.slug ?? team.id,
 }));
+const sensitiveUnlockPaths = [
+	'/app/hosts',
+	'/app/projects/new',
+	'/app/capacity/providers/new',
+];
+const routePath = Astro.url.pathname;
+const showSensitiveUnlock = sensitiveUnlockPaths.some((path) => (
+	currentPath === path
+	|| currentPath.startsWith(`${path}/`)
+	|| routePath === path
+	|| routePath.startsWith(`${path}/`)
+));
 ---
 
 <AppShell
@@ -82,9 +95,10 @@ const teamOptions = teams.map((team) => ({
 			<a class="ts-create-team-button" href="/app/teams/new">Create team</a>
 		)}
 	</div>
-	<SensitiveDataUnlock part="button" slot="headerAction" />
+	{showSensitiveUnlock ? <SensitiveDataUnlock part="button" slot="headerAction" /> : null}
 	<slot />
-	<SensitiveDataUnlock part="modal" slot="sensitiveModal" />
+	{showSensitiveUnlock ? <SensitiveDataUnlock part="modal" slot="sensitiveModal" /> : null}
+	<DeleteConfirmationModal slot="modal" />
 </AppShell>
 
 <script>

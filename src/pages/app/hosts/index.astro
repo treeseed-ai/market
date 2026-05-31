@@ -4,7 +4,20 @@ import EmptyState from '../../../../packages/core/src/components/ui/surface/Empt
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import PlainTable from '../../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
-import { escapeHtml as esc, hostTypeFor } from '../../../lib/market/control-ui.js';
+import { listTreeseedManagedHostsFromConfig } from '../../../lib/market/managed-hosts.js';
+import {
+	escapeHtml as esc,
+	hostActionHref,
+	hostEnvironmentSummary,
+	hostProviderFor,
+	hostPurposeFor,
+	hostReadinessSummary,
+	hostRecordNameHtml,
+	hostTypeFor,
+	hostTypeLabel,
+	ownershipLabel,
+	providerLabel,
+} from '../../../lib/market/control-ui.js';
 import { loadOperationalContext } from '../../../view-models/shared.js';
 
 if (!Astro.locals.auth?.principal) {
@@ -13,51 +26,176 @@ if (!Astro.locals.auth?.principal) {
 
 const context = await loadOperationalContext(Astro.locals, Astro);
 const team = context.activeTeam;
-const [repositoryHosts, providerHosts] = team && context.store
+const runtime = (Astro.locals as any).runtime ?? Astro.locals;
+const [managedHosts, repositoryHosts, providerHosts] = team && context.store
 	? await Promise.all([
-			context.store.listRepositoryHosts(team.id, { includePlatform: false }).catch(() => []),
+			listTreeseedManagedHostsFromConfig(team.id, runtime).catch(() => []),
+			context.store.listRepositoryHosts(team.id, { includePlatform: true }).catch(() => []),
 			context.store.listTeamWebHosts(team.id).catch(() => []),
 		])
-	: [[], []];
+	: [[], [], []];
 
-const rows = [
-	...repositoryHosts.map((host: any) => ({
-		id: `repository-${esc(host.id)}`,
-		name: `<strong>${esc(host.name)}</strong><span>${esc(host.organizationOrOwner ?? host.accountLabel ?? 'GitHub')}</span>`,
-		type: 'Repository',
-		provider: esc(host.provider ?? 'github'),
-		status: esc(host.status ?? 'active'),
-		actions: `<a class="ts-link-button" href="/app/hosts/repository/${encodeURIComponent(host.id)}/edit">Edit</a>`,
-	})),
-	...providerHosts.map((host: any) => {
-		const type = hostTypeFor(host);
-		return {
-			id: `${esc(type)}-${esc(host.id)}`,
-			name: `<strong>${esc(host.name)}</strong><span>${esc(host.accountLabel ?? host.provider ?? 'Provider')}</span>`,
-			type: esc(type),
-			provider: esc(host.provider ?? 'provider'),
-			status: esc(host.status ?? 'active'),
-			actions: `<a class="ts-link-button" href="/app/hosts/${encodeURIComponent(type)}/${encodeURIComponent(host.id)}/edit">Edit</a>`,
-		};
-	}),
+const platformRepositoryHost = {
+	id: 'platform:github:hosted-hubs',
+	teamId: null,
+	provider: 'github',
+	ownership: 'treeseed_managed',
+	name: 'TreeSeed Hosted Repositories',
+	accountLabel: 'TreeSeed GitHub organization',
+	organizationOrOwner: 'TreeSeed hosted hubs',
+	defaultVisibility: 'private',
+	allowedEnvironments: ['staging', 'prod'],
+	status: 'active',
+	metadata: { hostType: 'repository', managed: true },
+};
+const repositoryInventory = repositoryHosts.some((host: any) => host.id === platformRepositoryHost.id)
+	? repositoryHosts
+	: [platformRepositoryHost, ...repositoryHosts];
+const allHosts = [
+	...repositoryInventory.map((host: any) => ({ ...host, _hostType: 'repository' })),
+	...managedHosts.map((host: any) => ({ ...host, _hostType: hostTypeFor(host) })),
+	...providerHosts.map((host: any) => ({ ...host, _hostType: hostTypeFor(host) })),
 ];
+const groups = [
+	{ type: 'repository', title: 'Repository hosts', description: 'GitHub owners used when new projects create source repositories.', newHref: '/app/hosts/repository/new' },
+	{ type: 'web', title: 'Web hosts', description: 'Cloudflare hosts used for project sites, APIs, previews, and deployments.', newHref: '/app/hosts/web/new' },
+	{ type: 'email', title: 'Email hosts', description: 'SMTP or managed email hosts used for project notifications.', newHref: '/app/hosts/email/new' },
+	{ type: 'capacity-provider', title: 'Capacity provider hosts', description: 'Railway workspaces used to deploy capacity provider services.', newHref: '/app/hosts/capacity-provider/new' },
+	{ type: 'ai', title: 'AI hosts', description: 'Model provider credentials available to team workflows.', newHref: '/app/hosts/ai/new' },
+];
+const defaultHosts = team?.metadata?.defaultHosts && typeof team.metadata.defaultHosts === 'object'
+	? team.metadata.defaultHosts
+	: {};
+
+function isDefaultHost(type: string, hostId: unknown) {
+	return String(defaultHosts[type] ?? '') === String(hostId ?? '');
+}
+
+function rowsFor(type: string) {
+	return allHosts
+		.filter((host: any) => (host._hostType ? host._hostType === type : hostTypeFor(host) === type))
+		.map((host: any) => {
+			const editHref = hostActionHref(host, type);
+			const defaultAction = isDefaultHost(type, host.id)
+				? `<span class="ts-default-label" data-default-host-label data-host-type="${esc(type)}" data-host-id="${esc(host.id)}">Default</span>`
+				: `<button class="ts-link-button" type="button" data-default-host-button data-host-type="${esc(type)}" data-host-id="${esc(host.id)}">Set as default</button>`;
+			const editAction = editHref
+				? `<a class="ts-link-button ts-link-button--primary" href="${esc(editHref)}">Edit</a>`
+				: type === 'capacity-provider'
+					? '<a class="ts-link-button" href="/app/capacity/providers/new">Use for provider</a>'
+					: '';
+			const action = [defaultAction, editAction].filter(Boolean).join('');
+			return {
+				id: `${esc(type)}-${esc(host.id)}`,
+				name: hostRecordNameHtml(host, type),
+				type: esc(hostTypeLabel(type)),
+				provider: esc(providerLabel(host.provider ?? hostProviderFor(type))),
+				ownership: esc(ownershipLabel(host.ownership)),
+				environments: esc(hostEnvironmentSummary(host)),
+				readiness: esc(hostReadinessSummary(host)),
+				purpose: esc(hostPurposeFor(type)),
+				actions: action,
+			};
+		});
+}
+const hostDefaultsData = JSON.stringify({ teamId: team?.id ?? null, defaultHosts }).replace(/</gu, '\\u003c');
 ---
 
 <TreeseedAppLayout title="Hosts" description="Manage repository, web, capacity provider, email, and AI host configurations." currentPath={Astro.url.pathname} teams={context.teams} activeTeam={team}>
 	<section class="ts-control-page" aria-label="Hosts">
-		<Panel eyebrow="Hosts" title="Host configurations" description={team ? 'Create and maintain provider credentials for the active team.' : 'Create a team before adding hosts.'}>
+		<Panel eyebrow="Hosts" title="Operational host inventory" description={team ? 'Review managed defaults and team-owned provider credentials by workflow purpose.' : 'Create a team before adding hosts.'}>
 			<Button slot="actions" href="/app/hosts/new" size="sm">New host</Button>
 			{team ? (
-				<PlainTable columns={[
-					{ key: 'name', label: 'Host' },
-					{ key: 'type', label: 'Type' },
-					{ key: 'provider', label: 'Provider' },
-					{ key: 'status', label: 'Status' },
-					{ key: 'actions', label: 'Actions' },
-				]} rows={rows} emptyTitle="No hosts yet" emptyDescription="Add a host configuration or use managed defaults when creating a project." />
+				<div class="ts-form-note">
+					<strong>Start from the work.</strong>
+					<span>Projects and capacity providers can create hosts inline. Use this section to audit, rotate, and manage hosts that already exist.</span>
+				</div>
 			) : (
 				<EmptyState title="No team selected" description="Create or switch to a team first." actions={[{ label: 'Open Team', href: '/app/teams' }]} />
 			)}
 		</Panel>
+		{team ? groups.map((group) => (
+			<Panel eyebrow="Hosts" title={group.title} description={group.description}>
+				<Button slot="actions" href={group.newHref} size="sm" variant="secondary">Add {hostTypeLabel(group.type)}</Button>
+				<PlainTable columns={[
+					{ key: 'name', label: 'Host' },
+					{ key: 'readiness', label: 'Readiness' },
+					{ key: 'provider', label: 'Provider' },
+					{ key: 'ownership', label: 'Ownership' },
+					{ key: 'environments', label: 'Environments' },
+					{ key: 'purpose', label: 'Purpose' },
+					{ key: 'actions', label: 'Actions' },
+				]} rows={rowsFor(group.type)} emptyTitle={`No ${group.title.toLowerCase()}`} emptyDescription={`Create a team-owned ${hostTypeLabel(group.type).toLowerCase()} host here, or use managed defaults directly from the project/provider setup flow.`} />
+			</Panel>
+		)) : null}
 	</section>
+	<script is:inline type="application/json" id="host-defaults-data" set:html={hostDefaultsData}></script>
 </TreeseedAppLayout>
+
+<script>
+	const hostDefaultsDataElement = document.getElementById('host-defaults-data');
+	const hostDefaultsPageData = hostDefaultsDataElement?.textContent ? JSON.parse(hostDefaultsDataElement.textContent) : {};
+	const defaultHosts = { ...(hostDefaultsPageData.defaultHosts ?? {}) };
+	const defaultStatus = document.createElement('span');
+	defaultStatus.className = 'ts-subtle';
+	defaultStatus.setAttribute('role', 'status');
+
+	function refreshDefaultHostButtons(type: string) {
+		for (const button of document.querySelectorAll<HTMLButtonElement | HTMLSpanElement>(`[data-host-type="${CSS.escape(type)}"]`)) {
+			const hostId = button.getAttribute('data-host-id');
+			if (!hostId) continue;
+			const isDefault = defaultHosts[type] === hostId;
+			if (isDefault && button instanceof HTMLButtonElement) {
+				const label = document.createElement('span');
+				label.className = 'ts-default-label';
+				label.dataset.defaultHostLabel = '';
+				label.dataset.hostType = type;
+				label.dataset.hostId = hostId;
+				label.textContent = 'Default';
+				button.replaceWith(label);
+			} else if (!isDefault && !(button instanceof HTMLButtonElement)) {
+				const replacement = document.createElement('button');
+				replacement.className = 'ts-link-button';
+				replacement.type = 'button';
+				replacement.dataset.defaultHostButton = '';
+				replacement.dataset.hostType = type;
+				replacement.dataset.hostId = hostId;
+				replacement.textContent = 'Set as default';
+				button.replaceWith(replacement);
+			}
+		}
+	}
+
+	async function setDefaultHost(type: string, hostId: string, anchor: HTMLElement) {
+		if (!hostDefaultsPageData.teamId) return;
+		defaultStatus.textContent = 'Saving default...';
+		anchor.insertAdjacentElement('afterend', defaultStatus);
+		const nextDefaults = { ...defaultHosts, [type]: hostId };
+		const response = await fetch(`/v1/teams/${encodeURIComponent(hostDefaultsPageData.teamId)}`, {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ metadata: { defaultHosts: nextDefaults } }),
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) throw new Error(payload?.error ?? payload?.message ?? 'Default host could not be saved.');
+		defaultHosts[type] = hostId;
+		refreshDefaultHostButtons(type);
+		defaultStatus.textContent = 'Default saved.';
+	}
+
+	document.addEventListener('click', async (event) => {
+		const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-default-host-button]') : null;
+		if (!button) return;
+		const type = button.dataset.hostType ?? '';
+		const hostId = button.dataset.hostId ?? '';
+		if (!type || !hostId) return;
+		button.disabled = true;
+		try {
+			await setDefaultHost(type, hostId, button);
+		} catch (error) {
+			defaultStatus.textContent = error instanceof Error ? error.message : 'Default host could not be saved.';
+		} finally {
+			button.disabled = false;
+		}
+	});
+</script>

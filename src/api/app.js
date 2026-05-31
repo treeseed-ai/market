@@ -46,7 +46,7 @@ import {
 	managedCloudflareConfigMissing,
 	resolveTreeseedManagedCloudflareHostConfigFromConfig,
 } from '../lib/market/managed-hosts.js';
-import { decryptHostConfig } from '../lib/cloudflare-host-crypto.js';
+import { decryptHostConfig } from '../lib/host-crypto.ts';
 import { getSiteAuthConfig } from '../lib/auth/config.ts';
 import { accountDeletionConfirmationMatches } from '../lib/auth/account.ts';
 import { validateUsername as validatePublicUsername } from '../lib/auth/profile-validation.ts';
@@ -66,6 +66,73 @@ function jsonError(c, status, error, details = {}) {
 		error,
 		...details,
 	}, { status });
+}
+
+const PLAINTEXT_HOST_CREDENTIAL_FIELD_NAMES = new Set([
+	'githubToken',
+	'GH_TOKEN',
+	'GITHUB_TOKEN',
+	'cloudflareAccountId',
+	'cloudflareApiToken',
+	'CLOUDFLARE_ACCOUNT_ID',
+	'CLOUDFLARE_API_TOKEN',
+	'railwayApiToken',
+	'railwayWorkspace',
+	'RAILWAY_API_TOKEN',
+	'TREESEED_RAILWAY_WORKSPACE',
+	'smtpUsername',
+	'smtpPassword',
+	'SMTP_USERNAME',
+	'SMTP_PASSWORD',
+	'aiApiKey',
+	'aiBaseUrl',
+	'aiDefaultModel',
+	'AI_API_KEY',
+	'AI_BASE_URL',
+	'AI_DEFAULT_MODEL',
+]);
+
+function plaintextHostCredentialFieldPaths(value, path = '') {
+	if (!value || typeof value !== 'object') return [];
+	if (Array.isArray(value)) {
+		return value.flatMap((entry, index) => plaintextHostCredentialFieldPaths(entry, `${path}[${index}]`));
+	}
+	const paths = [];
+	for (const [key, entry] of Object.entries(value)) {
+		if (key === 'encryptedPayload') continue;
+		const nextPath = path ? `${path}.${key}` : key;
+		if (PLAINTEXT_HOST_CREDENTIAL_FIELD_NAMES.has(key)) {
+			paths.push(nextPath);
+			continue;
+		}
+		paths.push(...plaintextHostCredentialFieldPaths(entry, nextPath));
+	}
+	return paths;
+}
+
+function rejectPlaintextHostCredentialFields(c, body) {
+	const fields = plaintextHostCredentialFieldPaths(body);
+	if (fields.length === 0) return null;
+	return jsonError(c, 400, 'Host credential values must be encrypted in encryptedPayload before submission.', {
+		fields,
+	});
+}
+
+function markdownToPlainProjectSummary(markdown, fallback = null) {
+	const text = String(markdown ?? '')
+		.replace(/^---[\s\S]*?---/u, ' ')
+		.replace(/```[\s\S]*?```/gu, ' ')
+		.replace(/`([^`]+)`/gu, '$1')
+		.replace(/!\[[^\]]*\]\([^)]+\)/gu, ' ')
+		.replace(/\[([^\]]+)\]\([^)]+\)/gu, '$1')
+		.replace(/^#{1,6}\s+/gmu, '')
+		.replace(/^\s*[-*+]\s+/gmu, '')
+		.replace(/^\s*\d+\.\s+/gmu, '')
+		.replace(/[*_~>#]/gu, '')
+		.replace(/\s+/gu, ' ')
+		.trim();
+	if (!text) return fallback;
+	return text.length > 240 ? `${text.slice(0, 237).trimEnd()}...` : text;
 }
 
 function parseBooleanEnvValue(value) {
@@ -549,6 +616,50 @@ function bearerTokenFromRequest(request) {
 
 function normalizeBaseUrl(baseUrl) {
 	return String(baseUrl ?? '').trim().replace(/\/+$/u, '');
+}
+
+function normalizeDomainName(value) {
+	const domain = String(value ?? '')
+		.trim()
+		.toLowerCase()
+		.replace(/^https?:\/\//u, '')
+		.replace(/\/.*$/u, '')
+		.replace(/\.$/u, '');
+	if (!domain) return null;
+	if (domain.length > 253 || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9]?))*$/u.test(domain)) {
+		return null;
+	}
+	return domain.includes('.') ? domain : null;
+}
+
+function normalizeProjectDomainInput(value) {
+	if (value && typeof value === 'object' && !Array.isArray(value)) {
+		return {
+			productionDomain: normalizeDomainName(value.productionDomain ?? value.production ?? value.prod),
+			stagingDomain: normalizeDomainName(value.stagingDomain ?? value.staging),
+			zoneName: normalizeDomainName(value.zoneName ?? value.rootZone ?? value.zone),
+			zoneId: optionalTrimmedString(value.zoneId),
+			manageDns: value.manageDns !== false,
+		};
+	}
+	return {
+		productionDomain: null,
+		stagingDomain: null,
+		zoneName: null,
+		zoneId: null,
+		manageDns: true,
+	};
+}
+
+function inferZoneNameForDomain(domain, fallbackZoneName = null) {
+	if (!domain) return fallbackZoneName;
+	if (fallbackZoneName && (domain === fallbackZoneName || domain.endsWith(`.${fallbackZoneName}`))) return fallbackZoneName;
+	const parts = domain.split('.');
+	return parts.length >= 2 ? parts.slice(-2).join('.') : fallbackZoneName;
+}
+
+function domainInZone(domain, zoneName) {
+	return Boolean(domain && zoneName && (domain === zoneName || domain.endsWith(`.${zoneName}`)));
 }
 
 function optionalTrimmedString(value) {
@@ -1158,7 +1269,17 @@ function credentialSessionSecret(runtime) {
 	if (configured && String(configured).trim()) {
 		return String(configured);
 	}
-	if (process.env.NODE_ENV === 'test' || process.env.TREESEED_LOCAL_DEV_MODE) {
+	const runtimeConfig = runtime?.resolved?.config ?? {};
+	const environment = String(runtimeConfig.environment ?? process.env.TREESEED_API_ENVIRONMENT ?? process.env.TREESEED_ENVIRONMENT ?? '').trim().toLowerCase();
+	const localDatabase = isLoopbackUrl(runtimeConfig.marketDatabaseUrl ?? process.env.TREESEED_MARKET_DATABASE_URL ?? '');
+	const localBaseUrl = isLoopbackUrl(runtimeConfig.baseUrl ?? process.env.TREESEED_SITE_URL ?? process.env.BETTER_AUTH_URL ?? '');
+	if (
+		process.env.NODE_ENV === 'test'
+		|| process.env.TREESEED_LOCAL_DEV_MODE
+		|| environment === 'local'
+		|| localDatabase
+		|| localBaseUrl
+	) {
 		return 'treeseed-local-test-credential-session-secret';
 	}
 	throw new Error('TREESEED_MARKET_CREDENTIAL_SESSION_SECRET is required for provider credential sessions.');
@@ -1199,7 +1320,7 @@ function decryptCredentialSessionPayload(runtime, envelope) {
 	return JSON.parse(plaintext.toString('utf8'));
 }
 
-function normalizeProviderCredentialConfig(hostKind, config) {
+function normalizeProviderCredentialConfig(hostKind, config, host = null) {
 	const source = config && typeof config === 'object' ? config : {};
 	if (hostKind === 'repository_host') {
 		const token = source.GH_TOKEN ?? source.GITHUB_TOKEN ?? source.githubToken ?? source.token;
@@ -1211,6 +1332,18 @@ function normalizeProviderCredentialConfig(hostKind, config) {
 			GITHUB_TOKEN: typeof source.GITHUB_TOKEN === 'string' ? source.GITHUB_TOKEN : token,
 			...(typeof source.owner === 'string' && source.owner.trim() ? { owner: source.owner.trim() } : {}),
 			...(typeof source.organizationOrOwner === 'string' && source.organizationOrOwner.trim() ? { organizationOrOwner: source.organizationOrOwner.trim() } : {}),
+		};
+	}
+	if (hostKind === 'email_host') {
+		const smtp = host?.metadata?.smtp && typeof host.metadata.smtp === 'object' ? host.metadata.smtp : {};
+		return {
+			...(typeof smtp.host === 'string' && smtp.host.trim() ? { SMTP_HOST: smtp.host.trim() } : {}),
+			...(typeof smtp.port === 'string' && smtp.port.trim() ? { SMTP_PORT: smtp.port.trim() } : {}),
+			...(typeof source.SMTP_USERNAME === 'string' && source.SMTP_USERNAME.trim() ? { SMTP_USERNAME: source.SMTP_USERNAME } : {}),
+			...(typeof source.SMTP_PASSWORD === 'string' && source.SMTP_PASSWORD ? { SMTP_PASSWORD: source.SMTP_PASSWORD } : {}),
+			...(typeof smtp.fromEmail === 'string' && smtp.fromEmail.trim() ? { SMTP_FROM_EMAIL: smtp.fromEmail.trim() } : {}),
+			...(typeof smtp.replyTo === 'string' && smtp.replyTo.trim() ? { SMTP_REPLY_TO: smtp.replyTo.trim() } : {}),
+			...(typeof smtp.secure === 'string' && smtp.secure.trim() ? { SMTP_SECURE: smtp.secure.trim() } : {}),
 		};
 	}
 	return source;
@@ -3463,6 +3596,10 @@ export function createMarketApiApp(options = {}) {
 					[username],
 				);
 				if (existingUsernameCredential) return jsonError(c, 409, 'Username is already taken.');
+				if (await store.publicUsernameExists(username)) return jsonError(c, 409, 'Username is already taken.');
+				if (await store.teamPublicNameExists(username)) {
+					return jsonError(c, 409, 'Username is already taken by a team.', { code: 'namespace_taken' });
+				}
 				const existingEmailAddress = await store.first(
 					`SELECT user_id FROM user_email_addresses WHERE normalized_email = ? LIMIT 1`,
 					[email],
@@ -3561,6 +3698,12 @@ export function createMarketApiApp(options = {}) {
 				}
 				const now = new Date().toISOString();
 				const firstVerified = (await verifiedEmailCount(store, emailAddress.user_id)) === 0;
+				if (firstVerified) {
+					const personalTeam = await store.ensurePersonalResearchTeamForUser(emailAddress.user_id);
+					if (!personalTeam.ok) {
+						return jsonError(c, personalTeam.code === 'namespace_conflict' ? 409 : 400, personalTeam.message, { code: personalTeam.code });
+					}
+				}
 				await store.run(
 					`UPDATE user_email_addresses
 					 SET status = 'verified', verified_at = COALESCE(verified_at, ?), updated_at = ?
@@ -3581,7 +3724,7 @@ export function createMarketApiApp(options = {}) {
 					).catch(() => null);
 				}
 				await store.run(`DELETE FROM better_auth_verification WHERE id = ?`, [row.id]).catch(() => null);
-					const session = await createMarketWebSession(runtimeMarketAuthProvider, emailAddress.user_id, webSessionData(c, 'web_email_confirmed'), { store, authSecret: runtime.resolved.config.authSecret });
+				const session = await createMarketWebSession(runtimeMarketAuthProvider, emailAddress.user_id, webSessionData(c, 'web_email_confirmed'), { store, authSecret: runtime.resolved.config.authSecret });
 				if (credential.status !== 'active') {
 					await sendWelcomeEmail(marketAuthContext(c), {
 						email,
@@ -3660,7 +3803,17 @@ export function createMarketApiApp(options = {}) {
 					});
 				}
 				const row = await store.first(`SELECT user_id FROM market_auth_credentials WHERE username = ? LIMIT 1`, [username]);
-				return c.json({ ok: true, payload: { username, available: !row, status: row ? 'taken' : 'available', message: row ? 'Username is already taken.' : 'Username is available.' } });
+				const userTaken = row ? true : await store.publicUsernameExists(username);
+				const teamTaken = userTaken ? false : await store.teamPublicNameExists(username);
+				return c.json({
+					ok: true,
+					payload: {
+						username,
+						available: !userTaken && !teamTaken,
+						status: userTaken || teamTaken ? 'taken' : 'available',
+						message: userTaken ? 'Username is already taken.' : teamTaken ? 'Username is already taken by a team.' : 'Username is available.',
+					},
+				});
 			});
 
 			app.get('/v1/auth/web/emails', async (c) => {
@@ -4388,14 +4541,21 @@ export function createMarketApiApp(options = {}) {
 				if (!body.name && !body.slug) {
 					return jsonError(c, 400, 'name is required.');
 				}
-				const team = await store.createTeam({
-					name: String(body.slug ?? body.name),
-					displayName: typeof body.displayName === 'string' ? body.displayName : typeof body.label === 'string' ? body.label : String(body.name ?? body.slug),
-					logoUrl: typeof body.logoUrl === 'string' ? body.logoUrl : null,
-					profileSummary: typeof body.profileSummary === 'string' ? body.profileSummary : typeof body.description === 'string' ? body.description : null,
-					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
-					ownerUserId: typeof auth.principal.id === 'string' ? auth.principal.id : null,
-				});
+				let team;
+				try {
+					team = await store.createTeam({
+						name: String(body.slug ?? body.name),
+						displayName: typeof body.displayName === 'string' ? body.displayName : typeof body.label === 'string' ? body.label : String(body.name ?? body.slug),
+						logoUrl: typeof body.logoUrl === 'string' ? body.logoUrl : null,
+						profileSummary: typeof body.profileSummary === 'string' ? body.profileSummary : typeof body.description === 'string' ? body.description : null,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+						ownerUserId: typeof auth.principal.id === 'string' ? auth.principal.id : null,
+					});
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error);
+					const status = /already taken|already used/u.test(message) ? 409 : 400;
+					return jsonError(c, status, message, { code: status === 409 ? 'namespace_taken' : 'invalid_team' });
+				}
 				return c.json({ ok: true, payload: team });
 			});
 
@@ -4481,6 +4641,14 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
+			app.get('/v1/teams/:teamId/web-hosts/:hostId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const host = await store.getTeamWebHost(c.req.param('teamId'), c.req.param('hostId'));
+				if (!host) return jsonError(c, 404, `Unknown web host "${c.req.param('hostId')}".`);
+				return c.json({ ok: true, payload: host });
+			});
+
 			app.get('/v1/teams/:teamId/repository-hosts', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
 				if (access.response) return access.response;
@@ -4505,6 +4673,8 @@ export function createMarketApiApp(options = {}) {
 				if (!body.name || !body.organizationOrOwner) {
 					return jsonError(c, 400, 'name and organizationOrOwner are required.');
 				}
+				const plaintextCredentials = rejectPlaintextHostCredentialFields(c, body);
+				if (plaintextCredentials) return plaintextCredentials;
 				if ((body.ownership ?? 'team_owned') === 'team_owned' && body.encryptedPayload && !encryptedHostPayloadLooksValid(body.encryptedPayload)) {
 					return jsonError(c, 400, 'encryptedPayload must use the TreeSeed encrypted host envelope format.');
 				}
@@ -4529,6 +4699,8 @@ export function createMarketApiApp(options = {}) {
 				const existing = await store.getRepositoryHost(c.req.param('teamId'), c.req.param('hostId'));
 				if (!existing || existing.teamId === null) return jsonError(c, 404, `Unknown Repository Host "${c.req.param('hostId')}".`);
 				const body = await c.req.json().catch(() => ({}));
+				const plaintextCredentials = rejectPlaintextHostCredentialFields(c, body);
+				if (plaintextCredentials) return plaintextCredentials;
 				if ((body.ownership ?? existing.ownership) === 'team_owned' && body.encryptedPayload && !encryptedHostPayloadLooksValid(body.encryptedPayload)) {
 					return jsonError(c, 400, 'encryptedPayload must use the TreeSeed encrypted host envelope format.');
 				}
@@ -4585,9 +4757,18 @@ export function createMarketApiApp(options = {}) {
 				if (!host.encryptedPayload) {
 					return jsonError(c, 400, 'Selected host does not have encrypted provider credentials.');
 				}
+				let normalizedConfig;
 				try {
 					const decryptedConfig = await decryptHostConfig(host.encryptedPayload, passphrase);
-					const normalizedConfig = normalizeProviderCredentialConfig(hostKind, decryptedConfig);
+					normalizedConfig = normalizeProviderCredentialConfig(hostKind, decryptedConfig, host);
+				} catch (error) {
+					return jsonError(c, 400, 'Unable to unlock provider credentials for this host.', {
+						message: error instanceof Error ? error.message : String(error),
+						hostKind,
+						hostId,
+					});
+				}
+				try {
 					const requestedSeconds = Number(body.expiresInSeconds ?? 900);
 					const expiresInSeconds = Math.max(60, Math.min(Number.isFinite(requestedSeconds) ? requestedSeconds : 900, 3600));
 					const session = await store.createProviderCredentialSession(teamId, {
@@ -4618,8 +4799,10 @@ export function createMarketApiApp(options = {}) {
 						},
 					}, { status: 201 });
 				} catch (error) {
-					return jsonError(c, 400, 'Unable to unlock provider credentials for this host.', {
+					return jsonError(c, 500, 'Provider credentials were unlocked, but the launch credential session could not be created.', {
 						message: error instanceof Error ? error.message : String(error),
+						hostKind,
+						hostId,
 					});
 				}
 			});
@@ -4672,6 +4855,14 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
+			app.get('/v1/teams/:teamId/hosts/:hostId', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const host = await store.getTeamWebHost(c.req.param('teamId'), c.req.param('hostId'));
+				if (!host) return jsonError(c, 404, `Unknown host "${c.req.param('hostId')}".`);
+				return c.json({ ok: true, payload: host });
+			});
+
 			app.post('/v1/teams/:teamId/web-hosts', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
 				if (access.response) return access.response;
@@ -4679,6 +4870,8 @@ export function createMarketApiApp(options = {}) {
 				if (!body.name) {
 					return jsonError(c, 400, 'name is required.');
 				}
+				const plaintextCredentials = rejectPlaintextHostCredentialFields(c, body);
+				if (plaintextCredentials) return plaintextCredentials;
 				if ((body.ownership ?? 'team_owned') === 'team_owned' && !encryptedHostPayloadLooksValid(body.encryptedPayload)) {
 					return jsonError(c, 400, 'A valid encryptedPayload is required for team-owned hosts.');
 				}
@@ -4704,6 +4897,8 @@ export function createMarketApiApp(options = {}) {
 				if (!body.name) {
 					return jsonError(c, 400, 'name is required.');
 				}
+				const plaintextCredentials = rejectPlaintextHostCredentialFields(c, body);
+				if (plaintextCredentials) return plaintextCredentials;
 				if ((body.ownership ?? 'team_owned') === 'team_owned' && !encryptedHostPayloadLooksValid(body.encryptedPayload)) {
 					return jsonError(c, 400, 'A valid encryptedPayload is required for team-owned hosts.');
 				}
@@ -4726,6 +4921,8 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
+				const plaintextCredentials = rejectPlaintextHostCredentialFields(c, body);
+				if (plaintextCredentials) return plaintextCredentials;
 				if (body.encryptedPayload !== undefined && !encryptedHostPayloadLooksValid(body.encryptedPayload)) {
 					return jsonError(c, 400, 'encryptedPayload must be a valid encrypted host envelope.');
 				}
@@ -4747,6 +4944,8 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
+				const plaintextCredentials = rejectPlaintextHostCredentialFields(c, body);
+				if (plaintextCredentials) return plaintextCredentials;
 				if (body.encryptedPayload !== undefined && !encryptedHostPayloadLooksValid(body.encryptedPayload)) {
 					return jsonError(c, 400, 'encryptedPayload must be a valid encrypted host envelope.');
 				}
@@ -5645,14 +5844,21 @@ export function createMarketApiApp(options = {}) {
 				if (!body.slug || !body.name) {
 					return jsonError(c, 400, 'slug and name are required.');
 				}
-				const details = await store.createProject(c.req.param('teamId'), {
-					id: typeof body.id === 'string' ? body.id : undefined,
-					slug: String(body.slug),
-					name: String(body.name),
-					description: typeof body.description === 'string' ? body.description : null,
-					metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
-					entitlementTier: typeof body.entitlementTier === 'string' ? body.entitlementTier : 'free',
-				});
+				let details;
+				try {
+					details = await store.createProject(c.req.param('teamId'), {
+						id: typeof body.id === 'string' ? body.id : undefined,
+						slug: String(body.slug),
+						name: String(body.name),
+						description: typeof body.description === 'string' ? body.description : null,
+						metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata : {},
+						entitlementTier: typeof body.entitlementTier === 'string' ? body.entitlementTier : 'free',
+					});
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error);
+					const status = /already in use/u.test(message) ? 409 : 400;
+					return jsonError(c, status, message, { code: status === 409 ? 'slug_taken' : 'invalid_slug' });
+				}
 				return c.json({ ok: true, payload: details });
 			});
 
@@ -5671,7 +5877,18 @@ export function createMarketApiApp(options = {}) {
 				const requestedHosting = canonicalIntent?.hosting && typeof canonicalIntent.hosting === 'object' ? canonicalIntent.hosting : null;
 				const requestedSlug = typeof requestedHub?.slug === 'string' ? requestedHub.slug : body.slug;
 				const requestedName = typeof requestedHub?.name === 'string' ? requestedHub.name : body.name;
-				const requestedPurpose = typeof requestedHub?.purpose === 'string' ? requestedHub.purpose : typeof body.summary === 'string' ? body.summary : typeof body.description === 'string' ? body.description : null;
+				const requestedCoreObjective = typeof requestedHub?.coreObjective === 'string'
+					? requestedHub.coreObjective
+					: typeof body.coreObjective === 'string'
+						? body.coreObjective
+						: typeof body.summary === 'string'
+							? body.summary
+							: typeof body.description === 'string'
+								? body.description
+								: null;
+				const requestedPurpose = typeof requestedHub?.purpose === 'string'
+					? requestedHub.purpose
+					: markdownToPlainProjectSummary(requestedCoreObjective, null);
 				if (!requestedSlug || !requestedName) {
 					return jsonError(c, 400, 'slug and name are required.');
 				}
@@ -5760,6 +5977,44 @@ export function createMarketApiApp(options = {}) {
 						}
 					}
 					const targetEnvironments = ['staging', 'prod'];
+					const requestedDomains = normalizeProjectDomainInput(body.domains ?? {
+						productionDomain: body.productionDomain,
+						stagingDomain: body.stagingDomain,
+						zoneName: body.cloudflareZoneName,
+						zoneId: body.cloudflareZoneId,
+						manageDns: body.manageDns,
+					});
+					const cloudflareDns = cloudflareHostMode === 'team_owned'
+						? cloudflareHost?.metadata?.dns ?? {}
+						: cloudflareHostMode === 'treeseed_managed'
+							? {
+								managed: Boolean(cloudflareLaunchConfig?.CLOUDFLARE_ZONE_ID || cloudflareLaunchConfig?.TREESEED_CLOUDFLARE_ZONE_NAME),
+								zoneId: cloudflareLaunchConfig?.CLOUDFLARE_ZONE_ID ?? null,
+								zoneName: cloudflareLaunchConfig?.TREESEED_CLOUDFLARE_ZONE_NAME ?? null,
+							}
+							: {};
+					const configuredZoneName = normalizeDomainName(requestedDomains.zoneName ?? cloudflareDns.zoneName);
+					const inferredZoneName = inferZoneNameForDomain(requestedDomains.productionDomain ?? requestedDomains.stagingDomain, configuredZoneName);
+					const domainZoneName = configuredZoneName ?? inferredZoneName;
+					if ((requestedDomains.productionDomain || requestedDomains.stagingDomain) && !domainZoneName) {
+						return jsonError(c, 400, 'A Cloudflare DNS zone is required when production or staging domains are provided.');
+					}
+					for (const [label, domain] of [['productionDomain', requestedDomains.productionDomain], ['stagingDomain', requestedDomains.stagingDomain]]) {
+						if (domain && !domainInZone(domain, domainZoneName)) {
+							return jsonError(c, 400, `${label} must be the selected Cloudflare zone root or a subdomain of it.`);
+						}
+					}
+					if (requestedDomains.productionDomain && requestedDomains.stagingDomain && requestedDomains.productionDomain === requestedDomains.stagingDomain) {
+						return jsonError(c, 400, 'Production and staging domains must be different.');
+					}
+					const projectDomains = {
+						productionDomain: requestedDomains.productionDomain,
+						stagingDomain: requestedDomains.stagingDomain,
+						zoneName: domainZoneName,
+						zoneId: requestedDomains.zoneId ?? cloudflareDns.zoneId ?? null,
+						manageDns: Boolean(requestedDomains.manageDns && domainZoneName),
+						provider: 'cloudflare',
+					};
 				const cloudflareHostMetadata = cloudflareHostMode
 					? {
 						mode: cloudflareHostMode,
@@ -5767,6 +6022,8 @@ export function createMarketApiApp(options = {}) {
 						hostName: cloudflareHost?.name ?? (cloudflareHostMode === 'treeseed_managed' ? 'TreeSeed Web Host' : null),
 						ownership: cloudflareHost?.ownership ?? cloudflareHostMode,
 						targetEnvironments,
+						dns: cloudflareDns,
+						domains: projectDomains,
 						billing: cloudflareHostMode === 'treeseed_managed'
 							? {
 								fee: 'treeseed_cloudflare_hosting',
@@ -5792,73 +6049,6 @@ export function createMarketApiApp(options = {}) {
 						...(cloudflareHostMetadata ? { cloudflareHost: cloudflareHostMetadata } : {}),
 						...(emailHostMetadata ? { emailHost: emailHostMetadata } : {}),
 					};
-				const details = await store.createProject(c.req.param('teamId'), {
-					id: typeof body.id === 'string' ? body.id : undefined,
-					slug: String(requestedSlug),
-					name: String(requestedName),
-					description: requestedPurpose,
-					metadata: {
-						publicSite: body.publicSite !== false,
-						sourceKind,
-						sourceRef,
-						enableDefaultAgents: body.enableDefaultAgents !== false,
-						launchMode: hostingMode,
-						launchPhase: 'queued',
-						...hostMetadata,
-						...(typeof body.metadata === 'object' && body.metadata ? body.metadata : {}),
-					},
-						entitlementTier: typeof body.entitlementTier === 'string'
-							? body.entitlementTier
-							: cloudflareHostMode === 'treeseed_managed' || emailHostMode === 'treeseed_managed'
-								? 'paid_hosting'
-								: 'free',
-				});
-				await store.upsertProjectHosting(details.project.id, {
-					kind: hostingKind,
-					registration,
-					marketBaseUrl: runtime.resolved.config.baseUrl ?? null,
-					sourceRepoOwner: typeof body.sourceRepoOwner === 'string' ? body.sourceRepoOwner : null,
-					sourceRepoName: typeof body.sourceRepoName === 'string' ? body.sourceRepoName : null,
-					sourceRepoUrl: typeof body.sourceRepoUrl === 'string' ? body.sourceRepoUrl : null,
-					sourceRepoWorkflowPath: typeof body.sourceRepoWorkflowPath === 'string' ? body.sourceRepoWorkflowPath : null,
-					projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
-					executionOwner: hostingMode === 'managed' ? 'project_api' : 'project_runner',
-					metadata: {
-						repoProvider,
-						repoVisibility,
-						publicSite: body.publicSite !== false,
-						sourceKind,
-						sourceRef,
-						launchPhase: 'queued',
-						...hostMetadata,
-					},
-				});
-				await store.upsertProjectConnection(details.project.id, {
-					mode: hostingMode === 'managed' ? 'hosted' : hostingMode === 'hybrid' ? 'hybrid' : 'self_hosted',
-					projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
-					executionOwner: hostingMode === 'managed' ? 'project_api' : 'project_runner',
-					metadata: {
-						internalPrefix: '/internal/core',
-						repoProvider,
-						repoVisibility,
-						publicSite: body.publicSite !== false,
-						sourceKind,
-						sourceRef,
-						launchPhase: 'queued',
-						...hostMetadata,
-					},
-				});
-				for (const environment of ['local', 'staging', 'prod']) {
-					await store.upsertProjectEnvironment(details.project.id, {
-						environment,
-						deploymentProfile: hostingKind,
-						baseUrl: null,
-						metadata: {
-							launchMode: hostingMode,
-							launchPhase: 'queued',
-						},
-					});
-				}
 				const repositoryHostId = typeof requestedRepository?.hostId === 'string' && requestedRepository.hostId.trim()
 					? requestedRepository.hostId.trim()
 					: typeof body.repositoryHostId === 'string' && body.repositoryHostId.trim()
@@ -5951,6 +6141,98 @@ export function createMarketApiApp(options = {}) {
 				} catch (error) {
 					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
 				}
+				let details;
+				try {
+					details = await store.createProject(c.req.param('teamId'), {
+						id: typeof body.id === 'string' ? body.id : undefined,
+						slug: String(requestedSlug),
+						name: String(requestedName),
+						description: requestedPurpose,
+						metadata: {
+							publicSite: body.publicSite !== false,
+							sourceKind,
+							sourceRef,
+							coreObjective: requestedCoreObjective,
+							enableDefaultAgents: body.enableDefaultAgents !== false,
+							launchMode: hostingMode,
+							launchPhase: 'queued',
+							domains: projectDomains,
+							...hostMetadata,
+							...(typeof body.metadata === 'object' && body.metadata ? body.metadata : {}),
+						},
+							entitlementTier: typeof body.entitlementTier === 'string'
+								? body.entitlementTier
+								: cloudflareHostMode === 'treeseed_managed' || emailHostMode === 'treeseed_managed'
+									? 'paid_hosting'
+									: 'free',
+					});
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error);
+					const status = /already in use/u.test(message) ? 409 : 400;
+					return jsonError(c, status, message, { code: status === 409 ? 'slug_taken' : 'invalid_slug' });
+				}
+				await store.upsertProjectHosting(details.project.id, {
+					kind: hostingKind,
+					registration,
+					marketBaseUrl: runtime.resolved.config.baseUrl ?? null,
+					sourceRepoOwner: typeof body.sourceRepoOwner === 'string' ? body.sourceRepoOwner : null,
+					sourceRepoName: typeof body.sourceRepoName === 'string' ? body.sourceRepoName : null,
+					sourceRepoUrl: typeof body.sourceRepoUrl === 'string' ? body.sourceRepoUrl : null,
+					sourceRepoWorkflowPath: typeof body.sourceRepoWorkflowPath === 'string' ? body.sourceRepoWorkflowPath : null,
+					projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
+					executionOwner: hostingMode === 'managed' ? 'project_api' : 'project_runner',
+					metadata: {
+						repoProvider,
+						repoVisibility,
+						publicSite: body.publicSite !== false,
+						sourceKind,
+						sourceRef,
+						launchPhase: 'queued',
+						domains: projectDomains,
+						...hostMetadata,
+					},
+				});
+				await store.upsertProjectConnection(details.project.id, {
+					mode: hostingMode === 'managed' ? 'hosted' : hostingMode === 'hybrid' ? 'hybrid' : 'self_hosted',
+					projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
+					executionOwner: hostingMode === 'managed' ? 'project_api' : 'project_runner',
+					metadata: {
+						internalPrefix: '/internal/core',
+						repoProvider,
+						repoVisibility,
+						publicSite: body.publicSite !== false,
+						sourceKind,
+						sourceRef,
+						launchPhase: 'queued',
+						domains: projectDomains,
+						...hostMetadata,
+					},
+				});
+				for (const environment of ['local', 'staging', 'prod']) {
+					const domain = environment === 'prod'
+						? projectDomains.productionDomain
+						: environment === 'staging'
+							? projectDomains.stagingDomain
+							: null;
+					await store.upsertProjectEnvironment(details.project.id, {
+						environment,
+						deploymentProfile: hostingKind,
+						baseUrl: domain ? `https://${domain}` : null,
+						cloudflareAccountId: cloudflareHostMode === 'team_owned'
+							? cloudflareHost?.metadata?.cloudflareAccountId ?? null
+							: cloudflareLaunchConfig?.CLOUDFLARE_ACCOUNT_ID ?? null,
+						metadata: {
+							launchMode: hostingMode,
+							launchPhase: 'queued',
+							...(domain ? {
+								domain,
+								dnsManagedByHost: projectDomains.manageDns,
+								cloudflareZoneName: projectDomains.zoneName,
+								cloudflareZoneId: projectDomains.zoneId,
+							} : {}),
+						},
+					});
+				}
 				const launchIntent = {
 					team: {
 						id: teamId,
@@ -5961,6 +6243,7 @@ export function createMarketApiApp(options = {}) {
 						name: details.project.name,
 						slug: details.project.slug,
 						purpose: details.project.description ?? null,
+						coreObjective: requestedCoreObjective,
 						visibility: body.publicSite === false ? 'team' : 'public',
 					},
 					source: {
@@ -5981,6 +6264,7 @@ export function createMarketApiApp(options = {}) {
 							mode: 'treeseed_managed',
 							webHost: cloudflareHostMetadata,
 							emailHost: emailHostMetadata,
+							domains: projectDomains,
 						},
 					contentResolution: {
 						productionSource: 'r2_published_artifacts',
@@ -6004,6 +6288,7 @@ export function createMarketApiApp(options = {}) {
 							projectSlug: details.project.slug,
 							projectName: details.project.name,
 							summary: details.project.description ?? null,
+							coreObjective: requestedCoreObjective,
 							sourceKind: sourceKind === 'blank_hub' ? 'blank' : sourceKind === 'market_listing' ? 'template' : sourceKind,
 							sourceRef,
 							hostingMode,
@@ -6012,6 +6297,7 @@ export function createMarketApiApp(options = {}) {
 							repoVisibility,
 							marketBaseUrl: runtime.resolved.config.baseUrl ?? null,
 							projectApiBaseUrl: typeof body.projectApiBaseUrl === 'string' ? body.projectApiBaseUrl : null,
+							domains: projectDomains,
 							contactEmail: typeof body.contactEmail === 'string' ? body.contactEmail : null,
 							enableDefaultAgents: body.enableDefaultAgents !== false,
 								cloudflareHost: cloudflareHostMode

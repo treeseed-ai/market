@@ -2374,6 +2374,9 @@ export class MarketControlPlaneStore {
 		if (!validation.ok) {
 			throw new Error(validation.message);
 		}
+		if (await this.publicUsernameExists(validation.name, input.allowUserNamespaceOwnerId ?? null)) {
+			throw new Error('That team name is already taken by a user.');
+		}
 		const displayName = String(input.displayName ?? input.display_name ?? input.label ?? input.name ?? validation.name).trim() || validation.name;
 		const metadata = {
 			...(typeof input.metadata === 'object' && input.metadata ? input.metadata : {}),
@@ -2426,7 +2429,61 @@ export class MarketControlPlaneStore {
 			`SELECT id FROM teams WHERE LOWER(name) = LOWER(?) ${excludeTeamId ? 'AND id != ?' : ''} LIMIT 1`,
 			excludeTeamId ? [validation.name, excludeTeamId] : [validation.name],
 		);
-		return !row?.id;
+		if (row?.id) return false;
+		return !(await this.publicUsernameExists(validation.name));
+	}
+
+	async publicUsernameExists(username, excludeUserId = null) {
+		await this.ensureInitialized();
+		const value = String(username ?? '').trim().toLowerCase();
+		if (!value) return false;
+		const row = await this.first(
+			`SELECT id FROM users WHERE LOWER(username) = LOWER(?) ${excludeUserId ? 'AND id != ?' : ''} LIMIT 1`,
+			excludeUserId ? [value, excludeUserId] : [value],
+		);
+		return Boolean(row?.id);
+	}
+
+	async teamPublicNameExists(name, excludeTeamId = null) {
+		await this.ensureInitialized();
+		const value = normalizeTeamName(name);
+		if (!value) return false;
+		const row = await this.first(
+			`SELECT id FROM teams WHERE (LOWER(name) = LOWER(?) OR LOWER(slug) = LOWER(?)) ${excludeTeamId ? 'AND id != ?' : ''} LIMIT 1`,
+			excludeTeamId ? [value, value, excludeTeamId] : [value, value],
+		);
+		return Boolean(row?.id);
+	}
+
+	async ensurePersonalResearchTeamForUser(userId) {
+		await this.ensureInitialized();
+		const user = await this.first(`SELECT id, username, display_name FROM users WHERE id = ? LIMIT 1`, [userId]);
+		const validation = validateTeamName(user?.username);
+		if (!user?.id || !validation.ok) {
+			return { ok: false, code: 'missing_username', message: 'A valid username is required before creating a personal research team.' };
+		}
+		const existing = await this.getTeamBySlug(validation.name);
+		if (existing) {
+			const memberships = await this.all(
+				`SELECT id FROM team_memberships WHERE team_id = ? AND user_id = ? AND status = 'active' LIMIT 1`,
+				[existing.id, user.id],
+			);
+			if (memberships.length > 0 && existing.metadata?.kind === 'personal_research' && existing.metadata?.ownerUserId === user.id) {
+				return { ok: true, team: existing, created: false };
+			}
+			return { ok: false, code: 'namespace_conflict', message: 'That username is already used by a team.' };
+		}
+		const team = await this.createTeam({
+			name: validation.name,
+			displayName: String(user.display_name ?? '').trim() || `${validation.name}'s Research`,
+			metadata: {
+				kind: 'personal_research',
+				ownerUserId: user.id,
+			},
+			ownerUserId: user.id,
+			allowUserNamespaceOwnerId: user.id,
+		});
+		return { ok: true, team, created: true };
 	}
 
 	async updateTeamSettings(teamId, input) {
@@ -2589,6 +2646,11 @@ export class MarketControlPlaneStore {
 		if (ownership === 'team_owned' && (!encryptedPayload || typeof encryptedPayload !== 'object')) {
 			throw new Error('encryptedPayload is required for team-owned hosts.');
 		}
+		const metadata = input.metadata === undefined
+			? existing.metadata
+			: typeof input.metadata === 'object' && input.metadata
+				? { ...(existing.metadata ?? {}), ...input.metadata }
+				: {};
 		await this.run(
 			`UPDATE team_web_hosts
 			 SET ownership = ?, name = ?, account_label = ?, allowed_environments_json = ?, status = ?,
@@ -2605,7 +2667,7 @@ export class MarketControlPlaneStore {
 				JSON.stringify(Array.isArray(input.allowedEnvironments) ? input.allowedEnvironments.map(String) : existing.allowedEnvironments),
 				typeof input.status === 'string' ? input.status : existing.status,
 				encryptedPayload ? JSON.stringify(encryptedPayload) : null,
-				JSON.stringify(input.metadata === undefined ? existing.metadata : typeof input.metadata === 'object' && input.metadata ? input.metadata : {}),
+				JSON.stringify(metadata),
 				typeof input.updatedById === 'string' ? input.updatedById : existing.updatedById,
 				timestamp,
 				teamId,
@@ -6003,13 +6065,21 @@ export class MarketControlPlaneStore {
 		await this.ensureInitialized();
 		const timestamp = isoNow();
 		const id = input.id ?? randomUUID();
+		const slugResult = validateProjectSlug(input.slug);
+		if (!slugResult.ok) {
+			throw new Error(slugResult.message);
+		}
+		const existing = await this.getProjectByTeamAndSlug(teamId, slugResult.slug);
+		if (existing) {
+			throw new Error('That project slug is already in use for this team.');
+		}
 		await this.run(
 			`INSERT INTO projects (id, team_id, slug, name, description, metadata_json, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			[
 				id,
 				teamId,
-				input.slug,
+				slugResult.slug,
 				input.name,
 				input.description ?? null,
 				JSON.stringify(input.metadata ?? {}),
@@ -6033,7 +6103,7 @@ export class MarketControlPlaneStore {
 		await this.upsertCatalogItem(teamId, {
 			id,
 			kind: 'project',
-			slug: input.slug,
+			slug: slugResult.slug,
 			title: input.name,
 			summary: input.description ?? null,
 			visibility: 'team',

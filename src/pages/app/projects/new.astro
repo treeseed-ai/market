@@ -4,11 +4,13 @@ import Field from '../../../../packages/core/src/components/ui/forms/Field.astro
 import FormActions from '../../../../packages/core/src/components/ui/forms/FormActions.astro';
 import Select from '../../../../packages/core/src/components/ui/forms/Select.astro';
 import TextInput from '../../../../packages/core/src/components/ui/forms/TextInput.astro';
-import Textarea from '../../../../packages/core/src/components/ui/forms/Textarea.astro';
+import { listSiteTemplates, type TemplateSiteCard } from '@treeseed/core/templates';
 import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
+import { createMarketTemplateCatalogProvider } from '../../../lib/market/catalog.js';
 import { listTreeseedManagedHostsFromConfig } from '../../../lib/market/managed-hosts.js';
+import { hostPurposeFor } from '../../../lib/market/control-ui.js';
 import { loadOperationalContext } from '../../../view-models/shared.js';
 
 if (!Astro.locals.auth?.principal) {
@@ -24,47 +26,219 @@ const [managedHosts, customHosts, repositoryHosts] = team && context.store
 			context.store.listRepositoryHosts(team.id).catch(() => []),
 		])
 	: [[], [], []];
-const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managedHosts, ...customHosts], repositoryHosts }).replace(/</gu, '\\u003c');
+const baseCoreTemplate: TemplateSiteCard = {
+	slug: 'starter-basic',
+	title: 'TreeSeed Core Starter',
+	summary: 'The first-party project foundation with Core runtime, hosted web deployment, content collections, forms, and standard workflow wiring.',
+	category: 'core',
+	featured: true,
+	publisherName: 'TreeSeed',
+	templateVersion: '1.0.0',
+	priceModel: 'free',
+	source: 'content',
+};
+const templateListing = await listSiteTemplates({
+	locals: Astro.locals,
+	catalogProvider: createMarketTemplateCatalogProvider(Astro.locals),
+}).catch(() => ({ rendered: true, items: [] as TemplateSiteCard[] }));
+const templateCards = [
+	baseCoreTemplate,
+	...templateListing.items.filter((template) => template.slug !== baseCoreTemplate.slug),
+];
+const defaultCoreObjective = `# Core Objective
+
+Describe the enduring outcome this project should help the team achieve. Keep it concrete enough that TreeSeed agents can use it as their first source of context when planning, writing, and reviewing work.
+`;
+const defaultHosts = team?.metadata?.defaultHosts && typeof team.metadata.defaultHosts === 'object'
+	? team.metadata.defaultHosts
+	: {};
+const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managedHosts, ...customHosts], repositoryHosts, defaultHosts }).replace(/</gu, '\\u003c');
 ---
 
 <TreeseedAppLayout title="New project" description="Create one hosted project." currentPath="/app/projects" teams={context.teams} activeTeam={team}>
 	{team ? (
 		<section class="ts-control-page" aria-label="New project">
-			<Panel eyebrow="Projects" title="Create hosted project" description="Managed hosts are selected by default. Custom hosts need sensitive unlock.">
-				<form id="project-launch-form" class="ts-form-stack">
+			<form id="project-launch-form" class="ts-form-stack">
+				<Panel eyebrow="Projects" title="Create hosted project" description="Start with the project, then choose the hosts it needs. TreeSeed managed hosts are preselected.">
 					<div class="ts-form-grid">
-						<Field label="Project name" name="name" required><TextInput name="name" required placeholder="Deployment Reliability" /></Field>
-						<Field label="Handle" name="slug" required><TextInput name="slug" required placeholder="deployment-reliability" pattern="[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?" /></Field>
-						<Field label="Purpose" name="summary" class="ts-field--full"><Textarea name="summary" rows={4} placeholder="What this project is for and what TreeSeed should help maintain." /></Field>
-					</div>
-					<details class="ts-advanced-details">
-						<summary>Host selection</summary>
-						<div class="ts-form-stack">
-							<Field label="Source" name="sourceKind">
-								<Select name="sourceKind" options={[
-									{ label: 'Blank project', value: 'blank' },
-									{ label: 'Template import', value: 'template' },
-									{ label: 'Knowledge pack import', value: 'knowledge_pack' },
-								]} />
-							</Field>
-								<Field label="Repository host" name="repositoryHostId"><Select name="repositoryHostId" options={[]} /></Field>
-								<div class="ts-form-grid">
-									<Field label="Web host" name="cloudflareHostChoice" required><Select name="cloudflareHostChoice" options={[]} required /></Field>
-									<Field label="Email host" name="emailHostChoice" required><Select name="emailHostChoice" options={[]} required /></Field>
-								</div>
-							<div class="ts-form-note" id="launch-sensitive-notice" hidden>
-								<strong>Sensitive data unlock required.</strong>
-								<span>Unlock sensitive data from the header before launching with team-owned hosts.</span>
-							</div>
+						<Field label="Project name" name="name" required help="The readable name people see in TreeSeed, project headings, and generated project content."><TextInput name="name" required placeholder="Use a clear project name" /></Field>
+						<Field label="Project web address" name="slug" required help="The short lowercase address used in project links, repository names, and hosted resources."><TextInput name="slug" required placeholder="lowercase letters and hyphens" pattern="[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?" /></Field>
+						<div class="ts-domain-fields" data-domain-fields hidden>
+							<Field label="Production domain" name="productionDomain" help="Public address for the live project, scoped to the selected web host."><TextInput name="productionDomain" disabled placeholder="project.example.com" data-production-domain /></Field>
+							<Field label="Staging domain" name="stagingDomain" help="Address for staging deployments. Keep it distinct from production."><TextInput name="stagingDomain" disabled placeholder="project-staging.example.com" data-staging-domain /></Field>
 						</div>
-					</details>
-					<FormActions align="start">
-						<Button type="submit">Create project</Button>
+						<input type="hidden" name="manageDns" value="true" />
+					</div>
+					<div class="ts-core-objective-field ts-field--full">
+						<div class="ts-markdown-field__title">
+							<label class="ts-field__label" for="coreObjective">
+								<span>Core objective</span>
+								<span class="ts-field__required" aria-hidden="true">*</span>
+							</label>
+							<p class="ts-field__help" id="coreObjective-help">This becomes the project repository's <code>src/content/objectives/core.md</code> file and is loaded into AI agent context everywhere.</p>
+						</div>
+						<div class="ts-core-objective-editor" data-core-objective-editor>
+							<textarea
+								class="ts-core-objective-editor__textarea"
+								id="coreObjective"
+								name="coreObjective"
+								required
+								rows="10"
+								aria-describedby="coreObjective-help"
+								data-core-objective-input
+							>{defaultCoreObjective}</textarea>
+							<div class="ts-core-objective-editor__mount" data-core-objective-mount></div>
+							<p class="ts-markdown-field__error" hidden data-core-objective-error>Core objective is required.</p>
+						</div>
+					</div>
+				</Panel>
+
+				<Panel eyebrow="Template" title="Choose project template" description="Every hosted project starts from a template. The Core starter is always available; additional templates come from the marketplace catalog.">
+					<input type="hidden" name="sourceKind" value="template" />
+					<input type="hidden" name="sourceRef" value={baseCoreTemplate.slug} data-template-source-ref />
+					<Field label="Search templates" name="templateSearch">
+						<TextInput name="templateSearch" type="search" placeholder="Search by name, publisher, category, or summary" data-template-search />
+					</Field>
+					<div class="ts-template-choice-grid" role="radiogroup" aria-label="Project template">
+						{templateCards.map((template, index) => {
+							const templateInputId = `template-${template.slug.replace(/[^a-zA-Z0-9_-]/gu, '-')}`;
+							const details = [
+								template.category,
+								template.publisherName,
+								template.templateVersion ? `v${template.templateVersion}` : '',
+								template.priceModel ? String(template.priceModel) : '',
+							].filter(Boolean).join(' · ');
+							const searchable = `${template.title} ${template.summary} ${template.category} ${template.publisherName} ${template.priceModel ?? ''}`.toLowerCase();
+							return (
+								<div class="ts-template-choice" data-template-card data-template-search-text={searchable}>
+									<input id={templateInputId} type="radio" name="templateSlug" value={template.slug} checked={index === 0} />
+									<label class="ts-template-choice__body" for={templateInputId}>
+										<span class="ts-template-choice__title">
+											<strong>{template.title}</strong>
+											{template.featured ? <span>Featured</span> : null}
+										</span>
+										<span class="ts-template-choice__summary">{template.summary}</span>
+										<span class="ts-template-choice__meta">{details}</span>
+									</label>
+									<a class="ts-template-choice__details" href={`/market/templates/${template.slug}/`} target="_blank" rel="noreferrer" aria-label={`Open details for ${template.title} in a new tab`}>
+										<span>View template details</span>
+										<span aria-hidden="true">Open in new tab</span>
+									</a>
+								</div>
+							);
+						})}
+					</div>
+					<p class="ts-subtle" data-template-empty hidden>No matching templates.</p>
+				</Panel>
+
+				<Panel eyebrow="Project hosts" title="Choose project hosts" description="Use managed defaults, select an existing team host, or create the needed host before launch.">
+					<div class="ts-host-setup-grid">
+						<section class="ts-inline-host-card">
+							<div class="ts-inline-host-card__header">
+								<strong>Repository</strong>
+								<span>{hostPurposeFor('repository')}</span>
+							</div>
+							<Field label="Repository host" name="repositoryHostChoice" required>
+								<Select name="repositoryHostChoice" options={[]} required />
+							</Field>
+							<div class="ts-inline-host-fields" data-inline-host="repository" hidden>
+								<div class="ts-form-grid">
+									<Field label="Host display name" name="repositoryNewName" required help="A friendly name shown in TreeSeed when people choose this repository host."><TextInput name="repositoryNewName" required disabled data-inline-control placeholder="Main GitHub connection" /></Field>
+									<Field label="Connected account" name="repositoryNewAccountLabel" help="Optional label for the GitHub organization or account behind this host."><TextInput name="repositoryNewAccountLabel" disabled data-inline-control placeholder="Acme GitHub organization" /></Field>
+									<Field label="GitHub owner or organization" name="repositoryNewOwner" required><TextInput name="repositoryNewOwner" required disabled data-inline-control placeholder="example-org" /></Field>
+									<Field label="Default visibility" name="repositoryNewVisibility"><Select name="repositoryNewVisibility" disabled options={[{ label: 'Private', value: 'private' }, { label: 'Public', value: 'public' }]} /></Field>
+									<Field label="Default branch" name="repositoryNewDefaultBranch"><TextInput name="repositoryNewDefaultBranch" disabled data-inline-control value="main" /></Field>
+									<Field label="GitHub token" name="repositoryNewToken" required><TextInput name="repositoryNewToken" type="password" required disabled data-inline-control autocomplete="new-password" /></Field>
+								</div>
+								<div class="ts-permission-note">
+									<strong>GitHub token permissions</strong>
+									<p>Use a fine-grained token or GitHub App credential for the selected owner with:</p>
+									<ul>
+										<li>Permission to create repositories for the owner</li>
+										<li>Contents read/write</li>
+										<li>Actions and workflows read/write</li>
+										<li>Environments read/write</li>
+										<li>Secrets and variables read/write</li>
+										<li>Pull requests read/write</li>
+										<li>Issues read/write</li>
+									</ul>
+								</div>
+							</div>
+						</section>
+
+						<section class="ts-inline-host-card">
+							<div class="ts-inline-host-card__header">
+								<strong>Web</strong>
+								<span>{hostPurposeFor('web')}</span>
+							</div>
+							<Field label="Web host" name="cloudflareHostChoice" required>
+								<Select name="cloudflareHostChoice" options={[]} required />
+							</Field>
+							<div class="ts-inline-host-fields" data-inline-host="web" hidden>
+								<div class="ts-form-grid">
+									<Field label="Host display name" name="webNewName" required help="A friendly name shown in TreeSeed when people choose this web host."><TextInput name="webNewName" required disabled data-inline-control placeholder="Production web hosting" /></Field>
+									<Field label="Connected account" name="webNewAccountLabel" help="Optional label for the Cloudflare account behind this host."><TextInput name="webNewAccountLabel" disabled data-inline-control placeholder="Acme Cloudflare account" /></Field>
+									<Field label="Root domain" name="webNewRootDomain" required help="The domain this web host can use for project addresses, such as example.com."><TextInput name="webNewRootDomain" required disabled data-inline-control placeholder="example.com" autocomplete="off" /></Field>
+									<Field label="Cloudflare account ID" name="webNewAccountId" required><TextInput name="webNewAccountId" required disabled data-inline-control /></Field>
+									<Field label="Cloudflare API token" name="webNewApiToken" required><TextInput name="webNewApiToken" type="password" required disabled data-inline-control autocomplete="new-password" /></Field>
+								</div>
+								<div class="ts-permission-note">
+									<strong>Cloudflare API token permissions</strong>
+									<p>Use an account-level token for this Cloudflare account with:</p>
+									<ul>
+										<li>Cloudflare Pages edit</li>
+										<li>Workers Scripts edit</li>
+										<li>Workers KV Storage edit</li>
+										<li>D1 edit</li>
+										<li>R2 Storage edit</li>
+										<li>Queues edit</li>
+										<li>Zone DNS edit</li>
+										<li>Workers AI read/edit when the project uses AI gateway or model execution</li>
+									</ul>
+								</div>
+							</div>
+						</section>
+
+						<section class="ts-inline-host-card">
+							<div class="ts-inline-host-card__header">
+								<strong>Email</strong>
+								<span>{hostPurposeFor('email')}</span>
+							</div>
+							<Field label="Email host" name="emailHostChoice" required>
+								<Select name="emailHostChoice" options={[]} required />
+							</Field>
+							<div class="ts-inline-host-fields" data-inline-host="email" hidden>
+								<div class="ts-form-grid">
+									<Field label="Host display name" name="emailNewName" required help="A friendly name shown in TreeSeed when people choose this email host."><TextInput name="emailNewName" required disabled data-inline-control placeholder="Transactional email" /></Field>
+									<Field label="Connected account" name="emailNewAccountLabel" help="Optional label for the email provider account behind this host."><TextInput name="emailNewAccountLabel" disabled data-inline-control placeholder="Acme SMTP account" /></Field>
+									<Field label="SMTP host" name="emailNewSmtpHost" required><TextInput name="emailNewSmtpHost" required disabled data-inline-control /></Field>
+									<Field label="SMTP port" name="emailNewSmtpPort" required><TextInput name="emailNewSmtpPort" type="number" required value="587" disabled data-inline-control /></Field>
+									<Field label="SMTP username" name="emailNewSmtpUsername" required><TextInput name="emailNewSmtpUsername" required disabled data-inline-control /></Field>
+									<Field label="SMTP password" name="emailNewSmtpPassword" required><TextInput name="emailNewSmtpPassword" type="password" required disabled data-inline-control autocomplete="new-password" /></Field>
+									<Field label="From email" name="emailNewFromEmail"><TextInput name="emailNewFromEmail" type="email" disabled data-inline-control /></Field>
+									<Field label="Reply-to email" name="emailNewReplyTo"><TextInput name="emailNewReplyTo" type="email" disabled data-inline-control /></Field>
+									<Field label="Secure mode" name="emailNewSecure"><Select name="emailNewSecure" disabled options={[{ label: 'STARTTLS', value: 'false' }, { label: 'TLS', value: 'true' }]} /></Field>
+								</div>
+							</div>
+						</section>
+					</div>
+					<div class="ts-form-note ts-form-note--warning ts-launch-sensitive-notice" id="launch-sensitive-notice" hidden>
+						<strong>Sensitive data unlock required.</strong>
+						<span>Unlock sensitive data before launching with team-owned or newly created hosts.</span>
+						<button class="ts-button-secondary" type="button" data-launch-sensitive-unlock>Unlock sensitive data</button>
+					</div>
+				</Panel>
+
+				<Panel eyebrow="Launch" title="Create and deploy" description="TreeSeed creates any inline hosts first, unlocks team-owned credentials for this launch, then queues deployment.">
+					<FormActions align="start" class="ts-project-launch-actions">
+						<span data-project-launch-submit-wrap>
+							<Button type="submit" data-project-launch-submit>Create project</Button>
+						</span>
 						<Button href="/app/projects" variant="secondary">Cancel</Button>
 						<span class="ts-subtle" id="project-launch-status" role="status"></span>
 					</FormActions>
-				</form>
-			</Panel>
+				</Panel>
+			</form>
 		</section>
 	) : (
 		<EmptyState title="No active team" description="Create or switch to a team before creating projects." actions={[{ label: 'Open Team', href: '/app/teams' }]} />
@@ -73,103 +247,554 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 </TreeseedAppLayout>
 
 <script>
-	const dataElement = document.getElementById('project-launch-data');
-	const data = dataElement?.textContent ? JSON.parse(dataElement.textContent) : { hosts: [], repositoryHosts: [] };
+	import { encryptHostConfig } from '../../../lib/host-crypto.ts';
+
+	function initProjectLaunchForm() {
+		const dataElement = document.getElementById('project-launch-data');
+		const pageData = dataElement?.textContent ? JSON.parse(dataElement.textContent) : { hosts: [], repositoryHosts: [] };
 		const launchForm = document.getElementById('project-launch-form') as HTMLFormElement | null;
-		const hostSelect = launchForm?.elements.namedItem('cloudflareHostChoice') as HTMLSelectElement | null;
-		const emailHostSelect = launchForm?.elements.namedItem('emailHostChoice') as HTMLSelectElement | null;
-	const repositoryHostSelect = launchForm?.elements.namedItem('repositoryHostId') as HTMLSelectElement | null;
-	const sensitiveNotice = document.getElementById('launch-sensitive-notice');
-	const statusElement = document.getElementById('project-launch-status');
-	function setStatus(message: string) { if (statusElement) statusElement.textContent = message; }
-		function hostType(host: any) { return host.metadata?.hostType ?? 'web'; }
-	function hostsFor(hostKind: string, provider: string) { return (data.hosts ?? []).filter((host: any) => host.provider === provider && hostType(host) === hostKind); }
-	function refreshOne(select: HTMLSelectElement | null, hostKind: string, provider: string) {
-		if (!select) return;
-		select.replaceChildren();
-		for (const host of hostsFor(hostKind, provider)) {
-			const mode = host.ownership === 'treeseed_managed' ? 'treeseed_managed' : 'team_owned';
-			select.append(new Option(`${host.name} (${mode === 'treeseed_managed' ? 'managed' : host.accountLabel ?? provider})`, `${mode}:${host.id}`));
+		if (!launchForm || launchForm.dataset.projectLaunchBound === 'true') return;
+		launchForm.dataset.projectLaunchBound = 'true';
+		const repositoryHostSelect = launchForm.elements.namedItem('repositoryHostChoice') as HTMLSelectElement | null;
+		const webHostSelect = launchForm.elements.namedItem('cloudflareHostChoice') as HTMLSelectElement | null;
+		const emailHostSelect = launchForm.elements.namedItem('emailHostChoice') as HTMLSelectElement | null;
+		const templateSourceRef = launchForm.querySelector('[data-template-source-ref]') as HTMLInputElement | null;
+		const templateSearch = launchForm.querySelector('[data-template-search]') as HTMLInputElement | null;
+		const templateCards = [...document.querySelectorAll<HTMLElement>('[data-template-card]')];
+		const templateEmpty = document.querySelector('[data-template-empty]') as HTMLElement | null;
+		const projectSlugInput = launchForm.elements.namedItem('slug') as HTMLInputElement | null;
+		const domainFields = launchForm.querySelector('[data-domain-fields]') as HTMLElement | null;
+		const productionDomainInput = launchForm.querySelector('[data-production-domain]') as HTMLInputElement | null;
+		const stagingDomainInput = launchForm.querySelector('[data-staging-domain]') as HTMLInputElement | null;
+		const webNewRootDomainInput = launchForm.elements.namedItem('webNewRootDomain') as HTMLInputElement | null;
+		const sensitiveNotice = document.getElementById('launch-sensitive-notice');
+		const sensitiveUnlockButton = launchForm.querySelector('[data-launch-sensitive-unlock]') as HTMLButtonElement | null;
+		const launchSubmitButton = launchForm.querySelector('[data-project-launch-submit]') as HTMLButtonElement | null;
+		const launchSubmitWrap = launchForm.querySelector('[data-project-launch-submit-wrap]') as HTMLElement | null;
+		const statusElement = document.getElementById('project-launch-status');
+		let validatedLaunchUnlock: { signature: string; passphrase: string; sessions: Record<string, string> } | null = null;
+		function value(formData: FormData, key: string) { return String(formData.get(key) ?? '').trim(); }
+		function setStatus(message: string) {
+			if (!statusElement) return;
+			statusElement.style.whiteSpace = '';
+			statusElement.textContent = message;
 		}
-		if (select.options.length === 0) select.append(new Option(`TreeSeed managed ${hostKind}`, `treeseed_managed:managed-${hostKind}`));
+		async function safeInitializeCoreObjectiveEditors() {
+			try {
+				const editor = await import('../../../components/app/controls/core-objective-mdx-editor.tsx');
+				editor.initializeCoreObjectiveEditors?.();
+			} catch (error) {
+				console.error('Core objective editor failed to load.', error);
+			}
+		}
+		function hostType(host: any) {
+			const metadataType = String(host.metadata?.hostType ?? '').trim();
+			if (metadataType === 'capacity_provider' || metadataType === 'capacity_provider_host') return 'capacity-provider';
+			if (metadataType === 'web_host' || metadataType === 'cloudflare' || metadataType === 'web') return 'web';
+			if (metadataType === 'email_host' || metadataType === 'smtp' || metadataType === 'email') return 'email';
+			if (metadataType === 'ai_host' || metadataType === 'ai') return 'ai';
+			if (host.provider === 'railway') return 'capacity-provider';
+			if (host.provider === 'smtp') return 'email';
+			if (['openai', 'github_copilot', 'openrouter', 'custom'].includes(String(host.provider))) return 'ai';
+			if (host.provider === 'cloudflare') return 'web';
+			return metadataType || 'web';
+		}
+	function hostLabel(host: any, fallback: string) {
+		const ownership = host.ownership === 'treeseed_managed' ? 'managed' : host.accountLabel ?? host.organizationOrOwner ?? host.provider ?? 'team-owned';
+		return `${host.name || fallback} (${ownership})`;
+	}
+	function option(select: HTMLSelectElement | null, label: string, value: string, data: Record<string, string> = {}) {
+		if (!select) return;
+		const item = new Option(label, value);
+		for (const [key, entry] of Object.entries(data)) {
+			if (entry) item.dataset[key] = entry;
+		}
+		select.append(item);
+	}
+	function hostsFor(hostKind: string, provider: string) {
+		return (pageData.hosts ?? []).filter((host: any) => host.provider === provider && hostType(host) === hostKind);
+	}
+	function hostIdFromOptionValue(optionValue: string) {
+		if (String(optionValue ?? '').startsWith('platform:')) return optionValue;
+		const parts = String(optionValue ?? '').split(':');
+		return parts.length > 1 ? parts.slice(1).join(':') : optionValue;
+	}
+	function selectDefaultHost(select: HTMLSelectElement | null, type: string) {
+		if (!select) return;
+		const defaultHostId = String(pageData.defaultHosts?.[type] ?? '');
+		if (!defaultHostId) return;
+		const defaultOption = [...select.options].find((option) => hostIdFromOptionValue(option.value) === defaultHostId);
+		if (defaultOption) select.value = defaultOption.value;
 	}
 	function refreshRepositories() {
 		if (!repositoryHostSelect) return;
 		repositoryHostSelect.replaceChildren();
-		for (const host of data.repositoryHosts ?? []) {
-			repositoryHostSelect.append(new Option(`${host.name} (${host.ownership === 'treeseed_managed' ? 'managed' : host.organizationOrOwner})`, host.id));
+		option(repositoryHostSelect, 'TreeSeed hosted repositories (managed)', 'platform:github:hosted-hubs');
+		const seen = new Set(['platform:github:hosted-hubs']);
+		for (const host of pageData.repositoryHosts ?? []) {
+			if (seen.has(host.id)) continue;
+			seen.add(host.id);
+			option(repositoryHostSelect, hostLabel(host, 'GitHub repository host'), `existing:${host.id}`);
 		}
-		if (repositoryHostSelect.options.length === 0) repositoryHostSelect.append(new Option('TreeSeed managed repositories', 'platform:github:hosted-hubs'));
+		option(repositoryHostSelect, 'Create new GitHub repository host...', 'new:repository');
+		selectDefaultHost(repositoryHostSelect, 'repository');
 	}
-	function selectedHost(select: HTMLSelectElement | null, hostKind: string, provider: string) {
-		const [, hostId] = String(select?.value ?? '').split(':');
-		return hostsFor(hostKind, provider).find((host: any) => host.id === hostId) ?? null;
-	}
-	function selectedHostMode(select: HTMLSelectElement | null) { return String(select?.value ?? '').startsWith('team_owned:') ? 'team_owned' : 'treeseed_managed'; }
-	function selectedRepositoryHost() { return (data.repositoryHosts ?? []).find((host: any) => host.id === repositoryHostSelect?.value) ?? null; }
-		function requiresSensitiveUnlock() {
-			return selectedHostMode(hostSelect) === 'team_owned'
-				|| selectedHostMode(emailHostSelect) === 'team_owned'
-				|| selectedRepositoryHost()?.ownership === 'team_owned';
+	function refreshHostSelect(select: HTMLSelectElement | null, hostKind: string, provider: string, managedLabel: string) {
+		if (!select) return;
+		select.replaceChildren();
+		for (const host of hostsFor(hostKind, provider)) {
+			const mode = host.ownership === 'treeseed_managed' ? 'treeseed_managed' : 'team_owned';
+			option(select, hostLabel(host, managedLabel), `${mode}:${host.id}`, { rootDomain: hostRootDomain(host) });
 		}
-	function refreshSensitiveRequirement() { if (sensitiveNotice) sensitiveNotice.hidden = !requiresSensitiveUnlock(); }
-	async function createCredentialSession(request: { hostKind: string; hostId: string; passphrase: string }) {
-		const response = await fetch(`/v1/teams/${encodeURIComponent(data.teamId)}/provider-credential-sessions`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ ...request, purpose: 'launch_project', expiresInSeconds: 900 }),
-		});
+		if (select.options.length === 0) option(select, managedLabel, `treeseed_managed:managed-${hostKind}`);
+		option(select, `Create new ${hostKind} host...`, `new:${hostKind}`);
+		selectDefaultHost(select, hostKind);
+	}
+	function selectedMode(select: HTMLSelectElement | null) {
+		return String(select?.value ?? '').split(':')[0] || '';
+	}
+	function selectedId(select: HTMLSelectElement | null) {
+		return String(select?.value ?? '').split(':').slice(1).join(':');
+	}
+	function selectedRepositoryHost() {
+		const id = selectedId(repositoryHostSelect);
+		return (pageData.repositoryHosts ?? []).find((host: any) => host.id === id) ?? null;
+	}
+	function selectedTeamHost(select: HTMLSelectElement | null, hostKind: string, provider: string) {
+		const id = selectedId(select);
+		return hostsFor(hostKind, provider).find((host: any) => host.id === id) ?? null;
+	}
+	function selectedCredentialTargets() {
+		const targets: Array<{ key: string; hostKind: string; hostId: string; label: string }> = [];
+		if (selectedMode(repositoryHostSelect) === 'existing') {
+			const host = selectedRepositoryHost();
+			if (host?.ownership === 'team_owned') {
+				targets.push({ key: 'repositoryHost', hostKind: 'repository_host', hostId: selectedId(repositoryHostSelect), label: hostLabel(host, 'repository host') });
+			}
+		}
+		if (selectedMode(webHostSelect) === 'team_owned') {
+			const host = selectedTeamHost(webHostSelect, 'web', 'cloudflare');
+			if (host) targets.push({ key: 'webHost', hostKind: 'web_host', hostId: host.id, label: hostLabel(host, 'web host') });
+		}
+		if (selectedMode(emailHostSelect) === 'team_owned') {
+			const host = selectedTeamHost(emailHostSelect, 'email', 'smtp');
+			if (host) targets.push({ key: 'emailHost', hostKind: 'email_host', hostId: host.id, label: hostLabel(host, 'email host') });
+		}
+		return targets;
+	}
+	function selectedCredentialSignature() {
+		return selectedCredentialTargets().map((target) => `${target.key}:${target.hostKind}:${target.hostId}`).join('|');
+	}
+	function hasValidatedLaunchUnlock() {
+		const signature = selectedCredentialSignature();
+		return !signature || (validatedLaunchUnlock?.signature === signature && Boolean(validatedLaunchUnlock.passphrase));
+	}
+	function clearValidatedLaunchUnlock() {
+		validatedLaunchUnlock = null;
+	}
+	function selectedWebHost() {
+		const id = selectedId(webHostSelect);
+		return hostsFor('web', 'cloudflare').find((host: any) => host.id === id) ?? null;
+	}
+	function normalizeDomain(value: unknown) {
+		return String(value ?? '').trim().toLowerCase().replace(/^https?:\/\//u, '').replace(/\/.*$/u, '').replace(/\.$/u, '');
+	}
+	function hostRootDomain(host: any) {
+		return normalizeDomain(
+			host?.metadata?.dns?.zoneName
+			?? host?.metadata?.dns?.rootDomain
+			?? host?.metadata?.rootDomain
+			?? host?.metadata?.webRootDomain
+			?? host?.metadata?.cloudflareZoneName
+			?? '',
+		);
+	}
+	function selectedWebRootDomain() {
+		if (selectedMode(webHostSelect) === 'new') {
+			return normalizeDomain(webNewRootDomainInput?.value ?? '');
+		}
+		const selectedOptionRoot = normalizeDomain(webHostSelect?.selectedOptions?.[0]?.dataset?.rootDomain ?? '');
+		if (selectedOptionRoot) return selectedOptionRoot;
+		return hostRootDomain(selectedWebHost());
+	}
+	function syncDomainInput(input: HTMLInputElement | null, suggestion: string) {
+		if (!input) return;
+		const previousSuggestion = input.dataset.suggestedDomain ?? '';
+		input.placeholder = suggestion;
+		if (!input.value.trim() || input.value === previousSuggestion) input.value = suggestion;
+		input.dataset.suggestedDomain = suggestion;
+	}
+	function clearManagedDomainInput(input: HTMLInputElement | null) {
+		if (!input) return;
+		if (!input.dataset.userEdited || input.value === input.dataset.suggestedDomain) input.value = '';
+		input.placeholder = input.name === 'stagingDomain' ? 'project-staging.example.com' : 'project.example.com';
+		input.dataset.suggestedDomain = '';
+		input.dataset.userEdited = '';
+	}
+	function syncDomainDefaults() {
+		const activeZone = selectedWebRootDomain() || 'example.com';
+		const slug = normalizeDomain(projectSlugInput?.value).replaceAll('.', '-') || 'project';
+		const hasRootDomain = selectedWebRootDomain().length > 0;
+		if (domainFields) domainFields.hidden = !hasRootDomain;
+		for (const input of [productionDomainInput, stagingDomainInput]) {
+			if (input) input.disabled = !hasRootDomain;
+		}
+		if (!hasRootDomain) {
+			clearManagedDomainInput(productionDomainInput);
+			clearManagedDomainInput(stagingDomainInput);
+			return;
+		}
+		syncDomainInput(productionDomainInput, `${slug}.${activeZone}`);
+		syncDomainInput(stagingDomainInput, `${slug}-staging.${activeZone}`);
+	}
+	function syncTemplateSelection() {
+		const selected = launchForm?.querySelector<HTMLInputElement>('input[name="templateSlug"]:checked');
+		if (templateSourceRef && selected) templateSourceRef.value = selected.value;
+	}
+	function filterTemplates() {
+		const needle = String(templateSearch?.value ?? '').trim().toLowerCase();
+		let shown = 0;
+		for (const card of templateCards) {
+			const haystack = String(card.dataset.templateSearchText ?? card.textContent ?? '').toLowerCase();
+			const visible = !needle || haystack.includes(needle);
+			card.hidden = !visible;
+			if (visible) shown += 1;
+		}
+		if (templateEmpty) templateEmpty.hidden = shown !== 0;
+	}
+	function syncInlineFields() {
+		const selections = [
+			['repository', selectedMode(repositoryHostSelect) === 'new'],
+			['web', selectedMode(webHostSelect) === 'new'],
+			['email', selectedMode(emailHostSelect) === 'new'],
+		] as Array<[string, boolean]>;
+		for (const [kind, active] of selections) {
+			const section = document.querySelector(`[data-inline-host="${kind}"]`) as HTMLElement | null;
+			if (section) section.hidden = !active;
+			for (const control of section?.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-inline-control], select') ?? []) {
+				control.disabled = !active;
+			}
+		}
+		syncSensitiveNotice();
+		syncDomainDefaults();
+	}
+	function requiresSensitiveUnlock() {
+		return selectedMode(repositoryHostSelect) === 'new'
+			|| selectedMode(webHostSelect) === 'new'
+			|| selectedMode(emailHostSelect) === 'new'
+			|| selectedRepositoryHost()?.ownership === 'team_owned'
+			|| selectedMode(webHostSelect) === 'team_owned'
+			|| selectedMode(emailHostSelect) === 'team_owned';
+	}
+	function isSensitiveUnlocked() {
+		return Boolean((window as any).treeseedSensitiveUnlock?.isUnlocked?.());
+	}
+	function syncSensitiveNotice() {
+		const blocked = requiresSensitiveUnlock() && (!isSensitiveUnlocked() || !hasValidatedLaunchUnlock());
+		if (sensitiveNotice) sensitiveNotice.hidden = !blocked;
+		if (launchSubmitButton) {
+			launchSubmitButton.disabled = blocked;
+			launchSubmitButton.title = blocked ? 'Unlock sensitive data before creating this project.' : '';
+			launchSubmitButton.setAttribute('aria-disabled', blocked ? 'true' : 'false');
+		}
+		if (launchSubmitWrap) launchSubmitWrap.title = blocked ? 'Unlock sensitive data before creating this project.' : '';
+	}
+	function openSensitiveUnlock() {
+		(window as any).treeseedSensitiveUnlock?.open?.('unlock');
+	}
+	function lockSensitiveData() {
+		(window as any).treeseedSensitiveUnlock?.lock?.();
+		clearValidatedLaunchUnlock();
+		syncSensitiveNotice();
+	}
+	async function submitJson(url: string, method: string, body: any) {
+		const response = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 		const payload = await response.json().catch(() => null);
-		if (!response.ok || payload?.ok === false) throw new Error(payload?.error ?? `Unable to unlock ${request.hostKind}.`);
-		return payload.payload?.id;
+		if (!response.ok || payload?.ok === false) {
+			const error: Error & { payload?: any; providerCredentialUnlock?: boolean } = new Error(payload?.error ?? 'Request failed.');
+			error.payload = payload;
+			error.providerCredentialUnlock = payload?.error === 'Unable to unlock provider credentials for this host.';
+			throw error;
 		}
-		refreshOne(hostSelect, 'web', 'cloudflare');
-		refreshOne(emailHostSelect, 'email', 'smtp');
-		refreshRepositories();
-		refreshSensitiveRequirement();
-		[hostSelect, emailHostSelect, repositoryHostSelect].forEach((select) => select?.addEventListener('change', refreshSensitiveRequirement));
+		return payload.payload ?? payload;
+	}
+	function isProviderCredentialUnlockError(error: unknown) {
+		return Boolean((error as any)?.providerCredentialUnlock)
+			|| (error instanceof Error && error.message === 'Unable to unlock provider credentials for this host.');
+	}
+	function hostUnlockFailureMessage(label: string) {
+		return `Unable to unlock ${label}. This host's saved credentials may still be encrypted with a different passphrase. Open the host edit page, enter replacement credential values, and save them with the passphrase you want to use for project launch.`;
+	}
+	async function createCredentialSession(hostKind: string, hostId: string, passphrase: string, purpose = 'launch_project', label = 'selected host') {
+		const createSession = async (sessionPassphrase: string) => submitJson(`/v1/teams/${encodeURIComponent(pageData.teamId)}/provider-credential-sessions`, 'POST', {
+			hostKind,
+			hostId,
+			passphrase: sessionPassphrase,
+			purpose,
+			expiresInSeconds: 900,
+		});
+		try {
+			const session = await createSession(passphrase);
+			return { id: session.id, passphrase };
+		} catch (error) {
+			if (isProviderCredentialUnlockError(error)) {
+				lockSensitiveData();
+				throw new Error(hostUnlockFailureMessage(label));
+			}
+			throw error;
+		}
+	}
+	async function validateSelectedCredentialSessions(passphrase: string) {
+		const signature = selectedCredentialSignature();
+		const sessions: Record<string, string> = {};
+		let activePassphrase = passphrase;
+		for (const target of selectedCredentialTargets()) {
+			setStatus(`Unlocking ${target.label}...`);
+			const session = await createCredentialSession(target.hostKind, target.hostId, activePassphrase, 'launch_project', target.label);
+			sessions[target.key] = session.id;
+			activePassphrase = session.passphrase;
+		}
+		validatedLaunchUnlock = { signature, passphrase: activePassphrase, sessions };
+		return validatedLaunchUnlock;
+	}
+	async function unlockSensitiveDataForLaunch() {
+		const unlock = (window as any).treeseedSensitiveUnlock;
+		const passphrase = (await unlock?.promptPassphrase?.()) ?? null;
+		if (!passphrase) {
+			openSensitiveUnlock();
+			throw new Error('Unlock sensitive data before creating this project.');
+		}
+		setStatus('Validating selected host credentials...');
+		await validateSelectedCredentialSessions(String(passphrase));
+		setStatus('Sensitive data unlocked for the selected project hosts.');
+		syncSensitiveNotice();
+	}
+	async function createRepositoryHost(formData: FormData, passphrase: string) {
+		const owner = value(formData, 'repositoryNewOwner');
+		const token = value(formData, 'repositoryNewToken');
+		const encryptedPayload = await encryptHostConfig({ GH_TOKEN: token, GITHUB_TOKEN: token, organizationOrOwner: owner, owner }, passphrase);
+		return submitJson(`/v1/teams/${encodeURIComponent(pageData.teamId)}/repository-hosts`, 'POST', {
+			name: value(formData, 'repositoryNewName') || `${owner} GitHub`,
+			accountLabel: value(formData, 'repositoryNewAccountLabel'),
+			organizationOrOwner: owner,
+			defaultVisibility: value(formData, 'repositoryNewVisibility') || 'private',
+			softwareRepositoryNameTemplate: '{hub}-site',
+			contentRepositoryNameTemplate: '{hub}-content',
+			branchPolicy: { defaultBranch: value(formData, 'repositoryNewDefaultBranch') || 'main' },
+			workflowPolicy: {},
+			allowedProjectKinds: ['knowledge_hub'],
+			status: 'active',
+			ownership: 'team_owned',
+			encryptedPayload,
+		});
+	}
+	async function createWebHost(formData: FormData, passphrase: string) {
+		const rootDomain = normalizeDomain(value(formData, 'webNewRootDomain'));
+		const encryptedPayload = await encryptHostConfig({
+			CLOUDFLARE_ACCOUNT_ID: value(formData, 'webNewAccountId'),
+			CLOUDFLARE_API_TOKEN: value(formData, 'webNewApiToken'),
+		}, passphrase);
+		return submitJson(`/v1/teams/${encodeURIComponent(pageData.teamId)}/hosts`, 'POST', {
+			name: value(formData, 'webNewName') || 'Cloudflare web host',
+			accountLabel: value(formData, 'webNewAccountLabel'),
+			provider: 'cloudflare',
+			ownership: 'team_owned',
+			status: 'active',
+			metadata: {
+				hostType: 'web',
+				createdFrom: 'project_launch_ui',
+				dns: {
+					managed: true,
+					zoneName: rootDomain,
+				},
+			},
+			encryptedPayload,
+		});
+	}
+	async function createEmailHost(formData: FormData, passphrase: string) {
+		const encryptedPayload = await encryptHostConfig({
+			SMTP_USERNAME: value(formData, 'emailNewSmtpUsername'),
+			SMTP_PASSWORD: value(formData, 'emailNewSmtpPassword'),
+		}, passphrase);
+		return submitJson(`/v1/teams/${encodeURIComponent(pageData.teamId)}/hosts`, 'POST', {
+			name: value(formData, 'emailNewName') || 'SMTP email host',
+			accountLabel: value(formData, 'emailNewAccountLabel'),
+			provider: 'smtp',
+			ownership: 'team_owned',
+			status: 'active',
+			metadata: {
+				hostType: 'email',
+				createdFrom: 'project_launch_ui',
+				smtp: {
+					host: value(formData, 'emailNewSmtpHost') || null,
+					port: value(formData, 'emailNewSmtpPort') || null,
+					fromEmail: value(formData, 'emailNewFromEmail') || null,
+					replyTo: value(formData, 'emailNewReplyTo') || null,
+					secure: value(formData, 'emailNewSecure') || null,
+				},
+			},
+			encryptedPayload,
+		});
+	}
+	refreshRepositories();
+	refreshHostSelect(webHostSelect, 'web', 'cloudflare', 'TreeSeed managed web host');
+	refreshHostSelect(emailHostSelect, 'email', 'smtp', 'TreeSeed managed email host');
+	[repositoryHostSelect, webHostSelect, emailHostSelect].forEach((select) => select?.addEventListener('change', () => {
+		clearValidatedLaunchUnlock();
+		syncInlineFields();
+	}));
+	webHostSelect?.addEventListener('input', () => {
+		clearValidatedLaunchUnlock();
+		syncInlineFields();
+	});
+	webNewRootDomainInput?.addEventListener('input', syncDomainDefaults);
+	window.addEventListener('treeseed:sensitive-unlock-change', syncSensitiveNotice);
+	sensitiveUnlockButton?.addEventListener('click', async (event) => {
+		event.preventDefault();
+		try {
+			await unlockSensitiveDataForLaunch();
+		} catch (error) {
+			setStatus(error instanceof Error ? error.message : String(error));
+			syncSensitiveNotice();
+		}
+	});
+	projectSlugInput?.addEventListener('input', syncDomainDefaults);
+	for (const input of [productionDomainInput, stagingDomainInput]) {
+		input?.addEventListener('input', () => {
+			input.dataset.userEdited = 'true';
+		});
+	}
+	launchForm?.querySelectorAll<HTMLInputElement>('input[name="templateSlug"]').forEach((input) => input.addEventListener('change', syncTemplateSelection));
+	templateSearch?.addEventListener('input', filterTemplates);
+	syncTemplateSelection();
+	filterTemplates();
+	syncInlineFields();
+	safeInitializeCoreObjectiveEditors();
 	launchForm?.addEventListener('submit', async (event) => {
 		event.preventDefault();
-		const form = new FormData(launchForm);
+		const formData = new FormData(launchForm);
 		const credentialSessions: Record<string, string> = {};
-		setStatus('Creating project...');
+		setStatus('Preparing project hosts...');
 		try {
-			const passphrase = requiresSensitiveUnlock() ? (window as any).treeseedSensitiveUnlock?.requirePassphrase?.() : null;
-				if (requiresSensitiveUnlock() && !passphrase) throw new Error('Unlock sensitive data from the header before launching with team-owned hosts.');
-				const selectedWebHost: any = selectedHost(hostSelect, 'web', 'cloudflare');
-				const selectedEmailHost: any = selectedHost(emailHostSelect, 'email', 'smtp');
-				const selectedRepoHost: any = selectedRepositoryHost();
-				if (selectedRepoHost?.ownership === 'team_owned') credentialSessions.repositoryHost = await createCredentialSession({ hostKind: 'repository_host', hostId: selectedRepoHost.id, passphrase });
-				if (selectedHostMode(hostSelect) === 'team_owned') credentialSessions.webHost = await createCredentialSession({ hostKind: 'web_host', hostId: selectedWebHost?.id ?? '', passphrase });
-				if (selectedHostMode(emailHostSelect) === 'team_owned') credentialSessions.emailHost = await createCredentialSession({ hostKind: 'email_host', hostId: selectedEmailHost?.id ?? '', passphrase });
-			const slug = String(form.get('slug') ?? '').trim();
-			const response = await fetch(`/v1/teams/${encodeURIComponent(data.teamId)}/projects/launch`, {
+			const unlock = (window as any).treeseedSensitiveUnlock;
+			let passphrase = requiresSensitiveUnlock() && validatedLaunchUnlock?.signature === selectedCredentialSignature()
+				? validatedLaunchUnlock.passphrase
+				: requiresSensitiveUnlock()
+					? (await unlock?.promptPassphrase?.()) ?? null
+					: null;
+			if (requiresSensitiveUnlock() && !passphrase) throw new Error('Unlock sensitive data before launching with team-owned or newly created hosts.');
+			if (requiresSensitiveUnlock() && !hasValidatedLaunchUnlock()) {
+				const validation = await validateSelectedCredentialSessions(String(passphrase));
+				passphrase = validation.passphrase;
+			}
+			if (validatedLaunchUnlock?.signature === selectedCredentialSignature()) {
+				Object.assign(credentialSessions, validatedLaunchUnlock.sessions);
+			}
+
+			let repositoryHostId = 'platform:github:hosted-hubs';
+			if (selectedMode(repositoryHostSelect) === 'new') {
+				const host = await createRepositoryHost(formData, String(passphrase));
+				repositoryHostId = host.id;
+				const session = await createCredentialSession('repository_host', host.id, String(passphrase), 'launch_project', 'the new repository host');
+				credentialSessions.repositoryHost = session.id;
+				passphrase = session.passphrase;
+			} else if (selectedMode(repositoryHostSelect) === 'existing') {
+				repositoryHostId = selectedId(repositoryHostSelect);
+				const host = selectedRepositoryHost();
+				if (host?.ownership === 'team_owned' && !credentialSessions.repositoryHost) {
+					const session = await createCredentialSession('repository_host', repositoryHostId, String(passphrase), 'launch_project', hostLabel(host, 'repository host'));
+					credentialSessions.repositoryHost = session.id;
+					passphrase = session.passphrase;
+				}
+			}
+
+			let cloudflareHostMode = selectedMode(webHostSelect) === 'team_owned' || selectedMode(webHostSelect) === 'new' ? 'team_owned' : 'treeseed_managed';
+			let cloudflareHostId = selectedMode(webHostSelect) === 'team_owned' ? selectedId(webHostSelect) : null;
+			if (selectedMode(webHostSelect) === 'new') {
+				const host = await createWebHost(formData, String(passphrase));
+				cloudflareHostId = host.id;
+				const session = await createCredentialSession('web_host', host.id, String(passphrase), 'launch_project', 'the new web host');
+				credentialSessions.webHost = session.id;
+				passphrase = session.passphrase;
+			} else if (cloudflareHostMode === 'team_owned') {
+				const host = selectedTeamHost(webHostSelect, 'web', 'cloudflare');
+				if (!host) throw new Error('Selected web host is not available.');
+				if (!credentialSessions.webHost) {
+					const session = await createCredentialSession('web_host', host.id, String(passphrase), 'launch_project', hostLabel(host, 'web host'));
+					credentialSessions.webHost = session.id;
+					passphrase = session.passphrase;
+				}
+			}
+
+			let emailHostMode = selectedMode(emailHostSelect) === 'team_owned' || selectedMode(emailHostSelect) === 'new' ? 'team_owned' : 'treeseed_managed';
+			let emailHostId = selectedMode(emailHostSelect) === 'team_owned' ? selectedId(emailHostSelect) : null;
+			if (selectedMode(emailHostSelect) === 'new') {
+				const host = await createEmailHost(formData, String(passphrase));
+				emailHostId = host.id;
+				const session = await createCredentialSession('email_host', host.id, String(passphrase), 'launch_project', 'the new email host');
+				credentialSessions.emailHost = session.id;
+				passphrase = session.passphrase;
+			} else if (emailHostMode === 'team_owned') {
+				const host = selectedTeamHost(emailHostSelect, 'email', 'smtp');
+				if (!host) throw new Error('Selected email host is not available.');
+				if (!credentialSessions.emailHost) {
+					const session = await createCredentialSession('email_host', host.id, String(passphrase), 'launch_project', hostLabel(host, 'email host'));
+					credentialSessions.emailHost = session.id;
+					passphrase = session.passphrase;
+				}
+			}
+
+			setStatus('Opening deployment status...');
+			const slug = value(formData, 'slug');
+			const launchRequestId = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
+			const launchRequest = {
+				action: `/v1/teams/${encodeURIComponent(pageData.teamId)}/projects/launch`,
 				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({
+				createdAt: new Date().toISOString(),
+				projectName: value(formData, 'name'),
+				projectSlug: slug,
+				body: {
 					slug,
-					name: String(form.get('name') ?? '').trim(),
-					summary: String(form.get('summary') ?? '').trim(),
-					sourceKind: String(form.get('sourceKind') ?? 'blank'),
+					name: value(formData, 'name'),
+					summary: value(formData, 'coreObjective'),
+					coreObjective: value(formData, 'coreObjective'),
+					sourceKind: 'template',
+					sourceRef: value(formData, 'sourceRef') || 'starter-basic',
 					hostingMode: 'managed',
 					repoProvider: 'github',
 					repoVisibility: 'private',
-						repositoryHostId: String(form.get('repositoryHostId') ?? 'platform:github:hosted-hubs'),
-						cloudflareHostMode: selectedHostMode(hostSelect),
-						cloudflareHostId: selectedWebHost?.id ?? null,
-						emailHostMode: selectedHostMode(emailHostSelect),
-					emailHostId: selectedEmailHost?.id ?? null,
+					repositoryHostId,
+					cloudflareHostMode,
+					cloudflareHostId,
+					emailHostMode,
+					emailHostId,
+					domains: {
+						productionDomain: value(formData, 'productionDomain'),
+						stagingDomain: value(formData, 'stagingDomain'),
+						manageDns: formData.get('manageDns') === 'true',
+					},
 					credentialSessions,
 					publicSite: true,
-				}),
-			});
-			const payload = await response.json().catch(() => null);
-			if (!response.ok || payload?.ok === false) throw new Error(payload?.error ?? `Project launch failed with ${response.status}`);
-			const projectId = payload?.projectId ?? payload?.payload?.project?.id ?? payload?.payload?.project?.project?.id ?? slug;
-			const launchId = payload?.launchId ?? payload?.payload?.launch?.id ?? null;
-			window.location.href = payload?.deployHref ?? `/app/projects/${encodeURIComponent(projectId)}/deploy${launchId ? `?launch=${encodeURIComponent(launchId)}` : ''}`;
+				},
+			};
+			try {
+				const launchStorageKey = `treeseed:project-launch:${launchRequestId}`;
+				const launchStorageValue = JSON.stringify(launchRequest);
+				window.sessionStorage.setItem(launchStorageKey, launchStorageValue);
+				window.localStorage.setItem(launchStorageKey, launchStorageValue);
+			} catch {
+				throw new Error('The browser could not open the deployment status page. Enable session storage and try again.');
+			}
+			window.location.href = `/app/projects/launch-status?request=${encodeURIComponent(launchRequestId)}`;
 		} catch (error) {
 			setStatus(error instanceof Error ? error.message : String(error));
 		}
 	});
+	}
+	(window as any).treeseedInitProjectLaunchForm = initProjectLaunchForm;
+	initProjectLaunchForm();
+</script>
+
+<script is:inline data-astro-rerun>
+	window.treeseedInitProjectLaunchForm?.();
 </script>
