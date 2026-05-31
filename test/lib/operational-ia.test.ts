@@ -134,8 +134,8 @@ describe('one-purpose control app information architecture', () => {
 		expect(page).toContain('submitDeploymentActionForm');
 		expect(page).toContain('watchDeploymentState');
 		expect(page).toContain('submitLaunchRecoveryForm');
-		expect(newProject).toContain('payload?.deployHref');
-		expect(newProject).toContain('/deploy');
+		expect(newProject).toContain('treeseed:project-launch:');
+		expect(newProject).toContain('/app/projects/launch-status?request=');
 		expect(timeline).toContain('<ol class="ts-deploy-timeline"');
 		expect(timeline).toContain('StatusPill');
 		expect(helper).toContain("source: 'market_ui'");
