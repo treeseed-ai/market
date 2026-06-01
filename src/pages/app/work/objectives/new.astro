@@ -9,10 +9,10 @@ import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.
 import MarkdownField from '../../../../components/app/controls/MarkdownField.astro';
 import WorkContentNav from '../../../../components/app/controls/WorkContentNav.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { loadAppContext } from '../../../../view-models/app-access.js';
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/work/objectives/new')}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 const selectedProjectId = String(Astro.url.searchParams.get('projectId') ?? context.projects[0]?.id ?? '');
 ---
 

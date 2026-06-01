@@ -6,17 +6,20 @@ import ProjectControlNav from '../../../../components/app/controls/ProjectContro
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
 import { loadKnowledgeViewModel } from '../../../../view-models/knowledge.vm.js';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppProject } from '../../../../view-models/app-access.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
-const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
+const context = await loadAppContext(Astro);
+const resolvedProject = await resolveAppProject(context, projectParam);
+const project = resolvedProject.resource;
+const layoutActiveTeam = resolvedProject.team ?? context.activeTeam;
+if (resolvedProject.team?.id && resolvedProject.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, resolvedProject.team);
 const releases = project && context.store && typeof context.store.getProjectReleasesSummary === 'function'
 	? await context.store.getProjectReleasesSummary(project.id, context.principal).catch(() => null)
 	: null;
-const knowledgeVm = await loadKnowledgeViewModel(Astro.locals).catch(() => null);
-if (!project) Astro.response.status = 404;
+const knowledgeVm = await loadKnowledgeViewModel(Astro).catch(() => null);
+if (!project) Astro.response.status = resolvedProject.status === 'forbidden' ? 403 : 404;
 const projectArtifacts = (knowledgeVm?.artifacts ?? []).filter((artifact: any) => artifact.metadata?.projectId === project?.id || artifact.originatingProject?.id === project?.id || artifact.projectId === project?.id);
 const artifactRows = projectArtifacts.map((artifact: any) => ({
 	id: `artifact-${esc(artifact.id ?? artifact.slug)}`,
@@ -34,7 +37,7 @@ const releaseRows = [
 }));
 ---
 
-<TreeseedAppLayout title="Project artifacts" description="Package, publish, or share one project's artifacts." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+<TreeseedAppLayout title="Project artifacts" description="Package, publish, or share one project's artifacts." currentPath="/app/projects" teams={context.teams} activeTeam={layoutActiveTeam}>
 	{project ? (
 		<section class="ts-control-page" aria-label="Project artifacts">
 			<ProjectControlNav projectId={project.id} current="artifacts" />

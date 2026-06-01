@@ -18,6 +18,7 @@ interface Props {
 	currentPath: string;
 	teams: TeamEntry[];
 	activeTeam?: TeamEntry | null;
+	showSensitiveUnlock?: boolean;
 }
 
 const {
@@ -26,6 +27,7 @@ const {
 	currentPath,
 	teams,
 	activeTeam = null,
+	showSensitiveUnlock: forceSensitiveUnlock = false,
 } = Astro.props as Props;
 
 const railItems = [
@@ -60,7 +62,7 @@ const showSensitiveUnlock = sensitiveUnlockPaths.some((path) => (
 	|| currentPath.startsWith(`${path}/`)
 	|| routePath === path
 	|| routePath.startsWith(`${path}/`)
-));
+)) || forceSensitiveUnlock;
 ---
 
 <AppShell
@@ -106,7 +108,7 @@ const showSensitiveUnlock = sensitiveUnlockPaths.some((path) => (
 		const select = (form as HTMLFormElement).elements.namedItem('teamId') as HTMLSelectElement | null;
 		select?.addEventListener('change', () => {
 			const url = new URL(window.location.href);
-			url.searchParams.set('teamId', select.value);
+			url.searchParams.delete('teamId');
 			document.cookie = `treeseed_active_team=${encodeURIComponent(select.value)}; path=/app; max-age=31536000; SameSite=Lax`;
 			window.location.href = url.toString();
 		});

@@ -9,21 +9,23 @@ import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.
 import PlainTable from '../../../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppTeam } from '../../../../view-models/app-access.js';
 
 const teamParam = String(Astro.params.teamId ?? '');
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 }
-const context = await loadOperationalContext(Astro.locals, Astro);
-const team = context.teams.find((entry: any) => entry.id === teamParam || entry.slug === teamParam) ?? null;
+const context = await loadAppContext(Astro);
+const teamResolution = resolveAppTeam(context, teamParam);
+const team = teamResolution.resource;
+if (teamResolution.team?.id && teamResolution.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, teamResolution.team);
 const manageableRoles = new Set(['team_owner', 'project_lead']);
 const access = team && context.store && typeof context.store.getTeamAccessSummary === 'function'
 	? await context.store.getTeamAccessSummary(team.id, context.principal).catch(() => null)
 	: null;
 const canManageTeam = Boolean(access?.roles?.some((role: string) => manageableRoles.has(role)));
 const members = team && canManageTeam && context.store ? await context.store.listTeamMembers(team.id).catch(() => []) : [];
-if (!team) Astro.response.status = 404;
+if (!team) Astro.response.status = teamResolution.status === 'forbidden' ? 403 : 404;
 else if (!canManageTeam) Astro.response.status = 403;
 const roleOptions = [
 	{ label: 'Contributor', value: 'contributor' },
@@ -44,7 +46,7 @@ const rows = members.map((member: any) => ({
 }));
 ---
 
-<TreeseedAppLayout title={team ? `${team.displayName ?? team.name} members` : 'Team not found'} description="Invite and manage team members." currentPath="/app/teams" teams={context.teams} activeTeam={context.activeTeam}>
+<TreeseedAppLayout title={team ? `${team.displayName ?? team.name} members` : 'Team not found'} description="Invite and manage team members." currentPath="/app/teams" teams={context.teams} activeTeam={team ?? context.activeTeam}>
 	{team && canManageTeam ? (
 		<section class="ts-control-page" aria-label="Team members">
 			<Panel eyebrow="Team" title="Invite member" description="Send an invitation to this team.">

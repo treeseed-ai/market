@@ -7,7 +7,7 @@ import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
 import { loadKnowledgeViewModel } from '../../../view-models/knowledge.vm.js';
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/knowledge/templates')}`);
-const vm = await loadKnowledgeViewModel(Astro.locals);
+const vm = await loadKnowledgeViewModel(Astro);
 const rows = vm.artifacts.filter((artifact: any) => String(`${artifact.type} ${artifact.category}`).toLowerCase().includes('template')).map((artifact: any) => ({
 	name: `<strong>${esc(artifact.title)}</strong><span>${esc(artifact.description ?? '')}</span>`,
 	state: esc(artifact.state ?? 'generated'),

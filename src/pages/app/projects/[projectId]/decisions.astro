@@ -11,20 +11,23 @@ import PlainTable from '../../../../components/app/controls/PlainTable.astro';
 import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppProject } from '../../../../view-models/app-access.js';
 import { loadWorkContentEntries, workContentEntriesFor } from '../../../../view-models/work-content.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 const [context, contentEntries] = await Promise.all([
-	loadOperationalContext(Astro.locals, Astro),
+	loadAppContext(Astro),
 	loadWorkContentEntries(),
 ]);
-const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
+const resolvedProject = await resolveAppProject(context, projectParam);
+const project = resolvedProject.resource;
+const layoutActiveTeam = resolvedProject.team ?? context.activeTeam;
+if (resolvedProject.team?.id && resolvedProject.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, resolvedProject.team);
 const approvals = project && context.store && typeof context.store.listApprovalRequestsForProject === 'function'
 	? await context.store.listApprovalRequestsForProject(project.id, 100).catch(() => [])
 	: [];
-if (!project) Astro.response.status = 404;
+if (!project) Astro.response.status = resolvedProject.status === 'forbidden' ? 403 : 404;
 const principalPermissions = new Set((Astro.locals.auth?.principal?.permissions ?? []) as string[]);
 const canManageProject = ['*', '*:*:*', 'projects:*:team', 'projects:manage:team'].some((permission) => principalPermissions.has(permission));
 function entrySlug(entry: any) {
@@ -105,7 +108,7 @@ const decisionTabs = [
 const verdictData = JSON.stringify({ projectId: project?.id ?? projectParam }).replace(/</gu, '\\u003c');
 ---
 
-<TreeseedAppLayout title="Project decisions" description="Evaluate proposals and preserve decisions for this project." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+<TreeseedAppLayout title="Project decisions" description="Evaluate proposals and preserve decisions for this project." currentPath="/app/projects" teams={context.teams} activeTeam={layoutActiveTeam}>
 	{project ? (
 		<section class="ts-control-page" aria-label="Project decisions">
 			<ProjectControlNav projectId={project.id} current="decisions" />

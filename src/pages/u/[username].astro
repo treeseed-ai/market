@@ -1,7 +1,7 @@
 ---
 import TreeseedPublicLayout from '../../layouts/TreeseedPublicLayout.astro';
 import { normalizeUsername, validateUsername } from '../../lib/auth/profile-validation';
-import { createMarketApiFacade } from '../../lib/market/api-client';
+import { resolveMarketplaceUserProfile } from '../../lib/market/public-access.js';
 
 export const prerender = false;
 
@@ -27,7 +27,7 @@ const normalizedUsername = normalizeUsername(requestedUsername);
 if (requestedUsername !== normalizedUsername && validateUsername(normalizedUsername).ok) {
 	return Astro.redirect(`/u/${normalizedUsername}`, 301);
 }
-const profile = await createMarketApiFacade(Astro).loadUserProfileByUsername(normalizedUsername) as PublicProfile | null;
+const profile = await resolveMarketplaceUserProfile(Astro, normalizedUsername) as PublicProfile | null;
 if (!profile) {
 	return new Response('Not found', { status: 404 });
 }

@@ -8,7 +8,7 @@ import EmptyState from '../../../../../../packages/core/src/components/ui/surfac
 import Panel from '../../../../../../packages/core/src/components/ui/surface/Panel.astro';
 import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
 import { hostProviderFor, hostTypeFor, hostTypeLabel } from '../../../../../lib/market/control-ui.js';
-import { loadOperationalContext } from '../../../../../view-models/shared.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppHost } from '../../../../../view-models/app-access.js';
 
 const requestedHostType = String(Astro.params.hostType ?? '');
 const hostId = String(Astro.params.hostId ?? '');
@@ -31,20 +31,15 @@ function routeHostTypeFor(host: any, requested: string) {
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 }
-const context = await loadOperationalContext(Astro.locals, Astro);
-const team = context.activeTeam;
-let host: any = null;
 const lookupHostType = normalizeRequestedHostType(requestedHostType);
-if (team && context.store && validTypes.has(lookupHostType)) {
-	host = lookupHostType === 'repository'
-		? await context.store.getRepositoryHost(team.id, hostId).catch(() => null)
-		: await context.store.getTeamWebHost(team.id, hostId).catch(() => null);
-	if (!host && lookupHostType !== 'repository') {
-		const teamHosts = await context.store.listTeamWebHosts(team.id).catch(() => []);
-		host = teamHosts.find((entry: any) => entry?.id === hostId) ?? null;
-	}
-}
-if (!host) Astro.response.status = 404;
+const context = await loadAppContext(Astro);
+const hostResolution = validTypes.has(lookupHostType)
+	? await resolveAppHost(context, lookupHostType, hostId)
+	: { resource: null, team: null, status: 'not_found' };
+const team = hostResolution.team ?? context.activeTeam;
+const host = hostResolution.resource;
+if (hostResolution.team?.id && hostResolution.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, hostResolution.team);
+if (!host) Astro.response.status = hostResolution.status === 'forbidden' ? 403 : 404;
 const hostType = host ? routeHostTypeFor(host, lookupHostType) : lookupHostType;
 const provider = host?.provider ?? hostProviderFor(hostType);
 const hostTypeName = hostTypeLabel(hostType);

@@ -9,21 +9,23 @@ import PlainTable from '../../../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
 import { MarketApiClientFacade } from '../../../../lib/market/api-client';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppTeam } from '../../../../view-models/app-access.js';
 
 const teamParam = String(Astro.params.teamId ?? '');
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 }
-const context = await loadOperationalContext(Astro.locals, Astro);
-const team = context.teams.find((entry: any) => entry.id === teamParam || entry.slug === teamParam) ?? null;
+const context = await loadAppContext(Astro);
+const teamResolution = resolveAppTeam(context, teamParam);
+const team = teamResolution.resource;
+if (teamResolution.team?.id && teamResolution.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, teamResolution.team);
 const manageableRoles = new Set(['team_owner', 'project_lead']);
 const access = team && context.store && typeof context.store.getTeamAccessSummary === 'function'
 	? await context.store.getTeamAccessSummary(team.id, context.principal).catch(() => null)
 	: null;
 const canManageTeam = Boolean(access?.roles?.some((role: string) => manageableRoles.has(role)));
 const blockers = team && canManageTeam && context.store ? await context.store.evaluateTeamDeletionBlockers(team.id).catch(() => null) : null;
-if (!team) Astro.response.status = 404;
+if (!team) Astro.response.status = teamResolution.status === 'forbidden' ? 403 : 404;
 else if (!canManageTeam) Astro.response.status = 403;
 const blockerRows = Object.entries(blockers ?? {})
 	.filter(([, value]) => Array.isArray(value) ? value.length > 0 : Number(value) > 0)
@@ -57,7 +59,7 @@ if (Astro.request.method === 'POST' && team && canManageTeam) {
 }
 ---
 
-<TreeseedAppLayout title={team ? `Delete ${team.displayName ?? team.name}` : 'Team not found'} description="Remove one team when it has no blocking records." currentPath="/app/teams" teams={context.teams} activeTeam={context.activeTeam}>
+<TreeseedAppLayout title={team ? `Delete ${team.displayName ?? team.name}` : 'Team not found'} description="Remove one team when it has no blocking records." currentPath="/app/teams" teams={context.teams} activeTeam={team ?? context.activeTeam}>
 	{team && canManageTeam ? (
 		<section class="ts-control-page" aria-label="Delete team">
 			<Panel eyebrow="Team" title="Delete team" description="This action is permanent. Blocking records must be removed first.">

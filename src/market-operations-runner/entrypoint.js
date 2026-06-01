@@ -15,7 +15,7 @@ import {
 } from '@treeseed/sdk/platform-operation-store';
 import { createMarketPostgresDatabase } from '../api/market-postgres.js';
 import { MarketControlPlaneStore } from '../api/store.js';
-import { applyHubLaunchFailure, applyHubLaunchResult } from '../api/app.js';
+import { applyHubLaunchFailure, applyHubLaunchResult } from '../api/hub-launch-application.js';
 import { createProjectWebDeploymentExecutor } from './project-web-deployment-executor.js';
 
 function readArg(name, fallback = null) {
@@ -60,6 +60,16 @@ function parseRunnerOptions() {
 function env(name, fallback = null) {
 	const value = process.env[name];
 	return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function isLoopbackUrl(value) {
+	if (typeof value !== 'string' || !value.trim()) return false;
+	try {
+		const parsed = new URL(value);
+		return ['127.0.0.1', 'localhost', '0.0.0.0'].includes(parsed.hostname);
+	} catch {
+		return /(?:^|@|\/\/)(?:127\.0\.0\.1|localhost)(?::|\/|$)/u.test(value);
+	}
 }
 
 async function packageVersion() {
@@ -352,7 +362,17 @@ function credentialSessionSecretForRunner(runtime) {
 		?? runtime?.resolved?.config?.credentialSessionSecret
 		?? null;
 	if (configured && String(configured).trim()) return String(configured);
-	if (process.env.NODE_ENV === 'test' || process.env.TREESEED_LOCAL_DEV_MODE) {
+	const runtimeConfig = runtime?.resolved?.config ?? {};
+	const environment = String(runtimeConfig.environment ?? process.env.TREESEED_API_ENVIRONMENT ?? process.env.TREESEED_ENVIRONMENT ?? '').trim().toLowerCase();
+	const localDatabase = isLoopbackUrl(runtimeConfig.marketDatabaseUrl ?? process.env.TREESEED_MARKET_DATABASE_URL ?? '');
+	const localBaseUrl = isLoopbackUrl(runtimeConfig.baseUrl ?? runtimeConfig.marketUrl ?? process.env.TREESEED_MARKET_API_BASE_URL ?? process.env.TREESEED_SITE_URL ?? process.env.BETTER_AUTH_URL ?? '');
+	if (
+		process.env.NODE_ENV === 'test'
+		|| process.env.TREESEED_LOCAL_DEV_MODE
+		|| environment === 'local'
+		|| localDatabase
+		|| localBaseUrl
+	) {
 		return 'treeseed-local-test-credential-session-secret';
 	}
 	throw new Error('TREESEED_MARKET_CREDENTIAL_SESSION_SECRET is required for provider credential sessions.');
@@ -379,6 +399,9 @@ async function prepareLaunchIntentForMarketRunner(store, runtime, job) {
 	const execution = objectValue(nextIntent.execution);
 	const providerLaunchInput = objectValue(execution.providerLaunchInput);
 	const sessions = objectValue(launchJobInput.credentialSessions);
+	if (Object.keys(sessions).length > 0) {
+		throw new Error('launch_project jobs must not contain provider credential sessions. Project launch credentials are bootstrapped by the Market API only.');
+	}
 	const envOverlay = {};
 	const consume = async (key) => {
 		const sessionId = typeof sessions[key] === 'string' ? sessions[key].trim() : '';
@@ -394,6 +417,8 @@ async function prepareLaunchIntentForMarketRunner(store, runtime, job) {
 		}
 		const owner = repositorySession.config.organizationOrOwner ?? repositorySession.config.owner;
 		if (owner) {
+			envOverlay.TREESEED_GITHUB_IDENTITY_MODE = 'account';
+			envOverlay.TREESEED_HOSTED_HUBS_GITHUB_OWNER = owner;
 			nextIntent.repository = {
 				...objectValue(nextIntent.repository),
 				owner,
@@ -432,7 +457,7 @@ async function prepareLaunchIntentForMarketRunner(store, runtime, job) {
 
 async function runManagedLaunchJobs(config, store, _version, options = {}) {
 	if (!store) return { ok: true, processed: 0, failed: 0 };
-	const runtime = { resolved: { config: { baseUrl: config.marketUrl ?? null, environment: config.environment } } };
+	const runtime = { resolved: { config: { baseUrl: config.marketUrl ?? null, marketDatabaseUrl: config.marketDatabaseUrl ?? null, environment: config.environment } } };
 	const jobs = await store.pullManagedLaunchJobs({
 		runnerId: config.runnerId,
 		limit: Math.max(1, Number(options.maxJobs ?? 1) || 1),

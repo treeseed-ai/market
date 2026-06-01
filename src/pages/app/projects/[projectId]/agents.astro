@@ -7,17 +7,20 @@ import PlainTable from '../../../../components/app/controls/PlainTable.astro';
 import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppProject } from '../../../../view-models/app-access.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
-const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
+const context = await loadAppContext(Astro);
+const resolvedProject = await resolveAppProject(context, projectParam);
+const project = resolvedProject.resource;
+const layoutActiveTeam = resolvedProject.team ?? context.activeTeam;
+if (resolvedProject.team?.id && resolvedProject.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, resolvedProject.team);
 const [agentContent, agentSummary] = project ? await Promise.all([
 	getCollection('agents' as any, ({ data }: any) => data?.enabled !== false).catch(() => []),
 	context.store && typeof context.store.getProjectAgentsSummary === 'function' ? context.store.getProjectAgentsSummary(project.id, context.principal).catch(() => null) : null,
 ]) : [[], null];
-if (!project) Astro.response.status = 404;
+if (!project) Astro.response.status = resolvedProject.status === 'forbidden' ? 403 : 404;
 const runtimeBySlug: Map<string, any> = new Map((agentSummary?.agents ?? []).map((agent: any) => [String(agent.agentSlug ?? agent.slug ?? ''), agent]));
 const contentRows = agentContent.map((entry: any) => {
 	const slug = String(entry.data?.slug ?? entry.id ?? '');
@@ -33,7 +36,7 @@ const contentRows = agentContent.map((entry: any) => {
 });
 ---
 
-<TreeseedAppLayout title="Project agents" description="Manage agent definitions and runtime status." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+<TreeseedAppLayout title="Project agents" description="Manage agent definitions and runtime status." currentPath="/app/projects" teams={context.teams} activeTeam={layoutActiveTeam}>
 	{project ? (
 		<section class="ts-control-page" aria-label="Project agents">
 			<ProjectControlNav projectId={project.id} current="agents" />

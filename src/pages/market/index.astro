@@ -1,19 +1,13 @@
 ---
-import { listSiteTemplates } from '@treeseed/core/templates';
 import TreeseedPublicLayout from '../../layouts/TreeseedPublicLayout.astro';
 import MarketProductCard from '../../components/market/MarketProductCard.astro';
 import Button from '../../../packages/core/src/components/ui/forms/Button.astro';
 import Panel from '../../../packages/core/src/components/ui/surface/Panel.astro';
 import EmptyState from '../../../packages/core/src/components/ui/surface/EmptyState.astro';
-import { createMarketTemplateCatalogProvider } from '../../lib/market/catalog.js';
-import { resolveMarketApi } from '../../lib/market/store.js';
+import { listMarketplaceKnowledgePacks, listMarketplaceSiteTemplates } from '../../lib/market/public-access.js';
 
-const templateListing = await listSiteTemplates({
-	locals: Astro.locals,
-	catalogProvider: createMarketTemplateCatalogProvider(Astro),
-});
-const store = resolveMarketApi(Astro);
-const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
+const templateListing = await listMarketplaceSiteTemplates(Astro);
+const knowledgePacks = await listMarketplaceKnowledgePacks(Astro);
 ---
 
 <TreeseedPublicLayout

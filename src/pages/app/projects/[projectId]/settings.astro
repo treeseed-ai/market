@@ -2,35 +2,97 @@
 import Button from '../../../../../packages/core/src/components/ui/forms/Button.astro';
 import Field from '../../../../../packages/core/src/components/ui/forms/Field.astro';
 import FormActions from '../../../../../packages/core/src/components/ui/forms/FormActions.astro';
-import Select from '../../../../../packages/core/src/components/ui/forms/Select.astro';
 import TextInput from '../../../../../packages/core/src/components/ui/forms/TextInput.astro';
-import Textarea from '../../../../../packages/core/src/components/ui/forms/Textarea.astro';
 import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
 import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppProject } from '../../../../view-models/app-access.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
-const projectEntry = context.projects.find((project: any) => project.id === projectParam || project.slug === projectParam || project.handle === projectParam) ?? null;
-const details = projectEntry && context.store ? await context.store.getProjectDetails(projectEntry.id).catch(() => null) : null;
+const context = await loadAppContext(Astro);
+const resolvedProject = await resolveAppProject(context, projectParam);
+const projectEntry = resolvedProject.resource;
+const details = resolvedProject.details;
 const project = details?.project ?? projectEntry;
-if (!project) Astro.response.status = 404;
+const metadata = project?.metadata && typeof project.metadata === 'object' ? project.metadata : {};
+const layoutActiveTeam = resolvedProject.team ?? context.activeTeam;
+if (resolvedProject.team?.id && resolvedProject.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, resolvedProject.team);
+if (!project) Astro.response.status = resolvedProject.status === 'forbidden' ? 403 : 404;
+
+const coreObjective = typeof metadata.coreObjective === 'string' && metadata.coreObjective.trim()
+	? metadata.coreObjective
+	: project?.description ?? '';
+const templateLineage = Array.isArray(metadata.templateLineage) ? metadata.templateLineage : [];
+const sourceKind = String(metadata.sourceKind ?? templateLineage[0]?.kind ?? 'template');
+const sourceRef = String(metadata.sourceRef ?? templateLineage[0]?.ref ?? 'starter-basic');
+const templateName = sourceRef === 'starter-basic' ? 'TreeSeed Core Starter' : sourceRef;
+const templateVersion = templateLineage[0]?.version ? `v${templateLineage[0].version}` : null;
+const lineageRecordedAt = templateLineage[0]?.selectedAt ?? project?.createdAt ?? null;
+const hostLabel = (host: any, fallback: string) => {
+	if (!host || typeof host !== 'object') return fallback;
+	return [host.hostName, host.provider, host.mode].filter(Boolean).join(' · ') || fallback;
+};
+const domainLabel = metadata.domains?.productionDomain && metadata.domains?.stagingDomain
+	? `${metadata.domains.productionDomain} / ${metadata.domains.stagingDomain}`
+	: metadata.domains?.productionDomain ?? metadata.domains?.stagingDomain ?? 'Not recorded';
+const repository = details?.latestLaunch?.intent?.repository ?? details?.repositories?.find((entry: any) => entry.role === 'software') ?? null;
+const launchContextRows = [
+	{
+		label: 'Template',
+		value: templateName,
+		description: [sourceKind.replaceAll('_', ' '), sourceRef, templateVersion, lineageRecordedAt ? `selected ${lineageRecordedAt}` : null].filter(Boolean).join(' · '),
+	},
+	{
+		label: 'Repository host',
+		value: repository?.owner ? `${repository.owner}${repository.name ? `/${repository.name}` : ''}` : 'Not recorded',
+		description: repository?.hostId ?? repository?.repositoryHostId ?? 'Selected during project launch.',
+	},
+	{
+		label: 'Web host',
+		value: hostLabel(metadata.cloudflareHost, 'Not recorded'),
+		description: domainLabel,
+	},
+	{
+		label: 'Email host',
+		value: hostLabel(metadata.emailHost, 'Not recorded'),
+		description: metadata.emailHost?.targetEnvironments ? `Used for ${metadata.emailHost.targetEnvironments.join(', ')}` : 'Selected during project launch.',
+	},
+];
 ---
 
-<TreeseedAppLayout title={project ? `Project settings` : 'Project not found'} description="Edit one project." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+<TreeseedAppLayout title={project ? `Project settings` : 'Project not found'} description="Edit project identity and objective." currentPath="/app/projects" teams={context.teams} activeTeam={layoutActiveTeam}>
 	{project ? (
 		<section class="ts-control-page" aria-label="Project settings">
 			<ProjectControlNav projectId={project.id} current="settings" />
-			<Panel eyebrow="Projects" title={project.name ?? project.slug} description="Update project fields.">
-				<form id="project-settings-form" class="ts-form-stack">
+			<Panel eyebrow="Project settings" title={project.name ?? project.slug} description="Update the project identity and core objective. Launch template and host selections are shown below as read-only project lineage.">
+				<form id="project-settings-form" class="ts-form-stack" data-project-settings-form data-project-id={project.id}>
 					<div class="ts-form-grid">
 						<Field label="Project name" name="name" required help="The readable name people see in TreeSeed, project headings, and generated project content."><TextInput name="name" required value={project.name ?? ''} /></Field>
 						<Field label="Project web address" name="slug" required help="The short lowercase address used in project links, repository names, and hosted resources."><TextInput name="slug" required value={project.slug ?? ''} pattern="[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?" /></Field>
-						<Field label="Tier" name="entitlementTier"><Select name="entitlementTier" value={project.entitlementTier ?? 'free'} options={[{ label: 'Free', value: 'free' }, { label: 'Paid hosting', value: 'paid_hosting' }]} /></Field>
-						<Field label="Description" name="description" class="ts-field--full"><Textarea name="description" rows={4} value={project.description ?? project.summary ?? ''} /></Field>
+					</div>
+					<div class="ts-core-objective-field ts-field--full">
+						<div class="ts-markdown-field__title">
+							<label class="ts-field__label" for="coreObjective">
+								<span>Core objective</span>
+								<span class="ts-field__required" aria-hidden="true">*</span>
+							</label>
+							<p class="ts-field__help" id="coreObjective-help">This is the project objective created at launch and kept in sync with the project settings record.</p>
+						</div>
+						<div class="ts-core-objective-editor" data-core-objective-editor>
+							<textarea
+								class="ts-core-objective-editor__textarea"
+								id="coreObjective"
+								name="coreObjective"
+								required
+								rows="10"
+								aria-describedby="coreObjective-help"
+								data-core-objective-input
+							>{coreObjective}</textarea>
+							<div class="ts-core-objective-editor__mount" data-core-objective-mount></div>
+							<p class="ts-markdown-field__error" hidden data-core-objective-error>Core objective is required.</p>
+						</div>
 					</div>
 					<FormActions align="start">
 						<Button type="submit">Save project</Button>
@@ -39,34 +101,141 @@ if (!project) Astro.response.status = 404;
 					</FormActions>
 				</form>
 			</Panel>
+
+			<Panel eyebrow="Launch context" title="Template and providers" description="These choices were locked in when the project was created. Manage team hosts from the Hosts administration area.">
+				<div class="ts-project-lineage-grid">
+					{launchContextRows.map((row) => (
+						<article class="ts-project-lineage-card">
+							<span>{row.label}</span>
+							<strong>{row.value}</strong>
+							<p>{row.description}</p>
+						</article>
+					))}
+				</div>
+			</Panel>
 		</section>
 	) : (
 		<EmptyState title="Project not found" description="This project is not available to the active team." actions={[{ label: 'Back to Projects', href: '/app/projects' }]} />
 	)}
 </TreeseedAppLayout>
 
-<script is:inline define:vars={{ projectId: project?.id ?? '' }}>
-	const form = document.getElementById('project-settings-form');
+<script>
+	import { initializeCoreObjectiveEditors } from '../../../../components/app/controls/core-objective-mdx-editor.tsx';
+
+	type ProjectSettingsOperation = {
+		id: string;
+		status: string;
+		pollUrl?: string;
+		streamUrl?: string;
+		branch?: string | null;
+		commitSha?: string | null;
+		output?: Record<string, any> | null;
+		error?: { message?: string } | null;
+	};
+	type ProjectSettingsOperationEvent = {
+		kind?: string;
+	};
+
+	const form = document.querySelector('[data-project-settings-form]');
 	const status = document.getElementById('project-settings-status');
-	form?.addEventListener('submit', async (event) => {
+	const terminalStatuses = new Set(['succeeded', 'failed', 'cancelled']);
+
+	function setStatus(message: string, tone = 'info') {
+		if (!status) return;
+		status.textContent = message;
+		status.dataset.tone = tone;
+	}
+
+	function shortSha(value: unknown) {
+		return typeof value === 'string' && value.length >= 12 ? value.slice(0, 12) : value;
+	}
+
+	function formatOperationStatus(operation: ProjectSettingsOperation | null, events: ProjectSettingsOperationEvent[] = []) {
+		const output = operation?.output ?? {};
+		if (operation?.status === 'succeeded') {
+			const parts = [
+				operation.branch ?? output.operationBranch ?? output.branch ? `branch ${operation.branch ?? output.operationBranch ?? output.branch}` : null,
+				operation.commitSha ?? output.commitSha ? `commit ${shortSha(operation.commitSha ?? output.commitSha)}` : null,
+			].filter(Boolean);
+			return parts.length
+				? `Core objective synced to the repository (${parts.join(', ')}).`
+				: 'Core objective synced to the repository.';
+		}
+		if (operation?.status === 'failed') return operation.error?.message ?? 'Core objective repository sync failed.';
+		if (operation?.status === 'cancelled') return 'Core objective repository sync was cancelled.';
+		const latest = events.at(-1);
+		return latest?.kind
+			? `Repository sync: ${String(latest.kind).replace(/[._-]+/gu, ' ')}...`
+			: `Repository sync ${operation?.status ?? 'queued'}...`;
+	}
+
+	function delay(ms: number) {
+		return new Promise((resolve) => setTimeout(resolve, ms));
+	}
+
+	async function pollCoreObjectiveJob(job: ProjectSettingsOperation | null | undefined) {
+		if (!job?.id) {
+			setStatus('Project settings saved.', 'success');
+			return;
+		}
+		let operation = job;
+		let events: ProjectSettingsOperationEvent[] = [];
+		setStatus('Project settings saved. Core objective repository sync queued...', 'info');
+		const started = Date.now();
+		while (!terminalStatuses.has(String(operation.status)) && Date.now() - started < 180_000) {
+			await delay(1500);
+			const [operationResponse, eventsResponse] = await Promise.all([
+				fetch(operation.pollUrl ?? `/v1/platform/operations/${encodeURIComponent(operation.id)}`),
+				fetch(operation.streamUrl ?? `/v1/platform/operations/${encodeURIComponent(operation.id)}/events`),
+			]);
+			const operationPayload = await operationResponse.json().catch(() => null);
+			const eventsPayload = await eventsResponse.json().catch(() => null);
+			if (!operationResponse.ok || operationPayload?.ok === false) {
+				throw new Error(operationPayload?.error ?? 'Core objective repository sync status could not be loaded.');
+			}
+			operation = operationPayload?.operation ?? operationPayload?.job ?? operation;
+			events = Array.isArray(eventsPayload?.events) ? eventsPayload.events : events;
+			setStatus(formatOperationStatus(operation, events), 'info');
+		}
+		if (!terminalStatuses.has(String(operation.status))) {
+			setStatus('Project settings saved. Core objective sync is still running in the background.', 'info');
+			return;
+		}
+		setStatus(formatOperationStatus(operation, events), operation.status === 'succeeded' ? 'success' : 'error');
+	}
+
+	function initializeSettingsCoreObjectiveEditor() {
+		try {
+			initializeCoreObjectiveEditors();
+		} catch (error) {
+			console.error('Core objective editor failed to load.', error);
+		}
+	}
+
+	initializeSettingsCoreObjectiveEditor();
+	if (form instanceof HTMLFormElement) form.addEventListener('submit', async (event) => {
 		event.preventDefault();
 		const data = new FormData(form);
-		if (status) status.textContent = 'Saving...';
+		const projectId = form.dataset.projectId ?? '';
+		setStatus('Saving project settings...', 'info');
 		const response = await fetch(`/v1/projects/${encodeURIComponent(projectId)}`, {
 			method: 'PUT',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({
 				name: String(data.get('name') ?? '').trim(),
 				slug: String(data.get('slug') ?? '').trim(),
-				description: String(data.get('description') ?? '').trim(),
-				metadata: { entitlementTier: String(data.get('entitlementTier') ?? 'free') },
+				coreObjective: String(data.get('coreObjective') ?? '').trim(),
 			}),
 		});
 		const payload = await response.json().catch(() => null);
 		if (!response.ok || payload?.ok === false) {
-			if (status) status.textContent = payload?.error ?? 'Project could not be saved.';
+			setStatus(payload?.error ?? 'Project could not be saved.', 'error');
 			return;
 		}
-		if (status) status.textContent = 'Saved.';
+		try {
+			await pollCoreObjectiveJob(payload?.coreObjectiveJob);
+		} catch (error) {
+			setStatus(error instanceof Error ? error.message : 'Project settings saved, but repository sync status could not be loaded.', 'error');
+		}
 	});
 </script>

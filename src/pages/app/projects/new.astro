@@ -4,19 +4,19 @@ import Field from '../../../../packages/core/src/components/ui/forms/Field.astro
 import FormActions from '../../../../packages/core/src/components/ui/forms/FormActions.astro';
 import Select from '../../../../packages/core/src/components/ui/forms/Select.astro';
 import TextInput from '../../../../packages/core/src/components/ui/forms/TextInput.astro';
-import { listSiteTemplates, type TemplateSiteCard } from '@treeseed/core/templates';
+import type { TemplateSiteCard } from '@treeseed/core/templates';
 import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
-import { createMarketTemplateCatalogProvider } from '../../../lib/market/catalog.js';
 import { listTreeseedManagedHostsFromConfig } from '../../../lib/market/managed-hosts.js';
 import { hostPurposeFor } from '../../../lib/market/control-ui.js';
-import { loadOperationalContext } from '../../../view-models/shared.js';
+import { loadAppContext } from '../../../view-models/app-access.js';
+import { listMarketplaceSiteTemplates } from '../../../lib/market/public-access.js';
 
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/projects/new')}`);
 }
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 const runtime = (Astro.locals as any).runtime ?? Astro.locals;
 const team = context.activeTeam;
 const [managedHosts, customHosts, repositoryHosts] = team && context.store
@@ -37,10 +37,7 @@ const baseCoreTemplate: TemplateSiteCard = {
 	priceModel: 'free',
 	source: 'content',
 };
-const templateListing = await listSiteTemplates({
-	locals: Astro.locals,
-	catalogProvider: createMarketTemplateCatalogProvider(Astro.locals),
-}).catch(() => ({ rendered: true, items: [] as TemplateSiteCard[] }));
+const templateListing = await listMarketplaceSiteTemplates(Astro).catch(() => ({ rendered: true, items: [] as TemplateSiteCard[] }));
 const templateCards = [
 	baseCoreTemplate,
 	...templateListing.items.filter((template) => template.slug !== baseCoreTemplate.slug),
@@ -235,7 +232,7 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 							<Button type="submit" data-project-launch-submit>Create project</Button>
 						</span>
 						<Button href="/app/projects" variant="secondary">Cancel</Button>
-						<span class="ts-subtle" id="project-launch-status" role="status"></span>
+						<span class="ts-subtle" id="project-launch-message" role="status"></span>
 					</FormActions>
 				</Panel>
 			</form>
@@ -271,13 +268,32 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 		const sensitiveUnlockButton = launchForm.querySelector('[data-launch-sensitive-unlock]') as HTMLButtonElement | null;
 		const launchSubmitButton = launchForm.querySelector('[data-project-launch-submit]') as HTMLButtonElement | null;
 		const launchSubmitWrap = launchForm.querySelector('[data-project-launch-submit-wrap]') as HTMLElement | null;
-		const statusElement = document.getElementById('project-launch-status');
-		let validatedLaunchUnlock: { signature: string; passphrase: string; sessions: Record<string, string> } | null = null;
+		const statusElement = document.getElementById('project-launch-message');
+		let validatedLaunchUnlock: { signature: string; passphrase: string } | null = null;
 		function value(formData: FormData, key: string) { return String(formData.get(key) ?? '').trim(); }
 		function setStatus(message: string) {
 			if (!statusElement) return;
 			statusElement.style.whiteSpace = '';
 			statusElement.textContent = message;
+		}
+		function renderLaunchError(error: unknown) {
+			const payload = (error as any)?.payload;
+			const message = error instanceof Error ? error.message : String(error);
+			const blockers = [
+				...(Array.isArray(payload?.audit?.blockers) ? payload.audit.blockers : []),
+				...(Array.isArray(payload?.details?.blockers) ? payload.details.blockers : []),
+			].map((entry: any) => typeof entry === 'string' ? entry : String(entry?.message ?? entry?.code ?? 'Launch blocker'));
+			const missing = [
+				...(Array.isArray(payload?.audit?.missingConfig) ? payload.audit.missingConfig : []),
+				...(Array.isArray(payload?.details?.missingConfig) ? payload.details.missingConfig : []),
+			].map((entry: any) => `Missing configuration: ${String(entry)}`);
+			const details = [...blockers, ...missing].filter(Boolean);
+			if (!statusElement || details.length === 0) {
+				setStatus(message);
+				return;
+			}
+			statusElement.style.whiteSpace = 'pre-wrap';
+			statusElement.textContent = `${message}\n${details.map((entry) => `- ${entry}`).join('\n')}`;
 		}
 		async function safeInitializeCoreObjectiveEditors() {
 			try {
@@ -502,11 +518,6 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 	function openSensitiveUnlock() {
 		(window as any).treeseedSensitiveUnlock?.open?.('unlock');
 	}
-	function lockSensitiveData() {
-		(window as any).treeseedSensitiveUnlock?.lock?.();
-		clearValidatedLaunchUnlock();
-		syncSensitiveNotice();
-	}
 	async function submitJson(url: string, method: string, body: any) {
 		const response = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 		const payload = await response.json().catch(() => null);
@@ -518,43 +529,23 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 		}
 		return payload.payload ?? payload;
 	}
-	function isProviderCredentialUnlockError(error: unknown) {
-		return Boolean((error as any)?.providerCredentialUnlock)
-			|| (error instanceof Error && error.message === 'Unable to unlock provider credentials for this host.');
-	}
-	function hostUnlockFailureMessage(label: string) {
-		return `Unable to unlock ${label}. This host's saved credentials may still be encrypted with a different passphrase. Open the host edit page, enter replacement credential values, and save them with the passphrase you want to use for project launch.`;
-	}
-	async function createCredentialSession(hostKind: string, hostId: string, passphrase: string, purpose = 'launch_project', label = 'selected host') {
-		const createSession = async (sessionPassphrase: string) => submitJson(`/v1/teams/${encodeURIComponent(pageData.teamId)}/provider-credential-sessions`, 'POST', {
-			hostKind,
-			hostId,
-			passphrase: sessionPassphrase,
-			purpose,
-			expiresInSeconds: 900,
+	async function submitLaunchRequest(request: any) {
+		const response = await fetch(request.action, {
+			method: request.method ?? 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(request.body ?? {}),
 		});
-		try {
-			const session = await createSession(passphrase);
-			return { id: session.id, passphrase };
-		} catch (error) {
-			if (isProviderCredentialUnlockError(error)) {
-				lockSensitiveData();
-				throw new Error(hostUnlockFailureMessage(label));
-			}
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) {
+			const error: Error & { payload?: any } = new Error(payload?.error ?? `Project launch failed with ${response.status}.`);
+			error.payload = payload;
 			throw error;
 		}
+		return payload;
 	}
-	async function validateSelectedCredentialSessions(passphrase: string) {
+	async function validateSelectedCredentialPassphrase(passphrase: string) {
 		const signature = selectedCredentialSignature();
-		const sessions: Record<string, string> = {};
-		let activePassphrase = passphrase;
-		for (const target of selectedCredentialTargets()) {
-			setStatus(`Unlocking ${target.label}...`);
-			const session = await createCredentialSession(target.hostKind, target.hostId, activePassphrase, 'launch_project', target.label);
-			sessions[target.key] = session.id;
-			activePassphrase = session.passphrase;
-		}
-		validatedLaunchUnlock = { signature, passphrase: activePassphrase, sessions };
+		validatedLaunchUnlock = { signature, passphrase };
 		return validatedLaunchUnlock;
 	}
 	async function unlockSensitiveDataForLaunch() {
@@ -564,8 +555,8 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 			openSensitiveUnlock();
 			throw new Error('Unlock sensitive data before creating this project.');
 		}
-		setStatus('Validating selected host credentials...');
-		await validateSelectedCredentialSessions(String(passphrase));
+		setStatus('Sensitive data passphrase captured for this launch.');
+		await validateSelectedCredentialPassphrase(String(passphrase));
 		setStatus('Sensitive data unlocked for the selected project hosts.');
 		syncSensitiveNotice();
 	}
@@ -673,7 +664,6 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 	launchForm?.addEventListener('submit', async (event) => {
 		event.preventDefault();
 		const formData = new FormData(launchForm);
-		const credentialSessions: Record<string, string> = {};
 		setStatus('Preparing project hosts...');
 		try {
 			const unlock = (window as any).treeseedSensitiveUnlock;
@@ -684,28 +674,18 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 					: null;
 			if (requiresSensitiveUnlock() && !passphrase) throw new Error('Unlock sensitive data before launching with team-owned or newly created hosts.');
 			if (requiresSensitiveUnlock() && !hasValidatedLaunchUnlock()) {
-				const validation = await validateSelectedCredentialSessions(String(passphrase));
+				const validation = await validateSelectedCredentialPassphrase(String(passphrase));
 				passphrase = validation.passphrase;
-			}
-			if (validatedLaunchUnlock?.signature === selectedCredentialSignature()) {
-				Object.assign(credentialSessions, validatedLaunchUnlock.sessions);
 			}
 
 			let repositoryHostId = 'platform:github:hosted-hubs';
 			if (selectedMode(repositoryHostSelect) === 'new') {
 				const host = await createRepositoryHost(formData, String(passphrase));
 				repositoryHostId = host.id;
-				const session = await createCredentialSession('repository_host', host.id, String(passphrase), 'launch_project', 'the new repository host');
-				credentialSessions.repositoryHost = session.id;
-				passphrase = session.passphrase;
 			} else if (selectedMode(repositoryHostSelect) === 'existing') {
 				repositoryHostId = selectedId(repositoryHostSelect);
 				const host = selectedRepositoryHost();
-				if (host?.ownership === 'team_owned' && !credentialSessions.repositoryHost) {
-					const session = await createCredentialSession('repository_host', repositoryHostId, String(passphrase), 'launch_project', hostLabel(host, 'repository host'));
-					credentialSessions.repositoryHost = session.id;
-					passphrase = session.passphrase;
-				}
+				if (host?.ownership === 'team_owned' && !passphrase) throw new Error('Unlock sensitive data before launching with this repository host.');
 			}
 
 			let cloudflareHostMode = selectedMode(webHostSelect) === 'team_owned' || selectedMode(webHostSelect) === 'new' ? 'team_owned' : 'treeseed_managed';
@@ -713,17 +693,10 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 			if (selectedMode(webHostSelect) === 'new') {
 				const host = await createWebHost(formData, String(passphrase));
 				cloudflareHostId = host.id;
-				const session = await createCredentialSession('web_host', host.id, String(passphrase), 'launch_project', 'the new web host');
-				credentialSessions.webHost = session.id;
-				passphrase = session.passphrase;
 			} else if (cloudflareHostMode === 'team_owned') {
 				const host = selectedTeamHost(webHostSelect, 'web', 'cloudflare');
 				if (!host) throw new Error('Selected web host is not available.');
-				if (!credentialSessions.webHost) {
-					const session = await createCredentialSession('web_host', host.id, String(passphrase), 'launch_project', hostLabel(host, 'web host'));
-					credentialSessions.webHost = session.id;
-					passphrase = session.passphrase;
-				}
+				if (!passphrase) throw new Error('Unlock sensitive data before launching with this web host.');
 			}
 
 			let emailHostMode = selectedMode(emailHostSelect) === 'team_owned' || selectedMode(emailHostSelect) === 'new' ? 'team_owned' : 'treeseed_managed';
@@ -731,20 +704,13 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 			if (selectedMode(emailHostSelect) === 'new') {
 				const host = await createEmailHost(formData, String(passphrase));
 				emailHostId = host.id;
-				const session = await createCredentialSession('email_host', host.id, String(passphrase), 'launch_project', 'the new email host');
-				credentialSessions.emailHost = session.id;
-				passphrase = session.passphrase;
 			} else if (emailHostMode === 'team_owned') {
 				const host = selectedTeamHost(emailHostSelect, 'email', 'smtp');
 				if (!host) throw new Error('Selected email host is not available.');
-				if (!credentialSessions.emailHost) {
-					const session = await createCredentialSession('email_host', host.id, String(passphrase), 'launch_project', hostLabel(host, 'email host'));
-					credentialSessions.emailHost = session.id;
-					passphrase = session.passphrase;
-				}
+				if (!passphrase) throw new Error('Unlock sensitive data before launching with this email host.');
 			}
 
-			setStatus('Opening deployment status...');
+			setStatus('Creating durable deployment record...');
 			const slug = value(formData, 'slug');
 			const launchRequestId = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
 			const launchRequest = {
@@ -755,6 +721,7 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 				projectSlug: slug,
 				body: {
 					slug,
+					launchRequestId,
 					name: value(formData, 'name'),
 					summary: value(formData, 'coreObjective'),
 					coreObjective: value(formData, 'coreObjective'),
@@ -768,26 +735,23 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 					cloudflareHostId,
 					emailHostMode,
 					emailHostId,
+					sensitivePassphrase: passphrase,
 					domains: {
 						productionDomain: value(formData, 'productionDomain'),
 						stagingDomain: value(formData, 'stagingDomain'),
 						manageDns: formData.get('manageDns') === 'true',
 					},
-					credentialSessions,
 					publicSite: true,
 				},
 			};
-			try {
-				const launchStorageKey = `treeseed:project-launch:${launchRequestId}`;
-				const launchStorageValue = JSON.stringify(launchRequest);
-				window.sessionStorage.setItem(launchStorageKey, launchStorageValue);
-				window.localStorage.setItem(launchStorageKey, launchStorageValue);
-			} catch {
-				throw new Error('The browser could not open the deployment status page. Enable session storage and try again.');
-			}
-			window.location.href = `/app/projects/launch-status?request=${encodeURIComponent(launchRequestId)}`;
+			const launchResponse = await submitLaunchRequest(launchRequest);
+			const projectId = launchResponse?.projectId ?? launchResponse?.payload?.project?.id ?? launchResponse?.payload?.project?.project?.id ?? null;
+			const deployHref = launchResponse?.deploymentHref ?? launchResponse?.deployHref ?? (launchResponse?.deploymentId ? `/app/projects/deployment/${encodeURIComponent(launchResponse.deploymentId)}` : null);
+			if (!deployHref) throw new Error(projectId ? 'Project was created, but no deployment status link was returned.' : 'Project launch did not return a deployment status link.');
+			setStatus('Deployment record created. Opening deployment status...');
+			window.location.href = deployHref;
 		} catch (error) {
-			setStatus(error instanceof Error ? error.message : String(error));
+			renderLaunchError(error);
 		}
 	});
 	}

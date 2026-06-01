@@ -5,13 +5,13 @@ import Panel from '../../../../packages/core/src/components/ui/surface/Panel.ast
 import PlainTable from '../../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
-import { loadOperationalContext } from '../../../view-models/shared.js';
+import { loadAppContext } from '../../../view-models/app-access.js';
 
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/teams')}`);
 }
 
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 const manageableRoles = new Set(['team_owner', 'project_lead']);
 const teamAccess = new Map(await Promise.all(context.teams.map(async (team: any) => {
 	const access = context.store && typeof context.store.getTeamAccessSummary === 'function'

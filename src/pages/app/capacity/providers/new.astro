@@ -9,10 +9,10 @@ import EmptyState from '../../../../../packages/core/src/components/ui/surface/E
 import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { hostPurposeFor } from '../../../../lib/market/control-ui.js';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { loadAppContext } from '../../../../view-models/app-access.js';
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/capacity/providers/new')}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 const team = context.activeTeam;
 const capacityProviderHosts = team && context.store
 	? await context.store.listTeamWebHosts(team.id).then((hosts: any[]) => hosts.filter((host: any) => host.provider === 'railway' && host.metadata?.hostType === 'capacity_provider')).catch(() => [])

@@ -58,7 +58,7 @@ function proposalCandidates(approval: any) {
 
 const approvalId = String(Astro.params.approvalId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
-const vm = await loadGovernanceApprovalViewModel(Astro.locals, approvalId);
+const vm = await loadGovernanceApprovalViewModel(Astro, approvalId);
 const detail = vm.detail;
 const decisionContent = detail ? null : await loadDecisionContent(approvalId);
 if (!detail && !decisionContent) Astro.response.status = 404;

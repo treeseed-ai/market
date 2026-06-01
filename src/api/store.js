@@ -6049,7 +6049,7 @@ export class MarketControlPlaneStore {
 			`SELECT * FROM projects WHERE team_id IN (${placeholders}) ORDER BY created_at ASC`,
 			teamIds,
 		);
-		return rows.map(serializeProject);
+		return rows.map(serializeProject).filter((project) => project?.metadata?.deletion?.status !== 'succeeded');
 	}
 
 	async listTeamProjects(teamId) {
@@ -6058,7 +6058,7 @@ export class MarketControlPlaneStore {
 			`SELECT * FROM projects WHERE team_id = ? ORDER BY created_at ASC`,
 			[teamId],
 		);
-		return rows.map(serializeProject);
+		return rows.map(serializeProject).filter((project) => project?.metadata?.deletion?.status !== 'succeeded');
 	}
 
 	async createProject(teamId, input) {

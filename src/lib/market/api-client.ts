@@ -173,6 +173,26 @@ export class MarketApiClientFacade {
 		return this.request<any>('GET', `/v1/projects/${encodeURIComponent(projectId)}`);
 	}
 
+	getProjectDeployment(deploymentId: string, options: { limit?: number | string | null } = {}) {
+		const query = new URLSearchParams();
+		if (options.limit != null) query.set('limit', String(options.limit));
+		return this.request<any>('GET', `/v1/project-deployments/${encodeURIComponent(deploymentId)}${query.toString() ? `?${query}` : ''}`);
+	}
+
+	listProjectDeployments(projectId: string, filters: { environment?: string; action?: string; status?: string; limit?: number | string } = {}) {
+		const query = new URLSearchParams();
+		if (filters.environment) query.set('environment', filters.environment);
+		if (filters.action) query.set('action', filters.action);
+		if (filters.status) query.set('status', filters.status);
+		if (filters.limit != null) query.set('limit', String(filters.limit));
+		return this.request<any[]>('GET', `/v1/projects/${encodeURIComponent(projectId)}/deployments${query.toString() ? `?${query}` : ''}`);
+	}
+
+	async listProjectDeploymentEvents(deploymentId: string, options: { limit?: number | string | null } = {}) {
+		const details = await this.getProjectDeployment(deploymentId, options);
+		return Array.isArray(details?.events) ? details.events : [];
+	}
+
 	getProjectByTeamAndSlug(teamId: string, slug: string) {
 		return this.listTeamProjects(teamId).then((projects) => projects.find((project: any) => project.slug === slug || project.id === slug) ?? null);
 	}
@@ -283,6 +303,14 @@ export class MarketApiClientFacade {
 
 	listTeamCapacityProviders(teamId: string) {
 		return this.request<any[]>('GET', `/v1/teams/${encodeURIComponent(teamId)}/capacity-providers`);
+	}
+
+	getCapacityProvider(teamId: string, providerId: string) {
+		return this.request<any>('GET', `/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}`);
+	}
+
+	getCapacityProviderById(providerId: string) {
+		return this.request<any>('GET', `/v1/capacity/providers/${encodeURIComponent(providerId)}`);
 	}
 
 	updateCapacityProvider(teamId: string, providerId: string, body: Record<string, unknown>) {

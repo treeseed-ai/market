@@ -1,5 +1,3 @@
-import { loadAccessibleTeams, resolveMarketApi, resolveMarketPrincipal } from '../lib/market/store.js';
-
 export type OperationalTone = 'default' | 'muted' | 'info' | 'success' | 'warning' | 'danger' | 'accent';
 
 export interface OperationalMetric {
@@ -90,37 +88,6 @@ export function toneForState(state: unknown): OperationalTone {
 
 export function describeState(state: unknown, fallback = 'not recorded'): string {
 	return compact(state, fallback).replaceAll('_', ' ');
-}
-
-export async function loadOperationalContext(locals: App.Locals, astro?: any): Promise<OperationalContext> {
-	const marketContext = astro ?? locals;
-	const store = resolveMarketApi(marketContext);
-	const principal = resolveMarketPrincipal(locals);
-	const teams = await loadAccessibleTeams(marketContext);
-	const requestedTeamId = compact(astro?.url?.searchParams?.get('teamId'), '');
-	const cookieTeamId = compact(astro?.cookies?.get?.('treeseed_active_team')?.value, '');
-	const activeTeam = teams.find((team: any) => team.id === requestedTeamId || team.slug === requestedTeamId)
-		?? teams.find((team: any) => team.id === cookieTeamId || team.slug === cookieTeamId)
-		?? teams[0]
-		?? null;
-	if (activeTeam && requestedTeamId && astro?.cookies?.set) {
-		astro.cookies.set('treeseed_active_team', activeTeam.id, {
-			path: '/app',
-			httpOnly: false,
-			sameSite: 'lax',
-			secure: astro.url?.protocol === 'https:',
-			maxAge: 60 * 60 * 24 * 365,
-		});
-	}
-	const projects = activeTeam && store ? await store.listTeamProjects(activeTeam.id).catch(() => []) : [];
-
-	return {
-		store,
-		principal,
-		teams,
-		activeTeam,
-		projects: safeArray(projects),
-	};
 }
 
 export async function loadProjectBundle(context: OperationalContext, project: any): Promise<any> {

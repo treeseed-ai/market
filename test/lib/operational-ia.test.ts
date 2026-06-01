@@ -1,9 +1,18 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 function source(path: string) {
 	return readFileSync(resolve(process.cwd(), path), 'utf8');
+}
+
+function filesUnder(path: string): string[] {
+	const absolute = resolve(process.cwd(), path);
+	return readdirSync(absolute).flatMap((entry) => {
+		const child = `${path}/${entry}`;
+		const childAbsolute = resolve(process.cwd(), child);
+		return statSync(childAbsolute).isDirectory() ? filesUnder(child) : [child];
+	});
 }
 
 const primaryRoutes = [
@@ -59,8 +68,83 @@ describe('one-purpose control app information architecture', () => {
 			expect(layout).not.toContain(`label: '${label}'`);
 		}
 		expect(layout).toContain('treeseed_active_team');
+		expect(layout).toContain("url.searchParams.delete('teamId')");
+		expect(layout).not.toContain("url.searchParams.set('teamId'");
 		expect(layout).toContain('href="/app/teams" title="Manage teams"');
 		expect(layout).toContain(`href: '/app/capacity/providers'`);
+	});
+
+	it('centralizes app and marketplace resource access', () => {
+		const appAccess = source('src/view-models/app-access.ts');
+		const publicAccess = source('src/lib/market/public-access.ts');
+		const layout = source('src/layouts/TreeseedAppLayout.astro');
+		const sharedViewModel = source('src/view-models/shared.ts');
+		const deploymentStatusPage = source('src/pages/app/projects/deployment/[id].astro');
+		const projectPages = [
+			'src/pages/app/projects/[projectId]/deploy.astro',
+			'src/pages/app/projects/[projectId]/hosts.astro',
+			'src/pages/app/projects/[projectId]/settings.astro',
+			'src/pages/app/projects/[projectId]/guidance.astro',
+			'src/pages/app/projects/[projectId]/decisions.astro',
+			'src/pages/app/projects/[projectId]/artifacts.astro',
+			'src/pages/app/projects/[projectId]/delete.astro',
+			'src/pages/app/projects/[projectId]/workdays.astro',
+			'src/pages/app/projects/[projectId]/agents.astro',
+			'src/pages/app/projects/[projectId]/agents/new.astro',
+			'src/pages/app/projects/[projectId]/agents/[agentSlug].astro',
+			'src/pages/app/projects/[projectId]/workdays/[workdayId].astro',
+		];
+
+		for (const symbol of ['loadAppContext', 'resolveAppProject', 'resolveAppDeployment', 'resolveAppHost', 'resolveAppCapacityProvider', 'resolveAppTeam']) {
+			expect(appAccess).toContain(`function ${symbol}`);
+		}
+		expect(sharedViewModel).not.toContain('loadOperationalContext');
+		expect(existsSync(resolve(process.cwd(), 'src/lib/market/app-data.ts'))).toBe(false);
+		expect(appAccess).not.toContain("searchParams?.get('teamId')");
+		expect(layout).not.toContain("searchParams.set('teamId'");
+		expect(source('src/pages/app/account.astro')).toContain('loadAppContext');
+		expect(source('src/pages/app/projects/new.astro')).toContain('listMarketplaceSiteTemplates');
+		expect(deploymentStatusPage).toContain('const deploymentAccessible');
+		expect(deploymentStatusPage).toContain("Astro.response.status = deploymentResolution?.status === 'forbidden' ? 403 : 404");
+		for (const path of projectPages) {
+			const contents = source(path);
+			expect(contents, path).toContain('resolveAppProject');
+			expect(contents, path).not.toContain('context.projects.find');
+		}
+		expect(deploymentStatusPage).toContain('resolveAppDeployment');
+		expect(deploymentStatusPage).not.toContain('?teamId=');
+		for (const path of filesUnder('src/pages/app').filter((entry) => entry.endsWith('.astro'))) {
+			const contents = source(path);
+			expect(contents, path).not.toContain('loadOperationalContext');
+			expect(contents, path).not.toContain('resolveMarketApi(Astro)');
+			expect(contents, path).not.toContain('loadAccessibleTeams(Astro');
+			expect(contents, path).not.toMatch(/load[A-Za-z]+ViewModel\(Astro\.locals/u);
+		}
+		expect(source('src/pages/app/hosts/[hostType]/[hostId]/edit.astro')).toContain('resolveAppHost');
+		expect(source('src/pages/app/capacity/providers/[providerId]/edit.astro')).toContain('resolveAppCapacityProvider');
+		expect(source('src/pages/app/capacity/providers/[providerId]/keys.astro')).toContain('resolveAppCapacityProvider');
+		for (const path of [
+			'src/pages/app/teams/[teamId]/edit.astro',
+			'src/pages/app/teams/[teamId]/members.astro',
+			'src/pages/app/teams/[teamId]/delete.astro',
+		]) {
+			expect(source(path), path).toContain('resolveAppTeam');
+		}
+		for (const symbol of ['loadMarketplaceContext', 'listMarketplaceSiteTemplates', 'resolveMarketplaceSiteTemplate', 'resolveMarketplaceCatalogItem', 'resolveMarketplaceTeamProfile', 'resolveMarketplaceUserProfile']) {
+			expect(publicAccess).toContain(`function ${symbol}`);
+		}
+		for (const path of [
+			'src/pages/market/index.astro',
+			'src/pages/market/templates/index.astro',
+			'src/pages/market/templates/[slug].astro',
+			'src/pages/market/knowledge-packs/index.astro',
+			'src/pages/market/knowledge-packs/[slug].astro',
+			'src/pages/t/[name].astro',
+			'src/pages/u/[username].astro',
+		]) {
+			expect(source(path), path).toContain('public-access');
+			expect(source(path), path).not.toContain('treeseed_active_team');
+		}
 	});
 
 	it('keeps primary app routes to one-purpose control entry points', () => {
@@ -111,35 +195,132 @@ describe('one-purpose control app information architecture', () => {
 		const newProject = source('src/pages/app/projects/new.astro');
 		const timeline = source('src/components/app/operations/DeploymentTimeline.astro');
 		const helper = source('src/components/app/controls/deployment-action-status.ts');
+		const deploymentStatusPage = source('src/pages/app/projects/deployment/[id].astro');
+		const deploymentVm = source('src/view-models/deployment.vm.ts');
+		const apiClient = source('src/lib/market/api-client.ts');
+		const styles = source('src/styles/treeseed.css');
 		const deployIndex = nav.indexOf("label: 'Deploy'");
-		expect(deployIndex).toBeGreaterThan(nav.indexOf("label: 'Hosts'"));
+		expect(nav).not.toContain("label: 'Hosts'");
 		expect(deployIndex).toBeLessThan(nav.indexOf("label: 'Guidance'"));
 		expect(nav).toContain("current: 'settings' | 'hosts' | 'deploy'");
 		expect(page).toContain('buildProjectDeploymentState');
 		expect(page).toContain('buildDeploymentViewModel');
+		expect(page).toContain('fallbackState');
+		expect(page).toContain('deployment_state_unavailable');
+		expect(page).toContain('resolveAppProject');
+		expect(page).toContain('persistActiveTeamSelection');
 		expect(page).toContain('deployment-state');
 		expect(page).toContain('Deployment readiness checklist');
-		expect(page).toContain('Launch status');
+		expect(page).toContain('ts-deploy-check-title');
+		expect(page).toContain('ts-info-popover__trigger');
+		expect(page).toContain('What ${check.label} means');
+		expect(page).toContain('role="tooltip"');
 		expect(page).toContain('Launch recovery actions');
+		expect(page).toContain('name="sensitivePassphrase"');
+		expect(page).toContain('initializeProjectDeployPage');
+		expect(page).toContain("document.addEventListener('astro:page-load', initializeProjectDeployPage)");
+		expect(page).toContain('Setup attention');
+		expect(page).toContain('data-deploy-tabs-root');
+		expect(page).toContain('role="tablist"');
+		expect(page).toContain('data-deploy-tab="overview"');
+		expect(page).toContain('overviewAttentionCount');
+		expect(page).toContain('overview item');
+		expect(page).toContain('data-deploy-tab="environments"');
+		expect(page).toContain('data-deploy-tab="activity"');
+		expect(page).toContain('deployment timeline event');
+		expect(page).toContain('data-deploy-tab="history"');
+		expect(page).toContain('deployment record');
+		expect(page).toContain('data-deploy-panel="overview"');
+		expect(page).toContain('data-deploy-panel="history"');
 		expect(page).toContain('data-next-action');
-		expect(page).toContain('Runner diagnostics');
 		expect(page).toContain('Staging and production');
 		expect(page).toContain('Active operation timeline');
 		expect(page).toContain('Deployment history');
-		expect(page).toContain('Action blockers and hints');
+		expect(page).toContain('Recent failure context');
+		expect(page).toContain('separate from the readiness checklist above');
+		expect(page).toContain('Deployment support hints');
 		expect(page).toContain('monitor checks');
+		expect(page).toContain('ts-deploy-command-surface');
+		expect(page).toContain('ts-deploy-signal-grid');
+		expect(page).toContain('ts-deploy-blocker-list');
+		expect(page).toContain('ts-deploy-attention-list');
+		expect(page).toContain('uniqueReadinessBlockers');
+		expect(page).toContain('StatusPill tone="danger" label="Blocked"');
 		expect(page).toContain('ts-deploy-monitor-checks');
 		expect(page).toContain('aria-live="polite"');
 		expect(page).toContain('confirmProduction');
 		expect(page).toContain('submitDeploymentActionForm');
 		expect(page).toContain('watchDeploymentState');
 		expect(page).toContain('submitLaunchRecoveryForm');
-		expect(newProject).toContain('treeseed:project-launch:');
-		expect(newProject).toContain('/app/projects/launch-status?request=');
+		expect(page).toContain("['ArrowLeft', 'ArrowRight', 'Home', 'End']");
+		expect(newProject).toContain('/app/projects/deployment/');
+		expect(newProject).not.toContain('treeseed:project-launch:');
+		expect(newProject).not.toContain('/app/projects/launch-status?request=');
 		expect(timeline).toContain('<ol class="ts-deploy-timeline"');
 		expect(timeline).toContain('StatusPill');
+		expect(timeline).toContain('data-tone={item.tone}');
 		expect(helper).toContain("source: 'market_ui'");
+		expect(helper).toContain('sensitivePassphrase');
 		expect(helper).toContain('intervalMs?: number');
+		const projectsIndex = source('src/pages/app/projects/index.astro');
+		expect(projectsIndex).toContain('/deploy">Deploy</a>');
+		expect(projectsIndex).not.toContain('/app/projects/deployment/${encodeURIComponent(latestDeployment.id)}');
+		const api = source('src/api/app.js');
+		expect(api).toContain('retryMarketApiLaunchBootstrapFromRequest');
+		expect(api).toContain('sensitive_passphrase_required');
+		expect(api).toContain('runProjectLaunchApiBootstrap');
+		expect(apiClient).toContain('listProjectDeployments');
+		expect(apiClient).toContain('listProjectDeploymentEvents');
+		expect(deploymentVm).toContain('const seen = new Set<string>();');
+		expect(deploymentVm).toContain('function readinessHelp');
+		expect(deploymentVm).toContain('no_active_operation');
+		expect(deploymentVm).toContain('Prevents overlapping deployment work');
+		expect(deploymentVm).toContain('pushHint');
+		expect(deploymentVm).toContain('Project launch failed');
+		expect(deploymentVm).toContain('deployment ${titleCase');
+		expect(deploymentVm).toContain('hints.slice(0, 3)');
+		expect(styles).toContain('.ts-deploy-command-surface');
+		expect(styles).toContain('.ts-deploy-signal');
+		expect(styles).toContain('.ts-info-popover__content');
+		expect(styles).toContain('.ts-info-popover:focus-within .ts-info-popover__content');
+		expect(styles).toContain('.ts-deploy-tab-panel[hidden]');
+		expect(styles).not.toContain(".ts-tab[data-tone='danger']");
+		expect(styles).not.toContain(".ts-tab[data-tone='warning']");
+		expect(styles).toContain('.ts-deploy-blocker-list');
+		expect(styles).toContain('.ts-deploy-attention-list');
+		expect(styles).toContain('.ts-deploy-support-group');
+		expect(styles).toContain(".ts-deploy-timeline__item[data-tone='danger']");
+		expect(styles).toContain(".ts-deploy-signal[data-tone='danger']");
+		expect(styles).toContain(".ts-deploy-signal[data-tone='warning']");
+		expect(styles).toContain(".ts-deployment-status-page[data-status='failed'] .ts-launch-console");
+		expect(styles).toContain(".ts-launch-audit li[data-state='failed']");
+		expect(styles).toContain(".ts-launch-log-section li[data-state='failed']");
+		expect(styles).toContain(".ts-deploy-environment[data-tone='danger'] {\n\tbackground: var(--ts-color-surface);");
+		expect(styles).toContain(".ts-deployment-status-page[data-status='cancelled'] .ts-launch-console {\n\tbackground: var(--ts-color-surface);");
+		expect(styles).toContain(".ts-launch-log-section[data-state='failed'] {\n\tborder-color: var(--ts-color-danger-border);\n\tbackground: var(--ts-color-surface);");
+		expect(styles).toContain('.ts-deploy-command-surface h1 {\n\tfont-size: 2.55rem;');
+		expect(styles).toContain('grid-template-columns: repeat(6, minmax(0, 1fr));');
+		expect(styles).not.toContain('linear-gradient(135deg, color-mix(in srgb, var(--ts-deploy-accent-soft)');
+		expect(styles).not.toContain('font-size: clamp(2rem, 3vw, 3.1rem);');
+		for (const path of [
+			'src/pages/app/projects/[projectId]/deploy.astro',
+			'src/pages/app/projects/[projectId]/hosts.astro',
+			'src/pages/app/projects/[projectId]/settings.astro',
+		]) {
+			const contents = source(path);
+			expect(contents).toContain('resolveAppProject');
+			expect(contents).toContain('persistActiveTeamSelection');
+			expect(contents).not.toContain('context.projects.find((project');
+		}
+		expect(deploymentStatusPage).toContain('resolveAppDeployment');
+		expect(deploymentStatusPage).not.toContain('?teamId=');
+		expect(deploymentStatusPage).not.toContain('teamQuery');
+		expect(deploymentStatusPage).toContain('Open deployment overview');
+		expect(deploymentStatusPage).toContain('/deploy');
+		expect(deploymentStatusPage).toContain('data-status="loading"');
+		expect(deploymentStatusPage).toContain('page.dataset.status = status');
+		expect(deploymentStatusPage).toContain('details.dataset.state = hasFailure');
+		expect(deploymentStatusPage).toContain('item.dataset.state = event.status');
 		for (const contents of [page, timeline, helper]) {
 			for (const forbidden of ['capacityProviderId', 'laneId', 'grantId', 'workerPoolId', 'runtimeHostId', 'railwayServiceId', 'runnerToken']) {
 				expect(contents).not.toContain(forbidden);
@@ -265,6 +446,7 @@ describe('one-purpose control app information architecture', () => {
 		expect(edit).toContain('reservePoolPercent');
 		expect(edit).toContain('emergencyOverride');
 		expect(edit).toContain('createMarketApiFacade');
+		expect(edit).toContain('resolveAppCapacityProvider');
 		expect(edit).not.toContain('context.store.listTeamCapacityProviders');
 		expect(edit).not.toContain('/app/capacity/grants');
 		expect(edit).toContain('Deployment status');
@@ -285,7 +467,7 @@ describe('one-purpose control app information architecture', () => {
 		expect(keys).toContain('Rotate API key');
 		expect(keys).toContain('Copy key');
 		expect(keys).toContain('Restart the capacity provider');
-		expect(keys).toContain('createMarketApiFacade');
+		expect(keys).toContain('resolveAppCapacityProvider');
 		expect(keys).not.toContain('context.store');
 		expect(keys).not.toContain('Reset failed');
 		expect(keys).not.toContain('/api-keys/reset');
@@ -332,7 +514,7 @@ describe('one-purpose control app information architecture', () => {
 		expect(hosts).not.toContain('Use in project');
 		expect(hostEdit).toContain('normalizeRequestedHostType');
 		expect(hostEdit).toContain("normalized === 'smtp'");
-		expect(hostEdit).toContain('listTeamWebHosts(team.id)');
+		expect(hostEdit).toContain('resolveAppHost');
 		expect(hostEdit).toContain('routeHostTypeFor');
 		expect(hostEdit).toContain('hostTypeLabel(hostType)');
 		expect(hostEdit).toContain('const editTitle = `Edit ${hostTypeName} host`');
@@ -386,7 +568,7 @@ describe('one-purpose control app information architecture', () => {
 		expect(projectCreate).toContain("host.provider === 'cloudflare'");
 		expect(projectCreate).toContain('syncSensitiveNotice');
 		expect(projectCreate).toContain('validatedLaunchUnlock');
-		expect(projectCreate).toContain('validateSelectedCredentialSessions');
+		expect(projectCreate).toContain('validateSelectedCredentialPassphrase');
 		expect(projectCreate).toContain('unlockSensitiveDataForLaunch');
 		expect(projectCreate).toContain('selectedCredentialSignature');
 		expect(projectCreate).toContain('treeseed:sensitive-unlock-change');
@@ -444,6 +626,17 @@ describe('one-purpose control app information architecture', () => {
 		expect(coreObjectiveEditor).not.toContain('InsertFrontmatter');
 		expect(coreObjectiveEditor).not.toContain('InsertAdmonition');
 		expect(projectSettings).toContain('Project web address');
+		expect(projectSettings).toContain('name="coreObjective"');
+		expect(projectSettings).toContain('data-core-objective-editor');
+		expect(projectSettings).toContain('core-objective-mdx-editor.tsx');
+		expect(projectSettings).toContain('initializeSettingsCoreObjectiveEditor');
+		expect(projectSettings).toContain('pollCoreObjectiveJob');
+		expect(projectSettings).toContain('coreObjectiveJob');
+		expect(projectSettings).not.toContain('<script is:inline');
+		expect(projectSettings).toContain('Template and providers');
+		expect(projectSettings).toContain('ts-project-lineage-grid');
+		expect(projectSettings).toContain('Manage team hosts from the Hosts administration area');
+		expect(projectSettings).toContain('coreObjective: String(data.get');
 		expect(projectSettings).not.toContain('label="Handle"');
 		expect(projectCreate).toContain('Choose project template');
 		expect(projectCreate).toContain('TreeSeed Core Starter');
@@ -463,7 +656,15 @@ describe('one-purpose control app information architecture', () => {
 		expect(projectCreate).toContain("startsWith('platform:')");
 		expect(projectCreate).toContain('Create new GitHub repository host');
 		expect(projectCreate).toContain('Create new ${hostKind} host');
-		expect(projectCreate).toContain('provider-credential-sessions');
+		expect(projectCreate).toContain('sensitivePassphrase: passphrase');
+		expect(projectCreate).not.toContain('provider-credential-sessions');
+		expect(api).toContain('templateLineage');
+		expect(api).toContain("source: 'project_launch'");
+		expect(api).toContain('markdownToPlainProjectSummary(requestedCoreObjective');
+		expect(api).toContain("project_settings.core_objective_sync_queued");
+		expect(api).toContain("operation: 'write_content_record'");
+		expect(api).toContain("role: 'content'");
+		expect(api).toContain('const requestedRole = optionalTrimmedString(configured.role) ?? optionalTrimmedString(body.repositoryRole)');
 		expect(projectHosts).toContain('Configured host choices');
 		expect(projectHosts).toContain('Deployment and runtime hosts');
 		expect(helper).toContain('hostDisplayName');
@@ -475,6 +676,7 @@ describe('one-purpose control app information architecture', () => {
 		expect(providerLaunch).toContain('input.coreObjective');
 		expect(styles).toContain('.ts-host-setup-grid');
 		expect(styles).toContain('.ts-core-objective-editor');
+		expect(styles).toContain('.ts-project-lineage-card');
 		expect(styles).toContain('.ts-default-label');
 		expect(styles).toContain('.ts-link-button--primary');
 		expect(styles).toContain('min-height: 1.9rem;');

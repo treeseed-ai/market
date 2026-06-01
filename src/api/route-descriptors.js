@@ -40,6 +40,7 @@ export const SDK_METHOD_ROUTE_MAP = {
 	projects: 'get.v1.projects',
 	projectAccess: 'get.v1.projects.projectId.access',
 	projectDeploymentState: 'get.v1.projects.projectId.deployment-state',
+	projectDeploymentById: 'get.v1.project-deployments.deploymentId',
 	projectDeployments: 'get.v1.projects.projectId.deployments',
 	projectDeployment: 'get.v1.projects.projectId.deployments.deploymentId',
 	projectDeploymentEvents: 'get.v1.projects.projectId.deployments.deploymentId.events',
@@ -248,6 +249,7 @@ function bodyFactoryFor(path, method) {
 	if (path.includes('/teams') && path.includes('/hosting-audit')) return 'hostingAudit';
 	if (path.includes('/teams') && path.includes('/seeds/export')) return 'seedExport';
 	if (path === '/v1/teams') return 'teamCreate';
+	if (path.startsWith('/v1/project-deployments/')) return 'projectDeployment';
 	if (path.startsWith('/v1/projects/:projectId')) return path.endsWith('/local-content/:collection') ? 'localContentWrite'
 		: path.endsWith('/related') ? 'localContentRelated'
 			: path.endsWith('/decisions/from-proposals') ? 'decisionFromProposals'

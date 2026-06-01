@@ -4,18 +4,19 @@ import {
 } from '../lib/market/infrastructure-projection.js';
 import { loadInfrastructureSeedState } from '../lib/market/infrastructure-seeds.js';
 import {
-	loadOperationalContext,
 	type OperationalContext,
 	type OperationalMetric,
 } from './shared.js';
+import { loadAppContext } from './app-access.js';
 
 export interface InfrastructureViewModel extends InfrastructureProjection {
 	context: OperationalContext;
 	metrics: OperationalMetric[];
 }
 
-export async function loadInfrastructureViewModel(locals: App.Locals, url?: URL): Promise<InfrastructureViewModel> {
-	const context = await loadOperationalContext(locals);
+export async function loadInfrastructureViewModel(input: any, url?: URL): Promise<InfrastructureViewModel> {
+	const context = await loadAppContext(input);
+	const locals = input?.locals ?? input;
 	const seedState = context.store
 		? await loadInfrastructureSeedState({
 			store: context.store,

@@ -9,6 +9,7 @@ const target = resolve(root, 'dist/market-operations-runner');
 const runtimeSupport = [
 	['src/api/market-postgres.js', 'dist/api/market-postgres.js'],
 	['src/api/store.js', 'dist/api/store.js'],
+	['src/api/hub-launch-application.js', 'dist/api/hub-launch-application.js'],
 	['src/lib/market/deployment-actions.ts', 'dist/lib/market/deployment-actions.ts'],
 	['src/lib/market/deployment-governance.ts', 'dist/lib/market/deployment-governance.ts'],
 ];

@@ -10,7 +10,7 @@ import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.
 import MarkdownField from '../../../../components/app/controls/MarkdownField.astro';
 import WorkContentNav from '../../../../components/app/controls/WorkContentNav.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { loadAppContext } from '../../../../view-models/app-access.js';
 
 const collection = String(Astro.params.collection ?? '');
 const config: Record<string, any> = {
@@ -21,7 +21,7 @@ const config: Record<string, any> = {
 	decisions: { singular: 'decision', current: 'decisions', typeLabel: 'Decision type', typeName: 'decisionType', options: [{ label: 'Approved', value: 'approved' }, { label: 'Rejected', value: 'rejected' }, { label: 'Deferred', value: 'deferred' }, { label: 'Request changes', value: 'request_changes' }, { label: 'Superseded', value: 'superseded' }] },
 };
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 const item = config[collection] ?? null;
 if (!item) Astro.response.status = 404;
 const selectedProjectId = String(Astro.url.searchParams.get('projectId') ?? context.projects[0]?.id ?? '');

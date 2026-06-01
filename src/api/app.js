@@ -1346,6 +1346,20 @@ function normalizeProviderCredentialConfig(hostKind, config, host = null) {
 			...(typeof smtp.secure === 'string' && smtp.secure.trim() ? { SMTP_SECURE: smtp.secure.trim() } : {}),
 		};
 	}
+	if (hostKind === 'web_host') {
+		const token = source.CLOUDFLARE_API_TOKEN ?? source.cloudflareApiToken ?? source.apiToken ?? source.token;
+		const accountId = source.CLOUDFLARE_ACCOUNT_ID ?? source.cloudflareAccountId ?? source.accountId;
+		if (!token || typeof token !== 'string') {
+			throw new Error('Web Host credentials must include CLOUDFLARE_API_TOKEN.');
+		}
+		if (!accountId || typeof accountId !== 'string') {
+			throw new Error('Web Host credentials must include CLOUDFLARE_ACCOUNT_ID.');
+		}
+		return {
+			CLOUDFLARE_API_TOKEN: token,
+			CLOUDFLARE_ACCOUNT_ID: accountId,
+		};
+	}
 	return source;
 }
 
@@ -1437,6 +1451,1278 @@ async function collectHostingAuditCredentialOverlay({ store, runtime, teamId, ho
 		};
 	}
 	return { overlay, sessions };
+}
+
+function nonSecretLaunchJobInput(input = {}) {
+	const clone = JSON.parse(JSON.stringify(input ?? {}));
+	delete clone.credentialSessions;
+	delete clone.sensitivePassphrase;
+	if (clone.launchIntent?.execution?.providerLaunchInput?.repositoryHostConfig) {
+		delete clone.launchIntent.execution.providerLaunchInput.repositoryHostConfig;
+	}
+	if (clone.launchIntent?.execution?.providerLaunchInput?.cloudflareHost?.config) {
+		delete clone.launchIntent.execution.providerLaunchInput.cloudflareHost.config;
+	}
+	if (clone.launchIntent?.execution?.providerLaunchInput?.emailHost?.config) {
+		delete clone.launchIntent.execution.providerLaunchInput.emailHost.config;
+	}
+	return clone;
+}
+
+async function decryptTeamHostForLaunch(hostKind, host, passphrase) {
+	if (!host?.encryptedPayload) {
+		throw new Error('Selected host does not have encrypted provider credentials.');
+	}
+	const decryptedConfig = await decryptHostConfig(host.encryptedPayload, passphrase);
+	return normalizeProviderCredentialConfig(hostKind, decryptedConfig, host);
+}
+
+function mergeStringConfig(target, config) {
+	for (const [key, value] of Object.entries(config ?? {})) {
+		if (typeof value === 'string' && value.trim()) target[key] = value;
+	}
+	return target;
+}
+
+async function buildLaunchCredentialOverlay({
+	repositoryHost,
+	cloudflareHost,
+	emailHost,
+	cloudflareHostMode,
+	emailHostMode,
+	cloudflareLaunchConfig,
+	passphrase,
+}) {
+	const overlay = {};
+	const nextIntentPatch = {
+		repositoryOwner: null,
+		cloudflareHostConfig: null,
+		emailHostConfig: null,
+	};
+	if (repositoryHost?.ownership === 'team_owned') {
+		if (!passphrase) throw new Error('Sensitive data passphrase is required for the selected Repository Host.');
+		const config = await decryptTeamHostForLaunch('repository_host', repositoryHost, passphrase);
+		const token = config.GH_TOKEN ?? config.GITHUB_TOKEN;
+		if (token) {
+			overlay.GH_TOKEN = token;
+			overlay.GITHUB_TOKEN = config.GITHUB_TOKEN ?? token;
+			overlay.TREESEED_HOSTED_HUBS_GITHUB_TOKEN = token;
+		}
+		const owner = config.organizationOrOwner ?? config.owner ?? repositoryHost.organizationOrOwner;
+		if (owner) {
+			overlay.TREESEED_GITHUB_IDENTITY_MODE = 'account';
+			overlay.TREESEED_HOSTED_HUBS_GITHUB_OWNER = owner;
+			nextIntentPatch.repositoryOwner = owner;
+		}
+	}
+	if (cloudflareHostMode === 'team_owned') {
+		if (!passphrase) throw new Error('Sensitive data passphrase is required for the selected Web Host.');
+		const config = await decryptTeamHostForLaunch('web_host', cloudflareHost, passphrase);
+		mergeStringConfig(overlay, config);
+		Object.assign(overlay, providerCredentialValuesForAudit('web_host', { config }));
+		nextIntentPatch.cloudflareHostConfig = config;
+	} else if (cloudflareHostMode === 'treeseed_managed') {
+		mergeStringConfig(overlay, cloudflareLaunchConfig ?? {});
+	}
+	if (emailHostMode === 'team_owned') {
+		if (!passphrase) throw new Error('Sensitive data passphrase is required for the selected Email Host.');
+		const config = await decryptTeamHostForLaunch('email_host', emailHost, passphrase);
+		Object.assign(overlay, providerCredentialValuesForAudit('email_host', { config }));
+		nextIntentPatch.emailHostConfig = config;
+	}
+	return { overlay, nextIntentPatch };
+}
+
+function patchLaunchIntentForCredentialOverlay(launchIntent, patch) {
+	const nextIntent = JSON.parse(JSON.stringify(launchIntent));
+	const providerLaunchInput = {
+		...(nextIntent.execution?.providerLaunchInput ?? {}),
+	};
+	if (patch.repositoryOwner) {
+		nextIntent.repository = {
+			...(nextIntent.repository ?? {}),
+			owner: patch.repositoryOwner,
+		};
+		providerLaunchInput.repoOwner = patch.repositoryOwner;
+	}
+	if (patch.cloudflareHostConfig) {
+		providerLaunchInput.cloudflareHost = {
+			...(providerLaunchInput.cloudflareHost ?? {}),
+			config: patch.cloudflareHostConfig,
+		};
+	}
+	if (patch.emailHostConfig) {
+		providerLaunchInput.emailHost = {
+			...(providerLaunchInput.emailHost ?? {}),
+			config: patch.emailHostConfig,
+		};
+	}
+	nextIntent.execution = {
+		...(nextIntent.execution ?? {}),
+		providerLaunchInput,
+	};
+	return nextIntent;
+}
+
+async function appendLaunchDeploymentEvent(store, job, event) {
+	const deployments = await store.listProjectDeployments(job.projectId, { limit: 100 }).catch(() => []);
+	for (const deployment of deployments.filter((entry) => entry.platformOperationId === job.id)) {
+		await store.appendProjectDeploymentEvent(deployment.id, {
+			...event,
+			operationId: job.id,
+		}).catch(() => null);
+	}
+}
+
+function scheduleBackgroundBootstrap(c, task) {
+	const promise = Promise.resolve()
+		.then(task)
+		.catch((error) => {
+			process.stderr.write(`[market-api] project launch bootstrap failed: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+		});
+	let executionCtx = null;
+	try {
+		executionCtx = c.executionCtx;
+	} catch {
+		executionCtx = null;
+	}
+	if (typeof executionCtx?.waitUntil === 'function') {
+		executionCtx.waitUntil(promise);
+	}
+	return promise;
+}
+
+function sanitizeLaunchResultForStorage(value) {
+	if (Array.isArray(value)) return value.map(sanitizeLaunchResultForStorage);
+	if (typeof value === 'string') {
+		return /(?:github_pat_|ghp_|secret-token|sk-[a-z0-9_-]{8,})/iu.test(value) ? '[redacted]' : value;
+	}
+	if (!value || typeof value !== 'object') return value;
+	return Object.fromEntries(Object.entries(value)
+		.filter(([key]) => !/(?:secret|token|password|credential|passphrase|apiKey|privateKey|ciphertext)/iu.test(key))
+		.filter(([key]) => key !== 'config')
+		.map(([key, entry]) => [key, sanitizeLaunchResultForStorage(entry)]));
+}
+
+function cloudflareErrorMessage(payload, fallback) {
+	const errors = Array.isArray(payload?.errors) ? payload.errors : [];
+	const messages = errors
+		.map((error) => [error?.code, error?.message].filter(Boolean).join(' '))
+		.filter(Boolean);
+	return messages[0] ?? payload?.message ?? fallback;
+}
+
+async function cloudflareRequestForLaunchPreflight({ token, path, method = 'GET', body = null }) {
+	const response = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
+		method,
+		headers: {
+			authorization: `Bearer ${token}`,
+			...(body ? { 'content-type': 'application/json' } : {}),
+		},
+		...(body ? { body: JSON.stringify(body) } : {}),
+	});
+	const payload = await response.json().catch(() => null);
+	if (!response.ok || payload?.success === false) {
+		throw new Error(cloudflareErrorMessage(payload, `${method} ${path} failed with HTTP ${response.status}.`));
+	}
+	return payload;
+}
+
+async function resolveCloudflareZoneForLaunchPreflight({ token, zoneId, zoneName }) {
+	if (zoneId) return zoneId;
+	if (!zoneName) return null;
+	const payload = await cloudflareRequestForLaunchPreflight({
+		token,
+		path: `/zones?name=${encodeURIComponent(zoneName)}&per_page=1`,
+	});
+	const resolvedZoneId = payload?.result?.[0]?.id;
+	return typeof resolvedZoneId === 'string' && resolvedZoneId.trim() ? resolvedZoneId.trim() : null;
+}
+
+async function verifyCloudflareDnsWriteForLaunch({ overlay, domains }) {
+	if (!domains?.manageDns) return null;
+	const token = overlay.CLOUDFLARE_API_TOKEN;
+	if (!token) {
+		throw new Error('Cloudflare DNS cannot be managed because the selected Web Host did not provide a Cloudflare API token.');
+	}
+	const zoneName = normalizeDomainName(domains.zoneName);
+	const zoneId = await resolveCloudflareZoneForLaunchPreflight({
+		token,
+		zoneId: domains.zoneId,
+		zoneName,
+	});
+	if (!zoneId) {
+		throw new Error(`Cloudflare DNS zone could not be resolved for ${zoneName || 'the selected project domains'}.`);
+	}
+	const recordName = `_treeseed-dns-preflight-${randomUUID().slice(0, 8)}.${zoneName}`;
+	let recordId = null;
+	try {
+		const created = await cloudflareRequestForLaunchPreflight({
+			token,
+			path: `/zones/${encodeURIComponent(zoneId)}/dns_records`,
+			method: 'POST',
+			body: {
+				type: 'TXT',
+				name: recordName,
+				content: `treeseed launch dns preflight ${new Date().toISOString()}`,
+				ttl: 60,
+			},
+		});
+		recordId = created?.result?.id ?? null;
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(`Cloudflare DNS write preflight failed for ${zoneName}: ${message}. The selected Web Host token must include Zone DNS edit access for this root domain.`);
+	} finally {
+		if (recordId) {
+			await cloudflareRequestForLaunchPreflight({
+				token,
+				path: `/zones/${encodeURIComponent(zoneId)}/dns_records/${encodeURIComponent(recordId)}`,
+				method: 'DELETE',
+			}).catch(() => null);
+		}
+	}
+	return { zoneId, zoneName };
+}
+
+function projectDeletionConfirmationMatches(confirmation, project) {
+	return String(confirmation ?? '').trim() === `DELETE ${project?.slug ?? ''}`;
+}
+
+function projectDeletionBlockerRows(blockers) {
+	if (!blockers) return [];
+	if (Array.isArray(blockers)) return blockers;
+	return Object.entries(blockers)
+		.flatMap(([key, value]) => {
+			if (Array.isArray(value)) return value.map((entry) => ({ code: key, ...entry }));
+			const count = Number(value);
+			return Number.isFinite(count) && count > 0 ? [{ code: key, count }] : [];
+		});
+}
+
+async function cloudflareRequestForProjectDeletion({ token, path, method = 'GET', body = null, allowMissing = true }) {
+	const response = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
+		method,
+		headers: {
+			authorization: `Bearer ${token}`,
+			...(body ? { 'content-type': 'application/json' } : {}),
+		},
+		...(body ? { body: JSON.stringify(body) } : {}),
+	});
+	const payload = await response.json().catch(() => null);
+	if (!response.ok || payload?.success === false) {
+		const message = cloudflareErrorMessage(payload, `${method} ${path} failed with HTTP ${response.status}.`);
+		if (allowMissing && /not found|does not exist|could not find|couldn't find|unknown/iu.test(message)) {
+			return { success: false, missing: true, result: null, errors: payload?.errors ?? [] };
+		}
+		throw new Error(message);
+	}
+	return payload;
+}
+
+async function githubRequestForProjectDeletion({ token, path, method = 'GET' }) {
+	const response = await fetch(`https://api.github.com${path}`, {
+		method,
+		headers: {
+			authorization: `Bearer ${token}`,
+			accept: 'application/vnd.github+json',
+			'user-agent': 'treeseed-market-api',
+			'X-GitHub-Api-Version': '2022-11-28',
+		},
+	});
+	if (response.status === 404) return { status: 'missing' };
+	if (!response.ok) {
+		const payload = await response.json().catch(() => null);
+		throw new Error(payload?.message ?? `${method} ${path} failed with HTTP ${response.status}.`);
+	}
+	return { status: method === 'DELETE' ? 'deleted' : 'ok' };
+}
+
+function projectDeletionOperation(provider, type, name, status, extra = {}) {
+	return {
+		provider,
+		type,
+		name: name ?? null,
+		status,
+		...extra,
+	};
+}
+
+function cloudflareDeletionAuthenticationMessage(message) {
+	return /authentication error|invalid token|unauthorized|forbidden|10000/iu.test(String(message ?? ''));
+}
+
+function hasRecordedCloudflareRuntimeResources(names) {
+	return [
+		names.pagesProjects,
+		names.workers,
+		names.turnstileWidgets,
+		names.kvNamespaces,
+		names.buckets,
+		names.databases,
+		names.queues,
+	].some((entries) => Array.isArray(entries) && entries.length > 0);
+}
+
+function canSkipCloudflareCleanupAfterFailedLaunch(project, names, message) {
+	if (!cloudflareDeletionAuthenticationMessage(message)) return false;
+	if (hasRecordedCloudflareRuntimeResources(names)) return false;
+	const metadata = project?.metadata ?? {};
+	const launchFailureMessage = String(metadata.launchFailure?.message ?? '');
+	return metadata.launchPhase === 'failed'
+		&& /cloudflare|dns_records|dns-record/iu.test(launchFailureMessage)
+		&& cloudflareDeletionAuthenticationMessage(launchFailureMessage);
+}
+
+function projectDeletionHostname(value) {
+	if (!value) return null;
+	try {
+		return normalizeDomainName(new URL(value).hostname);
+	} catch {
+		return normalizeDomainName(value);
+	}
+}
+
+function normalizedCloudflareKvNamespaceReference(value) {
+	if (!value) return null;
+	if (typeof value === 'string') {
+		const name = value.trim();
+		return name ? { id: null, name, binding: null } : null;
+	}
+	if (typeof value !== 'object') return null;
+	const id = value.id ?? value.namespaceId ?? value.uuid ?? value.sitekey ?? value.siteKey ?? value.locator ?? null;
+	const name = value.name ?? value.title ?? value.namespaceName ?? value.logicalName ?? null;
+	const binding = value.binding ?? value.bindingName ?? null;
+	if (!id && !name) return null;
+	return {
+		id: id ? String(id) : null,
+		name: name ? String(name) : null,
+		binding: binding ? String(binding) : null,
+	};
+}
+
+function uniqueCloudflareKvNamespaceReferences(entries) {
+	const seen = new Set();
+	const result = [];
+	for (const entry of entries.map(normalizedCloudflareKvNamespaceReference).filter(Boolean)) {
+		const key = entry.id ? `id:${entry.id}` : `name:${entry.name}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		result.push(entry);
+	}
+	return result;
+}
+
+function cloudflareProjectDeletionResourceNames(project, details) {
+	const metadata = project?.metadata ?? {};
+	const domains = metadata.domains ?? metadata.cloudflareHost?.domains ?? {};
+	const environments = Array.isArray(details?.environments) ? details.environments : [];
+	const resources = Array.isArray(details?.resources) ? details.resources : [];
+	const byEnvironment = new Map(environments.map((entry) => [entry.environment, entry]));
+	const resourceValues = (kind) => resources
+		.filter((resource) => resource.provider === 'cloudflare' && resource.resourceKind === kind)
+		.map((resource) => resource.locator ?? resource.metadata?.name ?? resource.metadata?.projectName ?? null)
+		.filter(Boolean);
+	const staging = byEnvironment.get('staging');
+	const prod = byEnvironment.get('prod');
+	return {
+		accountId: staging?.cloudflareAccountId ?? prod?.cloudflareAccountId ?? metadata.cloudflare?.staging?.accountId ?? metadata.cloudflare?.prod?.accountId ?? null,
+		zoneId: domains.zoneId ?? metadata.cloudflareHost?.dns?.zoneId ?? null,
+		zoneName: domains.zoneName ?? metadata.cloudflareHost?.dns?.zoneName ?? null,
+		domains: [...new Set([
+			domains.stagingDomain,
+			domains.productionDomain,
+			staging?.metadata?.siteUrl,
+			prod?.metadata?.siteUrl,
+			staging?.baseUrl,
+			prod?.baseUrl,
+		].map(projectDeletionHostname).filter(Boolean))],
+		pagesProjects: [...new Set([
+			staging?.pagesProjectName,
+			prod?.pagesProjectName,
+			metadata.cloudflare?.staging?.pages?.projectName,
+			metadata.cloudflare?.prod?.pages?.projectName,
+			...resourceValues('pages'),
+		].filter(Boolean))],
+		workers: [...new Set([
+			staging?.workerName,
+			prod?.workerName,
+			metadata.cloudflare?.staging?.workerName,
+			metadata.cloudflare?.prod?.workerName,
+			...resourceValues('worker'),
+		].filter(Boolean))],
+		turnstileWidgets: uniqueCloudflareKvNamespaceReferences([
+			metadata.cloudflare?.staging?.turnstileWidget,
+			metadata.cloudflare?.prod?.turnstileWidget,
+			...resources
+				.filter((resource) => resource.provider === 'cloudflare' && ['turnstile', 'turnstile-widget'].includes(resource.resourceKind))
+				.map((resource) => ({
+					...(resource.metadata ?? {}),
+					locator: resource.locator,
+					logicalName: resource.logicalName,
+				})),
+		]).map((entry) => ({
+			sitekey: entry.id,
+			name: entry.name,
+			binding: entry.binding,
+		})),
+		kvNamespaces: uniqueCloudflareKvNamespaceReferences([
+			metadata.cloudflare?.staging?.formGuardKv,
+			metadata.cloudflare?.prod?.formGuardKv,
+			metadata.cloudflare?.staging?.kvNamespaces?.FORM_GUARD_KV,
+			metadata.cloudflare?.prod?.kvNamespaces?.FORM_GUARD_KV,
+			...resources
+				.filter((resource) => resource.provider === 'cloudflare' && ['kv', 'kv_namespace', 'kv-namespace'].includes(resource.resourceKind))
+				.map((resource) => ({
+					...(resource.metadata ?? {}),
+					locator: resource.locator,
+					logicalName: resource.logicalName,
+				})),
+		]),
+		buckets: [...new Set([
+			staging?.r2BucketName,
+			prod?.r2BucketName,
+			metadata.cloudflare?.staging?.content?.bucketName,
+			metadata.cloudflare?.prod?.content?.bucketName,
+			...resourceValues('r2'),
+		].filter(Boolean))],
+		databases: [...new Set([
+			staging?.d1DatabaseName,
+			prod?.d1DatabaseName,
+			metadata.cloudflare?.staging?.siteDataDb?.databaseName,
+			metadata.cloudflare?.prod?.siteDataDb?.databaseName,
+			...resources
+				.filter((resource) => resource.provider === 'cloudflare' && resource.resourceKind === 'd1')
+				.map((resource) => resource.metadata?.databaseName ?? resource.locator)
+				.filter(Boolean),
+		].filter(Boolean))],
+		queues: [...new Set([
+			staging?.queueName,
+			prod?.queueName,
+			metadata.cloudflare?.staging?.queue?.name,
+			metadata.cloudflare?.staging?.queue?.dlqName,
+			metadata.cloudflare?.prod?.queue?.name,
+			metadata.cloudflare?.prod?.queue?.dlqName,
+			...resources
+				.filter((resource) => resource.provider === 'cloudflare' && ['queue', 'dlq'].includes(resource.resourceKind))
+				.map((resource) => resource.metadata?.name ?? resource.metadata?.dlqName ?? resource.locator)
+				.filter(Boolean),
+		].filter(Boolean))],
+	};
+}
+
+async function resolveProjectDeletionCloudflareZone({ token, names }) {
+	if (names.zoneId) return names.zoneId;
+	if (!names.zoneName) return null;
+	const payload = await cloudflareRequestForProjectDeletion({
+		token,
+		path: `/zones?name=${encodeURIComponent(names.zoneName)}&per_page=1`,
+	});
+	return payload?.result?.[0]?.id ?? null;
+}
+
+async function deleteCloudflareDnsRecordsForProject({ token, zoneId, name }) {
+	if (!zoneId || !name) return [projectDeletionOperation('cloudflare', 'dns-record', name, 'missing')];
+	const listed = await cloudflareRequestForProjectDeletion({
+		token,
+		path: `/zones/${encodeURIComponent(zoneId)}/dns_records?name=${encodeURIComponent(name)}&per_page=100`,
+	});
+	const records = Array.isArray(listed?.result) ? listed.result : [];
+	if (records.length === 0) return [projectDeletionOperation('cloudflare', 'dns-record', name, 'missing', { zoneId })];
+	return Promise.all(records.map(async (record) => {
+		await cloudflareRequestForProjectDeletion({
+			token,
+			method: 'DELETE',
+			path: `/zones/${encodeURIComponent(zoneId)}/dns_records/${encodeURIComponent(record.id)}`,
+		});
+		return projectDeletionOperation('cloudflare', 'dns-record', record.name ?? name, 'deleted', { zoneId });
+	}));
+}
+
+async function listCloudflareNamedResources({ token, accountId, path, name }) {
+	if (!accountId || !name) return [];
+	const payload = await cloudflareRequestForProjectDeletion({
+		token,
+		path: `/accounts/${encodeURIComponent(accountId)}${path}`,
+	});
+	return (Array.isArray(payload?.result) ? payload.result : [])
+		.filter((entry) => entry?.name === name || entry?.queue_name === name || entry?.title === name);
+}
+
+async function deleteCloudflareProjectResources({ token, accountId, zoneId, names }) {
+	const operations = [];
+	if (!accountId) {
+		return [projectDeletionOperation('cloudflare', 'account', null, 'blocked', { reason: 'missing_cloudflare_account_id' })];
+	}
+	for (const pagesProject of names.pagesProjects) {
+		const result = await cloudflareRequestForProjectDeletion({
+			token,
+			method: 'DELETE',
+			path: `/accounts/${encodeURIComponent(accountId)}/pages/projects/${encodeURIComponent(pagesProject)}`,
+		});
+		operations.push(projectDeletionOperation('cloudflare', 'pages-project', pagesProject, result?.missing ? 'missing' : 'deleted'));
+	}
+	for (const worker of names.workers) {
+		const result = await cloudflareRequestForProjectDeletion({
+			token,
+			method: 'DELETE',
+			path: `/accounts/${encodeURIComponent(accountId)}/workers/services/${encodeURIComponent(worker)}`,
+		});
+		operations.push(projectDeletionOperation('cloudflare', 'worker', worker, result?.missing ? 'missing' : 'deleted'));
+	}
+	for (const widget of names.turnstileWidgets ?? []) {
+		const widgetName = widget.name ?? widget.sitekey;
+		let sitekey = widget.sitekey ?? null;
+		if (!sitekey && widget.name) {
+			const matches = await listCloudflareNamedResources({
+				token,
+				accountId,
+				path: '/challenges/widgets?per_page=100',
+				name: widget.name,
+			});
+			sitekey = matches[0]?.sitekey ?? null;
+		}
+		if (!sitekey) {
+			operations.push(projectDeletionOperation('cloudflare', 'turnstile-widget', widgetName, 'missing'));
+			continue;
+		}
+		const result = await cloudflareRequestForProjectDeletion({
+			token,
+			method: 'DELETE',
+			path: `/accounts/${encodeURIComponent(accountId)}/challenges/widgets/${encodeURIComponent(sitekey)}`,
+		});
+		operations.push(projectDeletionOperation('cloudflare', 'turnstile-widget', widgetName, result?.missing ? 'missing' : 'deleted', { sitekey }));
+	}
+	for (const namespace of names.kvNamespaces ?? []) {
+		const namespaceName = namespace.name ?? namespace.id;
+		let namespaceId = namespace.id ?? null;
+		if (!namespaceId && namespace.name) {
+			const matches = await listCloudflareNamedResources({
+				token,
+				accountId,
+				path: '/storage/kv/namespaces?per_page=1000&order=title&direction=asc',
+				name: namespace.name,
+			});
+			namespaceId = matches[0]?.id ?? null;
+		}
+		if (!namespaceId) {
+			operations.push(projectDeletionOperation('cloudflare', 'kv-namespace', namespaceName, 'missing', { binding: namespace.binding ?? null }));
+			continue;
+		}
+		const result = await cloudflareRequestForProjectDeletion({
+			token,
+			method: 'DELETE',
+			path: `/accounts/${encodeURIComponent(accountId)}/storage/kv/namespaces/${encodeURIComponent(namespaceId)}`,
+		});
+		operations.push(projectDeletionOperation('cloudflare', 'kv-namespace', namespaceName, result?.missing ? 'missing' : 'deleted', {
+			id: namespaceId,
+			binding: namespace.binding ?? null,
+		}));
+	}
+	for (const bucket of names.buckets) {
+		const result = await cloudflareRequestForProjectDeletion({
+			token,
+			method: 'DELETE',
+			path: `/accounts/${encodeURIComponent(accountId)}/r2/buckets/${encodeURIComponent(bucket)}`,
+		});
+		operations.push(projectDeletionOperation('cloudflare', 'r2-bucket', bucket, result?.missing ? 'missing' : 'deleted'));
+	}
+	for (const database of names.databases) {
+		const matches = await listCloudflareNamedResources({ token, accountId, path: '/d1/database', name: database });
+		if (matches.length === 0) {
+			operations.push(projectDeletionOperation('cloudflare', 'd1-database', database, 'missing'));
+			continue;
+		}
+		for (const match of matches) {
+			const result = await cloudflareRequestForProjectDeletion({
+				token,
+				method: 'DELETE',
+				path: `/accounts/${encodeURIComponent(accountId)}/d1/database/${encodeURIComponent(match.uuid ?? match.id)}`,
+			});
+			operations.push(projectDeletionOperation('cloudflare', 'd1-database', database, result?.missing ? 'missing' : 'deleted'));
+		}
+	}
+	for (const queue of names.queues) {
+		const matches = await listCloudflareNamedResources({ token, accountId, path: '/queues', name: queue });
+		if (matches.length === 0) {
+			operations.push(projectDeletionOperation('cloudflare', 'queue', queue, 'missing'));
+			continue;
+		}
+		for (const match of matches) {
+			const result = await cloudflareRequestForProjectDeletion({
+				token,
+				method: 'DELETE',
+				path: `/accounts/${encodeURIComponent(accountId)}/queues/${encodeURIComponent(match.queue_id ?? match.id)}`,
+			});
+			operations.push(projectDeletionOperation('cloudflare', 'queue', queue, result?.missing ? 'missing' : 'deleted'));
+		}
+	}
+	for (const domain of names.domains) {
+		operations.push(...await deleteCloudflareDnsRecordsForProject({ token, zoneId, name: domain }));
+	}
+	return operations;
+}
+
+async function appendProjectDeletionProgress(store, job, input) {
+	await store.recordJobProgress(job.id, {
+		summary: input.message,
+		data: {
+			phase: input.phase,
+			status: input.status ?? 'running',
+			title: input.title,
+			operations: input.operations ?? undefined,
+		},
+	}).catch(() => null);
+	await appendLaunchDeploymentEvent(store, job, {
+		kind: input.kind,
+		message: input.message,
+		status: input.status === 'failed' ? 'failed' : input.status === 'succeeded' ? 'succeeded' : 'running',
+		severity: input.status === 'failed' ? 'error' : input.severity ?? 'info',
+		payload: {
+			phase: input.phase,
+			status: input.status ?? 'running',
+			operations: input.operations ?? undefined,
+		},
+	});
+}
+
+function cloudflareDnsDomainsForHostValidation(host) {
+	const dns = host?.metadata?.dns && typeof host.metadata.dns === 'object' ? host.metadata.dns : {};
+	const zoneName = normalizeDomainName(dns.zoneName ?? dns.rootZone ?? dns.zone);
+	const zoneId = optionalTrimmedString(dns.zoneId);
+	const manageDns = dns.managed !== false && Boolean(zoneName || zoneId);
+	return {
+		zoneName,
+		zoneId,
+		manageDns,
+	};
+}
+
+async function validateTeamHostCredentialPayload(host, decryptedConfig) {
+	const summary = decryptedHostConfigSummary(decryptedConfig);
+	const validation = {
+		status: 'unchecked',
+		checkedAt: new Date().toISOString(),
+		receivedKeys: summary.keys,
+		mode: host?.ownership ?? null,
+		message: 'Provider credentials were received but no live provider check was available for this host type.',
+		issues: [],
+	};
+	const hostType = host?.metadata?.hostType;
+	const isCloudflareWebHost = host?.provider === 'cloudflare' || hostType === 'web';
+	if (!isCloudflareWebHost) {
+		return validation;
+	}
+	try {
+		const config = normalizeProviderCredentialConfig('web_host', decryptedConfig, host);
+		const domains = cloudflareDnsDomainsForHostValidation(host);
+		if (domains.manageDns) {
+			const dnsPreflight = await verifyCloudflareDnsWriteForLaunch({
+				overlay: config,
+				domains,
+			});
+			return {
+				...validation,
+				status: 'passed',
+				message: `Cloudflare DNS write access verified for ${dnsPreflight?.zoneName ?? domains.zoneName ?? 'the selected zone'}.`,
+				checkedCapabilities: ['cloudflare.token', 'cloudflare.dns.write'],
+				zoneName: dnsPreflight?.zoneName ?? domains.zoneName ?? null,
+			};
+		}
+		return {
+			...validation,
+			status: 'unchecked',
+			message: 'Cloudflare credentials include the required fields. DNS write access was not checked because this host does not define a root zone.',
+			checkedCapabilities: ['cloudflare.required_fields'],
+		};
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		return {
+			...validation,
+			status: 'failed',
+			message,
+			issues: [message],
+			checkedCapabilities: ['cloudflare.token', 'cloudflare.dns.write'],
+		};
+	}
+}
+
+async function runProjectLaunchApiBootstrap({
+	store,
+	runtime,
+	jobId,
+	launchIntent,
+	passphrase,
+	repositoryHost,
+	cloudflareHost,
+	emailHost,
+	cloudflareHostMode,
+	emailHostMode,
+	cloudflareLaunchConfig,
+	auditHostKinds,
+	principal,
+	mockExternal = false,
+}) {
+	let job = await store.findJobById(jobId);
+	let bootstrapPhase = 'credential_bootstrap';
+	if (!job) return null;
+	try {
+		await appendLaunchDeploymentEvent(store, job, {
+			kind: 'launch.bootstrap_started',
+			message: 'Credential bootstrap started in the Market API.',
+			status: 'running',
+			severity: 'info',
+			payload: { phase: 'credential_bootstrap' },
+		});
+		await store.recordJobProgress(job.id, {
+			summary: 'Unlocking selected host credentials in API memory.',
+			data: {
+				phase: 'credential_bootstrap',
+				status: 'running',
+				title: 'Credential bootstrap',
+			},
+		});
+		await updateLaunchDeployments(store, job, {
+			status: 'running',
+			summary: 'Credential bootstrap is running.',
+			metadata: { launchPhase: 'credential_bootstrap' },
+		});
+		const { overlay, nextIntentPatch } = await buildLaunchCredentialOverlay({
+			repositoryHost,
+			cloudflareHost,
+			emailHost,
+			cloudflareHostMode,
+			emailHostMode,
+			cloudflareLaunchConfig,
+			passphrase,
+		});
+		const bootstrappedIntent = patchLaunchIntentForCredentialOverlay(launchIntent, nextIntentPatch);
+		const projectDomains = bootstrappedIntent.execution?.providerLaunchInput?.domains ?? bootstrappedIntent.hosting?.domains ?? null;
+		bootstrapPhase = 'hosting_readiness_audit';
+		await store.recordJobProgress(job.id, {
+			summary: 'Running hosting readiness audit before provider bootstrap.',
+			data: {
+				phase: 'hosting_readiness_audit',
+				status: 'running',
+				title: 'Hosting readiness audit',
+			},
+		});
+		if (cloudflareHostMode && projectDomains?.manageDns) {
+			await appendLaunchDeploymentEvent(store, job, {
+				kind: 'launch.dns_preflight_started',
+				message: 'Checking Cloudflare DNS write access before creating project resources.',
+				status: 'running',
+				severity: 'info',
+				payload: { phase: 'hosting_readiness_audit', zoneName: projectDomains.zoneName ?? null },
+			});
+			const dnsPreflight = await verifyCloudflareDnsWriteForLaunch({ overlay, domains: projectDomains });
+			await appendLaunchDeploymentEvent(store, job, {
+				kind: 'launch.dns_preflight_passed',
+				message: `Cloudflare DNS write access verified for ${dnsPreflight?.zoneName ?? 'the selected zone'}.`,
+				status: 'running',
+				severity: 'info',
+				payload: { phase: 'hosting_readiness_audit', zoneName: dnsPreflight?.zoneName ?? null },
+			});
+		}
+		const hostingAudit = await runTreeseedHostingAudit({
+			tenantRoot: runtime?.resolved?.config?.repoRoot ?? process.cwd(),
+			environment: 'current',
+			repair: false,
+			hostKinds: auditHostKinds,
+			resourceChecks: false,
+			env: process.env,
+			valuesOverlay: overlay,
+		});
+		if (!hostingAudit.ok) {
+			const message = 'Hosting readiness audit failed. Fix the listed blockers or run hosting repair before launching.';
+			await appendLaunchDeploymentEvent(store, job, {
+				kind: 'launch.audit_failed',
+				message,
+				status: 'failed',
+				severity: 'error',
+				payload: { audit: hostingAudit },
+			});
+			await applyHubLaunchFailure(store, job, {
+				code: 'hosting_readiness_audit_failed',
+				message,
+			});
+			await store.failJob(job.id, {
+				code: 'hosting_readiness_audit_failed',
+				message,
+			});
+			return null;
+		}
+		await appendLaunchDeploymentEvent(store, job, {
+			kind: 'launch.audit_passed',
+			message: 'Hosting readiness audit passed.',
+			status: 'running',
+			severity: 'info',
+			payload: { checkedHostKinds: auditHostKinds },
+		});
+		bootstrapPhase = 'provider_bootstrap';
+		await store.recordJobProgress(job.id, {
+			summary: 'Executing provider bootstrap with in-memory credentials.',
+			data: {
+				phase: 'provider_bootstrap',
+				status: 'running',
+				title: 'Provider bootstrap',
+			},
+		});
+		const result = mockExternal
+			? {
+				mode: 'inline',
+				payload: {
+					plan: bootstrappedIntent.execution?.launchPlan ?? planKnowledgeHubLaunch(bootstrappedIntent),
+					repository: {
+						owner: bootstrappedIntent.repository?.owner ?? 'treeseed-sites',
+						name: `${bootstrappedIntent.hub?.slug ?? 'project'}-site`,
+						url: `https://github.com/${bootstrappedIntent.repository?.owner ?? 'treeseed-sites'}/${bootstrappedIntent.hub?.slug ?? 'project'}-site`,
+						defaultBranch: 'main',
+					},
+					repositories: planKnowledgeHubLaunch(bootstrappedIntent).repository.repositories.map((repository) => ({
+						...repository,
+						url: `https://github.com/${repository.owner}/${repository.name}`,
+						create: false,
+					})),
+					cloudflare: {
+						staging: { siteUrl: `https://${bootstrappedIntent.hub?.slug ?? 'project'}-staging.pages.dev` },
+						prod: { siteUrl: `https://${bootstrappedIntent.hub?.slug ?? 'project'}.pages.dev` },
+					},
+					railway: { services: [], deployments: [], schedules: [] },
+					projectApiBaseUrl: `https://${bootstrappedIntent.hub?.slug ?? 'project'}-api.example.test`,
+					projectSiteUrl: `https://${bootstrappedIntent.hub?.slug ?? 'project'}.pages.dev`,
+					projectMetadata: { mocked: true },
+					phases: [
+						{ phase: 'repo_provision', status: 'completed', detail: 'Mocked repository provisioning completed.' },
+						{ phase: 'runtime_connection', status: 'completed', detail: 'Mocked runtime connection completed.' },
+					],
+				},
+			}
+			: await new TreeseedOperationsSdk().execute({
+				operationName: 'hub.execute_launch',
+				input: bootstrappedIntent,
+			}, {
+				cwd: runtime?.resolved?.config?.repoRoot ?? process.cwd(),
+				env: {
+					...process.env,
+					...overlay,
+				},
+				transport: 'sdk',
+				onProgress: async (event) => {
+					if (event.kind !== 'hub_launch_phase') return;
+					await store.recordJobProgress(job.id, {
+						summary: typeof event.summary === 'string' ? event.summary : null,
+						data: event,
+					});
+					await appendLaunchDeploymentEvent(store, job, {
+						kind: 'launch.provider_progress',
+						message: typeof event.summary === 'string' ? event.summary : String(event.phase ?? 'Provider bootstrap progress'),
+						status: event.status === 'failed' ? 'failed' : 'running',
+						severity: event.status === 'failed' ? 'error' : 'info',
+						payload: {
+							phase: event.phase ?? null,
+							status: event.status ?? null,
+						},
+					});
+				},
+			});
+		const output = sanitizeLaunchResultForStorage(result.mode === 'inline' ? result.payload : result);
+		job = await store.findJobById(job.id);
+		await applyHubLaunchResult(store, runtime, job, output, principal);
+		await store.completeJob(job.id, {
+			output,
+		});
+		return await store.findJobById(job.id);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		job = await store.findJobById(jobId);
+		if (!job) return null;
+		await appendLaunchDeploymentEvent(store, job, {
+			kind: 'launch.bootstrap_failed',
+			message,
+			status: 'failed',
+			severity: 'error',
+			payload: { code: 'market_api_bootstrap_failed', phase: bootstrapPhase },
+		});
+		await applyHubLaunchFailure(store, job, {
+			code: 'market_api_bootstrap_failed',
+			message,
+			phase: bootstrapPhase,
+		}).catch(() => null);
+		await store.failJob(job.id, {
+			code: 'market_api_bootstrap_failed',
+			message,
+		}).catch(() => null);
+		return null;
+	}
+}
+
+async function runProjectDeletionApiDestroy({
+	store,
+	projectId,
+	jobId,
+	passphrase,
+	mockExternal = false,
+}) {
+	let job = await store.findJobById(jobId);
+	if (!job) return null;
+	let phase = 'credential_unlock';
+	try {
+		const project = await store.getProject(projectId);
+		if (!project) throw new Error('Project no longer exists.');
+		const details = await store.getProjectDetails(projectId);
+		const repositories = Array.isArray(details?.repositories) ? details.repositories : [];
+		const softwareRepository = repositories.find((repository) => repository.role === 'software') ?? repositories[0] ?? null;
+		const repositoryHost = softwareRepository?.repositoryHostId
+			? await store.getRepositoryHost(project.teamId, softwareRepository.repositoryHostId)
+			: null;
+		const webHostRef = project.metadata?.cloudflareHost ?? details?.hosting?.metadata?.cloudflareHost ?? {};
+		const webHost = webHostRef?.mode === 'team_owned' && webHostRef?.hostId
+			? await store.getTeamWebHost(project.teamId, webHostRef.hostId)
+			: null;
+		const overlay = {};
+		await appendProjectDeletionProgress(store, job, {
+			kind: 'project_delete.credentials_started',
+			phase,
+			title: 'Unlocking host credentials',
+			message: 'Unlocking selected host credentials in API memory.',
+		});
+		if (repositoryHost?.ownership === 'team_owned') {
+			if (!passphrase) throw new Error('Sensitive data passphrase is required to delete project repositories.');
+			const config = await decryptTeamHostForLaunch('repository_host', repositoryHost, passphrase);
+			const token = config.GH_TOKEN ?? config.GITHUB_TOKEN;
+			if (token) {
+				overlay.GH_TOKEN = token;
+				overlay.GITHUB_TOKEN = config.GITHUB_TOKEN ?? token;
+			}
+		}
+		if (webHost) {
+			if (!passphrase) throw new Error('Sensitive data passphrase is required to delete project web host resources.');
+			const config = await decryptTeamHostForLaunch('web_host', webHost, passphrase);
+			mergeStringConfig(overlay, config);
+		}
+		await appendProjectDeletionProgress(store, job, {
+			kind: 'project_delete.credentials_unlocked',
+			phase,
+			title: 'Host credentials unlocked',
+			message: 'Sensitive host credentials were unlocked for this deletion run.',
+		});
+
+		phase = 'repository_cleanup';
+		await appendProjectDeletionProgress(store, job, {
+			kind: 'project_delete.repositories_started',
+			phase,
+			title: 'Deleting repositories',
+			message: 'Deleting repositories created for this project.',
+		});
+		const repositoryOperations = [];
+		const githubToken = overlay.GITHUB_TOKEN ?? overlay.GH_TOKEN;
+		for (const repository of repositories.filter((entry) => entry.provider === 'github' && entry.owner && entry.name)) {
+			const shouldDelete = repository.metadata?.create === true || repository.status === 'queued';
+			if (!shouldDelete) {
+				repositoryOperations.push(projectDeletionOperation('github', 'repository', `${repository.owner}/${repository.name}`, 'skipped', { reason: 'not_created_by_project_launch' }));
+				continue;
+			}
+			if (mockExternal) {
+				repositoryOperations.push(projectDeletionOperation('github', 'repository', `${repository.owner}/${repository.name}`, 'deleted', { mocked: true }));
+				continue;
+			}
+			if (!githubToken) throw new Error('GitHub token is required to delete project repositories.');
+			const result = await githubRequestForProjectDeletion({
+				token: githubToken,
+				method: 'DELETE',
+				path: `/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(repository.name)}`,
+			});
+			repositoryOperations.push(projectDeletionOperation('github', 'repository', `${repository.owner}/${repository.name}`, result.status));
+		}
+		await appendProjectDeletionProgress(store, job, {
+			kind: 'project_delete.repositories_completed',
+			phase,
+			title: 'Repositories cleaned up',
+			message: 'Repository cleanup finished.',
+			operations: repositoryOperations,
+		});
+
+		phase = 'web_host_cleanup';
+		await appendProjectDeletionProgress(store, job, {
+			kind: 'project_delete.web_host_started',
+			phase,
+			title: 'Deleting web host resources',
+			message: 'Deleting Cloudflare resources and DNS records for this project.',
+		});
+		const names = cloudflareProjectDeletionResourceNames(project, details);
+		let cloudflareOperations = [];
+		if (mockExternal) {
+			cloudflareOperations = [
+				...names.pagesProjects.map((name) => projectDeletionOperation('cloudflare', 'pages-project', name, 'deleted', { mocked: true })),
+				...names.workers.map((name) => projectDeletionOperation('cloudflare', 'worker', name, 'deleted', { mocked: true })),
+				...(names.turnstileWidgets ?? []).map((widget) => projectDeletionOperation('cloudflare', 'turnstile-widget', widget.name ?? widget.sitekey, 'deleted', {
+					mocked: true,
+					sitekey: widget.sitekey ?? null,
+				})),
+				...(names.kvNamespaces ?? []).map((namespace) => projectDeletionOperation('cloudflare', 'kv-namespace', namespace.name ?? namespace.id, 'deleted', {
+					mocked: true,
+					id: namespace.id ?? null,
+					binding: namespace.binding ?? null,
+				})),
+				...names.buckets.map((name) => projectDeletionOperation('cloudflare', 'r2-bucket', name, 'deleted', { mocked: true })),
+				...names.databases.map((name) => projectDeletionOperation('cloudflare', 'd1-database', name, 'deleted', { mocked: true })),
+				...names.queues.map((name) => projectDeletionOperation('cloudflare', 'queue', name, 'deleted', { mocked: true })),
+				...names.domains.map((name) => projectDeletionOperation('cloudflare', 'dns-record', name, 'deleted', { mocked: true })),
+			];
+		} else if (webHost) {
+			const cloudflareToken = overlay.CLOUDFLARE_API_TOKEN;
+			if (!cloudflareToken) throw new Error('Cloudflare API token is required to delete project web host resources.');
+			const accountId = overlay.CLOUDFLARE_ACCOUNT_ID ?? names.accountId;
+			try {
+				const zoneId = await resolveProjectDeletionCloudflareZone({ token: cloudflareToken, names });
+				cloudflareOperations = await deleteCloudflareProjectResources({
+					token: cloudflareToken,
+					accountId,
+					zoneId,
+					names,
+				});
+			} catch (cloudflareError) {
+				const cloudflareMessage = cloudflareError instanceof Error ? cloudflareError.message : String(cloudflareError);
+				if (!canSkipCloudflareCleanupAfterFailedLaunch(project, names, cloudflareMessage)) throw cloudflareError;
+				cloudflareOperations = [
+					projectDeletionOperation('cloudflare', 'web-host', null, 'skipped', {
+						reason: 'launch_failed_before_cloudflare_resources',
+						message: 'Cloudflare cleanup was skipped because this project launch failed during DNS authentication before any Cloudflare runtime resources were recorded.',
+						authenticationError: cloudflareMessage,
+					}),
+					...names.domains.map((name) => projectDeletionOperation('cloudflare', 'dns-record', name, 'skipped', {
+						reason: 'launch_dns_write_failed_before_record_creation',
+					})),
+				];
+			}
+		} else {
+			cloudflareOperations = [projectDeletionOperation('cloudflare', 'web-host', null, 'skipped', { reason: 'project_has_no_team_owned_cloudflare_host' })];
+		}
+		await appendProjectDeletionProgress(store, job, {
+			kind: 'project_delete.web_host_completed',
+			phase,
+			title: 'Web host resources cleaned up',
+			message: 'Web host cleanup finished.',
+			operations: cloudflareOperations,
+		});
+
+		const output = {
+			repositories: repositoryOperations,
+			cloudflare: cloudflareOperations,
+		};
+		await store.updateProject(project.id, {
+			metadata: {
+				...(project.metadata ?? {}),
+				deletion: {
+					status: 'succeeded',
+					jobId: job.id,
+					completedAt: new Date().toISOString(),
+					output,
+				},
+			},
+		});
+		await store.completeJob(job.id, { output });
+		await updateLaunchDeployments(store, job, {
+			eventKindPrefix: 'project_delete',
+			status: 'succeeded',
+			summary: 'Project infrastructure deletion completed.',
+			finishedAt: new Date().toISOString(),
+			completedAt: new Date().toISOString(),
+			metadata: { deletionPhase: 'completed' },
+		});
+		await appendProjectDeletionProgress(store, job, {
+			kind: 'project_delete.succeeded',
+			phase: 'completed',
+			title: 'Project deleted',
+			message: 'Project infrastructure deletion completed.',
+			status: 'succeeded',
+		});
+		return await store.findJobById(job.id);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		job = await store.findJobById(jobId);
+		if (!job) return null;
+		await store.failJob(job.id, {
+			code: 'project_delete_failed',
+			message,
+		}).catch(() => null);
+		await updateLaunchDeployments(store, job, {
+			eventKindPrefix: 'project_delete',
+			status: 'failed',
+			summary: message,
+			error: {
+				code: 'project_delete_failed',
+				message,
+			},
+			finishedAt: new Date().toISOString(),
+			completedAt: new Date().toISOString(),
+			metadata: { deletionPhase: phase },
+		}).catch(() => null);
+		await appendProjectDeletionProgress(store, job, {
+			kind: 'project_delete.failed',
+			phase,
+			title: 'Project deletion failed',
+			message,
+			status: 'failed',
+		}).catch(() => null);
+		const project = await store.getProject(projectId).catch(() => null);
+		if (project) {
+			await store.updateProject(project.id, {
+				metadata: {
+					...(project.metadata ?? {}),
+					deletion: {
+						status: 'failed',
+						jobId: job.id,
+						phase,
+						error: { code: 'project_delete_failed', message },
+						updatedAt: new Date().toISOString(),
+					},
+				},
+			}).catch(() => null);
+		}
+		return null;
+	}
+}
+
+async function retryMarketApiLaunchBootstrapFromRequest({
+	c,
+	store,
+	runtime,
+	job,
+	access,
+	body,
+	resume = false,
+	mockExternal = false,
+}) {
+	const sensitivePassphrase = typeof body.sensitivePassphrase === 'string' && body.sensitivePassphrase
+		? body.sensitivePassphrase
+		: null;
+	const launchIntent = job.input?.launchIntent && typeof job.input.launchIntent === 'object' ? job.input.launchIntent : null;
+	if (!launchIntent) {
+		return { response: jsonError(c, 400, 'Launch retry cannot run because the original launch intent is missing.', { code: 'missing_launch_intent' }) };
+	}
+	if (job.input?.bootstrap?.requiresPassphrase && !sensitivePassphrase) {
+		return { response: jsonError(c, 400, 'Sensitive data passphrase is required to retry project setup because the selected hosts are team-owned.', { code: 'sensitive_passphrase_required' }) };
+	}
+	const teamId = typeof job.input?.teamId === 'string' ? job.input.teamId : access.details.project.teamId;
+	const repositoryHostId = typeof job.input?.repositoryHostId === 'string'
+		? job.input.repositoryHostId
+		: typeof launchIntent.repository?.hostId === 'string'
+			? launchIntent.repository.hostId
+			: null;
+	const repositoryHost = repositoryHostId ? await store.getRepositoryHost(teamId, repositoryHostId) : null;
+	if (!repositoryHost) {
+		return { response: jsonError(c, 400, 'Launch retry cannot run because the selected Repository Host is no longer available.', { code: 'repository_host_unavailable' }) };
+	}
+	const cloudflareHostMode = launchIntent.hosting?.webHost?.mode === 'team_owned'
+		? 'team_owned'
+		: launchIntent.hosting?.webHost?.mode === 'treeseed_managed'
+			? 'treeseed_managed'
+			: null;
+	const cloudflareHostId = typeof launchIntent.hosting?.webHost?.hostId === 'string' ? launchIntent.hosting.webHost.hostId : null;
+	const cloudflareHost = cloudflareHostMode === 'team_owned' && cloudflareHostId
+		? await store.getTeamWebHost(teamId, cloudflareHostId)
+		: null;
+	if (cloudflareHostMode === 'team_owned' && !cloudflareHost) {
+		return { response: jsonError(c, 400, 'Launch retry cannot run because the selected Web Host is no longer available.', { code: 'web_host_unavailable' }) };
+	}
+	const emailHostMode = launchIntent.hosting?.emailHost?.mode === 'team_owned'
+		? 'team_owned'
+		: launchIntent.hosting?.emailHost?.mode === 'treeseed_managed'
+			? 'treeseed_managed'
+			: null;
+	const emailHostId = typeof launchIntent.hosting?.emailHost?.hostId === 'string' ? launchIntent.hosting.emailHost.hostId : null;
+	const emailHost = emailHostMode === 'team_owned' && emailHostId
+		? await store.getTeamWebHost(teamId, emailHostId)
+		: null;
+	if (emailHostMode === 'team_owned' && !emailHost) {
+		return { response: jsonError(c, 400, 'Launch retry cannot run because the selected Email Host is no longer available.', { code: 'email_host_unavailable' }) };
+	}
+	const cloudflareLaunchConfig = cloudflareHostMode === 'treeseed_managed'
+		? await resolveTreeseedManagedCloudflareHostConfigFromConfig(runtime)
+		: null;
+	const repositories = await store.listHubRepositories(job.projectId);
+	const softwareRepository = repositories.find((repository) => repository.role === 'software') ?? null;
+	const contentRepository = repositories.find((repository) => repository.role === 'content') ?? null;
+	const retryLaunchIntent = resume
+		? {
+			...launchIntent,
+			repository: {
+				...(launchIntent.repository ?? {}),
+				softwareRepository: softwareRepository
+					? {
+						owner: softwareRepository.owner,
+						name: softwareRepository.name,
+						url: softwareRepository.url,
+						defaultBranch: softwareRepository.defaultBranch,
+					}
+					: launchIntent.repository?.softwareRepository ?? null,
+				contentRepository: contentRepository
+					? {
+						owner: contentRepository.owner,
+						name: contentRepository.name,
+						url: contentRepository.url,
+						defaultBranch: contentRepository.defaultBranch,
+					}
+					: launchIntent.repository?.contentRepository ?? null,
+			},
+		}
+		: launchIntent;
+	const retried = await store.retryJob(job.id, {
+		status: 'running',
+		inputPatch: {
+			resume,
+			launchIntent: retryLaunchIntent,
+		},
+		eventType: resume ? 'resume_queued' : 'retry_queued',
+	});
+	const launch = await store.getHubLaunchByJobId(job.id);
+	if (launch) {
+		await store.updateHubLaunch(launch.id, {
+			state: 'running',
+			currentPhase: 'credential_bootstrap',
+			error: null,
+		});
+		await store.appendHubLaunchEvent(launch.id, {
+			phase: resume ? 'launch_resume_queued' : 'launch_retry_queued',
+			status: 'running',
+			title: resume ? 'Launch resume queued' : 'Launch retry queued',
+			summary: resume
+				? 'TreeSeed will rerun API-owned credential bootstrap and resume provider setup with the submitted passphrase.'
+				: 'TreeSeed will rerun API-owned credential bootstrap with the submitted passphrase.',
+			data: { jobId: job.id },
+		});
+	}
+	await updateLaunchDeployments(store, retried, {
+		status: 'running',
+		summary: resume ? 'Launch resume is running credential bootstrap again.' : 'Launch retry is running credential bootstrap again.',
+		metadata: {
+			launchPhase: 'credential_bootstrap',
+			launchRecovery: resume ? 'resume_launch' : 'retry_launch',
+		},
+	});
+	scheduleBackgroundBootstrap(c, () => runProjectLaunchApiBootstrap({
+		store,
+		runtime,
+		jobId: job.id,
+		launchIntent: retryLaunchIntent,
+		passphrase: sensitivePassphrase,
+		repositoryHost,
+		cloudflareHost,
+		emailHost,
+		cloudflareHostMode,
+		emailHostMode,
+		cloudflareLaunchConfig,
+		auditHostKinds: ['repository', 'web', 'email'],
+		principal: { id: access.principal.id, type: c.get('actorType') === 'service' ? 'service' : 'user' },
+		mockExternal,
+	}));
+	return {
+		response: c.json({
+			ok: true,
+			payload: decorateJob(normalizeBaseUrl(runtime.resolved.config.baseUrl ?? ''), retried),
+		}, { status: 202 }),
+	};
 }
 
 const GITHUB_ACTIONS_OIDC_ISSUER = 'https://token.actions.githubusercontent.com';
@@ -1767,12 +3053,14 @@ async function requirePlatformRunner(c, config) {
 
 function resolvePlatformRepositoryDescriptor(config, details, body = {}) {
 	const repositories = Array.isArray(details.repositories) ? details.repositories : [];
-	const canonicalRepository = repositories.find((entry) => ['primary', 'package', 'software', 'content'].includes(entry.role))
+	const configured = body.repository && typeof body.repository === 'object' && !Array.isArray(body.repository) ? body.repository : {};
+	const requestedRole = optionalTrimmedString(configured.role) ?? optionalTrimmedString(body.repositoryRole);
+	const canonicalRepository = (requestedRole ? repositories.find((entry) => entry.role === requestedRole) : null)
+		?? repositories.find((entry) => ['primary', 'package', 'software', 'content'].includes(entry.role))
 		?? repositories[0]
 		?? null;
 	const metadata = details.project?.metadata && typeof details.project.metadata === 'object' ? details.project.metadata : {};
 	const metadataRepository = metadata.repository && typeof metadata.repository === 'object' ? metadata.repository : {};
-	const configured = body.repository && typeof body.repository === 'object' && !Array.isArray(body.repository) ? body.repository : {};
 	const cloneUrl = optionalTrimmedString(configured.cloneUrl)
 		?? optionalTrimmedString(canonicalRepository?.url)
 		?? optionalTrimmedString(metadataRepository.cloneUrl)
@@ -1941,6 +3229,24 @@ function resourceRowsFromLaunch(projectId, launch) {
 				logicalName: 'worker',
 				locator: summary.workerName ?? null,
 				metadata: { workerName: summary.workerName ?? null },
+			},
+			{
+				projectId,
+				environment,
+				provider: 'cloudflare',
+				resourceKind: 'kv',
+				logicalName: 'form_guard',
+				locator: summary.formGuardKv?.id ?? summary.formGuardKv?.name ?? null,
+				metadata: summary.formGuardKv ?? {},
+			},
+			{
+				projectId,
+				environment,
+				provider: 'cloudflare',
+				resourceKind: 'turnstile-widget',
+				logicalName: 'form_guard_turnstile',
+				locator: summary.turnstileWidget?.sitekey ?? null,
+				metadata: summary.turnstileWidget ?? {},
 			},
 			{
 				projectId,
@@ -2396,6 +3702,37 @@ async function appendLaunchPhaseProjection(store, launchId, jobId, phase) {
 	}
 }
 
+async function updateLaunchDeployments(store, job, patch) {
+	const deployments = await store.listProjectDeployments(job.projectId, { limit: 100 }).catch(() => []);
+	for (const deployment of deployments.filter((entry) => entry.platformOperationId === job.id)) {
+		const { eventKindPrefix = 'launch', ...deploymentPatch } = patch;
+		const updated = await store.updateProjectDeployment(deployment.id, {
+			...deploymentPatch,
+			metadata: {
+				...(deployment.metadata ?? {}),
+				...(patch.metadata ?? {}),
+			},
+		});
+		const eventKind = patch.status === 'succeeded'
+			? `${eventKindPrefix}.succeeded`
+			: patch.status === 'failed'
+				? `${eventKindPrefix}.failed`
+				: `${eventKindPrefix}.updated`;
+		await store.appendProjectDeploymentEvent(deployment.id, {
+			kind: eventKind,
+			message: patch.summary ?? (patch.status === 'succeeded' ? 'Initial project launch completed.' : patch.status === 'failed' ? 'Initial project launch failed.' : 'Initial project launch updated.'),
+			status: updated?.status ?? patch.status ?? deployment.status,
+			severity: patch.status === 'failed' ? 'error' : 'info',
+			operationId: job.id,
+			payload: {
+				jobId: job.id,
+				...(eventKindPrefix === 'launch' ? { launchJobId: job.id } : {}),
+				error: patch.error ?? null,
+			},
+		}).catch(() => null);
+	}
+}
+
 function hubRepositoryPolicies(role) {
 	if (role === 'content') {
 		return {
@@ -2608,6 +3945,16 @@ export async function applyHubLaunchResult(store, runtime, job, output, principa
 			projectSiteUrl: launchResult.projectSiteUrl ?? null,
 		},
 	});
+	await updateLaunchDeployments(store, job, {
+		status: 'succeeded',
+		finishedAt: new Date().toISOString(),
+		summary: 'Initial project launch completed.',
+		metadata: {
+			launchPhase: 'completed',
+			projectApiBaseUrl: launchResult.projectApiBaseUrl ?? null,
+			projectSiteUrl: launchResult.projectSiteUrl ?? null,
+		},
+	});
 	await store.deleteTeamInboxItemsByItemKey(project.teamId, `launch:${project.id}`);
 	const projectSummary = await store.getProjectSummary(project.id, principal);
 	if (projectSummary) {
@@ -2626,11 +3973,11 @@ export async function applyHubLaunchFailure(store, job, input) {
 	};
 	await store.updateHubLaunch(hubLaunch.id, {
 		state: 'failed',
-		currentPhase: hubLaunch.currentPhase ?? 'launch_failed',
+		currentPhase: input.phase ?? hubLaunch.currentPhase ?? 'launch_failed',
 		error,
 	});
 	await store.appendHubLaunchEvent(hubLaunch.id, {
-		phase: 'launch_failed',
+		phase: input.phase ?? 'launch_failed',
 		status: 'failed',
 		title: 'Launch failed',
 		summary: input.message,
@@ -2640,6 +3987,16 @@ export async function applyHubLaunchFailure(store, job, input) {
 		metadata: {
 			...(project.metadata ?? {}),
 			launchJobId: job.id,
+			launchPhase: 'failed',
+			launchFailure: error,
+		},
+	});
+	await updateLaunchDeployments(store, job, {
+		status: 'failed',
+		finishedAt: new Date().toISOString(),
+		summary: input.message,
+		error,
+		metadata: {
 			launchPhase: 'failed',
 			launchFailure: error,
 		},
@@ -4988,16 +6345,11 @@ export function createMarketApiApp(options = {}) {
 				if (host.ownership === 'team_owned' && (!body.decryptedConfig || typeof body.decryptedConfig !== 'object')) {
 					return jsonError(c, 400, 'decryptedConfig is required to validate a team-owned host.');
 				}
-				const summary = decryptedHostConfigSummary(body.decryptedConfig);
+				const validation = await validateTeamHostCredentialPayload(host, body.decryptedConfig);
 				const validated = await store.updateTeamWebHost(c.req.param('teamId'), c.req.param('hostId'), {
 					metadata: {
 						...(host.metadata ?? {}),
-						lastValidation: {
-							status: 'unchecked',
-							checkedAt: new Date().toISOString(),
-							receivedKeys: summary.keys,
-							mode: host.ownership,
-						},
+						lastValidation: validation,
 					},
 					updatedById: access.principal.id,
 				});
@@ -5021,16 +6373,11 @@ export function createMarketApiApp(options = {}) {
 				if (host.ownership === 'team_owned' && (!body.decryptedConfig || typeof body.decryptedConfig !== 'object')) {
 					return jsonError(c, 400, 'decryptedConfig is required to validate a team-owned host.');
 				}
-				const summary = decryptedHostConfigSummary(body.decryptedConfig);
+				const validation = await validateTeamHostCredentialPayload(host, body.decryptedConfig);
 				const validated = await store.updateTeamWebHost(c.req.param('teamId'), c.req.param('hostId'), {
 					metadata: {
 						...(host.metadata ?? {}),
-						lastValidation: {
-							status: 'unchecked',
-							checkedAt: new Date().toISOString(),
-							receivedKeys: summary.keys,
-							mode: host.ownership,
-						},
+						lastValidation: validation,
 					},
 					updatedById: access.principal.id,
 				});
@@ -5869,6 +7216,12 @@ export function createMarketApiApp(options = {}) {
 				const credentialSessions = body.credentialSessions && typeof body.credentialSessions === 'object'
 					? body.credentialSessions
 					: {};
+				if (Object.keys(credentialSessions).length > 0) {
+					return jsonError(c, 400, 'Project launch no longer accepts provider credential sessions. Submit sensitivePassphrase for API-owned credential bootstrap.');
+				}
+				const sensitivePassphrase = typeof body.sensitivePassphrase === 'string' && body.sensitivePassphrase
+					? body.sensitivePassphrase
+					: null;
 				const canonicalIntent = body.intent && typeof body.intent === 'object' ? body.intent : null;
 				const requestedHub = canonicalIntent?.hub && typeof canonicalIntent.hub === 'object' ? canonicalIntent.hub : null;
 				const requestedTeam = canonicalIntent?.team && typeof canonicalIntent.team === 'object' ? canonicalIntent.team : null;
@@ -5907,6 +7260,7 @@ export function createMarketApiApp(options = {}) {
 				const registration = hostingMode === 'hybrid' ? 'optional' : 'none';
 				const sourceKind = typeof body.sourceKind === 'string' ? body.sourceKind : typeof requestedSource?.kind === 'string' ? requestedSource.kind : 'blank';
 				const sourceRef = typeof body.sourceRef === 'string' ? body.sourceRef : typeof requestedSource?.ref === 'string' ? requestedSource.ref : null;
+				const sourceVersion = typeof requestedSource?.version === 'string' ? requestedSource.version : typeof body.sourceVersion === 'string' ? body.sourceVersion : null;
 				const repoProvider = typeof body.repoProvider === 'string' ? body.repoProvider : typeof requestedRepository?.provider === 'string' ? requestedRepository.provider : 'github';
 				const repoVisibility = typeof body.repoVisibility === 'string' ? body.repoVisibility : typeof requestedRepository?.visibility === 'string' ? requestedRepository.visibility : 'private';
 				if (!['blank', 'blank_hub', 'template', 'knowledge_pack', 'market_listing'].includes(sourceKind)) {
@@ -5942,10 +7296,10 @@ export function createMarketApiApp(options = {}) {
 						return jsonError(c, 400, 'Selected team-owned Cloudflare host is not available for this team.');
 					}
 					if (body.cloudflareHostConfig && typeof body.cloudflareHostConfig === 'object') {
-						return jsonError(c, 400, 'Plaintext Cloudflare provider configs are not accepted. Create a provider credential session and pass credentialSessions.webHost.');
+						return jsonError(c, 400, 'Plaintext Cloudflare provider configs are not accepted. Submit sensitivePassphrase so the API can unlock the selected host for this launch.');
 					}
-					if (typeof credentialSessions.webHost !== 'string' || !credentialSessions.webHost.trim()) {
-						return jsonError(c, 400, 'credentialSessions.webHost is required after unlocking a team-owned Cloudflare host.');
+					if (!sensitivePassphrase) {
+						return jsonError(c, 400, 'sensitivePassphrase is required after unlocking a team-owned Cloudflare host.');
 					}
 				}
 					let emailHost = null;
@@ -5959,10 +7313,10 @@ export function createMarketApiApp(options = {}) {
 						return jsonError(c, 400, 'Selected team-owned Email host is not available for this team.');
 					}
 					if (body.emailHostConfig && typeof body.emailHostConfig === 'object') {
-						return jsonError(c, 400, 'Plaintext Email provider configs are not accepted. Create a provider credential session and pass credentialSessions.emailHost.');
+						return jsonError(c, 400, 'Plaintext Email provider configs are not accepted. Submit sensitivePassphrase so the API can unlock the selected host for this launch.');
 					}
-					if (typeof credentialSessions.emailHost !== 'string' || !credentialSessions.emailHost.trim()) {
-						return jsonError(c, 400, 'credentialSessions.emailHost is required after unlocking a team-owned Email host.');
+					if (!sensitivePassphrase) {
+						return jsonError(c, 400, 'sensitivePassphrase is required after unlocking a team-owned Email host.');
 					}
 				}
 					const cloudflareLaunchConfig = cloudflareHostMode === 'treeseed_managed'
@@ -6078,69 +7432,21 @@ export function createMarketApiApp(options = {}) {
 				}
 				if (repositoryHost.ownership === 'team_owned') {
 					if (body.repositoryHostConfig && typeof body.repositoryHostConfig === 'object') {
-						return jsonError(c, 400, 'Plaintext Repository Host provider configs are not accepted. Create a provider credential session and pass credentialSessions.repositoryHost.');
+						return jsonError(c, 400, 'Plaintext Repository Host provider configs are not accepted. Submit sensitivePassphrase so the API can unlock the selected host for this launch.');
 					}
-					if (typeof credentialSessions.repositoryHost !== 'string' || !credentialSessions.repositoryHost.trim()) {
-						return jsonError(c, 400, 'credentialSessions.repositoryHost is required for team-owned Repository Hosts.');
+					if (!sensitivePassphrase) {
+						return jsonError(c, 400, 'sensitivePassphrase is required for team-owned Repository Hosts.');
 					}
-				}
-					const credentialSessionBindings = [];
-				const addCredentialSessionBinding = async (key, hostKind, hostId) => {
-					const sessionId = typeof credentialSessions[key] === 'string' ? credentialSessions[key].trim() : '';
-					if (!sessionId) return null;
-					const session = await store.getProviderCredentialSession(teamId, sessionId);
-					if (!session) {
-						throw new Error(`Credential session "${key}" is not available for this team.`);
-					}
-					if (session.hostKind !== hostKind || session.hostId !== hostId) {
-						throw new Error(`Credential session "${key}" is not scoped to the selected host.`);
-					}
-					if (session.status !== 'active' || new Date(session.expiresAt).getTime() <= Date.now()) {
-						throw new Error(`Credential session "${key}" has expired. Unlock the host again.`);
-					}
-					if (session.purpose !== 'launch_project') {
-						throw new Error(`Credential session "${key}" is not valid for launch_project.`);
-					}
-					credentialSessionBindings.push({ key, id: session.id, hostKind, hostId });
-					return session;
-				};
-				try {
-					await addCredentialSessionBinding('repositoryHost', 'repository_host', repositoryHost.id);
-						if (cloudflareHostMode === 'team_owned') {
-							await addCredentialSessionBinding('webHost', 'web_host', cloudflareHostId);
-						}
-						if (emailHostMode === 'team_owned') {
-							await addCredentialSessionBinding('emailHost', 'email_host', emailHostId);
-						}
-				} catch (error) {
-					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
 				}
 					const auditHostKinds = ['repository', 'web', 'email'];
-				try {
-					const credentialOverlay = await collectHostingAuditCredentialOverlay({
-						store,
-						runtime,
-						teamId,
-						hostKinds: auditHostKinds,
-						credentialSessions,
-						requiredPurpose: 'launch_project',
-					});
-					const hostingAudit = await runTreeseedHostingAudit({
-						tenantRoot: runtime?.resolved?.config?.repoRoot ?? process.cwd(),
-						environment: 'current',
-						repair: false,
-						hostKinds: auditHostKinds,
-						env: process.env,
-						valuesOverlay: credentialOverlay.overlay,
-					});
-					if (!hostingAudit.ok) {
-						return jsonError(c, 424, 'Hosting readiness audit failed. Fix the listed blockers or run hosting repair before launching.', {
-							audit: hostingAudit,
-						});
-					}
-				} catch (error) {
-					return jsonError(c, 400, error instanceof Error ? error.message : String(error));
-				}
+				const templateLineage = [{
+					kind: sourceKind === 'blank' ? 'blank_hub' : sourceKind,
+					ref: sourceRef,
+					version: sourceVersion,
+					selectedAt: new Date().toISOString(),
+					selectedByUserId: access.principal.id ?? null,
+					source: 'project_launch',
+				}];
 				let details;
 				try {
 					details = await store.createProject(c.req.param('teamId'), {
@@ -6152,6 +7458,8 @@ export function createMarketApiApp(options = {}) {
 							publicSite: body.publicSite !== false,
 							sourceKind,
 							sourceRef,
+							sourceVersion,
+							templateLineage,
 							coreObjective: requestedCoreObjective,
 							enableDefaultAgents: body.enableDefaultAgents !== false,
 							launchMode: hostingMode,
@@ -6249,7 +7557,7 @@ export function createMarketApiApp(options = {}) {
 					source: {
 						kind: sourceKind === 'blank' ? 'blank_hub' : sourceKind,
 						ref: sourceRef,
-						version: typeof requestedSource?.version === 'string' ? requestedSource.version : null,
+						version: sourceVersion,
 					},
 					repository: {
 						hostId: repositoryHost.id,
@@ -6284,7 +7592,7 @@ export function createMarketApiApp(options = {}) {
 						providerLaunchInput: {
 							projectId: details.project.id,
 							teamId,
-							teamSlug: team?.name ?? null,
+							teamSlug: team?.slug ?? team?.name ?? null,
 							projectSlug: details.project.slug,
 							projectName: details.project.name,
 							summary: details.project.description ?? null,
@@ -6350,34 +7658,71 @@ export function createMarketApiApp(options = {}) {
 					},
 				});
 				const launchJob = await store.createJob({
+					id: typeof body.launchRequestId === 'string' && body.launchRequestId.trim() ? body.launchRequestId.trim() : undefined,
 					projectId: details.project.id,
 					namespace: 'workflow',
 					operation: 'launch_project',
-					status: 'pending',
+					status: 'running',
 					preferredMode: 'auto',
-					selectedTarget: hostingMode === 'managed' ? 'market_operations_runner' : 'project_runner',
+					selectedTarget: 'market_api',
 					requestedByType: c.get('actorType') === 'service' ? 'service' : 'user',
 					requestedById: typeof access.principal.id === 'string' ? access.principal.id : null,
 					idempotencyKey: `launch:${details.project.id}`,
-					input: {
+					input: nonSecretLaunchJobInput({
 						teamId,
 						projectId: details.project.id,
 						launchIntent,
 						launchPlan,
 						repositoryHostId: repositoryHost.id,
 						hostingMode,
-						credentialSessions: Object.fromEntries(credentialSessionBindings.map((entry) => [entry.key, entry.id])),
-					},
+						bootstrap: {
+							ownedBy: 'market_api',
+							requiresPassphrase: Boolean(sensitivePassphrase),
+						},
+					}),
 				});
-				for (const session of credentialSessionBindings) {
-					await store.bindProviderCredentialSession(teamId, session.id, {
-						projectId: details.project.id,
-						jobId: launchJob.id,
+				const launchDeployments = [];
+				for (const environment of ['staging', 'prod']) {
+					const domain = environment === 'prod' ? projectDomains.productionDomain : projectDomains.stagingDomain;
+					const deployment = await store.createProjectDeployment(details.project.id, {
+						teamId,
+						environment,
+						deploymentKind: 'mixed',
+						action: 'launch_project',
+						status: 'running',
+						platformOperationId: launchJob.id,
+						idempotencyKey: `launch:${launchJob.id}:${environment}`,
+						requestedByUserId: typeof access.principal.id === 'string' ? access.principal.id : null,
+						sourceRef,
+						triggeredByType: c.get('actorType') === 'service' ? 'service' : 'user',
+						triggeredById: typeof access.principal.id === 'string' ? access.principal.id : null,
+						repository: {
+							provider: 'github',
+							hostId: repositoryHost.id,
+							owner: repositoryHost.organizationOrOwner,
+							visibility: repoVisibility,
+							topology: launchPlan.repository.topology,
+							repositories: launchPlan.repository.repositories,
+						},
+						target: {
+							provider: 'cloudflare',
+							environment,
+							domain,
+							hostMode: cloudflareHostMode,
+							hostId: cloudflareHostId,
+							emailHostMode,
+							emailHostId,
+						},
+						summary: `Started initial ${environment} project launch.`,
 						metadata: {
-							boundFor: 'workflow.launch_project',
-							sessionKey: session.key,
+							launchId: null,
+							launchJobId: launchJob.id,
+							launchRequestId: body.launchRequestId ?? null,
+							launchPhase: 'credential_bootstrap',
+							domains: projectDomains,
 						},
 					});
+					launchDeployments.push(deployment);
 				}
 				const hubLaunch = await store.createHubLaunch({
 					hubId: details.project.id,
@@ -6385,23 +7730,55 @@ export function createMarketApiApp(options = {}) {
 					jobId: launchJob.id,
 					intent: launchIntent,
 					plan: launchPlan,
-					state: 'queued',
-					currentPhase: 'launch_queued',
+					state: 'running',
+					currentPhase: 'credential_bootstrap',
 				});
+				for (const deployment of launchDeployments) {
+					await store.updateProjectDeployment(deployment.id, {
+						metadata: {
+							...(deployment.metadata ?? {}),
+							launchId: hubLaunch.id,
+						},
+					});
+					await store.appendProjectDeploymentEvent(deployment.id, {
+						kind: 'launch.deployment_created',
+						message: 'Durable deployment record created. Credential bootstrap is starting.',
+						status: 'running',
+						operationId: launchJob.id,
+						payload: { launchId: hubLaunch.id },
+					});
+				}
 				await store.appendHubLaunchEvent(hubLaunch.id, {
-					phase: 'launch_queued',
-					status: 'queued',
-					title: 'Launch queued',
-					summary: 'TreeSeed queued the Knowledge Hub launch for backend processing.',
+					phase: 'credential_bootstrap',
+					status: 'running',
+					title: 'Credential bootstrap',
+					summary: 'TreeSeed created the durable launch record and started API-owned credential bootstrap.',
 					data: { jobId: launchJob.id },
 				});
 				await store.appendJobEvent(launchJob.id, 'phase', {
-					phase: 'launch_queued',
-					status: 'queued',
-					title: 'Launch queued',
-					summary: 'TreeSeed queued the Knowledge Hub launch for backend processing.',
+					phase: 'credential_bootstrap',
+					status: 'running',
+					title: 'Credential bootstrap',
+					summary: 'TreeSeed started API-owned credential bootstrap.',
 				});
-				const deployHref = `/app/projects/${encodeURIComponent(details.project.id)}/deploy?launch=${encodeURIComponent(hubLaunch.id)}`;
+				const canonicalDeployment = launchDeployments.find((deployment) => deployment.environment === 'staging') ?? launchDeployments[0];
+				const deploymentHref = `/app/projects/deployment/${encodeURIComponent(canonicalDeployment.id)}`;
+				scheduleBackgroundBootstrap(c, () => runProjectLaunchApiBootstrap({
+					store,
+					runtime,
+					jobId: launchJob.id,
+					launchIntent,
+					passphrase: sensitivePassphrase,
+					repositoryHost,
+					cloudflareHost,
+					emailHost,
+					cloudflareHostMode,
+					emailHostMode,
+					cloudflareLaunchConfig,
+					auditHostKinds,
+					principal: { id: access.principal.id, type: c.get('actorType') === 'service' ? 'service' : 'user' },
+					mockExternal: options.mockExternal === true,
+				}));
 
 				const projectSummary = await store.getProjectSummary(details.project.id, access.principal);
 				if (projectSummary) {
@@ -6412,12 +7789,14 @@ export function createMarketApiApp(options = {}) {
 					projectId: details.project.id,
 					launchId: hubLaunch.id,
 					operationId: launchJob.id,
-					deployHref,
+					deploymentId: canonicalDeployment.id,
+					deploymentHref,
 					payload: {
 						project: projectSummary ?? await store.getProjectDetails(details.project.id),
 						launchJob: decorateJob(normalizeBaseUrl(runtime.resolved.config.baseUrl ?? ''), launchJob),
 						launch: hubLaunch,
-						next: deployHref,
+						deployments: await store.listProjectDeployments(details.project.id, { limit: 10 }),
+						next: deploymentHref,
 					},
 				}, 202);
 
@@ -6443,16 +7822,99 @@ export function createMarketApiApp(options = {}) {
 				if (existing && existing.id !== c.req.param('projectId')) {
 					return jsonError(c, 409, 'That project slug is already in use for this team.', { code: 'slug_taken' });
 				}
+				const metadataInput = body.metadata && typeof body.metadata === 'object' ? body.metadata : {};
+				const requestedCoreObjective = typeof body.coreObjective === 'string'
+					? body.coreObjective.trim()
+					: typeof metadataInput.coreObjective === 'string'
+						? metadataInput.coreObjective.trim()
+						: null;
+				const existingCoreObjective = typeof access.details.project.metadata?.coreObjective === 'string'
+					? access.details.project.metadata.coreObjective.trim()
+					: String(access.details.project.description ?? '').trim();
+				const shouldSyncCoreObjective = requestedCoreObjective != null && requestedCoreObjective !== existingCoreObjective;
+				let coreObjectiveRepository = null;
+				let coreObjectiveNormalized = null;
+				let coreObjectivePayload = null;
+				if (shouldSyncCoreObjective) {
+					coreObjectivePayload = {
+						title: 'Core Objective',
+						slug: 'core',
+						overwrite: true,
+						preserveFrontmatter: true,
+						summary: 'The enduring project objective used as shared planning context.',
+						description: 'The enduring project objective used as shared planning context.',
+						body: requestedCoreObjective,
+						status: 'live',
+						timeHorizon: 'long-term',
+						motivation: 'Maintained from project settings.',
+						repository: {
+							...(body.repository && typeof body.repository === 'object' && !Array.isArray(body.repository) ? body.repository : {}),
+							role: 'content',
+							writeMode: 'branch',
+							branchName: `treeseed/core-objective-${Date.now()}`,
+							push: true,
+						},
+					};
+					coreObjectiveRepository = resolvePlatformRepositoryDescriptor(runtime.resolved.config, access.details, coreObjectivePayload);
+					coreObjectiveNormalized = normalizeRepositoryContentInput('objectives', {
+						...coreObjectivePayload,
+						projectId: access.details.project.id,
+						teamId: access.details.project.teamId,
+						createdBy: access.principal.id,
+					});
+					if (coreObjectiveNormalized.error) return jsonError(c, 400, coreObjectiveNormalized.error);
+				}
+				const description = typeof body.description === 'string'
+					? body.description.trim() || null
+					: requestedCoreObjective != null
+						? markdownToPlainProjectSummary(requestedCoreObjective, null)
+						: access.details.project.description ?? null;
 				const updated = await store.updateProject(c.req.param('projectId'), {
 					slug: slugResult.slug,
 					name,
-					description: typeof body.description === 'string' ? body.description.trim() || null : access.details.project.description ?? null,
+					description,
 					metadata: {
 						...(access.details.project.metadata ?? {}),
-						...(body.metadata && typeof body.metadata === 'object' ? body.metadata : {}),
+						...metadataInput,
+						...(requestedCoreObjective != null ? { coreObjective: requestedCoreObjective } : {}),
 					},
 				});
-				return c.json({ ok: true, payload: await store.getProjectDetails(updated.id) });
+				let coreObjectiveJob = null;
+				if (shouldSyncCoreObjective && coreObjectiveRepository && coreObjectiveNormalized && coreObjectivePayload) {
+					const approvalId = `project-settings:${updated.id}:core-objective:${Date.now()}`;
+					coreObjectiveJob = await store.createPlatformOperation({
+						namespace: 'repository',
+						operation: 'write_content_record',
+						target: 'market_operations_runner',
+						idempotencyKey: `project-settings:${updated.id}:core-objective:${updated.updatedAt ?? Date.now()}`,
+						requestedByType: isTeamApiPrincipal(access.principal) ? 'team_api_key' : c.get('actorType') === 'service' ? 'service' : 'user',
+						requestedById: access.principal.id,
+						input: {
+							projectId: updated.id,
+							teamId: access.details.project.teamId,
+							createdBy: access.principal.id,
+							repositoryRole: 'content',
+							repository: coreObjectiveRepository,
+							collection: 'objectives',
+							normalized: coreObjectiveNormalized,
+							payload: coreObjectivePayload,
+							commitMessage: `Update ${updated.name} core objective`,
+							approvalRequired: true,
+							approvalSatisfied: true,
+							approvalId,
+						},
+					});
+					await store.appendPlatformOperationEvent(coreObjectiveJob.id, 'project_settings.core_objective_sync_queued', {
+						projectId: updated.id,
+						collection: 'objectives',
+						slug: 'core',
+					}).catch(() => {});
+				}
+				return c.json({
+					ok: true,
+					payload: await store.getProjectDetails(updated.id),
+					coreObjectiveJob: coreObjectiveJob ? decoratePlatformOperation(runtime.resolved.config.baseUrl, coreObjectiveJob) : null,
+				});
 			});
 
 			app.get('/v1/projects/:projectId/deletion-blockers', async (c) => {
@@ -6465,8 +7927,111 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
-				const result = await store.deleteProject(c.req.param('projectId'), body.confirmation);
-				return c.json(result, result.ok ? 200 : 400);
+				const project = await store.getProject(c.req.param('projectId'));
+				if (!project) return jsonError(c, 404, 'Project not found.');
+				if (!projectDeletionConfirmationMatches(body.confirmation, project)) {
+					return jsonError(c, 400, `Type DELETE ${project.slug} to confirm.`, { code: 'confirmation' });
+				}
+				const blockers = projectDeletionBlockerRows(await store.evaluateProjectDeletionBlockers(project.id));
+				if (blockers.length > 0) {
+					return jsonError(c, 409, 'Project still has active work that must finish before deletion.', {
+						code: 'blocked',
+						blockers,
+					});
+				}
+				const details = await store.getProjectDetails(project.id);
+				const repositoryHosts = await Promise.all((details?.repositories ?? [])
+					.map((repository) => repository.repositoryHostId ? store.getRepositoryHost(project.teamId, repository.repositoryHostId).catch(() => null) : null));
+				const hasTeamRepositoryHost = repositoryHosts.some((host) => host?.ownership === 'team_owned');
+				const webHostRef = project.metadata?.cloudflareHost ?? details?.hosting?.metadata?.cloudflareHost ?? {};
+				const hasTeamWebHost = webHostRef?.mode === 'team_owned' && webHostRef?.hostId;
+				if ((hasTeamRepositoryHost || hasTeamWebHost) && !body.sensitivePassphrase) {
+					return jsonError(c, 400, 'Sensitive data passphrase is required to delete project infrastructure from connected hosts.', {
+						code: 'sensitive_passphrase_required',
+					});
+				}
+				const existingDeletion = (await store.listProjectDeployments(project.id, { action: 'delete_project', limit: 10 }).catch(() => []))
+					.find((deployment) => ['queued', 'running'].includes(deployment.status));
+				if (existingDeletion) {
+					return c.json({
+						ok: true,
+						payload: existingDeletion,
+						deploymentHref: `/app/projects/deployment/${existingDeletion.id}`,
+					}, { status: 202 });
+				}
+				const job = await store.createJob({
+					projectId: project.id,
+					namespace: 'workflow',
+					operation: 'delete_project',
+					status: 'running',
+					preferredMode: 'auto',
+					selectedTarget: 'market_api',
+					input: {
+						teamId: project.teamId,
+						projectId: project.id,
+						projectSlug: project.slug,
+						deleteInfrastructure: true,
+						deleteData: true,
+					},
+					requestedByType: 'user',
+					requestedById: access.principal?.id ?? null,
+				});
+				const deployment = await store.createProjectDeployment(project.id, {
+					teamId: project.teamId,
+					environment: 'prod',
+					deploymentKind: 'mixed',
+					action: 'delete_project',
+					status: 'running',
+					platformOperationId: job.id,
+					requestedByUserId: access.principal?.id ?? null,
+					triggeredByType: 'user',
+					triggeredById: access.principal?.id ?? null,
+					summary: 'Project infrastructure deletion started.',
+					repository: {
+						provider: 'github',
+						repositories: (details?.repositories ?? []).map((repository) => ({
+							role: repository.role,
+							owner: repository.owner,
+							name: repository.name,
+							create: repository.metadata?.create === true,
+						})),
+					},
+					target: {
+						provider: 'cloudflare',
+						hostMode: webHostRef?.mode ?? null,
+						hostId: webHostRef?.hostId ?? null,
+					},
+					metadata: {
+						deletionPhase: 'queued',
+						deleteInfrastructure: true,
+						deleteData: true,
+					},
+				});
+				await store.updateProject(project.id, {
+					metadata: {
+						...(project.metadata ?? {}),
+						deletion: {
+							status: 'running',
+							jobId: job.id,
+							deploymentId: deployment.id,
+							requestedAt: new Date().toISOString(),
+							requestedByUserId: access.principal?.id ?? null,
+						},
+					},
+				});
+				scheduleBackgroundBootstrap(c, () => runProjectDeletionApiDestroy({
+					store,
+					projectId: project.id,
+					jobId: job.id,
+					passphrase: body.sensitivePassphrase,
+					mockExternal: options.mockExternal === true,
+				}));
+				return c.json({
+					ok: true,
+					payload: deployment,
+					job,
+					deploymentHref: `/app/projects/deployment/${deployment.id}`,
+				}, { status: 202 });
 			});
 
 			app.get('/v1/projects/:projectId/access', async (c) => {
@@ -7951,6 +9516,20 @@ export function createMarketApiApp(options = {}) {
 				if (!['failed', 'cancelled'].includes(job.status)) {
 					return jsonError(c, 409, 'Only failed or cancelled jobs can be retried.', { status: job.status });
 				}
+				const body = await readJsonOrFormBody(c);
+				if (job.namespace === 'workflow' && job.operation === 'launch_project' && job.selectedTarget === 'market_api') {
+					const retried = await retryMarketApiLaunchBootstrapFromRequest({
+						c,
+						store,
+						runtime,
+						job,
+						access,
+						body,
+						resume: false,
+						mockExternal: options.mockExternal === true,
+					});
+					return retried.response;
+				}
 				const retried = await store.retryJob(job.id, {
 					status: 'pending',
 					inputPatch: { resume: false },
@@ -7990,6 +9569,20 @@ export function createMarketApiApp(options = {}) {
 				if (access.response) return access.response;
 				if (!['failed', 'cancelled'].includes(job.status)) {
 					return jsonError(c, 409, 'Only failed or cancelled jobs can be resumed.', { status: job.status });
+				}
+				const body = await readJsonOrFormBody(c);
+				if (job.namespace === 'workflow' && job.operation === 'launch_project' && job.selectedTarget === 'market_api') {
+					const resumed = await retryMarketApiLaunchBootstrapFromRequest({
+						c,
+						store,
+						runtime,
+						job,
+						access,
+						body,
+						resume: true,
+						mockExternal: options.mockExternal === true,
+					});
+					return resumed.response;
 				}
 				const repositories = await store.listHubRepositories(job.projectId);
 				const softwareRepository = repositories.find((repository) => repository.role === 'software') ?? null;

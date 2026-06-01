@@ -6,13 +6,17 @@ import ProjectControlNav from '../../../../components/app/controls/ProjectContro
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
 import { createMarketApiFacade } from '../../../../lib/market/api-client';
-import { loadOperationalContext, normalizeWorkdayEntry } from '../../../../view-models/shared.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppProject } from '../../../../view-models/app-access.js';
+import { normalizeWorkdayEntry } from '../../../../view-models/shared.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 const marketApi = createMarketApiFacade(Astro);
-const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
+const resolvedProject = await resolveAppProject(context, projectParam);
+const project = resolvedProject.resource;
+const layoutActiveTeam = resolvedProject.team ?? context.activeTeam;
+if (resolvedProject.team?.id && resolvedProject.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, resolvedProject.team);
 let workdays: any[] = [];
 if (project) {
 	const [summaries, runtime] = await Promise.all([
@@ -26,7 +30,7 @@ if (project) {
 		return true;
 	});
 }
-if (!project) Astro.response.status = 404;
+if (!project) Astro.response.status = resolvedProject.status === 'forbidden' ? 403 : 404;
 const rows = await Promise.all(workdays.map(async (workday: any) => {
 	const tasks = project
 		? await marketApi.listRuntimeTasks(project.id, { workDayId: workday.id, limit: 1000 }).catch(() => [])
@@ -48,7 +52,7 @@ const rows = await Promise.all(workdays.map(async (workday: any) => {
 }));
 ---
 
-<TreeseedAppLayout title="Project workdays" description="Review agent workdays, logs, outputs, and capacity usage." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+<TreeseedAppLayout title="Project workdays" description="Review agent workdays, logs, outputs, and capacity usage." currentPath="/app/projects" teams={context.teams} activeTeam={layoutActiveTeam}>
 	{project ? (
 		<section class="ts-control-page" aria-label="Project workdays">
 			<ProjectControlNav projectId={project.id} current="workdays" />

@@ -1,11 +1,11 @@
 import {
 	compareDatesDesc,
-	loadOperationalContext,
 	loadProjectBundle,
 	normalizeWorkdayEntry,
 	type OperationalContext,
 	type OperationalMetric,
 } from './shared.js';
+import { loadAppContext } from './app-access.js';
 import { buildWorkdayProjection, type OperationalPhase, type OperationalTimelineEvent } from '../lib/market/workday-projection.js';
 
 export interface WorkdayListViewModel {
@@ -26,8 +26,8 @@ export interface WorkdayDetailViewModel extends WorkdayListViewModel {
 	agentActivity: any[];
 }
 
-export async function loadWorkdayListViewModel(locals: App.Locals): Promise<WorkdayListViewModel> {
-	const context = await loadOperationalContext(locals);
+export async function loadWorkdayListViewModel(input: any): Promise<WorkdayListViewModel> {
+	const context = await loadAppContext(input);
 	const bundles = await Promise.all(context.projects.map((project: any) => loadProjectBundle(context, project)));
 	const workdays = bundles
 		.flatMap((bundle: any) => [
@@ -51,8 +51,8 @@ export async function loadWorkdayListViewModel(locals: App.Locals): Promise<Work
 	};
 }
 
-export async function loadWorkdayDetailViewModel(locals: App.Locals, workdayId: string): Promise<WorkdayDetailViewModel> {
-	const list = await loadWorkdayListViewModel(locals);
+export async function loadWorkdayDetailViewModel(input: any, workdayId: string): Promise<WorkdayDetailViewModel> {
+	const list = await loadWorkdayListViewModel(input);
 	const workday = list.workdays.find((entry: any) => entry.id === workdayId || entry.recordId === workdayId) ?? null;
 	if (!workday || !list.context.store) {
 		return {

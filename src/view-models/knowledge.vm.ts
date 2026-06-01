@@ -5,10 +5,10 @@ import {
 	type KnowledgeProjection,
 } from '../lib/market/knowledge-projection.js';
 import {
-	loadOperationalContext,
 	type OperationalContext,
 	type OperationalMetric,
 } from './shared.js';
+import { loadAppContext } from './app-access.js';
 import { loadKnowledgeContentEntries } from './knowledge-content.js';
 
 export interface KnowledgeViewModel extends KnowledgeProjection {
@@ -21,8 +21,8 @@ export interface KnowledgeArtifactViewModel {
 	artifact: KnowledgeArtifactProjection | null;
 }
 
-export async function loadKnowledgeViewModel(locals: App.Locals): Promise<KnowledgeViewModel> {
-	const context = await loadOperationalContext(locals);
+export async function loadKnowledgeViewModel(input: any): Promise<KnowledgeViewModel> {
+	const context = await loadAppContext(input);
 	const contentEntries = await loadKnowledgeContentEntries().catch(() => []);
 	const projection = context.store
 		? await buildKnowledgeProjection({
@@ -40,8 +40,8 @@ export async function loadKnowledgeViewModel(locals: App.Locals): Promise<Knowle
 	};
 }
 
-export async function loadKnowledgeArtifactViewModel(locals: App.Locals, artifactId: string): Promise<KnowledgeArtifactViewModel> {
-	const context = await loadOperationalContext(locals);
+export async function loadKnowledgeArtifactViewModel(input: any, artifactId: string): Promise<KnowledgeArtifactViewModel> {
+	const context = await loadAppContext(input);
 	const contentEntries = await loadKnowledgeContentEntries().catch(() => []);
 	const artifact = context.store
 		? await buildKnowledgeArtifactProjection({

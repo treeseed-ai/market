@@ -8,14 +8,14 @@ import EmptyState from '../../../../../packages/core/src/components/ui/surface/E
 import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { hostProviderFor, hostTypeLabel } from '../../../../lib/market/control-ui.js';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { loadAppContext } from '../../../../view-models/app-access.js';
 
 const hostType = String(Astro.params.hostType ?? '');
 const validTypes = new Set(['repository', 'web', 'capacity-provider', 'email', 'ai']);
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 }
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 if (!validTypes.has(hostType)) Astro.response.status = 404;
 const team = context.activeTeam;
 const provider = hostProviderFor(hostType);

@@ -27,61 +27,48 @@ describe('project launch deployment pipeline contracts', () => {
 		expect(projectCreate).toContain("webNewRootDomainInput?.addEventListener('input', syncDomainDefaults)");
 	});
 
-	it('waits for sensitive data unlock before creating credential sessions', () => {
+	it('waits for sensitive data unlock before submitting launch passphrase', () => {
 		const projectCreate = source('src/pages/app/projects/new.astro');
 		const unlockRequest = projectCreate.indexOf('await unlock?.promptPassphrase?.()');
-		const createSession = projectCreate.indexOf("createCredentialSession('repository_host'");
 		expect(unlockRequest).toBeGreaterThan(-1);
-		expect(createSession).toBeGreaterThan(unlockRequest);
-		expect(projectCreate).toContain('validateSelectedCredentialSessions');
+		expect(projectCreate).toContain('validateSelectedCredentialPassphrase');
 		expect(projectCreate).toContain('validatedLaunchUnlock');
+		expect(projectCreate).toContain('sensitivePassphrase: passphrase');
 		expect(projectCreate).toContain('Sensitive data unlocked for the selected project hosts.');
-		expect(projectCreate).toContain("This host's saved credentials may still be encrypted with a different passphrase.");
+		expect(projectCreate).not.toContain('createCredentialSession');
+		expect(projectCreate).not.toContain('provider-credential-sessions');
 		expect(projectCreate).not.toContain('requestFreshSensitivePassphrase');
 	});
 
-	it('hands project launch submission to the deployment status page', () => {
+	it('creates a durable launch record before opening the deployment status page', () => {
 		const projectCreate = source('src/pages/app/projects/new.astro');
-		expect(projectCreate).toContain('Opening deployment status...');
-		expect(projectCreate).toContain('window.sessionStorage.setItem(launchStorageKey, launchStorageValue)');
-		expect(projectCreate).toContain('window.localStorage.setItem(launchStorageKey, launchStorageValue)');
-		expect(projectCreate).toContain('/app/projects/launch-status?request=');
+		expect(projectCreate).toContain('Creating durable deployment record...');
+		expect(projectCreate).toContain('async function submitLaunchRequest');
+		expect(projectCreate).toContain('const launchResponse = await submitLaunchRequest(launchRequest)');
+		expect(projectCreate).toContain('const deployHref = launchResponse?.deploymentHref');
+		expect(projectCreate).toContain('/app/projects/deployment/');
+		expect(projectCreate).not.toContain('treeseed:project-launch-status');
+		expect(projectCreate).not.toContain('window.sessionStorage.setItem(launchStorageKey, launchStorageValue)');
+		expect(projectCreate).not.toContain('/app/projects/launch-status?request=');
 		expect(projectCreate).not.toContain("setStatus('Creating project...')");
 	});
 
 	it('shows hosting readiness audit details on the deployment status page', () => {
-		const statusPage = source('src/pages/app/projects/launch-status.astro');
+		const statusPage = source('src/pages/app/projects/deployment/[id].astro');
 		expect(statusPage).toContain('Project deployment status');
-		expect(statusPage).toContain('data-launch-progress-bar');
-		expect(statusPage).toContain('data-launch-log-copy');
+		expect(statusPage).toContain('data-deployment-progress-bar');
+		expect(statusPage).toContain('data-report-buffer');
 		expect(statusPage).toContain('ts-launch-log-copy--hidden');
 		expect(statusPage).toContain('Copy troubleshooting report');
-		expect(statusPage).toContain('data-launch-retry');
-		expect(statusPage).toContain('Retry launch');
 		expect(statusPage).not.toContain('Back to launch form');
 		expect(statusPage).toContain('function supportReport');
-		expect(statusPage).toContain('TreeSeed project launch troubleshooting report');
-		expect(statusPage).toContain('Project deployment link');
-		expect(statusPage).toContain('const logEntries');
-		expect(statusPage).toContain('function renderLogSections');
-		expect(statusPage).toContain('function executeLaunch');
-		expect(statusPage).toContain('function rememberStatus');
-		expect(statusPage).toContain('function restoreStoredStatus');
-		expect(statusPage).toContain('window.localStorage.getItem(currentStatusKey)');
-		expect(statusPage).toContain('Started live polling for launch job.');
-		expect(statusPage).toContain('Observed launch job status.');
-		expect(statusPage).toContain('Launch API responded.');
-		expect(statusPage).toContain('Market operations runner claimed the launch job.');
-		expect(statusPage).toContain('Retry requested from deployment status page.');
-		expect(statusPage).toContain('## Log by step');
-		expect(statusPage).toContain('function renderAudit');
-		expect(statusPage).toContain('function renderFailureDetails');
-		expect(statusPage).toContain('audit?.blockers');
-		expect(statusPage).toContain("payload?.details?.blockers");
-		expect(statusPage).toContain('audit?.missingConfig');
-		expect(statusPage).toContain('fetch(`/v1/jobs/${encodeURIComponent(jobId)}`)');
-		expect(statusPage).toContain('fetch(`/v1/jobs/${encodeURIComponent(jobId)}/events`)');
-		expect(statusPage).toContain("document.execCommand?.('copy')");
+		expect(statusPage).toContain('TreeSeed project deployment troubleshooting report');
+		expect(statusPage).toContain('/v1/project-deployments/');
+		expect(statusPage).toContain('function renderIssues');
+		expect(statusPage).toContain('function renderLogs');
+		expect(statusPage).toContain('credential_bootstrap');
+		expect(statusPage).toContain('provider_bootstrap');
+		expect(statusPage).toContain("document.execCommand('copy')");
 	});
 
 	it('commits generated workflow files before pushing launch branches and migrates both D1 environments', () => {
@@ -96,6 +83,16 @@ describe('project launch deployment pipeline contracts', () => {
 		expect(workstream).toBeGreaterThan(commit);
 		expect(launch).toContain("runRemoteD1Migrations(workingRoot, { scope: 'staging' })");
 		expect(launch).toContain("runRemoteD1Migrations(workingRoot, { scope: 'prod' })");
+		expect(launch).toContain("forcePush: !input.contentRepository.url");
+		expect(launch).toContain("forcePush: !input.existingRepository?.url");
+	});
+
+	it('keeps generated project Cloudflare resource names inside provider limits', () => {
+		const deploy = source('packages/sdk/src/operations/services/deploy.ts');
+		expect(deploy).toContain('function compactDeploymentKey');
+		expect(deploy).toContain('rawKey && rawKey.length <= 40');
+		expect(deploy).toContain('stableHash(`${input.teamId ??');
+		expect(deploy).toContain("return `${base}-${hash}`");
 	});
 
 	it('builds complete repository descriptors for existing software and content repositories', () => {
@@ -106,16 +103,24 @@ describe('project launch deployment pipeline contracts', () => {
 		expect(launch).toContain("defaultBranch: input.contentRepository.defaultBranch ?? 'main'");
 	});
 
-	it('validates repository hosts and hosting readiness before persisting the project', () => {
+	it('persists durable launch records before running hosting readiness', () => {
 		const api = source('src/api/app.js');
 		const routeStart = api.indexOf("app.post('/v1/teams/:teamId/projects/launch'");
 		const routeEnd = api.indexOf("app.get('/v1/projects/:projectId'", routeStart);
 		const launchRoute = api.slice(routeStart, routeEnd);
 		const repositoryHostLookup = launchRoute.indexOf('let repositoryHost = await store.getRepositoryHost(teamId, repositoryHostId)');
-		const audit = launchRoute.indexOf('const hostingAudit = await runTreeseedHostingAudit');
+		const audit = launchRoute.indexOf('hostingAudit = await runTreeseedHostingAudit');
 		const createProject = launchRoute.indexOf('details = await store.createProject(c.req.param');
+		const createJob = launchRoute.indexOf('const launchJob = await store.createJob');
+		const createHubLaunch = launchRoute.indexOf('const hubLaunch = await store.createHubLaunch');
+		const bootstrap = launchRoute.indexOf('scheduleBackgroundBootstrap');
 		expect(repositoryHostLookup).toBeGreaterThan(-1);
-		expect(audit).toBeGreaterThan(repositoryHostLookup);
-		expect(createProject).toBeGreaterThan(audit);
+		expect(audit).toBe(-1);
+		expect(createProject).toBeGreaterThan(repositoryHostLookup);
+		expect(createJob).toBeGreaterThan(createProject);
+		expect(createHubLaunch).toBeGreaterThan(createJob);
+		expect(bootstrap).toBeGreaterThan(createHubLaunch);
+		expect(launchRoute).toContain('sensitivePassphrase');
+		expect(launchRoute).not.toContain('bindProviderCredentialSession');
 	});
 });

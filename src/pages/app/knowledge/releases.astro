@@ -7,7 +7,7 @@ import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
 import { loadKnowledgeViewModel } from '../../../view-models/knowledge.vm.js';
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/knowledge/releases')}`);
-const vm = await loadKnowledgeViewModel(Astro.locals);
+const vm = await loadKnowledgeViewModel(Astro);
 const rows = (vm.releases ?? []).map((release: any) => ({ name: `<strong>${esc(release.title ?? release.releaseTag ?? release.version ?? 'Release')}</strong><span>${esc(release.summary ?? release.environment ?? '')}</span>`, state: esc(release.state ?? release.status ?? 'recorded') }));
 ---
 

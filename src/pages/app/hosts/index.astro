@@ -18,13 +18,13 @@ import {
 	ownershipLabel,
 	providerLabel,
 } from '../../../lib/market/control-ui.js';
-import { loadOperationalContext } from '../../../view-models/shared.js';
+import { loadAppContext } from '../../../view-models/app-access.js';
 
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/hosts')}`);
 }
 
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 const team = context.activeTeam;
 const runtime = (Astro.locals as any).runtime ?? Astro.locals;
 const [managedHosts, repositoryHosts, providerHosts] = team && context.store

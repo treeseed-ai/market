@@ -5,16 +5,18 @@ import PlainTable from '../../../../components/app/controls/PlainTable.astro';
 import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc, hostTypeLabel, ownershipLabel, providerLabel } from '../../../../lib/market/control-ui.js';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppProject } from '../../../../view-models/app-access.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
-const projectEntry = context.projects.find((project: any) => project.id === projectParam || project.slug === projectParam || project.handle === projectParam) ?? null;
-const projectId = projectEntry?.id ?? projectParam;
-const details = projectEntry && context.store ? await context.store.getProjectDetails(projectId).catch(() => null) : null;
-if (!projectEntry || !details) Astro.response.status = 404;
+const context = await loadAppContext(Astro);
+const resolvedProject = await resolveAppProject(context, projectParam);
+const projectEntry = resolvedProject.resource;
+const details = resolvedProject.details;
+if (!projectEntry || !details) Astro.response.status = resolvedProject.status === 'forbidden' ? 403 : 404;
 const project = details?.project ?? projectEntry;
+const layoutActiveTeam = resolvedProject.team ?? context.activeTeam;
+if (resolvedProject.team?.id && resolvedProject.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, resolvedProject.team);
 const configuredHostMetadata = {
 	...(details?.hosting?.metadata ?? {}),
 	...(details?.connection?.metadata ?? {}),
@@ -67,7 +69,7 @@ const hostRows = [
 }));
 ---
 
-<TreeseedAppLayout title="Project hosts" description="View one project's repositories and host records." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+<TreeseedAppLayout title="Project hosts" description="View one project's repositories and host records." currentPath="/app/projects" teams={context.teams} activeTeam={layoutActiveTeam}>
 	{projectEntry && details ? (
 		<section class="ts-control-page" aria-label="Project hosts">
 			<ProjectControlNav projectId={project.id} current="hosts" />

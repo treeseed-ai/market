@@ -1,14 +1,11 @@
 ---
-import { listSiteTemplates, type TemplateSiteCard } from '@treeseed/core/templates';
+import type { TemplateSiteCard } from '@treeseed/core/templates';
 import TreeseedPublicLayout from '../../../layouts/TreeseedPublicLayout.astro';
 import MarketProductCard from '../../../components/market/MarketProductCard.astro';
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
-import { createMarketTemplateCatalogProvider } from '../../../lib/market/catalog.js';
+import { listMarketplaceSiteTemplates } from '../../../lib/market/public-access.js';
 
-const templateListing = await listSiteTemplates({
-	locals: Astro.locals,
-	catalogProvider: createMarketTemplateCatalogProvider(Astro),
-});
+const templateListing = await listMarketplaceSiteTemplates(Astro);
 ---
 
 <TreeseedPublicLayout

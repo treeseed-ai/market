@@ -6,10 +6,10 @@ import PlainTable from '../../../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
 import { createMarketApiFacade } from '../../../../lib/market/api-client';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { loadAppContext } from '../../../../view-models/app-access.js';
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/capacity/providers')}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 const team = context.activeTeam;
 const marketApi = createMarketApiFacade(Astro);
 const providers = team ? await marketApi.listTeamCapacityProviders(team.id).catch(() => []) : [];
