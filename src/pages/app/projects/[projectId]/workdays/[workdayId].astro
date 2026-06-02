@@ -9,16 +9,19 @@ import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
 import { buildWorkdayProjection } from '../../../../../lib/market/workday-projection.js';
 import { escapeHtml as esc } from '../../../../../lib/market/control-ui.js';
 import { createMarketApiFacade } from '../../../../../lib/market/api-client';
-import { loadOperationalContext } from '../../../../../view-models/shared.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppProject } from '../../../../../view-models/app-access.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
 const workdayId = String(Astro.params.workdayId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 const marketApi = createMarketApiFacade(Astro);
-const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
+const resolvedProject = await resolveAppProject(context, projectParam);
+const project = resolvedProject.resource;
+const layoutActiveTeam = resolvedProject.team ?? context.activeTeam;
+if (resolvedProject.team?.id && resolvedProject.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, resolvedProject.team);
 const projection = project ? await buildWorkdayProjection({ store: marketApi, principal: context.principal, projects: [project], workdayId }).catch(() => null) : null;
-if (!project || !projection) Astro.response.status = 404;
+if (!project || !projection) Astro.response.status = resolvedProject.status === 'forbidden' ? 403 : 404;
 const workday = projection?.workday ?? null;
 const agentRows = (projection?.agentActivity ?? []).map((agent: any) => ({
 	id: `agent-${esc(agent.id)}`,
@@ -74,7 +77,7 @@ const routingRows = (capacity?.routingDecisions ?? []).map((decision: any) => ({
 }));
 ---
 
-<TreeseedAppLayout title={workday?.objective ?? 'Workday'} description="Agent workday dashboard." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+<TreeseedAppLayout title={workday?.objective ?? 'Workday'} description="Agent workday dashboard." currentPath="/app/projects" teams={context.teams} activeTeam={layoutActiveTeam}>
 	{project && projection ? (
 		<section class="ts-control-page" aria-label="Workday detail">
 			<ProjectControlNav projectId={project.id} current="workdays" />

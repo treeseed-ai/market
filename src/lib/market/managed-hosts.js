@@ -52,6 +52,8 @@ export function resolveTreeseedManagedCloudflareHostConfig(runtime, values = {})
 		CLOUDFLARE_ACCOUNT_ID: firstRuntimeEnvValue(runtime, ['CLOUDFLARE_ACCOUNT_ID'], values),
 		TREESEED_CLOUDFLARE_PAGES_PROJECT_NAME: firstRuntimeEnvValue(runtime, ['TREESEED_CLOUDFLARE_PAGES_PROJECT_NAME'], values),
 		TREESEED_CLOUDFLARE_PAGES_PREVIEW_PROJECT_NAME: firstRuntimeEnvValue(runtime, ['TREESEED_CLOUDFLARE_PAGES_PREVIEW_PROJECT_NAME'], values),
+		CLOUDFLARE_ZONE_ID: firstRuntimeEnvValue(runtime, ['CLOUDFLARE_ZONE_ID', 'TREESEED_CLOUDFLARE_ZONE_ID'], values),
+		TREESEED_CLOUDFLARE_ZONE_NAME: firstRuntimeEnvValue(runtime, ['TREESEED_CLOUDFLARE_ZONE_NAME', 'TREESEED_WEB_ROOT_DOMAIN'], values),
 		TREESEED_CONTENT_BUCKET_NAME: firstRuntimeEnvValue(runtime, ['TREESEED_CONTENT_BUCKET_NAME'], values),
 		TREESEED_CONTENT_BUCKET_BINDING: firstRuntimeEnvValue(runtime, ['TREESEED_CONTENT_BUCKET_BINDING'], values),
 	};
@@ -94,6 +96,11 @@ export function listTreeseedManagedHosts(teamId, runtime, values = {}) {
 					'CLOUDFLARE_API_TOKEN',
 					'CLOUDFLARE_ACCOUNT_ID',
 				],
+				dns: {
+					managed: Boolean(cloudflareConfig.CLOUDFLARE_ZONE_ID || cloudflareConfig.TREESEED_CLOUDFLARE_ZONE_NAME),
+					zoneId: cloudflareConfig.CLOUDFLARE_ZONE_ID ?? null,
+					zoneName: cloudflareConfig.TREESEED_CLOUDFLARE_ZONE_NAME ?? null,
+				},
 			},
 			createdAt: now,
 			updatedAt: now,

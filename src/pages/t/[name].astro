@@ -1,6 +1,6 @@
 ---
 import TreeseedPublicLayout from '../../layouts/TreeseedPublicLayout.astro';
-import { resolveMarketApi } from '../../lib/market/store.js';
+import { resolveMarketplaceTeamProfile } from '../../lib/market/public-access.js';
 
 export const prerender = false;
 
@@ -10,8 +10,7 @@ if (requestedName !== normalizedName && normalizedName) {
 	return Astro.redirect(`/t/${normalizedName}`, 301);
 }
 
-const store = resolveMarketApi(Astro);
-const profile = store ? await (store as any).loadTeamProfileByName(normalizedName, Astro.locals.auth?.principal ?? null) : null;
+const profile = await resolveMarketplaceTeamProfile(Astro, normalizedName);
 if (!profile) {
 	return new Response('Not found', { status: 404 });
 }

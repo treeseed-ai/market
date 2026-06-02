@@ -15,14 +15,14 @@ import WorkContentNav from '../../../../components/app/controls/WorkContentNav.a
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { allowedRelatedCollections, contentRelationPolicy, WORK_CONTENT_LABELS } from '../../../../lib/market/content-relations.js';
 import { contentFieldHelp } from '../../../../lib/market/content-form-help.js';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { loadAppContext } from '../../../../view-models/app-access.js';
 import { loadWorkContentEntries } from '../../../../view-models/work-content.js';
 
 const collection = String(Astro.params.collection ?? '');
 const slug = String(Astro.params.slug ?? '');
 const validCollections = new Set(['objectives', 'questions', 'notes', 'proposals', 'decisions']);
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 let entry: any = null;
 if (validCollections.has(collection)) {
 	const entries = await getCollection(collection as any, ({ data }: any) => !data?.draft).catch(() => []);

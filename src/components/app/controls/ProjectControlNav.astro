@@ -7,7 +7,6 @@ const { projectId, current } = Astro.props as Props;
 const encoded = encodeURIComponent(projectId);
 const items = [
 	{ key: 'settings', label: 'Settings', href: `/app/projects/${encoded}/settings` },
-	{ key: 'hosts', label: 'Hosts', href: `/app/projects/${encoded}/hosts` },
 	{ key: 'deploy', label: 'Deploy', href: `/app/projects/${encoded}/deploy` },
 	{ key: 'guidance', label: 'Guidance', href: `/app/projects/${encoded}/guidance` },
 	{ key: 'decisions', label: 'Decisions', href: `/app/projects/${encoded}/decisions` },

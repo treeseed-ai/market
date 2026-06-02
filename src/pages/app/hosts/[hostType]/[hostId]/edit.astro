@@ -7,45 +7,76 @@ import TextInput from '../../../../../../packages/core/src/components/ui/forms/T
 import EmptyState from '../../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../../../packages/core/src/components/ui/surface/Panel.astro';
 import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
-import { hostProviderFor, hostTypeFor } from '../../../../../lib/market/control-ui.js';
-import { loadOperationalContext } from '../../../../../view-models/shared.js';
+import { hostProviderFor, hostTypeFor, hostTypeLabel } from '../../../../../lib/market/control-ui.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppHost } from '../../../../../view-models/app-access.js';
 
-const hostType = String(Astro.params.hostType ?? '');
+const requestedHostType = String(Astro.params.hostType ?? '');
 const hostId = String(Astro.params.hostId ?? '');
 const validTypes = new Set(['repository', 'web', 'capacity-provider', 'email', 'ai']);
+function normalizeRequestedHostType(type: string) {
+	const normalized = String(type ?? '').trim();
+	if (normalized === 'cloudflare' || normalized === 'web_host') return 'web';
+	if (normalized === 'smtp' || normalized === 'email_host') return 'email';
+	if (normalized === 'capacity_provider' || normalized === 'capacity_provider_host' || normalized === 'processing') return 'capacity-provider';
+	if (normalized === 'ai_host') return 'ai';
+	return normalized;
+}
+function routeHostTypeFor(host: any, requested: string) {
+	if (requested === 'repository') return 'repository';
+	const inferred = hostTypeFor(host);
+	if (validTypes.has(inferred)) return inferred;
+	if (requested === 'capacity-provider' && (inferred === 'processing' || host?.provider === 'railway')) return 'capacity-provider';
+	return validTypes.has(requested) ? requested : inferred;
+}
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 }
-const context = await loadOperationalContext(Astro.locals, Astro);
-const team = context.activeTeam;
-let host: any = null;
-if (team && context.store && validTypes.has(hostType)) {
-	host = hostType === 'repository'
-		? await context.store.getRepositoryHost(team.id, hostId).catch(() => null)
-		: await context.store.getTeamWebHost(team.id, hostId).catch(() => null);
-}
-if (host && hostType !== 'repository' && hostTypeFor(host) !== hostType) host = null;
-if (!host) Astro.response.status = 404;
+const lookupHostType = normalizeRequestedHostType(requestedHostType);
+const context = await loadAppContext(Astro);
+const hostResolution = validTypes.has(lookupHostType)
+	? await resolveAppHost(context, lookupHostType, hostId)
+	: { resource: null, team: null, status: 'not_found' };
+const team = hostResolution.team ?? context.activeTeam;
+const host = hostResolution.resource;
+if (hostResolution.team?.id && hostResolution.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, hostResolution.team);
+if (!host) Astro.response.status = hostResolution.status === 'forbidden' ? 403 : 404;
+const hostType = host ? routeHostTypeFor(host, lookupHostType) : lookupHostType;
 const provider = host?.provider ?? hostProviderFor(hostType);
-const data = JSON.stringify({ teamId: team?.id ?? null, hostType, hostId, provider }).replace(/</gu, '\\u003c');
+const hostTypeName = hostTypeLabel(hostType);
+const editTitle = `Edit ${hostTypeName} host`;
+const hasSavedCredentials = Boolean(host?.encryptedPayload);
+const smtpSettings = host?.metadata?.smtp && typeof host.metadata.smtp === 'object' ? host.metadata.smtp : {};
+const savedValuePlaceholder = hasSavedCredentials ? 'Saved value configured. Type a new value to replace it.' : '';
+const savedSecretPlaceholder = hasSavedCredentials ? 'Saved secret configured. Type a new secret to replace it.' : '';
+const data = JSON.stringify({
+	teamId: team?.id ?? null,
+	hostType,
+	requestedHostType,
+	lookupHostType,
+	hostId,
+	hostName: host?.name ?? null,
+	provider,
+	existingCloudflareZoneId: host?.metadata?.dns?.zoneId ?? null,
+}).replace(/</gu, '\\u003c');
 ---
 
-<TreeseedAppLayout title={host ? `Edit ${host.name}` : 'Host not found'} description="Edit one host configuration." currentPath="/app/hosts" teams={context.teams} activeTeam={team}>
+<TreeseedAppLayout title={host ? editTitle : 'Host not found'} description="Edit one host configuration." currentPath="/app/hosts" teams={context.teams} activeTeam={team}>
 	{host ? (
-		<section class="ts-control-page" aria-label="Edit host">
-			<Panel eyebrow="Hosts" title="Edit host" description="Leave credential fields blank unless you are replacing sensitive values.">
-				<form id="host-edit-form" class="ts-form-stack">
+		<section class="ts-control-page" aria-label={editTitle}>
+			<Panel eyebrow="Hosts" title={editTitle} description="Leave credential fields blank unless you are replacing sensitive values.">
+				<Button slot="actions" href="/app/hosts" variant="secondary" size="sm">Back to hosts</Button>
+				<form id="host-edit-form" class="ts-form-stack" autocomplete="off" data-admin-preserve-values>
 					<div class="ts-form-grid">
-						<Field label="Name" name="name" required><TextInput name="name" required value={host.name ?? ''} /></Field>
-						<Field label="Account label" name="accountLabel"><TextInput name="accountLabel" value={host.accountLabel ?? ''} /></Field>
+						<Field label="Host display name" name="name" required help="A friendly name shown in TreeSeed when people choose this host."><TextInput id={`host-${hostId}-display-name`} name="name" required value={host.name ?? ''} autocomplete="off" /></Field>
+						<Field label="Connected account" name="accountLabel" help="Optional label for the external account, organization, workspace, or provider account behind this host."><TextInput id={`host-${hostId}-account-label`} name="accountLabel" value={host.accountLabel ?? ''} autocomplete="off" /></Field>
 						{hostType === 'repository' && (
 							<>
-								<Field label="GitHub owner or organization" name="organizationOrOwner" required><TextInput name="organizationOrOwner" required value={host.organizationOrOwner ?? ''} /></Field>
+								<Field label="GitHub owner or organization" name="organizationOrOwner" required><TextInput id={`host-${hostId}-github-owner`} name="organizationOrOwner" required value={host.organizationOrOwner ?? ''} autocomplete="off" /></Field>
 								<Field label="Default visibility" name="defaultVisibility"><Select name="defaultVisibility" options={[{ label: 'Private', value: 'private' }, { label: 'Public', value: 'public' }]} value={host.defaultVisibility ?? 'private'} /></Field>
-								<Field label="Software repository name template" name="softwareRepositoryNameTemplate"><TextInput name="softwareRepositoryNameTemplate" value={host.softwareRepositoryNameTemplate ?? '{hub}-site'} /></Field>
-								<Field label="Content repository name template" name="contentRepositoryNameTemplate"><TextInput name="contentRepositoryNameTemplate" value={host.contentRepositoryNameTemplate ?? '{hub}-content'} /></Field>
-								<Field label="Default branch" name="defaultBranch"><TextInput name="defaultBranch" value={host.branchPolicy?.defaultBranch ?? 'main'} /></Field>
-								<Field label="New GitHub token" name="githubToken"><TextInput name="githubToken" type="password" autocomplete="new-password" /></Field>
+								<Field label="Software repository name template" name="softwareRepositoryNameTemplate"><TextInput id={`host-${hostId}-software-repository-template`} name="softwareRepositoryNameTemplate" value={host.softwareRepositoryNameTemplate ?? '{hub}-site'} autocomplete="off" /></Field>
+								<Field label="Content repository name template" name="contentRepositoryNameTemplate"><TextInput id={`host-${hostId}-content-repository-template`} name="contentRepositoryNameTemplate" value={host.contentRepositoryNameTemplate ?? '{hub}-content'} autocomplete="off" /></Field>
+								<Field label="Default branch" name="defaultBranch"><TextInput id={`host-${hostId}-default-branch`} name="defaultBranch" value={host.branchPolicy?.defaultBranch ?? 'main'} autocomplete="off" /></Field>
+								<Field label="New GitHub token" name="githubToken"><TextInput name="githubToken" type="password" autocomplete="new-password" placeholder={savedSecretPlaceholder} /></Field>
 							</>
 						)}
 						{hostType !== 'repository' && (
@@ -65,38 +96,38 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, hostId, provid
 						)}
 						{hostType === 'web' && (
 							<>
-								<Field label="New Cloudflare account ID" name="cloudflareAccountId"><TextInput name="cloudflareAccountId" /></Field>
-								<Field label="New Cloudflare API token" name="cloudflareApiToken"><TextInput name="cloudflareApiToken" type="password" autocomplete="new-password" /></Field>
+								<Field label="New Cloudflare account ID" name="cloudflareAccountId"><TextInput id={`host-${hostId}-cloudflare-account-id`} name="cloudflareAccountId" placeholder={savedValuePlaceholder} autocomplete="off" /></Field>
+								<Field label="New Cloudflare API token" name="cloudflareApiToken"><TextInput name="cloudflareApiToken" type="password" autocomplete="new-password" placeholder={savedSecretPlaceholder} /></Field>
+								<Field label="Root domain" name="cloudflareZoneName" help="Domain this web host can use for project addresses, such as treeseed.ai. Projects can use the root domain or subdomains for production and staging."><TextInput id={`host-${hostId}-root-domain`} name="cloudflareZoneName" value={host.metadata?.dns?.zoneName ?? ''} autocomplete="off" /></Field>
 							</>
 						)}
 						{hostType === 'capacity-provider' && (
 							<>
-								<Field label="New Railway API token" name="railwayApiToken"><TextInput name="railwayApiToken" type="password" autocomplete="new-password" /></Field>
-								<Field label="New Railway workspace" name="railwayWorkspace"><TextInput name="railwayWorkspace" /></Field>
+								<Field label="New Railway API token" name="railwayApiToken"><TextInput name="railwayApiToken" type="password" autocomplete="new-password" placeholder={savedSecretPlaceholder} /></Field>
+								<Field label="New Railway workspace" name="railwayWorkspace"><TextInput id={`host-${hostId}-railway-workspace`} name="railwayWorkspace" placeholder={savedValuePlaceholder} autocomplete="off" /></Field>
 							</>
 						)}
 						{hostType === 'email' && (
 							<>
-								<Field label="New SMTP host" name="smtpHost"><TextInput name="smtpHost" /></Field>
-								<Field label="New SMTP port" name="smtpPort"><TextInput name="smtpPort" type="number" /></Field>
-								<Field label="New SMTP username" name="smtpUsername"><TextInput name="smtpUsername" /></Field>
-								<Field label="New SMTP password" name="smtpPassword"><TextInput name="smtpPassword" type="password" autocomplete="new-password" /></Field>
-								<Field label="New from email" name="smtpFromEmail"><TextInput name="smtpFromEmail" type="email" /></Field>
-								<Field label="New reply-to email" name="smtpReplyTo"><TextInput name="smtpReplyTo" type="email" /></Field>
-								<Field label="New secure mode" name="smtpSecure"><Select name="smtpSecure" options={[{ label: 'Keep existing', value: '' }, { label: 'STARTTLS', value: 'false' }, { label: 'TLS', value: 'true' }]} /></Field>
+								<Field label="SMTP host" name="smtpHost"><TextInput id={`host-${hostId}-smtp-host`} name="smtpHost" value={smtpSettings.host ?? ''} autocomplete="off" /></Field>
+								<Field label="SMTP port" name="smtpPort"><TextInput id={`host-${hostId}-smtp-port`} name="smtpPort" type="number" value={smtpSettings.port ?? ''} autocomplete="off" /></Field>
+								<Field label="New SMTP username" name="smtpUsername"><TextInput id={`host-${hostId}-smtp-username`} name="smtpUsername" placeholder={savedValuePlaceholder} autocomplete="off" /></Field>
+								<Field label="New SMTP password" name="smtpPassword"><TextInput name="smtpPassword" type="password" autocomplete="new-password" placeholder={savedSecretPlaceholder} /></Field>
+								<Field label="From email" name="smtpFromEmail"><TextInput id={`host-${hostId}-smtp-from-email`} name="smtpFromEmail" type="email" value={smtpSettings.fromEmail ?? ''} autocomplete="off" /></Field>
+								<Field label="Reply-to email" name="smtpReplyTo"><TextInput id={`host-${hostId}-smtp-reply-to`} name="smtpReplyTo" type="email" value={smtpSettings.replyTo ?? ''} autocomplete="off" /></Field>
+								<Field label="Secure mode" name="smtpSecure"><Select name="smtpSecure" value={smtpSettings.secure ?? 'false'} options={[{ label: 'STARTTLS', value: 'false' }, { label: 'TLS', value: 'true' }]} /></Field>
 							</>
 						)}
 						{hostType === 'ai' && (
 							<>
-								<Field label="New API key" name="aiApiKey"><TextInput name="aiApiKey" type="password" autocomplete="new-password" /></Field>
-								<Field label="New base URL" name="aiBaseUrl"><TextInput name="aiBaseUrl" type="url" /></Field>
-								<Field label="New default model" name="aiDefaultModel"><TextInput name="aiDefaultModel" /></Field>
+								<Field label="New API key" name="aiApiKey"><TextInput name="aiApiKey" type="password" autocomplete="new-password" placeholder={savedSecretPlaceholder} /></Field>
+								<Field label="New base URL" name="aiBaseUrl"><TextInput id={`host-${hostId}-ai-base-url`} name="aiBaseUrl" type="url" placeholder={savedValuePlaceholder} autocomplete="off" /></Field>
+								<Field label="New default model" name="aiDefaultModel"><TextInput id={`host-${hostId}-ai-default-model`} name="aiDefaultModel" placeholder={savedValuePlaceholder} autocomplete="off" /></Field>
 							</>
 						)}
 					</div>
 					<FormActions align="start">
 						<Button type="submit">Save host</Button>
-						<Button href="/app/hosts" variant="secondary">Back</Button>
 						<button class="ts-button" data-variant="danger" type="button" id="delete-host-button">Delete host</button>
 						<span class="ts-subtle" id="host-edit-status" role="status"></span>
 					</FormActions>
@@ -110,87 +141,57 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, hostId, provid
 </TreeseedAppLayout>
 
 <script>
-	import { encryptHostConfig } from '../../../../../lib/cloudflare-host-crypto.js';
-	const dataElement = document.getElementById('host-edit-data');
-	const pageData = dataElement?.textContent ? JSON.parse(dataElement.textContent) : {};
-	const form = document.getElementById('host-edit-form') as HTMLFormElement | null;
-	const status = document.getElementById('host-edit-status');
-	const deleteButton = document.getElementById('delete-host-button') as HTMLButtonElement | null;
-	function value(formData: FormData, key: string) { return String(formData.get(key) ?? '').trim(); }
-	function hasReplacementCredentials(formData: FormData) {
-		return ['githubToken', 'cloudflareAccountId', 'cloudflareApiToken', 'railwayApiToken', 'railwayWorkspace', 'smtpHost', 'smtpPort', 'smtpUsername', 'smtpPassword', 'smtpFromEmail', 'smtpReplyTo', 'smtpSecure', 'aiApiKey', 'aiBaseUrl', 'aiDefaultModel'].some((key) => value(formData, key));
-	}
-	function credentialConfig(formData: FormData, hostType: string) {
-		if (hostType === 'repository') {
-			const token = value(formData, 'githubToken');
-			return { GH_TOKEN: token, GITHUB_TOKEN: token, organizationOrOwner: value(formData, 'organizationOrOwner'), owner: value(formData, 'organizationOrOwner') };
-		}
-		if (hostType === 'web') return { CLOUDFLARE_ACCOUNT_ID: value(formData, 'cloudflareAccountId'), CLOUDFLARE_API_TOKEN: value(formData, 'cloudflareApiToken') };
-		if (hostType === 'capacity-provider') return { RAILWAY_API_TOKEN: value(formData, 'railwayApiToken'), TREESEED_RAILWAY_WORKSPACE: value(formData, 'railwayWorkspace') };
-		if (hostType === 'email') return { SMTP_HOST: value(formData, 'smtpHost'), SMTP_PORT: value(formData, 'smtpPort'), SMTP_USERNAME: value(formData, 'smtpUsername'), SMTP_PASSWORD: value(formData, 'smtpPassword'), SMTP_FROM_EMAIL: value(formData, 'smtpFromEmail'), SMTP_REPLY_TO: value(formData, 'smtpReplyTo'), SMTP_SECURE: value(formData, 'smtpSecure') };
-		return { AI_API_KEY: value(formData, 'aiApiKey'), AI_BASE_URL: value(formData, 'aiBaseUrl'), AI_DEFAULT_MODEL: value(formData, 'aiDefaultModel'), AI_PROVIDER: value(formData, 'provider') };
-	}
-	async function submitJson(url: string, method: string, body?: any) {
-		const response = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
-		const payload = await response.json().catch(() => null);
-		if (!response.ok || payload?.ok === false) throw new Error(payload?.error ?? 'Request failed.');
-		return payload.payload;
-	}
-	form?.addEventListener('submit', async (event) => {
-		event.preventDefault();
-		const formData = new FormData(form);
-		const body: any = {
-			name: value(formData, 'name'),
-			accountLabel: value(formData, 'accountLabel'),
-		};
-		if (hasReplacementCredentials(formData)) {
-			const passphrase = (window as any).treeseedSensitiveUnlock?.requirePassphrase?.();
-			if (!passphrase) {
-				if (status) status.textContent = 'Unlock sensitive data before replacing credentials.';
+	import { bindHostEditCredentialForm, submitAdministrativeJson } from '../../../../../lib/market/host-credential-form-client.ts';
+
+	function initHostEditForm() {
+		const dataElement = document.getElementById('host-edit-data');
+		const pageData = dataElement?.textContent ? JSON.parse(dataElement.textContent) : {};
+		function value(formData: FormData, key: string) { return String(formData.get(key) ?? '').trim(); }
+		const { status } = bindHostEditCredentialForm(pageData, (savedHost, { form: activeForm, setStatus, formData }) => {
+				const nameInput = activeForm.elements.namedItem('name') as HTMLInputElement | null;
+				if (savedHost && typeof savedHost === 'object' && 'name' in savedHost && typeof savedHost.name === 'string' && nameInput) {
+					nameInput.value = savedHost.name;
+					nameInput.defaultValue = savedHost.name;
+				}
+				const requestedName = value(formData, 'name');
+				const returnedName = savedHost && typeof savedHost === 'object' && 'name' in savedHost ? String(savedHost.name ?? '') : '';
+				setStatus(returnedName && returnedName !== requestedName
+					? `Save returned "${returnedName}" instead of "${requestedName}". Refresh and try again.`
+					: 'Saved.');
+		});
+		const deleteButton = document.getElementById('delete-host-button') as HTMLButtonElement | null;
+		if (deleteButton?.dataset.hostDeleteBound === 'true') return;
+		if (deleteButton) deleteButton.dataset.hostDeleteBound = 'true';
+		deleteButton?.addEventListener('click', async () => {
+			const confirmation = `DELETE ${pageData.hostName || 'host'}`;
+			const confirmed = await (window as any).treeseedDeleteConfirmation?.confirm?.({
+				title: `Delete ${pageData.hostType === 'capacity-provider' ? 'capacity provider' : pageData.hostType} host`,
+				message: 'This permanently removes this host from the active team. Saved encrypted provider credentials for this host will no longer be available.',
+				itemName: pageData.hostName || 'Selected host',
+				detail: 'Projects or providers that still depend on this host may block deletion.',
+				requiredText: confirmation,
+				actionLabel: 'Delete host',
+			});
+			if (!confirmed) {
+				if (status) status.textContent = 'Delete cancelled.';
 				return;
 			}
-			body.encryptedPayload = await encryptHostConfig(credentialConfig(formData, pageData.hostType), String(passphrase));
-		}
-		if (pageData.hostType === 'repository') {
-			Object.assign(body, {
-				organizationOrOwner: value(formData, 'organizationOrOwner'),
-				defaultVisibility: value(formData, 'defaultVisibility') || 'private',
-				softwareRepositoryNameTemplate: value(formData, 'softwareRepositoryNameTemplate') || '{hub}-site',
-				contentRepositoryNameTemplate: value(formData, 'contentRepositoryNameTemplate') || '{hub}-content',
-				branchPolicy: { defaultBranch: value(formData, 'defaultBranch') || 'main' },
-				workflowPolicy: {},
-				allowedProjectKinds: ['knowledge_hub'],
-				ownership: 'team_owned',
-			});
-		} else {
-			Object.assign(body, {
-				provider: value(formData, 'provider') || pageData.provider,
-				ownership: 'team_owned',
-				status: value(formData, 'status') || 'active',
-				metadata: { hostType: pageData.hostType === 'capacity-provider' ? 'capacity_provider' : pageData.hostType },
-			});
-		}
-		if (status) status.textContent = 'Saving...';
-		try {
-			const endpoint = pageData.hostType === 'repository'
-				? `/v1/teams/${encodeURIComponent(pageData.teamId)}/repository-hosts/${encodeURIComponent(pageData.hostId)}`
-				: `/v1/teams/${encodeURIComponent(pageData.teamId)}/hosts/${encodeURIComponent(pageData.hostId)}`;
-			await submitJson(endpoint, 'PUT', body);
-			if (status) status.textContent = 'Saved.';
-		} catch (error) {
-			if (status) status.textContent = error instanceof Error ? error.message : 'Host could not be saved.';
-		}
-	});
-	deleteButton?.addEventListener('click', async () => {
-		if (status) status.textContent = 'Deleting...';
-		try {
-			const endpoint = pageData.hostType === 'repository'
-				? `/v1/teams/${encodeURIComponent(pageData.teamId)}/repository-hosts/${encodeURIComponent(pageData.hostId)}`
-				: `/v1/teams/${encodeURIComponent(pageData.teamId)}/hosts/${encodeURIComponent(pageData.hostId)}`;
-			await submitJson(endpoint, 'DELETE');
-			window.location.href = '/app/hosts';
-		} catch (error) {
-			if (status) status.textContent = error instanceof Error ? error.message : 'Host could not be deleted.';
-		}
-	});
+			if (status) status.textContent = 'Deleting...';
+			try {
+				const endpoint = pageData.hostType === 'repository'
+					? `/v1/teams/${encodeURIComponent(pageData.teamId)}/repository-hosts/${encodeURIComponent(pageData.hostId)}`
+					: `/v1/teams/${encodeURIComponent(pageData.teamId)}/hosts/${encodeURIComponent(pageData.hostId)}`;
+				await submitAdministrativeJson(endpoint, 'DELETE');
+				window.location.href = '/app/hosts';
+			} catch (error) {
+				if (status) status.textContent = error instanceof Error ? error.message : 'Host could not be deleted.';
+			}
+		});
+	}
+	(window as any).treeseedInitHostEditForm = initHostEditForm;
+	initHostEditForm();
+</script>
+
+<script is:inline data-astro-rerun>
+	window.treeseedInitHostEditForm?.();
 </script>

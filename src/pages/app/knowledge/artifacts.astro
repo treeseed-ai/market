@@ -8,7 +8,7 @@ import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
 import { loadKnowledgeViewModel } from '../../../view-models/knowledge.vm.js';
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/knowledge/artifacts')}`);
-const vm = await loadKnowledgeViewModel(Astro.locals);
+const vm = await loadKnowledgeViewModel(Astro);
 const rows = vm.artifacts.map((artifact: any) => ({
 	id: `artifact-${esc(artifact.id ?? artifact.slug)}`,
 	name: `<strong>${esc(artifact.title)}</strong><span>${esc(artifact.description ?? artifact.type ?? '')}</span>`,

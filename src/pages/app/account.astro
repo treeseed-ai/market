@@ -13,17 +13,18 @@ import Badge from '../../../packages/core/src/components/ui/data/Badge.astro';
 import StatusPill from '../../../packages/core/src/components/ui/data/StatusPill.astro';
 import KeyValueList from '../../../packages/core/src/components/ui/data/KeyValueList.astro';
 import { DELETE_ACCOUNT_CONFIRMATION } from '../../lib/auth/delete-confirmation';
-import { loadAccessibleTeams, resolveMarketApi } from '../../lib/market/store';
+import { loadAppContext } from '../../view-models/app-access.js';
 
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/account')}`);
 }
 
-const marketApi = resolveMarketApi(Astro);
-const [teams, emailAddresses, webSessions] = await Promise.all([
-	loadAccessibleTeams(Astro),
-	marketApi.request<any[]>('GET', '/v1/auth/web/emails').catch(() => []),
-	marketApi.request<any[]>('GET', '/v1/auth/web/sessions').catch(() => []),
+const context = await loadAppContext(Astro);
+const marketApi = context.store;
+const requestAccountList = async (path: string) => marketApi ? await marketApi.request('GET', path).catch(() => []) : [];
+const [emailAddresses, webSessions] = await Promise.all([
+	requestAccountList('/v1/auth/web/emails'),
+	requestAccountList('/v1/auth/web/sessions'),
 ]);
 const accounts: any[] = [];
 const principal = Astro.locals.auth.principal;
@@ -128,8 +129,8 @@ const accountTabs = [
 	title="Account"
 	description="Manage your sign-in methods and active sessions."
 	currentPath={Astro.url.pathname}
-	teams={teams}
-	activeTeam={teams[0] ?? null}
+	teams={context.teams}
+	activeTeam={context.activeTeam}
 >
 	<section class="account-tabs-shell" data-account-tabs-root data-default-tab={activeAccountTab}>
 		<nav class="ts-tabs account-tabs" role="tablist" aria-label="Account sections">

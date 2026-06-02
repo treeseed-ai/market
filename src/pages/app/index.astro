@@ -3,13 +3,13 @@ import Panel from '../../../packages/core/src/components/ui/surface/Panel.astro'
 import PlainTable from '../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../lib/market/control-ui.js';
-import { loadOperationalContext } from '../../view-models/shared.js';
+import { loadAppContext } from '../../view-models/app-access.js';
 
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/')}`);
 }
 
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 const rows = [
 	{ step: '1', name: '<strong>Hosts</strong><span>Add repository, web, processing, email, and AI host credentials.</span>', action: '<a class="ts-link-button" href="/app/hosts">Open Hosts</a>' },
 	{ step: '2', name: '<strong>Projects</strong><span>Create hosted projects and manage their settings.</span>', action: '<a class="ts-link-button" href="/app/projects">Open Projects</a>' },

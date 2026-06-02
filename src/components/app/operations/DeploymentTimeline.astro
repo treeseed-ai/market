@@ -28,7 +28,7 @@ const {
 {items.length > 0 ? (
 	<ol class="ts-deploy-timeline" aria-label="Deployment timeline events">
 		{items.map((item) => (
-			<li class="ts-deploy-timeline__item" data-phase={item.phase.toLowerCase()} id={`deployment-event-${item.id}`}>
+			<li class="ts-deploy-timeline__item" data-phase={item.phase.toLowerCase()} data-tone={item.tone} id={`deployment-event-${item.id}`}>
 				<div class="ts-deploy-timeline__marker" aria-hidden="true"></div>
 				<div class="ts-deploy-timeline__content">
 					<header class="ts-deploy-timeline__header">

@@ -34,6 +34,7 @@ export interface DeploymentViewModel {
 		label: string;
 		description: string;
 		tone: Tone;
+		deployHref: string | null;
 		actions: Array<{ action: string; label: string; url: string; method: string; description: string }>;
 		inspect: { summary: string; command: string | null } | null;
 		events: Array<{ id: string; label: string; description: string; timestamp: string | null; tone: Tone }>;
@@ -49,7 +50,7 @@ export interface DeploymentViewModel {
 	readiness: {
 		ready: boolean;
 		label: string;
-		checks: Array<{ code: string; label: string; message: string; ready: boolean; tone: Tone; href?: string }>;
+		checks: Array<{ code: string; label: string; message: string; help: string; ready: boolean; tone: Tone; href?: string }>;
 		blockers: Array<{ code: string; message: string; href?: string }>;
 	};
 	environments: DeploymentEnvironmentCard[];
@@ -63,7 +64,7 @@ export interface DeploymentViewModel {
 		activeJobCount: string;
 		capabilities: string[];
 	};
-	troubleshooting: Array<{ title: string; description: string; href?: string }>;
+	troubleshooting: Array<{ title: string; description: string; tone: Tone; href?: string }>;
 	activeDeployment: any | null;
 	activeStateUrl: string | null;
 	showSensitiveUnlock: boolean;
@@ -140,6 +141,23 @@ function statusTone(status: unknown): Tone {
 	if (['failed', 'cancelled', 'timed_out', 'offline', 'blocked'].includes(value)) return 'danger';
 	if (['installing', 'provisioning'].includes(value)) return 'info';
 	return 'default';
+}
+
+function readinessHelp(code: unknown, label: unknown): string {
+	const value = text(code);
+	const fallback = `${titleCase(label, 'This check')} helps TreeSeed decide whether deployment can safely continue.`;
+	const descriptions: Record<string, string> = {
+		project_exists: 'Confirms the project record exists in the Market API. Deployment cannot run without the project identity and ownership information.',
+		repository_configured: 'Confirms TreeSeed knows which GitHub repository should receive workflows, environment variables, and deployment commits.',
+		workflow_installable: 'Confirms the selected repository can accept the deployment workflow that TreeSeed dispatches for staging and production work.',
+		web_host_configured: 'Confirms a web hosting target exists, such as the Cloudflare host and deployment destination used to publish the site.',
+		staging_environment: 'Confirms the staging environment exists. Staging is the first place TreeSeed deploys and verifies project changes.',
+		production_environment: 'Confirms the production environment exists or can be initialized when production deployment is requested.',
+		runner_ready: 'Checks the Market operations runner state. Deployment work can be queued even if the runner is temporarily waiting to pick it up.',
+		no_active_operation: 'Prevents overlapping deployment work for the same target so one operation does not overwrite or confuse another.',
+		production_confirmation: 'Requires an explicit confirmation before production-changing actions, while staging and monitor actions can proceed without it.',
+	};
+	return descriptions[value] ?? fallback;
 }
 
 function dateLabel(value: unknown, fallback = 'Not recorded'): string {
@@ -275,6 +293,7 @@ function launchStatus(launch: any): DeploymentViewModel['launch'] {
 			label: 'Not launched',
 			description: 'Launch records appear once project setup queues repository, workflow, or host work.',
 			tone: 'warning',
+			deployHref: null,
 			actions: [],
 			inspect: null,
 			events: [],
@@ -286,6 +305,7 @@ function launchStatus(launch: any): DeploymentViewModel['launch'] {
 		label: titleCase(status, 'Queued'),
 		description: text(launch.summary ?? launch.message, 'Latest project launch activity is recorded.'),
 		tone: statusTone(status),
+		deployHref: text(launch.deployHref) || null,
 		actions: safeArray(launch.actions).map((action: any) => ({
 			action: text(action?.action, 'launch_action'),
 			label: text(action?.label, titleCase(action?.action, 'Launch action')),
@@ -430,32 +450,47 @@ function buildSummary(state: any, environments: DeploymentEnvironmentCard[], lau
 }
 
 function troubleshooting(state: any, history: DeploymentHistoryRow[]): DeploymentViewModel['troubleshooting'] {
-	const hints = safeArray(state?.readiness?.blockers).map((blocker: any) => ({
-		title: titleCase(blocker?.code, 'Readiness blocker'),
-		description: text(blocker?.message, 'Resolve this blocker before queueing deployment work.'),
-		...(blocker?.href ? { href: String(blocker.href) } : {}),
-	}));
+	const hints: DeploymentViewModel['troubleshooting'] = [];
+	const seen = new Set<string>();
+	const pushHint = (hint: DeploymentViewModel['troubleshooting'][number]) => {
+		const key = `${hint.description}:${hint.href ?? ''}`.toLowerCase().replace(/\s+/gu, ' ').trim();
+		if (!key || seen.has(key)) return;
+		seen.add(key);
+		hints.push(hint);
+	};
 	const latestFailed = safeArray(state?.recentDeployments).find((deployment: any) => ['failed', 'timed_out', 'cancelled'].includes(deployment?.status));
 	const inspectCommand = text(latestFailed?.error?.inspectCommand ?? latestFailed?.error?.command, '');
 	if (latestFailed) {
-		hints.push({
-			title: titleCase(latestFailed.status, 'Deployment stopped'),
+		const environment = titleCase(latestFailed.environment, 'Deployment');
+		pushHint({
+			title: `${environment} deployment ${titleCase(latestFailed.status, 'stopped').toLowerCase()}`,
 			description: text(latestFailed.error?.summary ?? latestFailed.error?.message, inspectCommand || 'Review the latest deployment event timeline for details.'),
+			tone: statusTone(latestFailed.status),
 		});
 	}
 	if (state?.launch?.status === 'failed' || state?.launch?.status === 'cancelled') {
-		hints.push({
-			title: state.launch.status === 'failed' ? 'Launch failed' : 'Launch cancelled',
+		pushHint({
+			title: state.launch.status === 'failed' ? 'Project launch failed' : 'Project launch cancelled',
 			description: text(state.launch.error?.summary ?? state.launch.summary, 'Use launch retry or resume to continue setup.'),
+			tone: statusTone(state.launch.status),
+		});
+	}
+	for (const blocker of safeArray(state?.readiness?.blockers)) {
+		pushHint({
+			title: titleCase(text(blocker?.code, 'blocked').replace(/[_-]+/gu, ' '), 'Blocked'),
+			description: text(blocker?.message, 'Resolve this readiness blocker before deploying.'),
+			tone: 'warning',
+			...(blocker?.href ? { href: String(blocker.href) } : {}),
 		});
 	}
 	if (hints.length === 0 && history.length === 0) {
-		hints.push({
+		pushHint({
 			title: 'No deployment history yet',
 			description: 'Queue a staging deploy when readiness checks pass.',
+			tone: 'info',
 		});
 	}
-	return hints.slice(0, 5);
+	return hints.slice(0, 3);
 }
 
 function hasCredentialSessionBlocker(state: any): boolean {
@@ -492,6 +527,7 @@ export function buildDeploymentViewModel(state: any, events: any[] = []): Deploy
 				code: text(check?.code, 'check'),
 				label: text(check?.label, titleCase(check?.code, 'Readiness check')),
 				message: text(check?.message, 'Readiness check recorded.'),
+				help: text(check?.help, readinessHelp(check?.code, check?.label ?? check?.code)),
 				ready: Boolean(check?.ready),
 				tone: check?.ready ? 'success' : 'warning',
 				...(check?.href ? { href: String(check.href) } : {}),

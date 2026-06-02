@@ -4,17 +4,16 @@ import FormActions from '../../../../../../packages/core/src/components/ui/forms
 import EmptyState from '../../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../../../packages/core/src/components/ui/surface/Panel.astro';
 import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
-import { createMarketApiFacade } from '../../../../../lib/market/api-client';
-import { loadOperationalContext } from '../../../../../view-models/shared.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppCapacityProvider } from '../../../../../view-models/app-access.js';
 
 const providerId = String(Astro.params.providerId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
-const team = context.activeTeam;
-const marketApi = createMarketApiFacade(Astro);
-const providers = team ? await marketApi.listTeamCapacityProviders(team.id).catch(() => []) : [];
-const provider = providers.find((entry: any) => entry.id === providerId) ?? null;
-if (!provider) Astro.response.status = 404;
+const context = await loadAppContext(Astro);
+const providerResolution = await resolveAppCapacityProvider(context, providerId);
+const team = providerResolution.team ?? context.activeTeam;
+const provider = providerResolution.resource;
+if (providerResolution.team?.id && providerResolution.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, providerResolution.team);
+if (!provider) Astro.response.status = providerResolution.status === 'forbidden' ? 403 : 404;
 ---
 
 <TreeseedAppLayout title="Provider keys" description="Rotate provider API keys." currentPath="/app/capacity/providers" teams={context.teams} activeTeam={team}>

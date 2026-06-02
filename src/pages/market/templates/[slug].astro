@@ -1,17 +1,13 @@
 ---
 import { render } from 'astro:content';
-import { resolveSiteTemplate } from '@treeseed/core/templates';
 import TreeseedPublicLayout from '../../../layouts/TreeseedPublicLayout.astro';
 import Badge from '../../../../packages/core/src/components/ui/data/Badge.astro';
 import KeyValueList from '../../../../packages/core/src/components/ui/data/KeyValueList.astro';
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
-import { createMarketTemplateCatalogProvider } from '../../../lib/market/catalog.js';
+import { resolveMarketplaceSiteTemplate } from '../../../lib/market/public-access.js';
 
 const slug = Astro.params.slug ?? '';
-const template = await resolveSiteTemplate(slug, {
-	locals: Astro.locals,
-	catalogProvider: createMarketTemplateCatalogProvider(Astro),
-});
+const template = await resolveMarketplaceSiteTemplate(Astro, slug);
 if (!template.rendered || !template.item) {
 	Astro.response.status = 404;
 }

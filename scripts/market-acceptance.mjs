@@ -481,6 +481,7 @@ function sdkArgsForMethod(method) {
 		projectAccess: ['${fixtures.project.id}'],
 		projectDeploymentState: ['${fixtures.project.id}'],
 		projectDeployments: ['${fixtures.project.id}'],
+		projectDeploymentById: ['${fixtures.deployment.id}'],
 		projectDeployment: ['${fixtures.project.id}', '${fixtures.deployment.id}'],
 		projectDeploymentEvents: ['${fixtures.project.id}', '${fixtures.deployment.id}'],
 		createProjectWebDeployment: ['${fixtures.project.id}'],

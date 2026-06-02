@@ -89,6 +89,7 @@ describe('build:market-operations-runner wrapper', () => {
 		writeFile(join(root, 'src/market-operations-runner/entrypoint.js'), 'export const runner = true;\n');
 		writeFile(join(root, 'src/api/market-postgres.js'), 'export const postgres = true;\n');
 		writeFile(join(root, 'src/api/store.js'), 'export const store = true;\n');
+		writeFile(join(root, 'src/api/hub-launch-application.js'), 'export const launch = true;\n');
 		writeFile(join(root, 'src/lib/market/deployment-actions.ts'), 'export const actions = true;\n');
 		writeFile(join(root, 'src/lib/market/deployment-governance.ts'), 'export const governance = true;\n');
 
@@ -98,6 +99,7 @@ describe('build:market-operations-runner wrapper', () => {
 		expect(readFileSync(join(root, 'dist/market-operations-runner/entrypoint.js'), 'utf8')).toContain('runner');
 		expect(readFileSync(join(root, 'dist/api/market-postgres.js'), 'utf8')).toContain('postgres');
 		expect(readFileSync(join(root, 'dist/api/store.js'), 'utf8')).toContain('store');
+		expect(readFileSync(join(root, 'dist/api/hub-launch-application.js'), 'utf8')).toContain('launch');
 		expect(readFileSync(join(root, 'dist/lib/market/deployment-actions.ts'), 'utf8')).toContain('actions');
 		expect(readFileSync(join(root, 'dist/lib/market/deployment-governance.ts'), 'utf8')).toContain('governance');
 	});

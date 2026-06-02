@@ -7,19 +7,20 @@ import TextInput from '../../../../../packages/core/src/components/ui/forms/Text
 import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
-import { hostProviderFor } from '../../../../lib/market/control-ui.js';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { hostProviderFor, hostTypeLabel } from '../../../../lib/market/control-ui.js';
+import { loadAppContext } from '../../../../view-models/app-access.js';
 
 const hostType = String(Astro.params.hostType ?? '');
 const validTypes = new Set(['repository', 'web', 'capacity-provider', 'email', 'ai']);
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 }
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 if (!validTypes.has(hostType)) Astro.response.status = 404;
 const team = context.activeTeam;
 const provider = hostProviderFor(hostType);
-const title = `New ${hostType} host`;
+const hostTypeName = hostTypeLabel(hostType);
+const title = `Create ${hostTypeName} host`;
 const data = JSON.stringify({ teamId: team?.id ?? null, hostType, provider }).replace(/</gu, '\\u003c');
 ---
 
@@ -27,13 +28,13 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, provider }).re
 	{validTypes.has(hostType) && team ? (
 		<section class="ts-control-page" aria-label={title}>
 			<Panel eyebrow="Hosts" title={title} description="Sensitive values are encrypted in the browser using the unlock passphrase.">
-				<form id="host-create-form" class="ts-form-stack">
+				<form id="host-create-form" class="ts-form-stack" autocomplete="off">
 					<div class="ts-form-grid">
-						<Field label="Name" name="name" required>
-							<TextInput name="name" required placeholder={`${hostType} host`} />
+						<Field label="Host display name" name="name" required help="A friendly name shown in TreeSeed when people choose this host.">
+							<TextInput name="name" required placeholder={`${hostTypeName} host`} autocomplete="off" />
 						</Field>
-						<Field label="Account label" name="accountLabel">
-							<TextInput name="accountLabel" placeholder="Production account" />
+						<Field label="Connected account" name="accountLabel" help="Optional label for the external account, organization, workspace, or provider account behind this host.">
+							<TextInput name="accountLabel" placeholder="Production provider account" autocomplete="off" />
 						</Field>
 						{hostType === 'repository' && (
 							<>
@@ -78,6 +79,7 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, provider }).re
 							<>
 								<Field label="Cloudflare account ID" name="cloudflareAccountId" required><TextInput name="cloudflareAccountId" required /></Field>
 								<Field label="Cloudflare API token" name="cloudflareApiToken" required><TextInput name="cloudflareApiToken" type="password" required autocomplete="new-password" /></Field>
+								<Field label="Root domain" name="cloudflareZoneName" help="Domain this web host can use for project addresses, such as treeseed.ai. Projects can use the root domain or subdomains for production and staging."><TextInput name="cloudflareZoneName" placeholder="example.com" /></Field>
 							</>
 						)}
 						{hostType === 'capacity-provider' && (
@@ -90,8 +92,8 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, provider }).re
 							<>
 								<Field label="SMTP host" name="smtpHost" required><TextInput name="smtpHost" required /></Field>
 								<Field label="SMTP port" name="smtpPort" required><TextInput name="smtpPort" type="number" required value="587" /></Field>
-								<Field label="SMTP username" name="smtpUsername"><TextInput name="smtpUsername" /></Field>
-								<Field label="SMTP password" name="smtpPassword"><TextInput name="smtpPassword" type="password" autocomplete="new-password" /></Field>
+								<Field label="SMTP username" name="smtpUsername" required><TextInput name="smtpUsername" required /></Field>
+								<Field label="SMTP password" name="smtpPassword" required><TextInput name="smtpPassword" type="password" required autocomplete="new-password" /></Field>
 								<Field label="From email" name="smtpFromEmail"><TextInput name="smtpFromEmail" type="email" /></Field>
 								<Field label="Reply-to email" name="smtpReplyTo"><TextInput name="smtpReplyTo" type="email" /></Field>
 								<Field label="Secure mode" name="smtpSecure"><Select name="smtpSecure" options={[{ label: 'STARTTLS', value: 'false' }, { label: 'TLS', value: 'true' }]} /></Field>
@@ -120,70 +122,17 @@ const data = JSON.stringify({ teamId: team?.id ?? null, hostType, provider }).re
 </TreeseedAppLayout>
 
 <script>
-	import { encryptHostConfig } from '../../../../lib/cloudflare-host-crypto.js';
-	const dataElement = document.getElementById('host-create-data');
-	const pageData = dataElement?.textContent ? JSON.parse(dataElement.textContent) : {};
-	const form = document.getElementById('host-create-form') as HTMLFormElement | null;
-	const status = document.getElementById('host-create-status');
-	function value(formData: FormData, key: string) {
-		return String(formData.get(key) ?? '').trim();
+	import { bindHostCreateCredentialForm } from '../../../../lib/market/host-credential-form-client.ts';
+
+	function initHostCreateForm() {
+		const dataElement = document.getElementById('host-create-data');
+		const pageData = dataElement?.textContent ? JSON.parse(dataElement.textContent) : {};
+		bindHostCreateCredentialForm(pageData);
 	}
-	function credentialConfig(formData: FormData, hostType: string) {
-		if (hostType === 'repository') {
-			const token = value(formData, 'githubToken');
-			return { GH_TOKEN: token, GITHUB_TOKEN: token, organizationOrOwner: value(formData, 'organizationOrOwner'), owner: value(formData, 'organizationOrOwner') };
-		}
-		if (hostType === 'web') return { CLOUDFLARE_ACCOUNT_ID: value(formData, 'cloudflareAccountId'), CLOUDFLARE_API_TOKEN: value(formData, 'cloudflareApiToken') };
-		if (hostType === 'capacity-provider') return { RAILWAY_API_TOKEN: value(formData, 'railwayApiToken'), TREESEED_RAILWAY_WORKSPACE: value(formData, 'railwayWorkspace') };
-		if (hostType === 'email') return { SMTP_HOST: value(formData, 'smtpHost'), SMTP_PORT: value(formData, 'smtpPort'), SMTP_USERNAME: value(formData, 'smtpUsername'), SMTP_PASSWORD: value(formData, 'smtpPassword'), SMTP_FROM_EMAIL: value(formData, 'smtpFromEmail'), SMTP_REPLY_TO: value(formData, 'smtpReplyTo'), SMTP_SECURE: value(formData, 'smtpSecure') };
-		return { AI_API_KEY: value(formData, 'aiApiKey'), AI_BASE_URL: value(formData, 'aiBaseUrl'), AI_DEFAULT_MODEL: value(formData, 'aiDefaultModel'), AI_PROVIDER: value(formData, 'provider') };
-	}
-	async function submitJson(url: string, method: string, body: any) {
-		const response = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-		const payload = await response.json().catch(() => null);
-		if (!response.ok || payload?.ok === false) throw new Error(payload?.error ?? 'Request failed.');
-		return payload.payload;
-	}
-	form?.addEventListener('submit', async (event) => {
-		event.preventDefault();
-		const formData = new FormData(form);
-		const passphrase = (window as any).treeseedSensitiveUnlock?.requirePassphrase?.();
-		if (!passphrase) {
-			if (status) status.textContent = 'Unlock sensitive data before saving this host.';
-			return;
-		}
-		if (status) status.textContent = 'Encrypting...';
-		try {
-			const encryptedPayload = await encryptHostConfig(credentialConfig(formData, pageData.hostType), String(passphrase));
-			if (pageData.hostType === 'repository') {
-				await submitJson(`/v1/teams/${encodeURIComponent(pageData.teamId)}/repository-hosts`, 'POST', {
-					name: value(formData, 'name'),
-					accountLabel: value(formData, 'accountLabel'),
-					organizationOrOwner: value(formData, 'organizationOrOwner'),
-					defaultVisibility: value(formData, 'defaultVisibility') || 'private',
-					softwareRepositoryNameTemplate: value(formData, 'softwareRepositoryNameTemplate') || '{hub}-site',
-					contentRepositoryNameTemplate: value(formData, 'contentRepositoryNameTemplate') || '{hub}-content',
-					branchPolicy: { defaultBranch: value(formData, 'defaultBranch') || 'main' },
-					workflowPolicy: {},
-					allowedProjectKinds: ['knowledge_hub'],
-					status: 'active',
-					ownership: 'team_owned',
-					encryptedPayload,
-				});
-			} else {
-				await submitJson(`/v1/teams/${encodeURIComponent(pageData.teamId)}/hosts`, 'POST', {
-					name: value(formData, 'name'),
-					accountLabel: value(formData, 'accountLabel'),
-					provider: value(formData, 'provider') || pageData.provider,
-					ownership: 'team_owned',
-					status: value(formData, 'status') || 'active',
-					metadata: { hostType: pageData.hostType === 'capacity-provider' ? 'capacity_provider' : pageData.hostType },
-					encryptedPayload,
-				});
-			}
-			window.location.href = '/app/hosts';
-		} catch (error) {
-			if (status) status.textContent = error instanceof Error ? error.message : 'Host could not be saved.';
-		}
-	});
+	(window as any).treeseedInitHostCreateForm = initHostCreateForm;
+	initHostCreateForm();
+</script>
+
+<script is:inline data-astro-rerun>
+	window.treeseedInitHostCreateForm?.();
 </script>

@@ -12,27 +12,30 @@ import EmptyState from '../../../../../../packages/core/src/components/ui/surfac
 import Panel from '../../../../../../packages/core/src/components/ui/surface/Panel.astro';
 import ProjectControlNav from '../../../../../components/app/controls/ProjectControlNav.astro';
 import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
-import { loadOperationalContext } from '../../../../../view-models/shared.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppProject } from '../../../../../view-models/app-access.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
 const agentSlug = String(Astro.params.agentSlug ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
-const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
+const context = await loadAppContext(Astro);
+const resolvedProject = await resolveAppProject(context, projectParam);
+const project = resolvedProject.resource;
+const layoutActiveTeam = resolvedProject.team ?? context.activeTeam;
+if (resolvedProject.team?.id && resolvedProject.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, resolvedProject.team);
 const [agentEntries, summary] = project ? await Promise.all([
 	getCollection('agents' as any, ({ data }: any) => data?.enabled !== false).catch(() => []),
 	context.store && typeof context.store.getProjectAgentsSummary === 'function' ? context.store.getProjectAgentsSummary(project.id, context.principal).catch(() => null) : null,
 ]) : [[], null];
 const entry = agentEntries.find((candidate: any) => String(candidate.data?.slug ?? candidate.id ?? '') === agentSlug || String(candidate.data?.id ?? '').replace(/^agent:/u, '') === agentSlug) ?? null;
 const runtime = (summary?.agents ?? []).find((agent: any) => String(agent.agentSlug ?? agent.slug ?? '') === agentSlug) ?? null;
-if (!project || (!entry && !runtime)) Astro.response.status = 404;
+if (!project || (!entry && !runtime)) Astro.response.status = resolvedProject.status === 'forbidden' ? 403 : 404;
 const rendered = entry ? await render(entry) : null;
 const Content = rendered?.Content;
 const data = entry?.data ?? {};
 const operationData = JSON.stringify({ projectId: project?.id ?? '', agentSlug }).replace(/</gu, '\\u003c');
 ---
 
-<TreeseedAppLayout title={data.name ?? data.title ?? agentSlug} description={data.description ?? runtime?.lastMessage ?? ''} currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+<TreeseedAppLayout title={data.name ?? data.title ?? agentSlug} description={data.description ?? runtime?.lastMessage ?? ''} currentPath="/app/projects" teams={context.teams} activeTeam={layoutActiveTeam}>
 	{project && (entry || runtime) ? (
 		<section class="ts-control-page" aria-label="Agent detail">
 			<ProjectControlNav projectId={project.id} current="agents" />

@@ -12,8 +12,8 @@ import { loadWorkContentEntries, workContentEntriesFor, workContentRelationSumma
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/work/questions')}`);
 const [governance, knowledge, contentEntries] = await Promise.all([
-	loadGovernanceViewModel(Astro.locals),
-	loadKnowledgeViewModel(Astro.locals).catch(() => null),
+	loadGovernanceViewModel(Astro),
+	loadKnowledgeViewModel(Astro).catch(() => null),
 	loadWorkContentEntries(),
 ]);
 const questionEntries = workContentEntriesFor(contentEntries, 'questions');

@@ -9,17 +9,20 @@ import EmptyState from '../../../../../../packages/core/src/components/ui/surfac
 import Panel from '../../../../../../packages/core/src/components/ui/surface/Panel.astro';
 import ProjectControlNav from '../../../../../components/app/controls/ProjectControlNav.astro';
 import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
-import { loadOperationalContext } from '../../../../../view-models/shared.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppProject } from '../../../../../view-models/app-access.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
-const project = context.projects.find((entry: any) => entry.id === projectParam || entry.slug === projectParam || entry.handle === projectParam) ?? null;
-if (!project) Astro.response.status = 404;
+const context = await loadAppContext(Astro);
+const resolvedProject = await resolveAppProject(context, projectParam);
+const project = resolvedProject.resource;
+const layoutActiveTeam = resolvedProject.team ?? context.activeTeam;
+if (resolvedProject.team?.id && resolvedProject.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, resolvedProject.team);
+if (!project) Astro.response.status = resolvedProject.status === 'forbidden' ? 403 : 404;
 const operationData = JSON.stringify({ projectId: project?.id ?? '' }).replace(/</gu, '\\u003c');
 ---
 
-<TreeseedAppLayout title="New agent" description="Create a local agent definition." currentPath="/app/projects" teams={context.teams} activeTeam={context.activeTeam}>
+<TreeseedAppLayout title="New agent" description="Create a local agent definition." currentPath="/app/projects" teams={context.teams} activeTeam={layoutActiveTeam}>
 	{project ? (
 		<section class="ts-control-page" aria-label="New agent">
 			<ProjectControlNav projectId={project.id} current="agents" />

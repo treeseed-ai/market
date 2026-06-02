@@ -32,7 +32,10 @@ function latestByEnvironment(deployments: any[], environment: 'staging' | 'prod'
 }
 
 function activeDeployments(deployments: any[]) {
-	return safeArray(deployments).filter((deployment) => ['queued', 'claimed', 'dispatching', 'running', 'monitoring'].includes(deployment.status));
+	return safeArray(deployments).filter((deployment) => (
+		deployment.action !== 'launch_project'
+		&& ['queued', 'claimed', 'dispatching', 'running', 'monitoring'].includes(deployment.status)
+	));
 }
 
 function hasMonitor(deployment: any) {
@@ -117,7 +120,7 @@ function buildLaunchRecoveryActions(status: string, launch: any, job: any) {
 	];
 }
 
-function normalizeLaunch(launch: any, events: any[], job: any, projectId: string) {
+function normalizeLaunch(launch: any, events: any[], job: any, projectId: string, deploymentId: string | null = null) {
 	if (!launch) {
 		return {
 			id: null,
@@ -157,7 +160,9 @@ function normalizeLaunch(launch: any, events: any[], job: any, projectId: string
 		summary: launchSummary(status, launch),
 		active: ACTIVE_LAUNCH_STATUSES.has(status),
 		terminal: TERMINAL_LAUNCH_STATUSES.has(status),
-		deployHref: `/app/projects/${encodeURIComponent(projectId)}/deploy?launch=${encodeURIComponent(launch.id)}`,
+		deployHref: deploymentId
+			? `/app/projects/deployment/${encodeURIComponent(deploymentId)}`
+			: `/app/projects/${encodeURIComponent(projectId)}/deploy?launch=${encodeURIComponent(launch.id)}`,
 		actions: buildLaunchRecoveryActions(status, launch, job),
 		inspect: error ? {
 			summary: error.summary,
@@ -247,7 +252,15 @@ export async function buildProjectDeploymentState(input: {
 		activeOperations,
 		runners,
 	});
-	const launch = normalizeLaunch(details.latestLaunch, details.latestLaunchEvents, launchJob, input.projectId);
+	const launchDeployment = safeArray(deployments).find((deployment) => (
+		deployment.action === 'launch_project'
+		&& deployment.environment === 'staging'
+		&& (!details.latestLaunch?.jobId || deployment.platformOperationId === details.latestLaunch.jobId)
+	)) ?? safeArray(deployments).find((deployment) => (
+		deployment.action === 'launch_project'
+		&& (!details.latestLaunch?.jobId || deployment.platformOperationId === details.latestLaunch.jobId)
+	)) ?? null;
+	const launch = normalizeLaunch(details.latestLaunch, details.latestLaunchEvents, launchJob, input.projectId, launchDeployment?.id ?? null);
 	return {
 		ok: true,
 		project: details.project,

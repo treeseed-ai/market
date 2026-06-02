@@ -136,7 +136,17 @@ export async function submitLaunchRecoveryForm(options: {
 }) {
 	const status = options.statusElement;
 	if (status) status.textContent = 'Queuing launch recovery...';
-	const response = await fetch(options.form.action, { method: 'POST' });
+	const formData = new FormData(options.form);
+	const sensitivePassphrase = String(formData.get('sensitivePassphrase') ?? '').trim();
+	const body: Record<string, unknown> = {
+		source: 'market_ui',
+	};
+	if (sensitivePassphrase) body.sensitivePassphrase = sensitivePassphrase;
+	const response = await fetch(options.form.action, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(body),
+	});
 	const payload = await readJson(response) as DeploymentEnvelope | null;
 	if (!response.ok || payload?.ok === false) {
 		throw new Error(errorMessage(payload, 'Launch recovery could not be queued.'));

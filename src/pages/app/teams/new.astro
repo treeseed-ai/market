@@ -7,7 +7,7 @@ import Textarea from '../../../../packages/core/src/components/ui/forms/Textarea
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
 import { MarketApiClientFacade } from '../../../lib/market/api-client';
-import { loadOperationalContext } from '../../../view-models/shared.js';
+import { loadAppContext } from '../../../view-models/app-access.js';
 
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/teams/new')}`);
@@ -43,14 +43,14 @@ if (Astro.request.method === 'POST') {
 				secure: Astro.url.protocol === 'https:',
 				maxAge: 31_536_000,
 			});
-			return Astro.redirect(`/app/teams?teamId=${encodeURIComponent(team.id)}`, 303);
+			return Astro.redirect('/app/teams', 303);
 		} catch (error) {
 			formError = error instanceof Error ? error.message : 'Team could not be created.';
 		}
 	}
 }
 
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 ---
 
 <TreeseedAppLayout title="New team" description="Create one team." currentPath="/app/teams" teams={context.teams} activeTeam={context.activeTeam}>

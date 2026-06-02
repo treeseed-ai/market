@@ -1,4 +1,5 @@
-import { loadOperationalContext, type OperationalContext, type OperationalMetric } from './shared.js';
+import { loadAppContext } from './app-access.js';
+import { type OperationalContext, type OperationalMetric } from './shared.js';
 import {
 	buildGovernanceApprovalProjection,
 	buildGovernanceProjection,
@@ -22,8 +23,8 @@ export interface GovernanceViewModel {
 	auditTrail: GovernanceEvent[];
 }
 
-export async function loadGovernanceViewModel(locals: App.Locals): Promise<GovernanceViewModel> {
-	const context = await loadOperationalContext(locals);
+export async function loadGovernanceViewModel(input: any): Promise<GovernanceViewModel> {
+	const context = await loadAppContext(input);
 	const projection = await buildGovernanceProjection({
 		store: context.store,
 		principal: context.principal,
@@ -42,8 +43,8 @@ export interface GovernanceApprovalViewModel {
 	detail: GovernanceApprovalProjection | null;
 }
 
-export async function loadGovernanceApprovalViewModel(locals: App.Locals, approvalId: string): Promise<GovernanceApprovalViewModel> {
-	const context = await loadOperationalContext(locals);
+export async function loadGovernanceApprovalViewModel(input: any, approvalId: string): Promise<GovernanceApprovalViewModel> {
+	const context = await loadAppContext(input);
 	const detail = await buildGovernanceApprovalProjection({
 		store: context.store,
 		principal: context.principal,

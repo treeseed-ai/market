@@ -88,6 +88,33 @@ export function installProjectDeploymentRoutes(app, { store, requireProjectAcces
 		return access;
 	}
 
+	app.get('/v1/project-deployments/:deploymentId', async (c) => {
+		const deployment = await store.findProjectDeploymentById(c.req.param('deploymentId'));
+		if (!deployment) {
+			return jsonDeploymentError(c, 'deployment_not_found', `Unknown deployment "${c.req.param('deploymentId')}".`);
+		}
+		const access = await requireDeploymentPermission(c, deployment.projectId, 'read');
+		if (access.response) return access.response;
+		const safeCall = (fn, ...args) => typeof fn === 'function' ? fn.apply(store, args).catch(() => null) : Promise.resolve(null);
+		const [events, job, launch, project] = await Promise.all([
+			store.listProjectDeploymentEvents(deployment.id, { limit: c.req.query('limit') }),
+			deployment.platformOperationId ? safeCall(store.findJobById, deployment.platformOperationId) : null,
+			deployment.platformOperationId ? safeCall(store.getHubLaunchByJobId, deployment.platformOperationId) : null,
+			safeCall(store.getProjectSummary, deployment.projectId, access.principal),
+		]);
+		return c.json({
+			ok: true,
+			payload: {
+				deployment,
+				events,
+				job,
+				launch,
+				project,
+				projectDetails: access.details,
+			},
+		});
+	});
+
 	app.get('/v1/projects/:projectId/deployment-state', async (c) => {
 		const access = await requireDeploymentPermission(c, c.req.param('projectId'), 'read');
 		if (access.response) return access.response;

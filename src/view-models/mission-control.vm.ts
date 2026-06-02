@@ -3,7 +3,6 @@ import {
 	compareDatesDesc,
 	describeState,
 	knowledgeHref,
-	loadOperationalContext,
 	loadProjectBundle,
 	normalizeWorkdayEntry,
 	operationEventFromApproval,
@@ -15,6 +14,7 @@ import {
 	type OperationalEvent,
 	type OperationalMetric,
 } from './shared.js';
+import { loadAppContext } from './app-access.js';
 
 export interface MissionControlViewModel {
 	context: OperationalContext;
@@ -31,8 +31,8 @@ export interface MissionControlViewModel {
 	recentReleases: OperationalEvent[];
 }
 
-export async function loadMissionControlViewModel(locals: App.Locals): Promise<MissionControlViewModel> {
-	const context = await loadOperationalContext(locals);
+export async function loadMissionControlViewModel(input: any): Promise<MissionControlViewModel> {
+	const context = await loadAppContext(input);
 	const bundles = await Promise.all(context.projects.map((project: any) => loadProjectBundle(context, project)));
 	const workdays = bundles
 		.flatMap((bundle: any) => [

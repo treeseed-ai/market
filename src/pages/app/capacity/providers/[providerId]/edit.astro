@@ -10,16 +10,17 @@ import PlainTable from '../../../../../components/app/controls/PlainTable.astro'
 import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../../lib/market/control-ui.js';
 import { createMarketApiFacade } from '../../../../../lib/market/api-client';
-import { loadOperationalContext } from '../../../../../view-models/shared.js';
+import { loadAppContext, persistActiveTeamSelection, resolveAppCapacityProvider } from '../../../../../view-models/app-access.js';
 
 const providerId = String(Astro.params.providerId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
-const team = context.activeTeam;
+const context = await loadAppContext(Astro);
 const marketApi = createMarketApiFacade(Astro);
-const providers = team ? await marketApi.listTeamCapacityProviders(team.id).catch(() => []) : [];
-const provider = providers.find((entry: any) => entry.id === providerId) ?? null;
-if (!provider) Astro.response.status = 404;
+const providerResolution = await resolveAppCapacityProvider(context, providerId);
+const team = providerResolution.team ?? context.activeTeam;
+const provider = providerResolution.resource;
+if (providerResolution.team?.id && providerResolution.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, providerResolution.team);
+if (!provider) Astro.response.status = providerResolution.status === 'forbidden' ? 403 : 404;
 const deployments = provider && team
 	? await marketApi.listCapacityProviderDeployments(team.id, provider.id).catch(() => [])
 	: [];
@@ -36,7 +37,7 @@ const deployment = latestDeployment ?? provider?.deployment ?? (Array.isArray(pr
 const registration = Array.isArray(provider?.registrations) ? provider.registrations[0] : null;
 const latestWorkday = provider?.metadata?.latestProviderWorkday ?? null;
 const latestReport = provider?.metadata?.latestProviderReport ?? null;
-const teamProjects = context.projects.filter((entry: any) => !team || entry.teamId === team.id || entry.team_id === team.id);
+const teamProjects = team ? await marketApi.listTeamProjects(team.id).catch(() => []) : [];
 
 function formatLimit(limit: any) {
 	if (!limit) return 'No native limit reported';

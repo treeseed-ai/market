@@ -1,6 +1,7 @@
 ---
 import '../styles/treeseed.css';
 import AppShell from '../../packages/core/src/components/ui/shell/AppShell.astro';
+import DeleteConfirmationModal from '../components/app/controls/DeleteConfirmationModal.astro';
 import SensitiveDataUnlock from '../components/app/sensitive/SensitiveDataUnlock.astro';
 import { resolveAuthenticatedThemePreference } from '../lib/auth/appearance';
 
@@ -17,6 +18,7 @@ interface Props {
 	currentPath: string;
 	teams: TeamEntry[];
 	activeTeam?: TeamEntry | null;
+	showSensitiveUnlock?: boolean;
 }
 
 const {
@@ -25,6 +27,7 @@ const {
 	currentPath,
 	teams,
 	activeTeam = null,
+	showSensitiveUnlock: forceSensitiveUnlock = false,
 } = Astro.props as Props;
 
 const railItems = [
@@ -48,6 +51,18 @@ const teamOptions = teams.map((team) => ({
 	id: team.id,
 	label: team.displayName ?? team.name ?? team.slug ?? team.id,
 }));
+const sensitiveUnlockPaths = [
+	'/app/hosts',
+	'/app/projects/new',
+	'/app/capacity/providers/new',
+];
+const routePath = Astro.url.pathname;
+const showSensitiveUnlock = sensitiveUnlockPaths.some((path) => (
+	currentPath === path
+	|| currentPath.startsWith(`${path}/`)
+	|| routePath === path
+	|| routePath.startsWith(`${path}/`)
+)) || forceSensitiveUnlock;
 ---
 
 <AppShell
@@ -82,9 +97,10 @@ const teamOptions = teams.map((team) => ({
 			<a class="ts-create-team-button" href="/app/teams/new">Create team</a>
 		)}
 	</div>
-	<SensitiveDataUnlock part="button" slot="headerAction" />
+	{showSensitiveUnlock ? <SensitiveDataUnlock part="button" slot="headerAction" /> : null}
 	<slot />
-	<SensitiveDataUnlock part="modal" slot="sensitiveModal" />
+	{showSensitiveUnlock ? <SensitiveDataUnlock part="modal" slot="sensitiveModal" /> : null}
+	<DeleteConfirmationModal slot="modal" />
 </AppShell>
 
 <script>
@@ -92,7 +108,7 @@ const teamOptions = teams.map((team) => ({
 		const select = (form as HTMLFormElement).elements.namedItem('teamId') as HTMLSelectElement | null;
 		select?.addEventListener('change', () => {
 			const url = new URL(window.location.href);
-			url.searchParams.set('teamId', select.value);
+			url.searchParams.delete('teamId');
 			document.cookie = `treeseed_active_team=${encodeURIComponent(select.value)}; path=/app; max-age=31536000; SameSite=Lax`;
 			window.location.href = url.toString();
 		});

@@ -8,11 +8,16 @@ import TextInput from '../../../../../packages/core/src/components/ui/forms/Text
 import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
-import { loadOperationalContext } from '../../../../view-models/shared.js';
+import { hostPurposeFor } from '../../../../lib/market/control-ui.js';
+import { loadAppContext } from '../../../../view-models/app-access.js';
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/capacity/providers/new')}`);
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 const team = context.activeTeam;
+const capacityProviderHosts = team && context.store
+	? await context.store.listTeamWebHosts(team.id).then((hosts: any[]) => hosts.filter((host: any) => host.provider === 'railway' && host.metadata?.hostType === 'capacity_provider')).catch(() => [])
+	: [];
+const pageJson = JSON.stringify({ teamId: team?.id ?? null, capacityProviderHosts }).replace(/</gu, '\\u003c');
 ---
 
 <TreeseedAppLayout title="New capacity provider" description="Create one capacity provider." currentPath="/app/capacity/providers" teams={context.teams} activeTeam={team}>
@@ -24,6 +29,27 @@ const team = context.activeTeam;
 						<Field label="Name" name="name" required><TextInput name="name" required /></Field>
 						<Field label="Launch mode" name="launchMode"><Select name="launchMode" options={[{ label: 'Self-host', value: 'self_hosted' }, { label: 'Managed Market host', value: 'managed_market_host' }, { label: 'Connected host', value: 'connected_host' }]} /></Field>
 					</div>
+					<section class="ts-inline-host-card" data-connected-host-card hidden>
+						<div class="ts-inline-host-card__header">
+							<strong>Connected capacity provider host</strong>
+							<span>{hostPurposeFor('capacity-provider')}</span>
+						</div>
+						<Field label="Railway host" name="capacityProviderHostChoice">
+							<Select name="capacityProviderHostChoice" options={[]} />
+						</Field>
+						<div class="ts-inline-host-fields" data-inline-host="capacity-provider" hidden>
+							<div class="ts-form-grid">
+								<Field label="Host display name" name="capacityHostNewName" required help="A friendly name shown in TreeSeed when people choose this capacity host."><TextInput name="capacityHostNewName" required disabled data-inline-control placeholder="Railway capacity connection" /></Field>
+								<Field label="Connected account" name="capacityHostNewAccountLabel" help="Optional label for the Railway account or workspace behind this host."><TextInput name="capacityHostNewAccountLabel" disabled data-inline-control placeholder="Capacity Railway workspace" /></Field>
+								<Field label="Railway API token" name="capacityHostNewRailwayToken" required><TextInput name="capacityHostNewRailwayToken" type="password" required disabled data-inline-control autocomplete="new-password" /></Field>
+								<Field label="Railway workspace" name="capacityHostNewRailwayWorkspace"><TextInput name="capacityHostNewRailwayWorkspace" disabled data-inline-control /></Field>
+							</div>
+						</div>
+						<div class="ts-form-note" id="capacity-host-sensitive-notice" hidden>
+							<strong>Sensitive data unlock required.</strong>
+							<span>Connected deployments need an unlocked Railway host credential session.</span>
+						</div>
+					</section>
 					<RadioGroup
 						name="budgetMode"
 						legend="Budget mode"
@@ -79,29 +105,79 @@ const team = context.activeTeam;
 	) : (
 		<EmptyState title="No active team" description="Create or switch to a team before adding capacity." actions={[{ label: 'Open Team', href: '/app/teams' }]} />
 	)}
+	<script is:inline type="application/json" id="provider-create-data" set:html={pageJson}></script>
 </TreeseedAppLayout>
 
-<script is:inline define:vars={{ teamId: team?.id ?? '' }}>
-	const form = document.getElementById('provider-form');
+<script>
+	import { encryptHostConfig } from '../../../../lib/host-crypto.ts';
+	const dataElement = document.getElementById('provider-create-data');
+	const pageData = dataElement?.textContent ? JSON.parse(dataElement.textContent) : { teamId: '', capacityProviderHosts: [] };
+	const form = document.getElementById('provider-form') as HTMLFormElement | null;
 	const status = document.getElementById('provider-status');
 	const keyDisplay = document.getElementById('provider-key');
 	const instructions = document.getElementById('provider-instructions');
-	const copyButton = document.getElementById('copy-provider-key');
+	const copyButton = document.getElementById('copy-provider-key') as HTMLButtonElement | null;
 	const copyStatus = document.getElementById('copy-status');
 	const nativeFields = document.getElementById('native-capacity-fields');
+	const connectedHostCard = document.querySelector('[data-connected-host-card]') as HTMLElement | null;
+	const connectedHostFields = document.querySelector('[data-inline-host="capacity-provider"]') as HTMLElement | null;
+	const capacityHostSelect = form?.querySelector('[name="capacityProviderHostChoice"]') as HTMLSelectElement | null;
+	const capacityHostSensitiveNotice = document.getElementById('capacity-host-sensitive-notice');
 	let revealedKey = '';
+	function value(data: FormData, key: string) {
+		return String(data.get(key) ?? '').trim();
+	}
+	function hostLabel(host: any) {
+		const account = host.accountLabel || host.metadata?.workspace || host.provider || 'team-owned';
+		return `${host.name || 'Railway capacity provider host'} (${account})`;
+	}
+	function selectedLaunchMode() {
+		if (!form) return 'self_hosted';
+		return String(new FormData(form).get('launchMode') ?? 'self_hosted');
+	}
+	function selectedCapacityHostMode() {
+		return String(capacityHostSelect?.value ?? '').split(':')[0] || '';
+	}
+	function selectedCapacityHostId() {
+		return String(capacityHostSelect?.value ?? '').split(':').slice(1).join(':');
+	}
+	function refreshCapacityHostChoices() {
+		if (!capacityHostSelect) return;
+		capacityHostSelect.replaceChildren();
+		for (const host of pageData.capacityProviderHosts ?? []) {
+			capacityHostSelect.append(new Option(hostLabel(host), `team_owned:${host.id}`));
+		}
+		capacityHostSelect.append(new Option('Create new Railway capacity provider host...', 'new:capacity-provider'));
+	}
 	function selectedBudgetMode() {
+		if (!form) return 'derived';
 		return String(new FormData(form).get('budgetMode') ?? 'derived');
 	}
 	function syncNativeFields() {
 		const staticMode = selectedBudgetMode() === 'static';
 		if (nativeFields) nativeFields.hidden = staticMode;
-		for (const control of nativeFields?.querySelectorAll('input, select') ?? []) {
+		for (const control of nativeFields?.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select') ?? []) {
 			control.disabled = staticMode;
 		}
 	}
-	form?.addEventListener('change', syncNativeFields);
+	function syncConnectedHostFields() {
+		const connected = selectedLaunchMode() === 'connected_host';
+		if (connectedHostCard) connectedHostCard.hidden = !connected;
+		if (capacityHostSelect) capacityHostSelect.disabled = !connected;
+		const creatingHost = connected && selectedCapacityHostMode() === 'new';
+		if (connectedHostFields) connectedHostFields.hidden = !creatingHost;
+		for (const control of connectedHostFields?.querySelectorAll<HTMLInputElement>('[data-inline-control]') ?? []) {
+			control.disabled = !creatingHost;
+		}
+		if (capacityHostSensitiveNotice) capacityHostSensitiveNotice.hidden = !connected;
+	}
+	form?.addEventListener('change', () => {
+		syncNativeFields();
+		syncConnectedHostFields();
+	});
+	refreshCapacityHostChoices();
 	syncNativeFields();
+	syncConnectedHostFields();
 	copyButton?.addEventListener('click', async () => {
 		if (!revealedKey) return;
 		try {
@@ -111,33 +187,69 @@ const team = context.activeTeam;
 			if (copyStatus) copyStatus.textContent = 'Copy failed. Select the key text manually.';
 		}
 	});
+	async function submitJson(url: string, method: string, body: any) {
+		const response = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || payload?.ok === false) throw new Error(payload?.error ?? 'Request failed.');
+		return payload.payload ?? payload;
+	}
+	async function createCapacityProviderHost(data: FormData, passphrase: string) {
+		const encryptedPayload = await encryptHostConfig({
+			RAILWAY_API_TOKEN: value(data, 'capacityHostNewRailwayToken'),
+			TREESEED_RAILWAY_WORKSPACE: value(data, 'capacityHostNewRailwayWorkspace'),
+		}, passphrase);
+		return submitJson(`/v1/teams/${encodeURIComponent(pageData.teamId)}/hosts`, 'POST', {
+			name: value(data, 'capacityHostNewName') || 'Railway capacity provider host',
+			accountLabel: value(data, 'capacityHostNewAccountLabel'),
+			provider: 'railway',
+			ownership: 'team_owned',
+			status: 'active',
+			metadata: { hostType: 'capacity_provider', createdFrom: 'capacity_provider_setup_ui' },
+			encryptedPayload,
+		});
+	}
+	async function createCredentialSession(hostId: string, passphrase: string) {
+		const session = await submitJson(`/v1/teams/${encodeURIComponent(pageData.teamId)}/provider-credential-sessions`, 'POST', {
+			hostKind: 'capacity_provider_host',
+			hostId,
+			passphrase,
+			purpose: 'deploy_capacity_provider',
+			expiresInSeconds: 900,
+		});
+		return session.id;
+	}
 	form?.addEventListener('submit', async (event) => {
 		event.preventDefault();
+		if (!form) return;
 		const data = new FormData(form);
 		if (status) status.textContent = 'Creating...';
-		const response = await fetch(`/v1/teams/${encodeURIComponent(teamId)}/capacity-providers`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({
-				name: String(data.get('name') ?? '').trim(),
-				launchMode: String(data.get('launchMode') ?? 'self_hosted'),
+		try {
+			const launchMode = selectedLaunchMode();
+			const connected = launchMode === 'connected_host';
+			let connectedHostId = selectedCapacityHostMode() === 'team_owned' ? selectedCapacityHostId() : '';
+			let capacityProviderHostSession = '';
+			if (connected) {
+				const unlock = (window as any).treeseedSensitiveUnlock;
+				const passphrase = (await unlock?.requestPassphrase?.()) ?? unlock?.requirePassphrase?.();
+				if (!passphrase) throw new Error('Unlock sensitive data before deploying with a connected capacity provider host.');
+				if (selectedCapacityHostMode() === 'new') {
+					const host = await createCapacityProviderHost(data, String(passphrase));
+					connectedHostId = host.id;
+				}
+				if (!connectedHostId) throw new Error('Choose or create a Railway capacity provider host.');
+				capacityProviderHostSession = await createCredentialSession(connectedHostId, String(passphrase));
+			}
+			const payload = await submitJson(`/v1/teams/${encodeURIComponent(pageData.teamId)}/capacity-providers`, 'POST', {
+				name: value(data, 'name'),
+				launchMode,
 				creditBudgetMode: String(data.get('budgetMode') ?? 'derived'),
-			}),
-		});
-		const payload = await response.json().catch(() => null);
-		if (!response.ok || payload?.ok === false) {
-			if (status) status.textContent = payload?.error ?? 'Provider could not be created.';
-			return;
-		}
-		const providerId = String(payload?.provider?.id ?? '');
-		const budgetMode = String(data.get('budgetMode') ?? 'derived');
-		if (providerId && budgetMode !== 'static') {
-			const nativeLimitAmount = Number(data.get('limitAmount') ?? 0);
-			const executionProviderResponse = await fetch(`/v1/teams/${encodeURIComponent(teamId)}/capacity-providers/${encodeURIComponent(providerId)}/execution-providers`, {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({
-					name: String(data.get('executionProviderName') ?? '').trim() || 'Primary native capacity',
+			});
+			const providerId = String(payload?.provider?.id ?? '');
+			const budgetMode = String(data.get('budgetMode') ?? 'derived');
+			if (providerId && budgetMode !== 'static') {
+				const nativeLimitAmount = Number(data.get('limitAmount') ?? 0);
+				await submitJson(`/v1/teams/${encodeURIComponent(pageData.teamId)}/capacity-providers/${encodeURIComponent(providerId)}/execution-providers`, 'POST', {
+					name: value(data, 'executionProviderName') || 'Primary native capacity',
 					kind: String(data.get('providerKind') ?? 'codex_subscription'),
 					nativeUnit: String(data.get('nativeUnit') ?? 'wall_minute'),
 					quotaVisibility: String(data.get('quotaVisibility') ?? 'opaque'),
@@ -153,32 +265,43 @@ const team = context.activeTeam;
 						metadata: { setupMode: budgetMode },
 					}],
 					metadata: { setupMode: budgetMode, configuredFrom: 'provider_setup_ui' },
-				}),
-			});
-			const executionProviderPayload = await executionProviderResponse.json().catch(() => null);
-			if (!executionProviderResponse.ok || executionProviderPayload?.ok === false) {
-				if (status) status.textContent = executionProviderPayload?.error ?? 'Provider created, but native capacity could not be saved.';
+				});
+			}
+			revealedKey = String(payload?.apiKey?.plaintext ?? '');
+			if (keyDisplay) {
+				keyDisplay.hidden = false;
+				keyDisplay.textContent = `TREESEED_CAPACITY_PROVIDER_API_KEY=${revealedKey}`;
+			}
+			if (copyButton) copyButton.hidden = false;
+			if (connected && providerId) {
+				if (status) status.textContent = 'Provider created. Deploying connected Railway services...';
+				const deployment = await submitJson(`/v1/teams/${encodeURIComponent(pageData.teamId)}/capacity-providers/${encodeURIComponent(providerId)}/deployments`, 'POST', {
+					launchMode: 'connected_host',
+					hostId: connectedHostId,
+					credentialSessions: { capacityProviderHost: capacityProviderHostSession },
+				});
+				if (status) status.textContent = `Provider created and connected deployment ${deployment.deployment?.status ?? 'started'}. Store the revealed provider key for emergency rotation only.`;
+				if (instructions) {
+					instructions.hidden = false;
+					instructions.textContent = JSON.stringify(deployment.deployment ?? deployment, null, 2);
+				}
 				return;
 			}
-		}
-		revealedKey = String(payload?.apiKey?.plaintext ?? '');
-		if (status) status.textContent = budgetMode === 'static'
-			? 'Provider created in static compatibility mode. Store the revealed key and restart or launch the provider with it.'
-			: 'Provider and native capacity created. Store the revealed key and restart or launch the provider with it.';
-		if (keyDisplay) {
-			keyDisplay.hidden = false;
-			keyDisplay.textContent = `TREESEED_CAPACITY_PROVIDER_API_KEY=${revealedKey}`;
-		}
-		if (copyButton) copyButton.hidden = false;
-		if (instructions) {
-			const redactedEnv = payload?.selfHosting?.redactedEnv ?? payload?.selfHosting?.env ?? {};
-			const envLines = Object.entries(redactedEnv).map(([key, value]) => `${key}=${value}`);
-			instructions.hidden = false;
-			instructions.textContent = [
-				...envLines,
-				'',
-				...(payload?.selfHosting?.commands ?? []),
-			].join('\n').trim();
+			if (status) status.textContent = budgetMode === 'static'
+				? 'Provider created in static compatibility mode. Store the revealed key and restart or launch the provider with it.'
+				: 'Provider and native capacity created. Store the revealed key and restart or launch the provider with it.';
+			if (instructions) {
+				const redactedEnv = payload?.selfHosting?.redactedEnv ?? payload?.selfHosting?.env ?? {};
+				const envLines = Object.entries(redactedEnv).map(([key, value]) => `${key}=${value}`);
+				instructions.hidden = false;
+				instructions.textContent = [
+					...envLines,
+					'',
+					...(payload?.selfHosting?.commands ?? []),
+				].join('\n').trim();
+			}
+		} catch (error) {
+			if (status) status.textContent = error instanceof Error ? error.message : 'Provider could not be created.';
 		}
 	});
 </script>

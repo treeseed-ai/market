@@ -10,7 +10,7 @@ import { loadWorkContentEntries, workContentEntriesFor, workContentRelationSumma
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/work/decisions')}`);
 const [vm, contentEntries] = await Promise.all([
-	loadGovernanceViewModel(Astro.locals),
+	loadGovernanceViewModel(Astro),
 	loadWorkContentEntries(),
 ]);
 const decisionEntries = workContentEntriesFor(contentEntries, 'decisions');

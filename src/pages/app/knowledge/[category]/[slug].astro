@@ -12,7 +12,7 @@ if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 }
 
-const vm = await loadKnowledgeArtifactViewModel(Astro.locals, slug);
+const vm = await loadKnowledgeArtifactViewModel(Astro, slug);
 if (!vm.artifact) {
 	Astro.response.status = 404;
 }

@@ -7,7 +7,7 @@ import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
 import { loadKnowledgeViewModel } from '../../../view-models/knowledge.vm.js';
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/knowledge/packs')}`);
-const vm = await loadKnowledgeViewModel(Astro.locals);
+const vm = await loadKnowledgeViewModel(Astro);
 const rows = [...(vm.imports ?? []), ...(vm.artifacts ?? [])]
 	.filter((item: any) => String(`${item.type} ${item.category} ${item.kind}`).toLowerCase().includes('pack'))
 	.map((item: any) => ({ name: `<strong>${esc(item.title ?? item.name)}</strong><span>${esc(item.description ?? item.summary ?? '')}</span>`, state: esc(item.state ?? item.status ?? 'available'), action: item.href ? `<a class="ts-link-button" href="${esc(item.href)}">Open</a>` : '' }));

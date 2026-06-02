@@ -2,25 +2,31 @@
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import PlainTable from '../../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
-import { loadOperationalContext } from '../../../view-models/shared.js';
+import { escapeHtml as esc, hostPurposeFor } from '../../../lib/market/control-ui.js';
+import { loadAppContext } from '../../../view-models/app-access.js';
 
 if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/hosts/new')}`);
 }
-const context = await loadOperationalContext(Astro.locals, Astro);
+const context = await loadAppContext(Astro);
 const rows = [
-	{ type: '<strong>Repository</strong><span>GitHub organization or owner.</span>', action: '<a class="ts-link-button" href="/app/hosts/repository/new">Create repository host</a>' },
-	{ type: '<strong>Web</strong><span>Cloudflare hosting account.</span>', action: '<a class="ts-link-button" href="/app/hosts/web/new">Create web host</a>' },
-	{ type: '<strong>Capacity provider</strong><span>Railway workspace for standalone provider services.</span>', action: '<a class="ts-link-button" href="/app/hosts/capacity-provider/new">Create capacity provider host</a>' },
-	{ type: '<strong>Email</strong><span>SMTP account.</span>', action: '<a class="ts-link-button" href="/app/hosts/email/new">Create email host</a>' },
-	{ type: '<strong>AI</strong><span>OpenAI, Copilot, OpenRouter, or custom model access.</span>', action: '<a class="ts-link-button" href="/app/hosts/ai/new">Create AI host</a>' },
+	{ name: `<strong>Repository host</strong><span>${esc(hostPurposeFor('repository'))}</span>`, usedBy: 'Project creation', provider: 'GitHub', action: '<a class="ts-link-button" href="/app/hosts/repository/new">Create repository host</a>' },
+	{ name: `<strong>Web host</strong><span>${esc(hostPurposeFor('web'))}</span>`, usedBy: 'Project deployment', provider: 'Cloudflare', action: '<a class="ts-link-button" href="/app/hosts/web/new">Create web host</a>' },
+	{ name: `<strong>Email host</strong><span>${esc(hostPurposeFor('email'))}</span>`, usedBy: 'Project notifications', provider: 'SMTP', action: '<a class="ts-link-button" href="/app/hosts/email/new">Create email host</a>' },
+	{ name: `<strong>Capacity provider host</strong><span>${esc(hostPurposeFor('capacity-provider'))}</span>`, usedBy: 'Capacity provider deployment', provider: 'Railway', action: '<a class="ts-link-button" href="/app/hosts/capacity-provider/new">Create capacity provider host</a>' },
+	{ name: `<strong>AI host</strong><span>${esc(hostPurposeFor('ai'))}</span>`, usedBy: 'Agent and content workflows', provider: 'OpenAI, Copilot, OpenRouter', action: '<a class="ts-link-button" href="/app/hosts/ai/new">Create AI host</a>' },
 ];
 ---
 
-<TreeseedAppLayout title="New host" description="Choose one host type." currentPath="/app/hosts" teams={context.teams} activeTeam={context.activeTeam}>
+<TreeseedAppLayout title="New host" description="Choose the workflow this host will support." currentPath="/app/hosts" teams={context.teams} activeTeam={context.activeTeam}>
 	<section class="ts-control-page" aria-label="New host">
-		<Panel eyebrow="Hosts" title="Choose host type" description="Each host type has its own named credential fields.">
-			<PlainTable columns={[{ key: 'type', label: 'Host type' }, { key: 'action', label: 'Action' }]} rows={rows} />
+		<Panel eyebrow="Hosts" title="Create a host by workflow" description="Most operators can start from Projects or Capacity and create hosts inline. Use this page when you already know which reusable team credential you want to add.">
+			<PlainTable columns={[
+				{ key: 'name', label: 'Host' },
+				{ key: 'usedBy', label: 'Used by' },
+				{ key: 'provider', label: 'Provider' },
+				{ key: 'action', label: 'Action' },
+			]} rows={rows} />
 		</Panel>
 	</section>
 </TreeseedAppLayout>

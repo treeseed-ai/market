@@ -5,12 +5,12 @@ import PlainTable from '../../../components/app/controls/PlainTable.astro';
 import WorkContentNav from '../../../components/app/controls/WorkContentNav.astro';
 import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../lib/market/control-ui.js';
-import { loadOperationalContext } from '../../../view-models/shared.js';
+import { loadAppContext } from '../../../view-models/app-access.js';
 import { loadWorkContentEntries, workContentEntriesFor, workContentRelationSummary } from '../../../view-models/work-content.js';
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/work/notes')}`);
 const [context, contentEntries] = await Promise.all([
-	loadOperationalContext(Astro.locals, Astro),
+	loadAppContext(Astro),
 	loadWorkContentEntries(),
 ]);
 const noteEntries = workContentEntriesFor(contentEntries, 'notes');
