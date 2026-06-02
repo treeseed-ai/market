@@ -5878,7 +5878,7 @@ describe('market api', () => {
 				authorization: `Bearer ${token}`,
 			},
 		}));
-		expect(resumedState.launch).toMatchObject({ status: 'running', currentPhase: 'credential_bootstrap' });
+		expect(resumedState.launch).toMatchObject({ status: 'queued', active: true, currentPhase: 'credential_bootstrap' });
 
 		const inbox = await json(await app.request(`/v1/teams/${team.id}/inbox`, {
 			headers: {

@@ -475,6 +475,14 @@ function troubleshooting(state: any, history: DeploymentHistoryRow[]): Deploymen
 			tone: statusTone(state.launch.status),
 		});
 	}
+	for (const blocker of safeArray(state?.readiness?.blockers)) {
+		pushHint({
+			title: titleCase(text(blocker?.code, 'blocked').replace(/[_-]+/gu, ' '), 'Blocked'),
+			description: text(blocker?.message, 'Resolve this readiness blocker before deploying.'),
+			tone: 'warning',
+			...(blocker?.href ? { href: String(blocker.href) } : {}),
+		});
+	}
 	if (hints.length === 0 && history.length === 0) {
 		pushHint({
 			title: 'No deployment history yet',
