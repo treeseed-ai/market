@@ -16,3 +16,6 @@
 [submodule "starters/engineering"]
 	path = starters/engineering
 	url = git@github.com:treeseed-ai/starter-engineering.git
+[submodule "starters/information-hub"]
+	path = starters/information-hub
+	url = git@github.com:treeseed-ai/starter-information-hub.git
