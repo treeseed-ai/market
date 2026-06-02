@@ -768,8 +768,11 @@ describe('one-purpose control app information architecture', () => {
 			expect(css).toContain(marker);
 		}
 		expect(css).toContain('select.ts-control');
-		expect(css).toContain('background-image:');
-		expect(css).toContain('padding-right: 2.5rem');
+		expect(css).toContain('appearance: none;');
+		expect(css).toContain('linear-gradient(45deg, transparent 50%, currentColor 50%)');
+		expect(css).toContain('background-position:');
+		expect(css).toContain('background-repeat: no-repeat;');
+		expect(css).toContain('padding-right: 2.35rem');
 		for (const path of [...primaryRoutes, ...onePurposeRoutes]) {
 			const contents = source(path);
 			expect(contents, path).not.toContain('<style');
