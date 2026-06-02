@@ -157,7 +157,7 @@
 
 .auth-card select.ts-control,
 .auth-card .ts-control--select {
-	background-color: var(--ts-color-surface);
+	background-color: var(--ts-control-background, var(--ts-color-surface));
 	padding-inline: 0.75rem 2.5rem;
 }
 

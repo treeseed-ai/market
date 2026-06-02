@@ -45,7 +45,8 @@ export async function resolveMarketplaceCatalogItem(context: AstroLike, kind: st
 }
 
 export async function resolveMarketplaceTeamProfile(context: AstroLike, name: string) {
-	return loadMarketplaceContext(context).store?.loadTeamProfileByName(name).catch(() => null) ?? null;
+	const { store, principal } = loadMarketplaceContext(context);
+	return store ? await store.loadTeamProfileByName(name, principal).catch(() => null) : null;
 }
 
 export async function resolveMarketplaceUserProfile(context: AstroLike, username: string) {

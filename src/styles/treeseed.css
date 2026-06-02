@@ -527,6 +527,11 @@ a:hover {
 }
 
 .ts-team-selector select.ts-control {
+	background:
+		linear-gradient(var(--ts-color-border), var(--ts-color-border)),
+		linear-gradient(45deg, transparent 50%, currentColor 50%),
+		linear-gradient(135deg, currentColor 50%, transparent 50%),
+		var(--ts-control-background, var(--ts-color-surface));
 	padding-right: 2.35rem;
 }
 
@@ -1004,13 +1009,15 @@ a:hover {
 
 .ts-control {
 	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
 	box-sizing: border-box;
 	width: 100%;
 	margin-top: 0.55rem;
 	padding: 0.72rem 0.78rem;
 	border: 1px solid var(--ts-color-border);
 	border-radius: 0.55rem;
-	background-color: var(--ts-color-surface);
+	background: var(--ts-control-background, var(--ts-color-surface));
 	color: var(--ts-color-text);
 	font: inherit;
 	line-height: 1.3;
@@ -1018,11 +1025,14 @@ a:hover {
 
 select.ts-control,
 .ts-control--select {
-	background-color: var(--ts-color-surface);
-	background-image:
+	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	background:
 		linear-gradient(var(--ts-color-border), var(--ts-color-border)),
 		linear-gradient(45deg, transparent 50%, currentColor 50%),
-		linear-gradient(135deg, currentColor 50%, transparent 50%);
+		linear-gradient(135deg, currentColor 50%, transparent 50%),
+		var(--ts-control-background, var(--ts-color-surface));
 	background-position:
 		calc(100% - 2rem) 50%,
 		calc(100% - 1.17rem) calc(50% - 0.08rem),
@@ -1033,6 +1043,12 @@ select.ts-control,
 		0.42rem 0.42rem,
 		0.42rem 0.42rem;
 	padding-right: 2.5rem;
+}
+
+select.ts-control option,
+.ts-control--select option {
+	background-color: var(--ts-control-background, var(--ts-color-surface));
+	color: var(--ts-color-text);
 }
 
 textarea.ts-control {
@@ -2548,6 +2564,27 @@ input[data-team-name-state='error'] {
 
 .ts-host-actions .ts-control {
 	margin-top: 0;
+}
+
+.ts-app-shell .ts-team-selector select.ts-control,
+.ts-app-shell .ts-host-setup-grid select.ts-control {
+	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	background:
+		linear-gradient(var(--ts-color-border), var(--ts-color-border)),
+		linear-gradient(45deg, transparent 50%, currentColor 50%),
+		linear-gradient(135deg, currentColor 50%, transparent 50%),
+		var(--ts-control-background, var(--ts-color-surface));
+	background-position:
+		calc(100% - 2rem) 50%,
+		calc(100% - 1.17rem) calc(50% - 0.08rem),
+		calc(100% - 0.86rem) calc(50% - 0.08rem);
+	background-repeat: no-repeat;
+	background-size:
+		1px 1.2rem,
+		0.42rem 0.42rem,
+		0.42rem 0.42rem;
 }
 
 .ts-host-actions [data-sensitive-lock-message] {
@@ -4169,6 +4206,35 @@ input[data-team-name-state='error'] {
 .ts-core-objective-mdx__toolbar [role='button'],
 .ts-core-objective-mdx__toolbar select {
 	min-height: 2rem;
+}
+
+.ts-core-objective-mdx__toolbar select {
+	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	background:
+		linear-gradient(var(--ts-color-border), var(--ts-color-border)),
+		linear-gradient(45deg, transparent 50%, currentColor 50%),
+		linear-gradient(135deg, currentColor 50%, transparent 50%),
+		var(--ts-control-background, var(--ts-color-surface));
+	background-position:
+		calc(100% - 1.65rem) 50%,
+		calc(100% - 0.95rem) calc(50% - 0.08rem),
+		calc(100% - 0.68rem) calc(50% - 0.08rem);
+	background-repeat: no-repeat;
+	background-size:
+		1px 1rem,
+		0.35rem 0.35rem,
+		0.35rem 0.35rem;
+	border: 1px solid var(--ts-color-border);
+	border-radius: var(--ts-radius-sm);
+	color: var(--ts-color-text);
+	padding: 0.3rem 2rem 0.3rem 0.55rem;
+}
+
+.ts-core-objective-mdx__toolbar select option {
+	background-color: var(--ts-control-background, var(--ts-color-surface));
+	color: var(--ts-color-text);
 }
 
 .ts-core-objective-mdx__content {

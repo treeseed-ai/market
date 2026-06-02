@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.6.22] - 2026-06-02
+
+### Changed
+
+- Updating the favicon. (d1473ae08b5c)
+
+### Infrastructure
+
+- Adding the information hub template as a submodule. (553e243a8f37)
+- Adding the engineering template as a submodule. (710cedfc723a)
+- Adding the research template as a submodule. (a8ee786fdaeb)
+- release: sync package staging heads (728c5b2381a4)
+
+### Tests
+
+- test(deps): sync integrated package updates (2c067dbf35f1)
+- build(deps): sync integrated package updates (56adac948b61)
+
+### Dependencies
+
+- ci(deps): sync integrated package updates (0296a20b5f31)
+- Release @treeseed/market 0.6.22.
+- Release package @treeseed/agent: 0.10.18.
+- Release package @treeseed/cli: 0.10.18.
+- Release package @treeseed/core: 0.10.18.
+- Release package @treeseed/sdk: 0.10.24.
+
 ## [0.6.21] - 2026-06-02
 
 ### Added
