@@ -1,0 +1,52 @@
+---
+slug: starter-research
+title: TreeSeed Research Starter
+description: First-party TreeSeed starter for freestanding research projects that create books, gathered assets, synthesis notes, and knowledge packs.
+summary: A starter for building durable source-backed research bodies and publishing reusable knowledge packs for downstream projects.
+status: live
+featured: true
+category: starter
+audience:
+  - researchers
+  - maintainers
+tags:
+  - starter
+  - research
+  - books
+  - knowledge-packs
+  - agents
+publisher:
+  id: treeseed
+  name: TreeSeed
+  url: https://treeseed.ai
+publisherVerified: true
+templateVersion: 1.0.0
+templateApiVersion: 1
+minCliVersion: 0.1.1
+minCoreVersion: 0.1.2
+fulfillment:
+  mode: git
+  source:
+    kind: git
+    repoUrl: https://github.com/treeseed-ai/starter-research.git
+    directory: .
+    ref: main
+    integrity: pending-external-repo
+  hooksPolicy: builtin_only
+  supportsReconcile: true
+offer:
+  priceModel: free
+  license: AGPL-3.0-only
+  support: community
+relatedBooks:
+  - books/market-architecture
+relatedKnowledge:
+  - knowledge/market
+relatedObjectives:
+  - objectives/launch-market-site
+---
+
+The research starter is for projects whose main job is to grow a source-backed body of knowledge. It includes research-oriented agents, agent tests, books, notes, questions, objectives, and a starter knowledge pack surface.
+
+Use it when the output is a reusable research library rather than a software implementation plan.
+

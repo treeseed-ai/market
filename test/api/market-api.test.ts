@@ -736,6 +736,10 @@ describe('market api', () => {
 			headers: { authorization: `Bearer ${token}` },
 		}));
 		expect(projects.payload.find((entry: { id: string }) => entry.id === project.id)).toBeUndefined();
+		const profile = await json(await app.request(`/v1/teams/by-name/${team.name}/profile`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(profile.payload.activity.projects.find((entry: { id: string }) => entry.id === project.id)).toBeUndefined();
 	});
 
 	it('updates project profile settings through the project API', async () => {
