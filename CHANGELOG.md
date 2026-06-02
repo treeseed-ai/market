@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.6.21] - 2026-06-02
+
+### Added
+
+- feat(deployment): display readiness blockers as hints (794d0abd9096)
+- feat(api): implement hub launch application orchestration (103f21fd095f)
+
+### Fixed
+
+- fix(deps): sync integrated package updates (dc0c1b39f7aa)
+
+### Tests
+
+- test(operational-ia): update expected deployment URL patterns (c66cd7269340)
+- build(deps): sync integrated package updates (a7791c6e887a)
+
+### Dependencies
+
+- chore(deps): update workspace packages and submodule pointers (d2afe4544893)
+- build(deps): sync integrated package updates (3bee996fdad9)
+- build(deps): update internal packages and submodules (40dedc51f1c5)
+- chore(deps): update internal packages and submodule pointers (80b1e61eed51)
+- build(deps): sync integrated package updates (016b9855bfb9)
+- build(deps): avoid Railway volume update after attach (0515be09f1c8)
+- build(deps): harden Railway runner volume reconciliation (860a42135a04)
+- Release @treeseed/market 0.6.21.
+- Release package @treeseed/agent: 0.10.17.
+- Release package @treeseed/cli: 0.10.17.
+- Release package @treeseed/core: 0.10.17.
+- Release package @treeseed/sdk: 0.10.23.
+
 ## [0.6.20] - 2026-05-28
 
 ### Dependencies
