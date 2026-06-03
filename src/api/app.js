@@ -24,6 +24,16 @@ import {
 	slugifyPlatformContent as slugifyRepositoryContent,
 } from '@treeseed/sdk';
 import { calculateActualCredits } from '../../packages/sdk/src/capacity.ts';
+import { TREESEED_DEFAULT_STARTER_TEMPLATE_ID } from '../../packages/sdk/src/sdk-types.ts';
+import {
+	normalizeProjectLaunchHostBindings,
+	normalizeTemplateLaunchRequirements,
+	resolveProjectLaunchHostBindings,
+} from '../../packages/sdk/src/template-launch-requirements.ts';
+import {
+	deriveProjectHostBindingsView,
+	planProjectHostBindingOperation,
+} from '../../packages/sdk/src/operations/services/project-host-operations.ts';
 import { runTreeseedHostingAudit } from '@treeseed/sdk/workflow-support';
 import {
 	createTreeseedApiApp,
@@ -66,6 +76,268 @@ function jsonError(c, status, error, details = {}) {
 		error,
 		...details,
 	}, { status });
+}
+
+async function resolveLaunchTemplateRequirements({ store, principal, config, sourceKind, sourceRef }) {
+	if (!['template', 'market_listing'].includes(sourceKind) || typeof sourceRef !== 'string' || !sourceRef.trim()) {
+		return null;
+	}
+	const ref = sourceRef.trim();
+	try {
+		const catalog = loadTemplateCatalog(config);
+		const catalogEntry = catalog.items.find((item) => item.id === ref);
+		if (catalogEntry?.launchRequirements) return catalogEntry.launchRequirements;
+	} catch {
+		// Catalog lookup is best-effort here; custom catalog metadata can still provide requirements.
+	}
+	const item = await store.getCatalogItem(ref).catch(() => null)
+		?? await store.getCatalogItemBySlug('template', ref).catch(() => null);
+	if (!item) return null;
+	const canAccess = await store.principalCanAccessCatalogItem(principal, item).catch(() => false);
+	if (!canAccess) return null;
+	return normalizeTemplateLaunchRequirements(item.metadata?.launchRequirements, `catalog item ${ref} launchRequirements`) ?? null;
+}
+
+function projectHostBindingMetadata(details) {
+	const projectMetadata = details?.project?.metadata && typeof details.project.metadata === 'object' ? details.project.metadata : {};
+	const hostingMetadata = details?.hosting?.metadata && typeof details.hosting.metadata === 'object' ? details.hosting.metadata : {};
+	const connectionMetadata = details?.connection?.metadata && typeof details.connection.metadata === 'object' ? details.connection.metadata : {};
+	return {
+		hostBindings: projectMetadata.hostBindings ?? hostingMetadata.hostBindings ?? connectionMetadata.hostBindings ?? {},
+		hostBindingPlans: projectMetadata.hostBindingPlans ?? hostingMetadata.hostBindingPlans ?? connectionMetadata.hostBindingPlans ?? null,
+		hostBindingSecretSync: projectMetadata.hostBindingSecretSync ?? hostingMetadata.hostBindingSecretSync ?? connectionMetadata.hostBindingSecretSync ?? null,
+		hostBindingAudit: projectMetadata.hostBindingAudit ?? hostingMetadata.hostBindingAudit ?? connectionMetadata.hostBindingAudit ?? null,
+		hostBindingOperations: Array.isArray(projectMetadata.hostBindingOperations) ? projectMetadata.hostBindingOperations : [],
+	};
+}
+
+function sourceFromProjectDetails(details) {
+	const projectMetadata = details?.project?.metadata && typeof details.project.metadata === 'object' ? details.project.metadata : {};
+	const hostingMetadata = details?.hosting?.metadata && typeof details.hosting.metadata === 'object' ? details.hosting.metadata : {};
+	const sourceKind = optionalTrimmedString(projectMetadata.sourceKind)
+		?? optionalTrimmedString(hostingMetadata.sourceKind)
+		?? (optionalTrimmedString(projectMetadata.sourceRef) || optionalTrimmedString(hostingMetadata.sourceRef) ? 'template' : null);
+	const sourceRef = optionalTrimmedString(projectMetadata.sourceRef)
+		?? optionalTrimmedString(hostingMetadata.sourceRef)
+		?? TREESEED_DEFAULT_STARTER_TEMPLATE_ID;
+	return { sourceKind, sourceRef };
+}
+
+function repositoryInventoryWithPlatform(repositoryHosts, requestedOwner = null) {
+	if ((repositoryHosts ?? []).some((host) => host.id === 'platform:github:hosted-hubs')) return repositoryHosts;
+	return [
+		...(repositoryHosts ?? []),
+		{
+			id: 'platform:github:hosted-hubs',
+			type: 'repository',
+			provider: 'github',
+			ownership: 'treeseed_managed',
+			name: 'TreeSeed Hosted Hubs',
+			accountLabel: process.env.TREESEED_HOSTED_HUBS_GITHUB_OWNER ?? null,
+			organizationOrOwner: process.env.TREESEED_HOSTED_HUBS_GITHUB_OWNER ?? requestedOwner ?? 'treeseed-sites',
+			allowedEnvironments: ['staging', 'prod'],
+			status: 'active',
+			metadata: { hostType: 'repository', managed: true },
+		},
+	];
+}
+
+async function loadProjectHostBindingContext({ store, runtime, principal, details }) {
+	const project = details.project;
+	const source = sourceFromProjectDetails(details);
+	const team = await store.getTeam(project.teamId).catch(() => null);
+	const [launchRequirements, managedHosts, teamHosts, repositoryHosts] = await Promise.all([
+		resolveLaunchTemplateRequirements({
+			store,
+			principal,
+			config: runtime.resolved.config,
+			sourceKind: source.sourceKind ?? 'template',
+			sourceRef: source.sourceRef,
+		}),
+		listTreeseedManagedHostsFromConfig(project.teamId, runtime).catch(() => []),
+		store.listTeamWebHosts(project.teamId).catch(() => []),
+		store.listRepositoryHosts(project.teamId).catch(() => []),
+	]);
+	const metadata = projectHostBindingMetadata(details);
+	const hostBindingPlans = metadata.hostBindingPlans ?? { configWrites: [], secretDeployment: { items: [] } };
+	return {
+		project,
+		team,
+		source,
+		launchRequirements,
+		managedHosts,
+		teamHosts,
+		repositoryHosts: repositoryInventoryWithPlatform(repositoryHosts, details.repositories?.[0]?.owner ?? null),
+		defaultHosts: team?.metadata?.defaultHosts && typeof team.metadata.defaultHosts === 'object' ? team.metadata.defaultHosts : {},
+		currentHostBindings: metadata.hostBindings && typeof metadata.hostBindings === 'object' ? metadata.hostBindings : {},
+		hostBindingPlans,
+		hostBindingSecretSync: metadata.hostBindingSecretSync,
+		hostBindingAudit: metadata.hostBindingAudit,
+		hostBindingOperations: metadata.hostBindingOperations,
+		view: deriveProjectHostBindingsView({
+			launchRequirements,
+			hostBindings: metadata.hostBindings && typeof metadata.hostBindings === 'object' ? metadata.hostBindings : {},
+			hostBindingPlans,
+		}),
+	};
+}
+
+function projectHostResponsePayload(context, extra = {}) {
+	return {
+		projectId: context.project.id,
+		teamId: context.project.teamId,
+		source: context.source,
+		launchRequirements: context.launchRequirements,
+		hostBindings: context.currentHostBindings,
+		hostBindingPlans: context.hostBindingPlans,
+		hostBindingSecretSync: context.hostBindingSecretSync,
+		hostBindingAudit: context.hostBindingAudit,
+		hostBindingOperations: context.hostBindingOperations,
+		view: context.view,
+		inventory: {
+			repositoryHosts: context.repositoryHosts,
+			teamHosts: context.teamHosts,
+			managedHosts: context.managedHosts,
+			defaultHosts: context.defaultHosts,
+		},
+		...extra,
+	};
+}
+
+function hostBindingRequiresUnlock(binding) {
+	return binding?.host?.ownership === 'team_owned' || (binding?.hostId && !binding?.managedHostKey && binding?.host?.ownership !== 'treeseed_managed');
+}
+
+function hostKindForBinding(binding) {
+	if (binding?.type === 'repository') return 'repository_host';
+	if (binding?.type === 'email') return 'email_host';
+	return 'web_host';
+}
+
+async function createProjectHostCredentialSessions({ store, runtime, teamId, principalId, hostBindings, requirementKeys, passphrase }) {
+	if (!passphrase) return {};
+	const sessions = {};
+	for (const [requirementKey, binding] of Object.entries(hostBindings ?? {})) {
+		if (requirementKeys?.length && !requirementKeys.includes(requirementKey)) continue;
+		if (!hostBindingRequiresUnlock(binding)) continue;
+		const hostKind = hostKindForBinding(binding);
+		const hostId = binding.hostId ?? binding.host?.id ?? null;
+		if (!hostId) continue;
+		const host = hostKind === 'repository_host'
+			? await store.getRepositoryHost(teamId, hostId)
+			: await store.getTeamWebHost(teamId, hostId);
+		if (!host || host.ownership !== 'team_owned') continue;
+		const normalizedConfig = await decryptTeamHostForLaunch(hostKind, host, passphrase);
+		const session = await store.createProviderCredentialSession(teamId, {
+			hostKind,
+			hostId,
+			purpose: 'project_host_operation',
+			expiresAt: new Date(Date.now() + 900_000).toISOString(),
+			createdById: principalId,
+			encryptedPayload: encryptCredentialSessionPayload(runtime, {
+				provider: host.provider ?? binding.provider,
+				ownership: host.ownership,
+				config: normalizedConfig,
+			}),
+			metadata: {
+				requirementKey,
+				hostName: host.name ?? null,
+				provider: host.provider ?? binding.provider ?? null,
+				configSummary: decryptedHostConfigSummary(normalizedConfig),
+			},
+		});
+		sessions[requirementKey] = {
+			id: session.id,
+			hostKind: session.hostKind,
+			hostId: session.hostId,
+			purpose: session.purpose,
+			expiresAt: session.expiresAt,
+		};
+	}
+	return sessions;
+}
+
+async function persistProjectHostBindingOperationMetadata({ store, details, nextHostBindings, hostBindingPlans, audit, operation, kind, requirementKey }) {
+	const project = details.project;
+	const hosting = details.hosting ?? await store.getProjectHosting(project.id).catch(() => null);
+	const connection = details.connection ?? await store.getProjectConnection(project.id).catch(() => null);
+	const timestamp = new Date().toISOString();
+	const operationSummary = operation ? {
+		id: operation.id,
+		kind,
+		requirementKey: requirementKey ?? null,
+		status: operation.status,
+		queuedAt: timestamp,
+		auditStatus: audit.summary.status,
+	} : null;
+	const previous = projectHostBindingMetadata(details);
+	const hostBindingOperations = [
+		...(operationSummary ? [operationSummary] : []),
+		...(previous.hostBindingOperations ?? []),
+	].slice(0, 10);
+	const metadataPatch = {
+		hostBindings: nextHostBindings,
+		hostBindingPlans,
+		hostBindingAudit: {
+			checkedAt: timestamp,
+			summary: audit.summary,
+			diagnostics: audit.diagnostics,
+		},
+		...(operationSummary ? {
+			lastHostOperation: operationSummary,
+			hostBindingOperations,
+		} : {}),
+	};
+	await store.updateProject(project.id, {
+		metadata: {
+			...(project.metadata ?? {}),
+			...metadataPatch,
+		},
+	});
+	if (hosting) {
+		const hostingMetadata = {
+			...(hosting.metadata ?? {}),
+			...metadataPatch,
+		};
+		await store.upsertProjectHosting(project.id, {
+			kind: hosting.kind,
+			registration: hosting.registration,
+			marketBaseUrl: hosting.marketBaseUrl,
+			sourceRepoOwner: hosting.sourceRepoOwner,
+			sourceRepoName: hosting.sourceRepoName,
+			sourceRepoUrl: hosting.sourceRepoUrl,
+			sourceRepoWorkflowPath: hosting.sourceRepoWorkflowPath,
+			projectApiBaseUrl: connection?.projectApiBaseUrl ?? null,
+			executionOwner: connection?.executionOwner,
+			metadata: hostingMetadata,
+		});
+		await store.run(
+			`UPDATE project_hosting SET metadata_json = ?, updated_at = ? WHERE project_id = ?`,
+			[JSON.stringify(hostingMetadata), timestamp, project.id],
+		).catch(() => null);
+	}
+	if (connection) {
+		const connectionMetadata = {
+			...(connection.metadata ?? {}),
+			...metadataPatch,
+		};
+		await store.upsertProjectConnection(project.id, {
+			mode: connection.mode,
+			projectApiBaseUrl: connection.projectApiBaseUrl,
+			executionOwner: connection.executionOwner,
+			metadata: connectionMetadata,
+		});
+		await store.run(
+			`UPDATE project_connections SET metadata_json = ?, updated_at = ? WHERE project_id = ?`,
+			[JSON.stringify(connectionMetadata), timestamp, project.id],
+		).catch(() => null);
+	}
+	await store.updateProject(project.id, {
+		metadata: {
+			...(project.metadata ?? {}),
+			...metadataPatch,
+		},
+	});
 }
 
 const PLAINTEXT_HOST_CREDENTIAL_FIELD_NAMES = new Set([
@@ -3824,6 +4096,7 @@ export async function applyHubLaunchResult(store, runtime, job, output, principa
 		workflows: launchResult.workflows,
 		cloudflare: launchResult.cloudflare,
 		railway: launchResult.railway,
+		hostBindingSecretSync: launchResult.workflows?.hostBindingSecretSync ?? null,
 		contentResolution: launchResult.plan?.contentResolution ?? null,
 	};
 	await store.updateProject(project.id, {
@@ -3858,6 +4131,9 @@ export async function applyHubLaunchResult(store, runtime, job, output, principa
 				lastSuccessfulPhase: 'runtime_connection',
 				repository: launchResult.repository,
 				repositories: launchResult.repositories ?? [],
+				hostBindings: project.metadata?.hostBindings ?? null,
+				hostBindingPlans: project.metadata?.hostBindingPlans ?? null,
+				hostBindingSecretSync: launchResult.workflows?.hostBindingSecretSync ?? null,
 				contentResolution: launchResult.plan?.contentResolution ?? null,
 			},
 		});
@@ -3872,6 +4148,9 @@ export async function applyHubLaunchResult(store, runtime, job, output, principa
 			lastSuccessfulPhase: 'runtime_connection',
 			repository: launchResult.repository ?? null,
 			repositories: launchResult.repositories ?? [],
+			hostBindings: project.metadata?.hostBindings ?? null,
+			hostBindingPlans: project.metadata?.hostBindingPlans ?? null,
+			hostBindingSecretSync: launchResult.workflows?.hostBindingSecretSync ?? null,
 		},
 	});
 	const railwayApiService = (launchResult.railway?.services ?? []).find((service) => service.key === 'api') ?? null;
@@ -3953,6 +4232,9 @@ export async function applyHubLaunchResult(store, runtime, job, output, principa
 			launchPhase: 'completed',
 			projectApiBaseUrl: launchResult.projectApiBaseUrl ?? null,
 			projectSiteUrl: launchResult.projectSiteUrl ?? null,
+			hostBindings: project.metadata?.hostBindings ?? null,
+			hostBindingPlans: project.metadata?.hostBindingPlans ?? null,
+			hostBindingSecretSync: launchResult.workflows?.hostBindingSecretSync ?? null,
 		},
 	});
 	await store.deleteTeamInboxItemsByItemKey(project.teamId, `launch:${project.id}`);
@@ -7219,6 +7501,12 @@ export function createMarketApiApp(options = {}) {
 				if (Object.keys(credentialSessions).length > 0) {
 					return jsonError(c, 400, 'Project launch no longer accepts provider credential sessions. Submit sensitivePassphrase for API-owned credential bootstrap.');
 				}
+				let normalizedHostBindings;
+				try {
+					normalizedHostBindings = normalizeProjectLaunchHostBindings(body);
+				} catch (error) {
+					return jsonError(c, 400, error instanceof Error ? error.message : String(error), { code: 'invalid_host_bindings' });
+				}
 				const sensitivePassphrase = typeof body.sensitivePassphrase === 'string' && body.sensitivePassphrase
 					? body.sensitivePassphrase
 					: null;
@@ -7259,7 +7547,13 @@ export function createMarketApiApp(options = {}) {
 				const hostingKind = hostingMode === 'managed' ? 'hosted_project' : 'self_hosted_project';
 				const registration = hostingMode === 'hybrid' ? 'optional' : 'none';
 				const sourceKind = typeof body.sourceKind === 'string' ? body.sourceKind : typeof requestedSource?.kind === 'string' ? requestedSource.kind : 'blank';
-				const sourceRef = typeof body.sourceRef === 'string' ? body.sourceRef : typeof requestedSource?.ref === 'string' ? requestedSource.ref : null;
+				const sourceRef = typeof body.sourceRef === 'string'
+					? body.sourceRef
+					: typeof requestedSource?.ref === 'string'
+						? requestedSource.ref
+						: sourceKind === 'template' || sourceKind === 'market_listing'
+							? TREESEED_DEFAULT_STARTER_TEMPLATE_ID
+							: null;
 				const sourceVersion = typeof requestedSource?.version === 'string' ? requestedSource.version : typeof body.sourceVersion === 'string' ? body.sourceVersion : null;
 				const repoProvider = typeof body.repoProvider === 'string' ? body.repoProvider : typeof requestedRepository?.provider === 'string' ? requestedRepository.provider : 'github';
 				const repoVisibility = typeof body.repoVisibility === 'string' ? body.repoVisibility : typeof requestedRepository?.visibility === 'string' ? requestedRepository.visibility : 'private';
@@ -7273,10 +7567,6 @@ export function createMarketApiApp(options = {}) {
 					return jsonError(c, 400, 'Live project launch currently supports managed hosting only. Use treeseed config --connect-market for hybrid pairing.');
 				}
 					const team = await store.getTeam(teamId);
-					const cloudflareHostMode = body.cloudflareHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.cloudflareHostMode === 'team_owned' ? 'team_owned' : null;
-					const cloudflareHostId = typeof body.cloudflareHostId === 'string' && body.cloudflareHostId.trim() ? body.cloudflareHostId.trim() : null;
-					const emailHostMode = body.emailHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.emailHostMode === 'team_owned' ? 'team_owned' : null;
-					const emailHostId = typeof body.emailHostId === 'string' && body.emailHostId.trim() ? body.emailHostId.trim() : null;
 					const removedRuntimeHostFields = [
 						['process', 'ingHostMode'].join(''),
 						['process', 'ingHostId'].join(''),
@@ -7286,6 +7576,62 @@ export function createMarketApiApp(options = {}) {
 					if (removedRuntimeHostFields.some((field) => body[field] !== undefined) || credentialSessions[removedRuntimeSessionKey] !== undefined) {
 						return jsonError(c, 400, 'Project launch no longer accepts runtime host configuration. Create and deploy a capacity provider from the capacity provider lifecycle pages.');
 					}
+					const [templateLaunchRequirements, managedHostInventory, teamWebHosts, repositoryHostRows] = await Promise.all([
+						resolveLaunchTemplateRequirements({
+							store,
+							principal: c.get('principal'),
+							config: runtime.resolved.config,
+							sourceKind,
+							sourceRef,
+						}),
+						listTreeseedManagedHostsFromConfig(teamId, runtime).catch(() => []),
+						store.listTeamWebHosts(teamId).catch(() => []),
+						store.listRepositoryHosts(teamId).catch(() => []),
+					]);
+					const repositoryHostInventory = repositoryHostRows.some((host) => host.id === 'platform:github:hosted-hubs')
+						? repositoryHostRows
+						: [
+							...repositoryHostRows,
+							{
+								id: 'platform:github:hosted-hubs',
+								type: 'repository',
+								provider: 'github',
+								ownership: 'treeseed_managed',
+								name: 'TreeSeed Hosted Hubs',
+								accountLabel: process.env.TREESEED_HOSTED_HUBS_GITHUB_OWNER ?? null,
+								organizationOrOwner: process.env.TREESEED_HOSTED_HUBS_GITHUB_OWNER
+									?? (typeof requestedRepository?.owner === 'string' ? requestedRepository.owner : null)
+									?? (typeof body.repoOwner === 'string' ? body.repoOwner : null)
+									?? 'treeseed-sites',
+								allowedEnvironments: ['staging', 'prod'],
+								status: 'active',
+								metadata: { hostType: 'repository', managed: true },
+							},
+						];
+					let hostBindingResolution;
+					try {
+						hostBindingResolution = resolveProjectLaunchHostBindings({
+							hostBindings: normalizedHostBindings,
+							launchRequirements: templateLaunchRequirements,
+							repositoryHosts: repositoryHostInventory,
+							teamHosts: teamWebHosts,
+							managedHosts: managedHostInventory,
+							defaultHosts: team?.metadata?.defaultHosts && typeof team.metadata.defaultHosts === 'object' ? team.metadata.defaultHosts : {},
+							projectSlug: requestedSlug,
+							projectName: requestedName,
+							standardProjectLaunch: true,
+						});
+					} catch (error) {
+						return jsonError(c, 400, error instanceof Error ? error.message : String(error), { code: 'invalid_host_bindings' });
+					}
+					const cloudflareHostMode = hostBindingResolution.compatibility.cloudflareHostMode
+						?? (body.cloudflareHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.cloudflareHostMode === 'team_owned' ? 'team_owned' : null);
+					const cloudflareHostId = hostBindingResolution.compatibility.cloudflareHostId
+						?? (typeof body.cloudflareHostId === 'string' && body.cloudflareHostId.trim() ? body.cloudflareHostId.trim() : null);
+					const emailHostMode = hostBindingResolution.compatibility.emailHostMode
+						?? (body.emailHostMode === 'treeseed_managed' ? 'treeseed_managed' : body.emailHostMode === 'team_owned' ? 'team_owned' : null);
+					const emailHostId = hostBindingResolution.compatibility.emailHostId
+						?? (typeof body.emailHostId === 'string' && body.emailHostId.trim() ? body.emailHostId.trim() : null);
 					let cloudflareHost = null;
 				if (cloudflareHostMode === 'team_owned') {
 					if (!cloudflareHostId) {
@@ -7403,9 +7749,18 @@ export function createMarketApiApp(options = {}) {
 						...(cloudflareHostMetadata ? { cloudflareHost: cloudflareHostMetadata } : {}),
 						...(emailHostMetadata ? { emailHost: emailHostMetadata } : {}),
 					};
+					const hostBindingMetadata = {
+						hostBindings: hostBindingResolution.hostBindings,
+						hostBindingPlans: {
+							configWrites: hostBindingResolution.configWritePlan,
+							secretDeployment: hostBindingResolution.secretDeploymentPlan,
+						},
+					};
 				const repositoryHostId = typeof requestedRepository?.hostId === 'string' && requestedRepository.hostId.trim()
 					? requestedRepository.hostId.trim()
-					: typeof body.repositoryHostId === 'string' && body.repositoryHostId.trim()
+					: hostBindingResolution.compatibility.repositoryHostId
+						? hostBindingResolution.compatibility.repositoryHostId
+						: typeof body.repositoryHostId === 'string' && body.repositoryHostId.trim()
 						? body.repositoryHostId.trim()
 						: 'platform:github:hosted-hubs';
 				let repositoryHost = await store.getRepositoryHost(teamId, repositoryHostId);
@@ -7467,6 +7822,7 @@ export function createMarketApiApp(options = {}) {
 							domains: projectDomains,
 							...hostMetadata,
 							...(typeof body.metadata === 'object' && body.metadata ? body.metadata : {}),
+							...hostBindingMetadata,
 						},
 							entitlementTier: typeof body.entitlementTier === 'string'
 								? body.entitlementTier
@@ -7498,6 +7854,7 @@ export function createMarketApiApp(options = {}) {
 						launchPhase: 'queued',
 						domains: projectDomains,
 						...hostMetadata,
+						...hostBindingMetadata,
 					},
 				});
 				await store.upsertProjectConnection(details.project.id, {
@@ -7514,6 +7871,7 @@ export function createMarketApiApp(options = {}) {
 						launchPhase: 'queued',
 						domains: projectDomains,
 						...hostMetadata,
+						...hostBindingMetadata,
 					},
 				});
 				for (const environment of ['local', 'staging', 'prod']) {
@@ -7568,11 +7926,12 @@ export function createMarketApiApp(options = {}) {
 						softwareRepository: requestedRepository?.softwareRepository ?? null,
 						contentRepository: requestedRepository?.contentRepository ?? null,
 					},
-						hosting: {
+					hosting: {
 							mode: 'treeseed_managed',
 							webHost: cloudflareHostMetadata,
 							emailHost: emailHostMetadata,
 							domains: projectDomains,
+							hostBindings: hostBindingResolution.hostBindings,
 						},
 					contentResolution: {
 						productionSource: 'r2_published_artifacts',
@@ -7608,6 +7967,8 @@ export function createMarketApiApp(options = {}) {
 							domains: projectDomains,
 							contactEmail: typeof body.contactEmail === 'string' ? body.contactEmail : null,
 							enableDefaultAgents: body.enableDefaultAgents !== false,
+							hostBindings: hostBindingResolution.hostBindings,
+							hostBindingPlans: hostBindingMetadata.hostBindingPlans,
 								cloudflareHost: cloudflareHostMode
 									? {
 										mode: cloudflareHostMode,
@@ -7674,6 +8035,8 @@ export function createMarketApiApp(options = {}) {
 						launchIntent,
 						launchPlan,
 						repositoryHostId: repositoryHost.id,
+						hostBindings: hostBindingResolution.hostBindings,
+						hostBindingPlans: hostBindingMetadata.hostBindingPlans,
 						hostingMode,
 						bootstrap: {
 							ownedBy: 'market_api',
@@ -7720,6 +8083,7 @@ export function createMarketApiApp(options = {}) {
 							launchRequestId: body.launchRequestId ?? null,
 							launchPhase: 'credential_bootstrap',
 							domains: projectDomains,
+							...hostBindingMetadata,
 						},
 					});
 					launchDeployments.push(deployment);
@@ -7807,6 +8171,170 @@ export function createMarketApiApp(options = {}) {
 				if (access.response) return access.response;
 				return c.json({ ok: true, payload: access.details });
 			});
+
+			app.get('/v1/projects/:projectId/hosts', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const context = await loadProjectHostBindingContext({
+					store,
+					runtime,
+					principal: access.principal,
+					details: access.details,
+				});
+				return c.json({ ok: true, payload: projectHostResponsePayload(context) });
+			});
+
+			const queueProjectHostOperation = async (c, kind) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), kind === 'audit' ? 'projects:read:team' : 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const requirementKey = optionalTrimmedString(c.req.param('requirementKey')) ?? optionalTrimmedString(body.requirementKey);
+				const context = await loadProjectHostBindingContext({
+					store,
+					runtime,
+					principal: access.principal,
+					details: access.details,
+				});
+				let replacementHostBindings = {};
+				if (kind === 'replace') {
+					const replacementInput = body.hostBindings && typeof body.hostBindings === 'object'
+						? { hostBindings: body.hostBindings }
+						: body.hostBinding && typeof body.hostBinding === 'object' && requirementKey
+							? { hostBindings: { [requirementKey]: body.hostBinding } }
+							: body.binding && typeof body.binding === 'object' && requirementKey
+								? { hostBindings: { [requirementKey]: body.binding } }
+								: {};
+					try {
+						replacementHostBindings = normalizeProjectLaunchHostBindings(replacementInput);
+					} catch (error) {
+						return jsonError(c, 400, error instanceof Error ? error.message : String(error), { code: 'invalid_host_binding_replacement' });
+					}
+					if (requirementKey && !replacementHostBindings[requirementKey]) {
+						return jsonError(c, 400, `Replacement binding for ${requirementKey} is required.`, { code: 'missing_host_binding_replacement' });
+					}
+				}
+				let plan;
+				try {
+					plan = planProjectHostBindingOperation({
+						kind,
+						requirementKey,
+						currentHostBindings: context.currentHostBindings,
+						replacementHostBindings,
+						launchRequirements: context.launchRequirements,
+						repositoryHosts: context.repositoryHosts,
+						teamHosts: context.teamHosts,
+						managedHosts: context.managedHosts,
+						defaultHosts: context.defaultHosts,
+						projectSlug: context.project.slug,
+						projectName: context.project.name,
+					});
+				} catch (error) {
+					return jsonError(c, 400, error instanceof Error ? error.message : String(error), { code: 'invalid_host_binding_operation' });
+				}
+				if (plan.audit.summary.status === 'blocked') {
+					return jsonError(c, 400, 'Project host operation is blocked by invalid host bindings.', {
+						code: 'host_binding_operation_blocked',
+						audit: plan.audit,
+					});
+				}
+				const scopedRequirementKeys = requirementKey ? [requirementKey] : plan.operationSummary.changedRequirementKeys;
+				const requiresUnlock = Object.entries(plan.nextHostBindings)
+					.some(([key, binding]) => (scopedRequirementKeys.length === 0 || scopedRequirementKeys.includes(key)) && hostBindingRequiresUnlock(binding));
+				if ((kind === 'rotate' || kind === 'replace' || kind === 'resync') && requiresUnlock && !body.sensitivePassphrase) {
+					return jsonError(c, 400, 'sensitivePassphrase is required for project host operations involving team-owned hosts.', {
+						code: 'sensitive_passphrase_required',
+					});
+				}
+				let credentialSessions = {};
+				try {
+					credentialSessions = await createProjectHostCredentialSessions({
+						store,
+						runtime,
+						teamId: context.project.teamId,
+						principalId: access.principal.id,
+						hostBindings: plan.nextHostBindings,
+						requirementKeys: scopedRequirementKeys,
+						passphrase: body.sensitivePassphrase,
+					});
+				} catch (error) {
+					return jsonError(c, 400, 'Unable to unlock provider credentials for this project host operation.', {
+						code: 'provider_credential_unlock_failed',
+						message: error instanceof Error ? error.message : String(error),
+					});
+				}
+				const repository = resolvePlatformRepositoryDescriptor(runtime.resolved.config, access.details, {
+					repository: {
+						role: 'software',
+						writeMode: 'branch',
+						branchName: `treeseed/hosts-${kind}-${Date.now()}`,
+						push: true,
+						pathPolicies: [
+							{ allow: 'treeseed.site.yaml' },
+							{ allow: 'src/env.yaml' },
+							{ allow: 'src/manifest.yaml' },
+							{ allow: 'package.json' },
+						],
+					},
+				});
+				const operation = await store.createPlatformOperation({
+					namespace: 'project_hosts',
+					operation: `host_binding_${kind}`,
+					target: 'market_operations_runner',
+					idempotencyKey: optionalTrimmedString(body.idempotencyKey),
+					requestedByType: isTeamApiPrincipal(access.principal) ? 'team_api_key' : c.get('actorType') === 'service' ? 'service' : 'user',
+					requestedById: access.principal.id,
+					input: {
+						projectId: context.project.id,
+						teamId: context.project.teamId,
+						kind,
+						requirementKey: requirementKey ?? null,
+						repository,
+						hostBindings: plan.nextHostBindings,
+						previousHostBindings: plan.previousHostBindings,
+						hostBindingPlans: plan.hostBindingPlans,
+						operationSummary: plan.operationSummary,
+						audit: plan.audit,
+						credentialSessions,
+						approvalRequired: true,
+						approvalSatisfied: true,
+						approvalId: `project-hosts:${context.project.id}:${kind}:${Date.now()}`,
+						commitMessage: `Update ${context.project.name} project host bindings`,
+					},
+				});
+				await store.appendPlatformOperationEvent(operation.id, `project_hosts.${kind}_queued`, {
+					projectId: context.project.id,
+					requirementKey: requirementKey ?? null,
+					changedRequirementKeys: plan.operationSummary.changedRequirementKeys,
+					requiresRepositoryConfigWrite: plan.operationSummary.requiresRepositoryConfigWrite,
+					requiresSecretSync: plan.operationSummary.requiresSecretSync,
+				}).catch(() => {});
+				await persistProjectHostBindingOperationMetadata({
+					store,
+					details: access.details,
+					nextHostBindings: kind === 'replace' ? context.currentHostBindings : plan.nextHostBindings,
+					hostBindingPlans: kind === 'replace' ? context.hostBindingPlans : plan.hostBindingPlans,
+					audit: plan.audit,
+					operation,
+					kind,
+					requirementKey,
+				});
+				const refreshed = await loadProjectHostBindingContext({
+					store,
+					runtime,
+					principal: access.principal,
+					details: await store.getProjectDetails(context.project.id),
+				});
+				return c.json({
+					ok: true,
+					payload: projectHostResponsePayload(refreshed, { plan }),
+					operation: decoratePlatformOperation(runtime.resolved.config.baseUrl, operation),
+				}, { status: 202 });
+			};
+
+			app.post('/v1/projects/:projectId/hosts/audit', (c) => queueProjectHostOperation(c, 'audit'));
+			app.post('/v1/projects/:projectId/hosts/:requirementKey/replace', (c) => queueProjectHostOperation(c, 'replace'));
+			app.post('/v1/projects/:projectId/hosts/:requirementKey/resync', (c) => queueProjectHostOperation(c, 'resync'));
+			app.post('/v1/projects/:projectId/hosts/:requirementKey/rotate', (c) => queueProjectHostOperation(c, 'rotate'));
 
 			app.put('/v1/projects/:projectId', async (c) => {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');

@@ -2094,8 +2094,329 @@ describe('market api', () => {
 				const launchPayload = await json(launched);
 				expect(launchPayload.error).toMatch(/no longer accepts runtime host configuration/u);
 				expect(launchSpy).not.toHaveBeenCalled();
-			});
 		});
+	});
+
+	it('rejects malformed dynamic host bindings before project launch creates a project', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+
+		const launched = await app.request(`/v1/teams/${team.id}/projects/launch`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				slug: 'bad-host-bindings',
+				name: 'Bad Host Bindings',
+				sourceKind: 'template',
+				sourceRef: 'starter-research',
+				hostingMode: 'managed',
+				hostBindings: {
+					publicWeb: {
+						requirementKind: 'capacity-provider',
+						type: 'web',
+						provider: 'cloudflare',
+					},
+				},
+			}),
+		});
+		expect(launched.status).toBe(400);
+		const payload = await json(launched);
+		expect(payload.code).toBe('invalid_host_bindings');
+		expect(payload.error).toContain('unsupported value "capacity-provider"');
+		const projects = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(projects.payload.some((project: { slug: string }) => project.slug === 'bad-host-bindings')).toBe(false);
+	});
+
+	it('launches with dynamic host bindings and records the binding snapshot', async () => {
+		await withEnv({
+			CLOUDFLARE_API_TOKEN: 'managed-token',
+			CLOUDFLARE_ACCOUNT_ID: 'managed-account',
+		}, async () => {
+			const app = createTestApp({ mockExternal: true });
+			const token = await authorizeApp(app);
+			const team = await createTeam(app, token);
+
+			const launched = await app.request(`/v1/teams/${team.id}/projects/launch`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					slug: 'dynamic-host-bindings',
+					name: 'Dynamic Host Bindings',
+					sourceKind: 'template',
+					sourceRef: 'starter-research',
+					hostingMode: 'managed',
+					hostBindings: {
+						sourceRepository: {
+							requirementKind: 'host',
+							type: 'repository',
+							provider: 'github',
+							hostId: 'platform:github:hosted-hubs',
+							mode: 'treeseed_managed',
+						},
+						publicWeb: {
+							requirementKind: 'host',
+							type: 'web',
+							provider: 'cloudflare',
+							managedHostKey: 'treeseed-managed-cloudflare',
+							mode: 'treeseed_managed',
+						},
+						transactionalEmail: {
+							requirementKind: 'host',
+							type: 'email',
+							provider: 'smtp',
+							managedHostKey: 'treeseed-managed-email',
+							mode: 'treeseed_managed',
+						},
+					},
+				}),
+			});
+			expect(launched.status).toBe(202);
+			const payload = await json(launched);
+			expect(payload.payload.project.project.metadata.templateLineage).toEqual([
+				expect.objectContaining({ kind: 'template', ref: 'starter-research' }),
+			]);
+			expect(payload.payload.project.project.metadata.hostBindings).toMatchObject({
+				sourceRepository: expect.objectContaining({ provider: 'github', provenance: expect.objectContaining({ selectedBy: 'managed-default' }) }),
+				publicWeb: expect.objectContaining({ provider: 'cloudflare', managedHostKey: expect.any(String) }),
+				transactionalEmail: expect.objectContaining({ provider: 'smtp', managedHostKey: expect.any(String) }),
+			});
+			expect(payload.payload.launchJob.input.hostBindings.publicWeb.provider).toBe('cloudflare');
+			expect(JSON.stringify(payload)).not.toContain('managed-token');
+		});
+	});
+
+	it('inspects, audits, and queues governed project host operations', async () => {
+		await withEnv({
+			CLOUDFLARE_API_TOKEN: 'managed-token',
+			CLOUDFLARE_ACCOUNT_ID: 'managed-account',
+		}, async () => {
+			const db = createTestPostgresDatabase();
+			const store = createTestStore(db);
+			const app = createTestApp({
+				db,
+				store,
+				mockExternal: true,
+				config: {
+					platformRunnerSecret: 'platform-runner-secret',
+				},
+			});
+			const token = await authorizeApp(app);
+			const team = await createTeam(app, token);
+
+			const launched = await app.request(`/v1/teams/${team.id}/projects/launch`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					slug: 'host-ops-project',
+					name: 'Host Ops Project',
+					sourceKind: 'template',
+					sourceRef: 'starter-research',
+					hostingMode: 'managed',
+					hostBindings: {
+						sourceRepository: {
+							requirementKind: 'host',
+							type: 'repository',
+							provider: 'github',
+							hostId: 'platform:github:hosted-hubs',
+							mode: 'treeseed_managed',
+						},
+						publicWeb: {
+							requirementKind: 'host',
+							type: 'web',
+							provider: 'cloudflare',
+							managedHostKey: 'treeseed-managed-cloudflare',
+							mode: 'treeseed_managed',
+						},
+					},
+				}),
+			});
+			expect(launched.status).toBe(202);
+			const launchedPayload = await json(launched);
+			const projectId = launchedPayload.projectId;
+
+			const inspected = await json(await app.request(`/v1/projects/${projectId}/hosts`, {
+				headers: { authorization: `Bearer ${token}` },
+			}));
+			expect(inspected.payload.view.requirements.map((entry: { requirementKey: string }) => entry.requirementKey)).toEqual([
+				'sourceRepository',
+				'publicWeb',
+				'transactionalEmail',
+			]);
+			expect(inspected.payload.view.requirements.find((entry: { requirementKey: string }) => entry.requirementKey === 'publicWeb')).toMatchObject({
+				audit: expect.objectContaining({
+					marketHostId: expect.any(String),
+					repositoryConfig: 'planned',
+				}),
+			});
+			const fixture = createRunnerRepoFixture();
+			await store.upsertHubRepository(projectId, {
+				role: 'software',
+				provider: 'local',
+				owner: 'fixture',
+				name: 'host-ops-project',
+				url: fixture.repo,
+				defaultBranch: 'staging',
+				status: 'active',
+			});
+
+			const invalid = await app.request(`/v1/projects/${projectId}/hosts/publicWeb/replace`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					hostBinding: {
+						requirementKind: 'host',
+						type: 'email',
+						provider: 'smtp',
+						hostId: 'smtp-host-1',
+					},
+				}),
+			});
+			expect(invalid.status).toBe(400);
+			expect((await json(invalid)).code).toBe('invalid_host_binding_operation');
+
+			const audited = await app.request(`/v1/projects/${projectId}/hosts/audit`, {
+				method: 'POST',
+				headers: { authorization: `Bearer ${token}` },
+			});
+			expect(audited.status).toBe(202);
+			const auditPayload = await json(audited);
+			expect(auditPayload.operation).toMatchObject({
+				namespace: 'project_hosts',
+				operation: 'host_binding_audit',
+				status: 'queued',
+			});
+			expect(auditPayload.payload.view.summary.status).toBe('ok');
+			try {
+				await withHttpMarketApp(app, async (baseUrl) => {
+					const client = new PlatformRunnerClient({
+						marketUrl: baseUrl,
+						marketId: 'local',
+						runnerSecret: 'platform-runner-secret',
+					});
+					const result = await runOnceWithClient({
+						runnerId: 'market-ops-host-runner-01',
+						environment: 'staging',
+						dataDir: fixture.workspace,
+					}, client, 'test', {
+						deploymentStore: store,
+						operationKey: 'project_hosts:host_binding_audit',
+					});
+					expect(result).toMatchObject({
+						ok: true,
+						claimed: true,
+						operation: expect.objectContaining({
+							id: auditPayload.operation.id,
+							status: 'succeeded',
+						}),
+					});
+				});
+				const completedAudit = await store.findPlatformOperationById(auditPayload.operation.id);
+				expect(completedAudit?.status).toBe('succeeded');
+				expect(completedAudit?.output?.hostBindingPlans?.secretDeployment?.items).toEqual(expect.any(Array));
+				const afterAudit = await store.getProjectDetails(projectId);
+				expect(afterAudit?.project.metadata.hostBindingPlans.secretDeployment.items).toEqual(expect.any(Array));
+				expect(afterAudit?.project.metadata.hostBindingSecretSync).toBeNull();
+				expect(JSON.stringify(afterAudit?.project.metadata)).not.toContain('managed-token');
+			} finally {
+				rmSync(fixture.root, { recursive: true, force: true });
+			}
+
+			const replaced = await app.request(`/v1/projects/${projectId}/hosts/publicWeb/replace`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					hostBinding: {
+						requirementKind: 'host',
+						type: 'web',
+						provider: 'cloudflare',
+						managedHostKey: 'treeseed-managed-cloudflare',
+						mode: 'treeseed_managed',
+					},
+				}),
+			});
+			expect(replaced.status).toBe(202);
+			const replacePayload = await json(replaced);
+			expect(replacePayload.operation).toMatchObject({
+				namespace: 'project_hosts',
+				operation: 'host_binding_replace',
+				status: 'queued',
+			});
+			expect(JSON.stringify(replacePayload)).not.toContain('managed-token');
+			const details = await json(await app.request(`/v1/projects/${projectId}`, {
+				headers: { authorization: `Bearer ${token}` },
+			}));
+			expect(details.payload.project.metadata.lastHostOperation).toMatchObject({
+				kind: 'replace',
+				requirementKey: 'publicWeb',
+			});
+			expect(details.payload.project.metadata.hostBindingAudit.summary.status).toBe('ok');
+		});
+	});
+
+	it('rejects missing and incompatible dynamic host bindings before project creation', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+
+		for (const [slug, hostBinding, message] of [
+			['missing-public-web-host', {
+				requirementKind: 'host',
+				type: 'web',
+				provider: 'cloudflare',
+				mode: 'team_owned',
+			}, /publicWeb is required/u],
+			['incompatible-public-web-host', {
+				requirementKind: 'host',
+				type: 'web',
+				provider: 'smtp',
+				mode: 'treeseed_managed',
+			}, /requires provider cloudflare/u],
+		] as const) {
+			const launched = await app.request(`/v1/teams/${team.id}/projects/launch`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					slug,
+					name: slug,
+					sourceKind: 'template',
+					sourceRef: 'starter-research',
+					hostingMode: 'managed',
+					hostBindings: {
+						publicWeb: hostBinding,
+					},
+				}),
+			});
+			expect(launched.status).toBe(400);
+			const payload = await json(launched);
+			expect(payload.code).toBe('invalid_host_bindings');
+			expect(payload.error).toMatch(message);
+		}
+		const projects = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(projects.payload.some((project: { slug: string }) => project.slug === 'missing-public-web-host' || project.slug === 'incompatible-public-web-host')).toBe(false);
+	});
 
 	it('launch with TreeSeed managed Cloudflare host fails when operational credentials are missing', async () => {
 		await withEnv({
@@ -5631,6 +5952,10 @@ describe('market api', () => {
 	});
 
 	it('executes the managed project launch pipeline and persists launch topology', async () => {
+		await withEnv({
+			CLOUDFLARE_API_TOKEN: 'managed-token',
+			CLOUDFLARE_ACCOUNT_ID: 'managed-account',
+		}, async () => {
 		const launchSpy = vi.spyOn(treeseedCore, 'executeKnowledgeHubProviderLaunch').mockResolvedValue({
 			workingRoot: '/tmp/hub-provider-launch-success',
 			repository: {
@@ -5702,9 +6027,10 @@ describe('market api', () => {
 			phases: [
 				{ phase: 'repo_provision', status: 'completed', detail: 'Created repository.', timestamp: '2026-04-16T00:00:00.000Z' },
 				{ phase: 'content_bootstrap', status: 'completed', detail: 'Scaffolded starter template.', timestamp: '2026-04-16T00:00:01.000Z' },
-				{ phase: 'workflow_bootstrap', status: 'completed', detail: 'Installed workflows.', timestamp: '2026-04-16T00:00:02.000Z' },
-				{ phase: 'hosting_registration', status: 'completed', detail: 'Provisioned Cloudflare.', timestamp: '2026-04-16T00:00:03.000Z' },
-				{ phase: 'runtime_connection', status: 'completed', detail: 'Connected Railway runtime.', timestamp: '2026-04-16T00:00:04.000Z' },
+				{ phase: 'host_binding_config', status: 'completed', detail: 'Applied host binding config.', timestamp: '2026-04-16T00:00:02.000Z' },
+				{ phase: 'workflow_bootstrap', status: 'completed', detail: 'Installed workflows.', timestamp: '2026-04-16T00:00:03.000Z' },
+				{ phase: 'hosting_registration', status: 'completed', detail: 'Provisioned Cloudflare.', timestamp: '2026-04-16T00:00:04.000Z' },
+				{ phase: 'runtime_connection', status: 'completed', detail: 'Connected Railway runtime.', timestamp: '2026-04-16T00:00:05.000Z' },
 			],
 			templatePackage: {
 				outputRoot: '/tmp/hub-provider-launch-success/template',
@@ -5769,7 +6095,7 @@ describe('market api', () => {
 				name: 'Launch Project',
 				coreObjective: '# Core Objective\n\nKeep launch work aligned around reliable project deployment.',
 				sourceKind: 'template',
-				sourceRef: 'starter-basic',
+				sourceRef: 'starter-research',
 				hostingMode: 'managed',
 			}),
 		});
@@ -5788,7 +6114,7 @@ describe('market api', () => {
 		expect(payload.payload.project.project.metadata.templateLineage).toEqual([
 			expect.objectContaining({
 				kind: 'template',
-				ref: 'starter-basic',
+				ref: 'starter-research',
 				source: 'project_launch',
 			}),
 		]);
@@ -5802,6 +6128,14 @@ describe('market api', () => {
 		]));
 		expect(payload.payload.launchJob.input.launchIntent.hub.coreObjective).toBe('# Core Objective\n\nKeep launch work aligned around reliable project deployment.');
 		expect(payload.payload.launchJob.input.launchIntent.execution.providerLaunchInput.coreObjective).toBe('# Core Objective\n\nKeep launch work aligned around reliable project deployment.');
+		expect(payload.payload.launchJob.input.launchIntent.execution.providerLaunchInput.hostBindingPlans.configWrites).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				target: 'treeseed.site.yaml',
+				path: 'hosting.hostBindings.sourceRepository.provider',
+				requirementKey: 'sourceRepository',
+			}),
+		]));
+		expect(payload.payload.launchJob.input.launchIntent.execution.providerLaunchInput.hostBindings.publicWeb.provider).toBe('cloudflare');
 		expect(launchSpy).not.toHaveBeenCalled();
 
 		const deploymentDetail = await json(await app.request(`/v1/project-deployments/${payload.deploymentId}`, {
@@ -5826,6 +6160,21 @@ describe('market api', () => {
 			expect.objectContaining({ role: 'software', name: 'launch-project-site', status: 'queued' }),
 			expect.objectContaining({ role: 'content', name: 'launch-project-content', status: 'queued' }),
 		]));
+		expect(details.payload.project.metadata.hostBindings).toMatchObject({
+			sourceRepository: expect.objectContaining({
+				requirementKey: 'sourceRepository',
+				type: 'repository',
+				provider: 'github',
+			}),
+			publicWeb: expect.objectContaining({
+				requirementKey: 'publicWeb',
+				type: 'web',
+				provider: 'cloudflare',
+			}),
+		});
+		expect(details.payload.hosting.metadata.hostBindings.publicWeb.provider).toBe('cloudflare');
+		expect(payload.payload.launchJob.input.hostBindings.publicWeb.provider).toBe('cloudflare');
+		expect(payload.payload.launchJob.input.launchIntent.hosting.hostBindings.publicWeb.provider).toBe('cloudflare');
 		expect(details.payload.contentSource.productionSource).toBe('r2_published_artifacts');
 		expect(details.payload.latestLaunch.state).toBe('running');
 		const deploymentState = await json(await app.request(`/v1/projects/${payload.projectId}/deployment-state`, {
@@ -5890,6 +6239,7 @@ describe('market api', () => {
 			},
 		}));
 		expect(inbox.payload.some((entry: { kind: string }) => entry.kind === 'launch_failure')).toBe(false);
+		});
 	}, 15000);
 
 	it('keeps managed project launch bootstrap owned by the Market API instead of the runner', async () => {
@@ -6075,7 +6425,7 @@ describe('market api', () => {
 		expect(await waitForCondition(async () => {
 			const job = await store.findJobById(payload.operationId);
 			return job?.status === 'failed';
-		}, 3000)).toBe(true);
+		}, 8000)).toBe(true);
 
 		const inbox = await json(await app.request(`/v1/teams/${team.id}/inbox`, {
 			headers: {

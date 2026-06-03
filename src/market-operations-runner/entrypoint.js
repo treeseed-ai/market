@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
 	PlatformRunnerClient,
 	TreeseedOperationsSdk,
+	executeProjectHostBindingOperation,
 	executePlatformRepositoryOperation,
 	runPlatformOperationOnce,
 } from '@treeseed/sdk';
@@ -225,12 +226,89 @@ export function createExecutorsForOptions(options = {}) {
 			return result;
 		},
 	});
+	const projectHostExecutor = (kind) => ({
+		namespace: 'project_hosts',
+		operation: `host_binding_${kind}`,
+		async run(input, context) {
+			if (!options.deploymentStore) {
+				throw new Error('Project host operations require a Market control-plane store.');
+			}
+			await context.checkpoint({
+				phase: 'project_hosts.started',
+				kind,
+				projectId: input?.projectId ?? null,
+				requirementKey: input?.requirementKey ?? null,
+			}, {
+				kind: 'project_hosts.started',
+				data: { kind, projectId: input?.projectId ?? null, requirementKey: input?.requirementKey ?? null },
+			});
+			const runtime = runnerRuntimeFromOptions(options);
+			const valuesOverlay = await consumeProjectHostCredentialOverlay(options.deploymentStore, runtime, context.operation.id, input?.credentialSessions);
+			const result = await executeProjectHostBindingOperation({
+				...objectValue(input),
+				kind,
+			}, {
+				workspaceRoot: context.workspaceRoot,
+				environment: context.environment,
+				valuesOverlay,
+				onProgress: async (event) => {
+					await context.emit({
+						kind: 'project_hosts.secret_sync_progress',
+						data: event,
+					});
+				},
+			});
+			await context.checkpoint({
+				phase: 'project_hosts.repository_complete',
+				kind,
+				projectId: input?.projectId ?? null,
+				requirementKey: input?.requirementKey ?? null,
+				repository: result.repository,
+			}, {
+				kind: 'project_hosts.repository_complete',
+				data: {
+					kind,
+					projectId: input?.projectId ?? null,
+					requirementKey: input?.requirementKey ?? null,
+					changedPaths: result.repository.changedPaths,
+					commitSha: result.repository.commitSha,
+				},
+			});
+			if (result.summary.requiresSecretSync) {
+				await context.checkpoint({
+					phase: 'project_hosts.secret_sync_complete',
+					kind,
+					projectId: input?.projectId ?? null,
+					requirementKey: input?.requirementKey ?? null,
+					secretSync: result.secretSync,
+				}, {
+					kind: 'project_hosts.secret_sync_complete',
+					data: {
+						kind,
+						projectId: input?.projectId ?? null,
+						requirementKey: input?.requirementKey ?? null,
+						ok: result.secretSync?.ok ?? false,
+						providers: result.secretSync?.providers ?? [],
+					},
+				});
+			}
+			await persistProjectHostOperationResult(options.deploymentStore, input, result, context.operation);
+			if (!result.ok) {
+				throw new Error('Project host operation failed during host-bound secret sync.');
+			}
+			return redactProjectHostOperationValue(result);
+		},
+	});
 	return [
 		noop,
 		diagnostic,
 		repositoryExecutor('write_content_record'),
 		repositoryExecutor('create_related_content'),
 		repositoryExecutor('create_decision_from_proposals'),
+		projectHostExecutor('audit'),
+		projectHostExecutor('resync'),
+		projectHostExecutor('replace'),
+		projectHostExecutor('rotate'),
 		createProjectWebDeploymentExecutor({
 			deploymentStore: options.deploymentStore,
 			mockExternal: options.mockExternal,
@@ -242,7 +320,7 @@ export function createExecutorsForOptions(options = {}) {
 }
 
 export async function registerAndHeartbeat(client, config, version, options = {}) {
-	const executors = createExecutorsForOptions(options);
+	const executors = createExecutorsForOptions({ ...options, config });
 	const payload = {
 		runnerId: config.runnerId,
 		name: config.runnerId,
@@ -274,13 +352,13 @@ export async function registerAndHeartbeat(client, config, version, options = {}
 
 export async function runOnceWithClient(config, client, version, options = {}) {
 	const deploymentStore = options.deploymentStore ?? options.store ?? null;
-	await registerAndHeartbeat(client, config, version, { ...options, deploymentStore });
+	await registerAndHeartbeat(client, config, version, { ...options, deploymentStore, config });
 	const result = await runPlatformOperationOnce({
 		client,
 		runnerId: config.runnerId,
 		workspaceRoot: config.dataDir,
 		environment: config.environment,
-		executors: createExecutorsForOptions({ ...options, deploymentStore }),
+		executors: createExecutorsForOptions({ ...options, deploymentStore, config }),
 		operationId: options.operationId ?? null,
 		limit: Math.max(1, Number(options.maxJobs ?? 1) || 1),
 		leaseSeconds: 300,
@@ -338,6 +416,181 @@ export async function runOnceWithClient(config, client, version, options = {}) {
 
 function objectValue(value) {
 	return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+const SENSITIVE_OUTPUT_KEY_PATTERN = /(?:^|[_-])(?:token|password|passphrase|api[_-]?key|private[_-]?key|credential|secret)(?:$|[_-])|(?:token|password|passphrase|apiKey|privateKey|credential)$/iu;
+const SENSITIVE_OUTPUT_VALUE_PATTERN = /(?:github_pat_[A-Za-z0-9_]+|gh[pousr]_[A-Za-z0-9_]{16,}|sk-[A-Za-z0-9_-]{16,}|[A-Za-z0-9+/=]{48,})/gu;
+
+function redactProjectHostOperationValue(value, key = '') {
+	if (SENSITIVE_OUTPUT_KEY_PATTERN.test(key)) return '[redacted]';
+	if (typeof value === 'string') return value.replace(SENSITIVE_OUTPUT_VALUE_PATTERN, '[redacted]');
+	if (Array.isArray(value)) return value.map((entry) => redactProjectHostOperationValue(entry));
+	if (!value || typeof value !== 'object') return value;
+	const output = {};
+	for (const [entryKey, entryValue] of Object.entries(value)) {
+		output[entryKey] = redactProjectHostOperationValue(entryValue, entryKey);
+	}
+	return output;
+}
+
+function runnerRuntimeFromOptions(options = {}) {
+	const config = objectValue(options.config);
+	return {
+		resolved: {
+			config: {
+				baseUrl: config.marketUrl ?? null,
+				marketUrl: config.marketUrl ?? null,
+				marketDatabaseUrl: config.marketDatabaseUrl ?? null,
+				environment: config.environment ?? process.env.TREESEED_PLATFORM_RUNNER_ENVIRONMENT ?? null,
+				credentialSessionSecret: config.credentialSessionSecret ?? null,
+			},
+		},
+	};
+}
+
+function addCredentialOverlayAliases(overlay, session) {
+	const config = objectValue(session?.config);
+	for (const [key, value] of Object.entries(config)) {
+		if (typeof value === 'string' && value.trim()) overlay[key] = value;
+	}
+	const token = config.GH_TOKEN ?? config.GITHUB_TOKEN ?? config.githubToken ?? config.token;
+	if (session?.hostKind === 'repository_host' && typeof token === 'string' && token.trim()) {
+		overlay.GH_TOKEN = token;
+		overlay.GITHUB_TOKEN = config.GITHUB_TOKEN ?? token;
+		overlay.token = token;
+	}
+	const cloudflareToken = config.CLOUDFLARE_API_TOKEN ?? config.cloudflareApiToken ?? config.apiToken ?? config.token;
+	if (session?.hostKind === 'web_host' && session?.provider === 'cloudflare' && typeof cloudflareToken === 'string' && cloudflareToken.trim()) {
+		overlay.CLOUDFLARE_API_TOKEN = cloudflareToken;
+		overlay.cloudflareApiToken = cloudflareToken;
+		overlay.apiToken = cloudflareToken;
+		overlay.token = cloudflareToken;
+	}
+	const accountId = config.CLOUDFLARE_ACCOUNT_ID ?? config.cloudflareAccountId ?? config.accountId;
+	if (session?.hostKind === 'web_host' && session?.provider === 'cloudflare' && typeof accountId === 'string' && accountId.trim()) {
+		overlay.CLOUDFLARE_ACCOUNT_ID = accountId;
+		overlay.cloudflareAccountId = accountId;
+		overlay.accountId = accountId;
+	}
+	if (session?.hostKind === 'email_host') {
+		for (const [source, target] of [
+			['SMTP_HOST', 'smtpHost'],
+			['SMTP_PORT', 'smtpPort'],
+			['SMTP_USERNAME', 'smtpUsername'],
+			['SMTP_PASSWORD', 'smtpPassword'],
+		]) {
+			const value = config[source] ?? config[target];
+			if (typeof value === 'string' && value.trim()) {
+				overlay[source] = value;
+				overlay[target] = value;
+			}
+		}
+	}
+}
+
+async function consumeProjectHostCredentialOverlay(store, runtime, operationId, credentialSessions) {
+	const overlay = {};
+	const sessions = objectValue(credentialSessions);
+	for (const sessionInfo of Object.values(sessions)) {
+		const sessionId = typeof sessionInfo === 'string'
+			? sessionInfo
+			: typeof sessionInfo?.id === 'string'
+				? sessionInfo.id
+				: '';
+		if (!sessionId.trim()) continue;
+		const session = await consumeLaunchCredentialSession(store, runtime, operationId, sessionId.trim());
+		addCredentialOverlayAliases(overlay, session);
+	}
+	return overlay;
+}
+
+function projectHostMetadataPatchFromResult(input, result, operation) {
+	const timestamp = new Date().toISOString();
+	const operationSummary = {
+		id: operation.id,
+		kind: result.kind,
+		requirementKey: result.requirementKey ?? input?.requirementKey ?? null,
+		status: 'succeeded',
+		queuedAt: operation.createdAt ?? null,
+		completedAt: timestamp,
+		commitSha: result.repository?.commitSha ?? null,
+		changedPaths: result.repository?.changedPaths ?? [],
+		auditStatus: result.repository?.audit?.status ?? null,
+		secretSyncStatus: result.secretSync ? (result.secretSync.ok ? 'completed' : 'failed') : 'skipped',
+	};
+	return {
+		hostBindings: result.hostBindings,
+		hostBindingPlans: result.hostBindingPlans,
+		hostBindingAudit: {
+			checkedAt: timestamp,
+			summary: input?.audit?.summary ?? null,
+			diagnostics: input?.audit?.diagnostics ?? [],
+			repository: result.repository?.audit ?? null,
+			config: result.repository?.config ?? null,
+		},
+		hostBindingSecretSync: result.secretSync ?? null,
+		lastHostOperation: operationSummary,
+		hostBindingOperationResult: {
+			kind: result.kind,
+			requirementKey: result.requirementKey ?? input?.requirementKey ?? null,
+			repository: result.repository,
+			secretSync: result.secretSync,
+			summary: result.summary,
+		},
+		hostBindingOperations: [operationSummary],
+	};
+}
+
+function mergeHostBindingOperationMetadata(existing, patch) {
+	const previous = objectValue(existing);
+	const operations = [
+		...(Array.isArray(patch.hostBindingOperations) ? patch.hostBindingOperations : []),
+		...(Array.isArray(previous.hostBindingOperations) ? previous.hostBindingOperations : []),
+	].slice(0, 10);
+	return {
+		...previous,
+		...patch,
+		hostBindingOperations: operations,
+	};
+}
+
+async function persistProjectHostOperationResult(store, input, result, operation) {
+	const projectId = typeof input?.projectId === 'string' ? input.projectId : null;
+	if (!projectId) return;
+	const details = await store.getProjectDetails(projectId).catch(() => null);
+	if (!details?.project) return;
+	const patch = redactProjectHostOperationValue(projectHostMetadataPatchFromResult(input, result, operation));
+	await store.updateProject(projectId, {
+		metadata: mergeHostBindingOperationMetadata(details.project.metadata, patch),
+	});
+	const refreshedHosting = details.hosting ?? await store.getProjectHosting(projectId).catch(() => null);
+	if (refreshedHosting) {
+		await store.run(
+			`UPDATE project_hosting SET metadata_json = ?, updated_at = ? WHERE project_id = ?`,
+			[
+				JSON.stringify(mergeHostBindingOperationMetadata(refreshedHosting.metadata, patch)),
+				new Date().toISOString(),
+				projectId,
+			],
+		).catch(() => null);
+	}
+	const refreshedConnection = details.connection ?? await store.getProjectConnection(projectId).catch(() => null);
+	if (refreshedConnection) {
+		await store.run(
+			`UPDATE project_connections SET metadata_json = ?, updated_at = ? WHERE project_id = ?`,
+			[
+				JSON.stringify(mergeHostBindingOperationMetadata(refreshedConnection.metadata, patch)),
+				new Date().toISOString(),
+				projectId,
+			],
+		).catch(() => null);
+	}
+	const deployments = await store.listProjectDeployments(projectId, { limit: 10 }).catch(() => []);
+	for (const deployment of deployments) {
+		await store.updateProjectDeployment(deployment.id, {
+			metadata: mergeHostBindingOperationMetadata(deployment.metadata, patch),
+		}).catch(() => null);
+	}
 }
 
 async function consumeLaunchCredentialSession(store, runtime, jobId, sessionId) {
