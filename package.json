@@ -74,7 +74,7 @@
     "@mdxeditor/editor": "^4.0.1",
     "@react-email/render": "^2.0.8",
     "@treeseed/agent": "^0.10.19-dev.staging.20260604T025907Z",
-    "@treeseed/cli": "^0.10.19-dev.staging.20260604T025907Z",
+    "@treeseed/cli": "^0.10.20-dev.staging.20260604T035131Z",
     "@treeseed/core": "^0.10.19-dev.staging.20260604T025907Z",
     "@treeseed/sdk": "^0.10.25-dev.staging.20260604T025520Z",
     "codemirror": "^6.0.2",
