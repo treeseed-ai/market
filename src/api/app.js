@@ -2793,6 +2793,13 @@ async function runProjectDeletionApiDestroy({
 				},
 			},
 		});
+		await appendProjectDeletionProgress(store, job, {
+			kind: 'project_delete.succeeded',
+			phase: 'completed',
+			title: 'Project deleted',
+			message: 'Project infrastructure deletion completed.',
+			status: 'succeeded',
+		});
 		await store.completeJob(job.id, { output });
 		await updateLaunchDeployments(store, job, {
 			eventKindPrefix: 'project_delete',
@@ -2801,13 +2808,6 @@ async function runProjectDeletionApiDestroy({
 			finishedAt: new Date().toISOString(),
 			completedAt: new Date().toISOString(),
 			metadata: { deletionPhase: 'completed' },
-		});
-		await appendProjectDeletionProgress(store, job, {
-			kind: 'project_delete.succeeded',
-			phase: 'completed',
-			title: 'Project deleted',
-			message: 'Project infrastructure deletion completed.',
-			status: 'succeeded',
 		});
 		return await store.findJobById(job.id);
 	} catch (error) {
