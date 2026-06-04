@@ -4,6 +4,7 @@ import Field from '../../../../packages/core/src/components/ui/forms/Field.astro
 import FormActions from '../../../../packages/core/src/components/ui/forms/FormActions.astro';
 import Select from '../../../../packages/core/src/components/ui/forms/Select.astro';
 import TextInput from '../../../../packages/core/src/components/ui/forms/TextInput.astro';
+import HostCredentialPermissionNote from '../../../components/app/controls/HostCredentialPermissionNote.astro';
 import LaunchRequirementSummary from '../../../components/app/controls/LaunchRequirementSummary.astro';
 import TemplateHostRequirementPicker from '../../../components/app/controls/TemplateHostRequirementPicker.astro';
 import TemplateResourceRequirementPicker from '../../../components/app/controls/TemplateResourceRequirementPicker.astro';
@@ -210,19 +211,7 @@ const launchJson = JSON.stringify({
 									<Field label="Default branch" name="repositoryNewDefaultBranch"><TextInput name="repositoryNewDefaultBranch" disabled data-inline-control value="main" /></Field>
 									<Field label="GitHub token" name="repositoryNewToken" required><TextInput name="repositoryNewToken" type="password" required disabled data-inline-control autocomplete="new-password" /></Field>
 								</div>
-								<div class="ts-permission-note">
-									<strong>GitHub token permissions</strong>
-									<p>Use a fine-grained token or GitHub App credential for the selected owner with:</p>
-									<ul>
-										<li>Permission to create repositories for the owner</li>
-										<li>Contents read/write</li>
-										<li>Actions and workflows read/write</li>
-										<li>Environments read/write</li>
-										<li>Secrets and variables read/write</li>
-										<li>Pull requests read/write</li>
-										<li>Issues read/write</li>
-									</ul>
-								</div>
+								<HostCredentialPermissionNote hostType="repository" />
 							</div>
 						</TemplateHostRequirementPicker>
 
@@ -235,20 +224,7 @@ const launchJson = JSON.stringify({
 									<Field label="Cloudflare account ID" name="webNewAccountId" required><TextInput name="webNewAccountId" required disabled data-inline-control /></Field>
 									<Field label="Cloudflare API token" name="webNewApiToken" required><TextInput name="webNewApiToken" type="password" required disabled data-inline-control autocomplete="new-password" /></Field>
 								</div>
-								<div class="ts-permission-note">
-									<strong>Cloudflare API token permissions</strong>
-									<p>Use an account-level token for this Cloudflare account with:</p>
-									<ul>
-										<li>Cloudflare Pages edit</li>
-										<li>Workers Scripts edit</li>
-										<li>Workers KV Storage edit</li>
-										<li>D1 edit</li>
-										<li>R2 Storage edit</li>
-										<li>Queues edit</li>
-										<li>Zone DNS edit</li>
-										<li>Workers AI read/edit when the project uses AI gateway or model execution</li>
-									</ul>
-								</div>
+								<HostCredentialPermissionNote hostType="web" />
 							</div>
 						</TemplateHostRequirementPicker>
 
@@ -265,6 +241,7 @@ const launchJson = JSON.stringify({
 									<Field label="Reply-to email" name="emailNewReplyTo"><TextInput name="emailNewReplyTo" type="email" disabled data-inline-control /></Field>
 									<Field label="Secure mode" name="emailNewSecure"><Select name="emailNewSecure" disabled options={[{ label: 'STARTTLS', value: 'false' }, { label: 'TLS', value: 'true' }]} /></Field>
 								</div>
+								<HostCredentialPermissionNote hostType="email" />
 							</div>
 						</TemplateHostRequirementPicker>
 						{defaultRequirementsView.resources.map((requirement) => <TemplateResourceRequirementPicker requirement={requirement} />)}

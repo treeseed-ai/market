@@ -280,6 +280,7 @@ treeseed config
 treeseed switch feature/my-change --plan
 treeseed switch feature/my-change --preview
 treeseed dev
+treeseed dev start --web-runtime local
 treeseed save "feat: describe your change"
 treeseed stage "feat: describe the resolution"
 treeseed release --patch
@@ -291,7 +292,8 @@ What they mean here:
 - `treeseed status`: show project health, current branch/task, runtime readiness, preview state, package drift, workflow locks, and next commands
 - `treeseed config`: configure and test the local/staging/production runtime foundation
 - `treeseed switch`: create or resume a task branch from `staging`, mirroring checked-out package repos in the full workspace
-- `treeseed dev`: run the local Cloudflare, API, and integrated worker runtime for iterative development
+- `treeseed dev`: run the local web/API/control-plane runtime as a foreground supervisor
+- `treeseed dev start`: run the same runtime as a worktree-scoped managed background instance with stable state, ports, URLs, PIDs, and logs
 - `treeseed save`: recursively verify, commit, sync, and push dirty package repos before saving the market repo and refreshing the branch preview when enabled
 - `treeseed stage`: squash-merge the task into package `staging` branches first, then market `staging`, wait for staging automation, archive the task tag, and clean up the task branches
 - `treeseed release`: promote changed packages plus dependents first, then promote market `staging` to `main`, tag the release, and sync market production to package `main` heads
@@ -322,6 +324,25 @@ If a recursive workflow is interrupted, inspect and resume it through the journa
 treeseed recover
 treeseed resume <run-id>
 ```
+
+### Local Dev Instances
+
+Use `treeseed dev` when you want the existing foreground supervisor in your current shell. Use managed subcommands when a local server should be discoverable to humans and agents across terminals:
+
+```bash
+treeseed dev start --web-runtime local --json
+treeseed dev status --json
+treeseed dev status --all --json
+treeseed dev logs --follow
+treeseed dev stop --json
+treeseed dev restart --web-runtime local --json
+```
+
+Managed dev instances are scoped to the physical git worktree. Each worktree writes authoritative state under `.treeseed/dev/instances`, PID files under `.treeseed/dev/pids`, and logs under `.treeseed/logs`. A repository-family index under the git common dir lets agents discover sibling worktree instances without making that index authoritative.
+
+Main, staging, and feature worktrees can run at the same time. The first worktree uses the familiar local ports when free; additional worktrees receive stable alternate port blocks and worktree-specific local PostgreSQL/Mailpit service names. `--force` replaces only the current worktree instance, while `--force-conflicts` is the explicit cross-worktree escape hatch for port owners.
+
+See [Worktree-Scoped Dev Instances](./docs/local-dev-instances.md) for the full architecture and agent workflow.
 
 ### Package-Local Commands
 
@@ -471,13 +492,13 @@ Recommended path:
 ```bash
 npm install
 treeseed status
-treeseed dev
+treeseed dev start --web-runtime local
 treeseed save "feat: describe your change"
 ```
 
 Minimum verification:
 
-- `treeseed dev` starts
+- `treeseed dev start --web-runtime local` starts, or `treeseed dev` starts when you need foreground supervision
 - `treeseed save "..."` passes verification before pushing
 - run `npm run build` if you touched site structure or runtime integration
 

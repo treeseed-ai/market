@@ -62,13 +62,17 @@ Production deploy and publish require `--yes` before the CLI sends the API reque
 
 ## Local Development
 
-From the Market repo root, `trsd dev` is the local development surface. It starts the web UI, the Market API, a Treeseed-managed local PostgreSQL control-plane database, runs Market migrations, and supervises the Market operations runner with `project:web_deployment` capability.
+From the Market repo root, `trsd dev` is the foreground local development surface. `trsd dev start` runs the same surface as a managed, worktree-scoped background instance. Both start the web UI, the Market API, a Treeseed-managed local PostgreSQL control-plane database, Market migrations, and the Market operations runner with `project:web_deployment` capability.
 
 ```bash
-npx trsd dev --web-runtime local --force
+npx trsd dev start --web-runtime local --json
+npx trsd dev status --json
+npx trsd dev logs --follow
 ```
 
 Non-provider local values have defaults and are centrally resolved through `trsd config`/local launch environment. Provider credentials such as GitHub and Cloudflare credentials remain explicit configuration values because they authorize real external side effects.
+
+Use foreground `npx trsd dev --web-runtime local` when you want shell-owned lifecycle. Managed instances write `.treeseed/dev/instances/<scope>.json`, `.treeseed/dev/pids/<scope>.pid`, and `.treeseed/logs/dev-<scope>.jsonl` in the current worktree; `npx trsd dev status --all --json` discovers sibling worktree instances through the repository-family index. See [Worktree-Scoped Dev Instances](./local-dev-instances.md).
 
 The stable standalone runner command remains available for focused acceptance and debugging:
 
@@ -104,10 +108,11 @@ Audit events target `targetType: "project"` and include safe deployment fields o
 
 ## Troubleshooting
 
-Missing repository, host, workflow, runner heartbeat, launch state, and deployment history are explicit blockers or empty states, not server errors. For normal local development, start the integrated runtime once:
+Missing repository, host, workflow, runner heartbeat, launch state, and deployment history are explicit blockers or empty states, not server errors. For normal local development, start or reuse the integrated runtime once:
 
 ```bash
-npx trsd dev --web-runtime local --force
+npx trsd dev status --json
+npx trsd dev start --web-runtime local --json
 ```
 
 For mocked acceptance outside the integrated dev supervisor, start the web/API runtime, seed local data, queue an action, and run:
