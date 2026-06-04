@@ -496,6 +496,7 @@ describe('one-purpose control app information architecture', () => {
 		const projectHosts = source('src/pages/app/projects/[projectId]/hosts.astro');
 		const helper = source('src/lib/market/control-ui.ts');
 		const hostCredentialClient = source('src/lib/market/host-credential-form-client.ts');
+		const hostPermissionNote = source('src/components/app/controls/HostCredentialPermissionNote.astro');
 		const api = source('src/api/app.js');
 		const providerLaunch = source('packages/sdk/src/operations/services/hub-provider-launch.ts');
 
@@ -538,6 +539,17 @@ describe('one-purpose control app information architecture', () => {
 		expect(hostEdit).not.toContain('Cloudflare zone ID');
 		expect(hostEdit).toContain('Saved value configured. Type a new value to replace it.');
 		expect(hostEdit).toContain('Saved secret configured. Type a new secret to replace it.');
+		expect(hostCreate).toContain('HostCredentialPermissionNote');
+		expect(hostEdit).toContain('HostCredentialPermissionNote');
+		expect(projectCreate).toContain('HostCredentialPermissionNote');
+		expect(hostPermissionNote).toContain('repository:');
+		expect(hostPermissionNote).toContain('web:');
+		expect(hostPermissionNote).toContain('email:');
+		expect(hostPermissionNote).toContain("'capacity-provider':");
+		expect(hostPermissionNote).toContain('ai:');
+		for (const permission of ['GitHub token permissions', 'Cloudflare API token permissions', 'SMTP credential requirements', 'Railway API token permissions', 'AI provider key requirements']) {
+			expect(hostPermissionNote).toContain(permission);
+		}
 		expect(hostEdit).not.toContain("hostTypeFor(host) !== hostType) host = null");
 		expect(hostPicker).toContain('Create a host by workflow');
 		expect(hostPicker).toContain('Project creation');

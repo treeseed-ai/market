@@ -2123,10 +2123,11 @@ Use local Market surfaces first.
 cd /home/adrian/Projects/treeseed/market
 npx trsd status --json
 npx trsd install --json
-npx trsd dev --web-runtime local --force
+npx trsd dev status --json
+npx trsd dev start --web-runtime local --json
 ```
 
-The root Market dev command starts the web UI, Market API, managed local Market PostgreSQL, Market migrations, and the `project:web_deployment` operations runner. Non-provider local values have defaults through the local launch environment; configure provider credentials through `trsd config` when you want real GitHub/Cloudflare side effects.
+The root Market dev command starts the web UI, Market API, managed local Market PostgreSQL, Market migrations, and the `project:web_deployment` operations runner. `trsd dev start` runs that surface as a managed worktree-scoped background instance with stable PID, port, URL, and log metadata under `.treeseed/dev` and `.treeseed/logs`; `trsd dev` without a subcommand remains the foreground supervisor. Non-provider local values have defaults through the local launch environment; configure provider credentials through `trsd config` when you want real GitHub/Cloudflare side effects.
 
 ### 18.2 Authenticate and seed local data
 
@@ -2150,7 +2151,7 @@ The API should return project, readiness, actions, environments, runner, and rec
 
 ### 18.4 Runner behavior
 
-The operations runner is already supervised by `npx trsd dev` from the Market repo root. The standalone command remains available for focused mocked acceptance or debugging:
+The operations runner is already supervised by `npx trsd dev` or `npx trsd dev start` from the Market repo root. The standalone command remains available for focused mocked acceptance or debugging:
 
 ```bash
 npm run market:operations-runner -- \
@@ -2170,7 +2171,7 @@ npm run market:operations-runner -- \
   --mock-external
 ```
 
-`--mock-external` completes the flow without real GitHub/Cloudflare side effects while still exercising API, store, operation events, runner claim, checkpoints, and UI polling. For real local staging proof, use the integrated `trsd dev` runner or the standalone command without `--mock-external` after configuring disposable provider credentials.
+`--mock-external` completes the flow without real GitHub/Cloudflare side effects while still exercising API, store, operation events, runner claim, checkpoints, and UI polling. For real local staging proof, use the integrated managed `trsd dev start` runner, foreground `trsd dev`, or the standalone command without `--mock-external` after configuring disposable provider credentials.
 
 ### 18.5 Verify UI flow
 
