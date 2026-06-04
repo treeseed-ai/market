@@ -114,22 +114,65 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for dir in packages/sdk packages/agent packages/core packages/cli; do
-            if test -f "${dir}/package.json"; then npm --prefix "${dir}" run build:dist; fi
+          TIMING_SUMMARY="${RUNNER_TEMP:-/tmp}/treeseed-provider-timing.md"
+          : > "${TIMING_SUMMARY}"
+          started_at="$(date +%s)"
+          npm --prefix packages/sdk run build:dist
+          sdk_finished_at="$(date +%s)"
+          declare -A pids
+          for dir in packages/core packages/cli packages/agent; do
+            if test -f "${dir}/package.json"; then
+              (
+                set -euo pipefail
+                npm --prefix "${dir}" run build:dist
+              ) &
+              pids["${dir}"]="$!"
+            fi
           done
+          failed=0
+          for dir in "${!pids[@]}"; do
+            if ! wait "${pids[${dir}]}"; then
+              echo "::error::${dir} build:dist failed"
+              failed=1
+            fi
+          done
+          finished_at="$(date +%s)"
+          {
+            echo "### Market deploy CI timing"
+            echo
+            echo "| Step | Duration | Status |"
+            echo "| --- | ---: | --- |"
+            echo "| build:packages/sdk | $((sdk_finished_at - started_at))s | success |"
+            echo "| build:packages/core-cli-agent | $((finished_at - sdk_finished_at))s | $([[ "${failed}" == "0" ]] && echo success || echo failed) |"
+          } >> "${TIMING_SUMMARY}"
+          if [[ "${failed}" != "0" ]]; then exit 1; fi
 
       - name: Install managed provider tools
-        run: node ./packages/sdk/scripts/run-ts.mjs ./packages/sdk/scripts/install-managed-dependencies.ts
+        shell: bash
+        run: |
+          set -euo pipefail
+          TIMING_SUMMARY="${RUNNER_TEMP:-/tmp}/treeseed-provider-timing.md"
+          started_at="$(date +%s)"
+          node ./packages/sdk/scripts/run-ts.mjs ./packages/sdk/scripts/install-managed-dependencies.ts
+          finished_at="$(date +%s)"
+          {
+            echo "| install-managed-provider-tools | $((finished_at - started_at))s | success |"
+          } >> "${TIMING_SUMMARY}"
 
       - name: Run web workflow action
         shell: bash
         run: |
           set -euo pipefail
           TIMING_SUMMARY="${RUNNER_TEMP:-/tmp}/treeseed-provider-timing.md"
-          : > "${TIMING_SUMMARY}"
           export TREESEED_PROVIDER_TIMING_SUMMARY_PATH="${TIMING_SUMMARY}"
+          started_at="$(date +%s)"
           EXTRA_ARGS=()
           if [[ -n "${TREESEED_WORKFLOW_PROJECT:-}" ]]; then EXTRA_ARGS+=(--project-id "${TREESEED_WORKFLOW_PROJECT}"); fi
           if [[ -n "${TREESEED_WORKFLOW_PREVIEW_ID:-}" ]]; then EXTRA_ARGS+=(--preview-id "${TREESEED_WORKFLOW_PREVIEW_ID}"); fi
           node ./packages/sdk/scripts/run-ts.mjs ./packages/sdk/scripts/tenant-workflow-action.ts --action "${TREESEED_WORKFLOW_ACTION}" --environment "${TREESEED_WORKFLOW_ENVIRONMENT}" "${EXTRA_ARGS[@]}"
+          finished_at="$(date +%s)"
+          {
+            echo "| tenant-workflow-action | $((finished_at - started_at))s | success |"
+            echo
+          } >> "${TIMING_SUMMARY}"
           if [[ -n "${GITHUB_STEP_SUMMARY:-}" && -s "${TIMING_SUMMARY}" ]]; then cat "${TIMING_SUMMARY}" >> "${GITHUB_STEP_SUMMARY}"; fi

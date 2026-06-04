@@ -4,7 +4,14 @@ import Field from '../../../../packages/core/src/components/ui/forms/Field.astro
 import FormActions from '../../../../packages/core/src/components/ui/forms/FormActions.astro';
 import Select from '../../../../packages/core/src/components/ui/forms/Select.astro';
 import TextInput from '../../../../packages/core/src/components/ui/forms/TextInput.astro';
-import type { TemplateSiteCard } from '@treeseed/core/templates';
+import LaunchRequirementSummary from '../../../components/app/controls/LaunchRequirementSummary.astro';
+import TemplateHostRequirementPicker from '../../../components/app/controls/TemplateHostRequirementPicker.astro';
+import TemplateResourceRequirementPicker from '../../../components/app/controls/TemplateResourceRequirementPicker.astro';
+import TemplateSecretRequirementPanel from '../../../components/app/controls/TemplateSecretRequirementPanel.astro';
+import type { TemplateSiteCard } from '../../../../packages/core/src/templates.ts';
+import { deriveProjectLaunchRequirementsViewModel } from '../../../../packages/sdk/src/template-launch-ui.ts';
+import type { ProjectLaunchHostRequirementViewModel } from '../../../../packages/sdk/src/template-launch-ui.ts';
+import { TREESEED_DEFAULT_STARTER_TEMPLATE_ID } from '../../../../packages/sdk/src/sdk-types.ts';
 import EmptyState from '../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
@@ -26,21 +33,17 @@ const [managedHosts, customHosts, repositoryHosts] = team && context.store
 			context.store.listRepositoryHosts(team.id).catch(() => []),
 		])
 	: [[], [], []];
-const baseCoreTemplate: TemplateSiteCard = {
-	slug: 'starter-basic',
-	title: 'TreeSeed Core Starter',
-	summary: 'The first-party project foundation with Core runtime, hosted web deployment, content collections, forms, and standard workflow wiring.',
-	category: 'core',
-	featured: true,
-	publisherName: 'TreeSeed',
-	templateVersion: '1.0.0',
-	priceModel: 'free',
-	source: 'content',
-};
 const templateListing = await listMarketplaceSiteTemplates(Astro).catch(() => ({ rendered: true, items: [] as TemplateSiteCard[] }));
+const marketplaceTemplateItems = templateListing.items as TemplateSiteCard[];
+const activeStarterTemplateIds = new Set([
+	'starter-research',
+	'starter-engineering',
+	'starter-information-hub',
+]);
+const launchableTemplates = marketplaceTemplateItems.filter((template) => activeStarterTemplateIds.has(template.slug));
 const templateCards = [
-	baseCoreTemplate,
-	...templateListing.items.filter((template) => template.slug !== baseCoreTemplate.slug),
+	...launchableTemplates.filter((template) => template.slug === TREESEED_DEFAULT_STARTER_TEMPLATE_ID),
+	...launchableTemplates.filter((template) => template.slug !== TREESEED_DEFAULT_STARTER_TEMPLATE_ID),
 ];
 const defaultCoreObjective = `# Core Objective
 
@@ -49,7 +52,73 @@ Describe the enduring outcome this project should help the team achieve. Keep it
 const defaultHosts = team?.metadata?.defaultHosts && typeof team.metadata.defaultHosts === 'object'
 	? team.metadata.defaultHosts
 	: {};
-const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managedHosts, ...customHosts], repositoryHosts, defaultHosts }).replace(/</gu, '\\u003c');
+const templateRequirementModels = templateCards.map((template) => ({
+	slug: template.slug,
+	title: template.title,
+	launchRequirements: template.launchRequirements,
+	requirementsView: deriveProjectLaunchRequirementsViewModel({
+		launchRequirements: template.launchRequirements,
+		repositoryHosts: repositoryHosts as any,
+		teamHosts: customHosts as any,
+		managedHosts: managedHosts as any,
+		defaultHosts,
+	}),
+}));
+const defaultTemplateRequirementModel = templateRequirementModels.find((template) => template.slug === TREESEED_DEFAULT_STARTER_TEMPLATE_ID) ?? templateRequirementModels[0];
+const defaultRequirementsView = defaultTemplateRequirementModel?.requirementsView ?? deriveProjectLaunchRequirementsViewModel({});
+const defaultRequirementByKey = new Map(defaultRequirementsView.hosts.map((requirement) => [requirement.key, requirement]));
+const fallbackHostRequirement = (key: string, type: string, displayName: string, purpose: string, required: boolean, provider: string, selectValue: string): ProjectLaunchHostRequirementViewModel => ({
+	kind: 'host',
+	key,
+	type,
+	displayName,
+	purpose,
+	required,
+	compatibleProviders: [provider],
+	defaultSelection: required ? 'managed' : 'none',
+	environmentScopes: ['staging', 'prod'],
+	configWritePreviews: [],
+	environmentWritePreviews: [],
+	choices: [
+		{
+			value: selectValue,
+			label: displayName,
+			mode: selectValue.startsWith('none:') ? 'none' : 'treeseed_managed',
+			hostId: type === 'repository' ? 'platform:github:hosted-hubs' : null,
+			managedHostKey: type === 'repository' ? 'platform:github:hosted-hubs' : selectValue.split(':').slice(1).join(':'),
+			provider,
+			type,
+			selected: true,
+			readiness: selectValue.startsWith('none:') ? 'none' : 'ready',
+			rootDomain: null,
+		},
+		{
+			value: `new:${type}`,
+			label: `Create new ${type} host...`,
+			mode: 'new',
+			hostId: null,
+			managedHostKey: null,
+			provider,
+			type,
+			selected: false,
+			readiness: 'new',
+			rootDomain: null,
+		},
+	],
+});
+const sourceRepositoryRequirement = defaultRequirementByKey.get('sourceRepository') ?? fallbackHostRequirement('sourceRepository', 'repository', 'Repository', hostPurposeFor('repository'), true, 'github', 'treeseed_managed:platform:github:hosted-hubs');
+const publicWebRequirement = defaultRequirementByKey.get('publicWeb') ?? fallbackHostRequirement('publicWeb', 'web', 'Web', hostPurposeFor('web'), true, 'cloudflare', 'treeseed_managed:treeseed-managed-web');
+const transactionalEmailRequirement = defaultRequirementByKey.get('transactionalEmail') ?? fallbackHostRequirement('transactionalEmail', 'email', 'Email', hostPurposeFor('email'), false, 'smtp', 'none:transactionalEmail');
+const launchJson = JSON.stringify({
+	teamId: team?.id ?? null,
+	defaultTemplateId: TREESEED_DEFAULT_STARTER_TEMPLATE_ID,
+	templates: templateRequirementModels,
+	hosts: [...managedHosts, ...customHosts],
+	managedHosts,
+	customHosts,
+	repositoryHosts,
+	defaultHosts,
+}).replace(/</gu, '\\u003c');
 ---
 
 <TreeseedAppLayout title="New project" description="Create one hosted project." currentPath="/app/projects" teams={context.teams} activeTeam={team}>
@@ -90,9 +159,9 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 					</div>
 				</Panel>
 
-				<Panel eyebrow="Template" title="Choose project template" description="Every hosted project starts from a template. The Core starter is always available; additional templates come from the marketplace catalog.">
+				<Panel eyebrow="Template" title="Choose project template" description="Every hosted project starts from a first-party starter or marketplace template.">
 					<input type="hidden" name="sourceKind" value="template" />
-					<input type="hidden" name="sourceRef" value={baseCoreTemplate.slug} data-template-source-ref />
+					<input type="hidden" name="sourceRef" value={TREESEED_DEFAULT_STARTER_TEMPLATE_ID} data-template-source-ref />
 					<Field label="Search templates" name="templateSearch">
 						<TextInput name="templateSearch" type="search" placeholder="Search by name, publisher, category, or summary" data-template-search />
 					</Field>
@@ -126,18 +195,12 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 						})}
 					</div>
 					<p class="ts-subtle" data-template-empty hidden>No matching templates.</p>
+					<LaunchRequirementSummary templates={templateRequirementModels} defaultTemplateId={TREESEED_DEFAULT_STARTER_TEMPLATE_ID} />
 				</Panel>
 
 				<Panel eyebrow="Project hosts" title="Choose project hosts" description="Use managed defaults, select an existing team host, or create the needed host before launch.">
 					<div class="ts-host-setup-grid">
-						<section class="ts-inline-host-card">
-							<div class="ts-inline-host-card__header">
-								<strong>Repository</strong>
-								<span>{hostPurposeFor('repository')}</span>
-							</div>
-							<Field label="Repository host" name="repositoryHostChoice" required>
-								<Select name="repositoryHostChoice" options={[]} required />
-							</Field>
+						<TemplateHostRequirementPicker requirement={sourceRepositoryRequirement} selectName="repositoryHostChoice" label="Repository host">
 							<div class="ts-inline-host-fields" data-inline-host="repository" hidden>
 								<div class="ts-form-grid">
 									<Field label="Host display name" name="repositoryNewName" required help="A friendly name shown in TreeSeed when people choose this repository host."><TextInput name="repositoryNewName" required disabled data-inline-control placeholder="Main GitHub connection" /></Field>
@@ -161,16 +224,9 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 									</ul>
 								</div>
 							</div>
-						</section>
+						</TemplateHostRequirementPicker>
 
-						<section class="ts-inline-host-card">
-							<div class="ts-inline-host-card__header">
-								<strong>Web</strong>
-								<span>{hostPurposeFor('web')}</span>
-							</div>
-							<Field label="Web host" name="cloudflareHostChoice" required>
-								<Select name="cloudflareHostChoice" options={[]} required />
-							</Field>
+						<TemplateHostRequirementPicker requirement={publicWebRequirement} selectName="cloudflareHostChoice" label="Web host">
 							<div class="ts-inline-host-fields" data-inline-host="web" hidden>
 								<div class="ts-form-grid">
 									<Field label="Host display name" name="webNewName" required help="A friendly name shown in TreeSeed when people choose this web host."><TextInput name="webNewName" required disabled data-inline-control placeholder="Production web hosting" /></Field>
@@ -194,16 +250,9 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 									</ul>
 								</div>
 							</div>
-						</section>
+						</TemplateHostRequirementPicker>
 
-						<section class="ts-inline-host-card">
-							<div class="ts-inline-host-card__header">
-								<strong>Email</strong>
-								<span>{hostPurposeFor('email')}</span>
-							</div>
-							<Field label="Email host" name="emailHostChoice" required>
-								<Select name="emailHostChoice" options={[]} required />
-							</Field>
+						<TemplateHostRequirementPicker requirement={transactionalEmailRequirement} selectName="emailHostChoice" label="Email host">
 							<div class="ts-inline-host-fields" data-inline-host="email" hidden>
 								<div class="ts-form-grid">
 									<Field label="Host display name" name="emailNewName" required help="A friendly name shown in TreeSeed when people choose this email host."><TextInput name="emailNewName" required disabled data-inline-control placeholder="Transactional email" /></Field>
@@ -217,7 +266,9 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 									<Field label="Secure mode" name="emailNewSecure"><Select name="emailNewSecure" disabled options={[{ label: 'STARTTLS', value: 'false' }, { label: 'TLS', value: 'true' }]} /></Field>
 								</div>
 							</div>
-						</section>
+						</TemplateHostRequirementPicker>
+						{defaultRequirementsView.resources.map((requirement) => <TemplateResourceRequirementPicker requirement={requirement} />)}
+						{defaultRequirementsView.secrets.map((requirement) => <TemplateSecretRequirementPanel requirement={requirement} />)}
 					</div>
 					<div class="ts-form-note ts-form-note--warning ts-launch-sensitive-notice" id="launch-sensitive-notice" hidden>
 						<strong>Sensitive data unlock required.</strong>
@@ -270,6 +321,7 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 		const launchSubmitWrap = launchForm.querySelector('[data-project-launch-submit-wrap]') as HTMLElement | null;
 		const statusElement = document.getElementById('project-launch-message');
 		let validatedLaunchUnlock: { signature: string; passphrase: string } | null = null;
+		const templateModels = Array.isArray(pageData.templates) ? pageData.templates : [];
 		function value(formData: FormData, key: string) { return String(formData.get(key) ?? '').trim(); }
 		function setStatus(message: string) {
 			if (!statusElement) return;
@@ -327,6 +379,36 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 		}
 		select.append(item);
 	}
+	function activeTemplateId() {
+		return String(launchForm?.querySelector<HTMLInputElement>('input[name="templateSlug"]:checked')?.value ?? templateSourceRef?.value ?? pageData.defaultTemplateId ?? 'starter-research');
+	}
+	function activeTemplateModel() {
+		return templateModels.find((template: any) => template.slug === activeTemplateId()) ?? templateModels.find((template: any) => template.slug === pageData.defaultTemplateId) ?? templateModels[0] ?? null;
+	}
+	function activeRequirementsView() {
+		return activeTemplateModel()?.requirementsView ?? { hosts: [], resources: [], secrets: [] };
+	}
+	function activeHostRequirement(key: string) {
+		return (activeRequirementsView().hosts ?? []).find((requirement: any) => requirement.key === key) ?? null;
+	}
+	function requirementForSelect(select: HTMLSelectElement | null) {
+		if (!select) return null;
+		if (select.name === 'repositoryHostChoice') return activeHostRequirement('sourceRepository');
+		if (select.name === 'cloudflareHostChoice') return activeHostRequirement('publicWeb');
+		if (select.name === 'emailHostChoice') return activeHostRequirement('transactionalEmail');
+		return null;
+	}
+	function choiceDataset(choice: any) {
+		return {
+			mode: String(choice.mode ?? ''),
+			hostId: String(choice.hostId ?? ''),
+			managedHostKey: String(choice.managedHostKey ?? ''),
+			provider: String(choice.provider ?? ''),
+			hostType: String(choice.type ?? ''),
+			readiness: String(choice.readiness ?? ''),
+			rootDomain: String(choice.rootDomain ?? ''),
+		};
+	}
 	function hostsFor(hostKind: string, provider: string) {
 		return (pageData.hosts ?? []).filter((host: any) => host.provider === provider && hostType(host) === hostKind);
 	}
@@ -342,9 +424,18 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 		const defaultOption = [...select.options].find((option) => hostIdFromOptionValue(option.value) === defaultHostId);
 		if (defaultOption) select.value = defaultOption.value;
 	}
-	function refreshRepositories() {
+	function refreshRepositories(requirement = activeHostRequirement('sourceRepository')) {
 		if (!repositoryHostSelect) return;
 		repositoryHostSelect.replaceChildren();
+		if (requirement?.choices?.length) {
+			for (const choice of requirement.choices) {
+				option(repositoryHostSelect, choice.label, choice.value, choiceDataset(choice));
+			}
+			const selected = requirement.choices.find((choice: any) => choice.selected)?.value ?? requirement.choices[0]?.value ?? '';
+			if (selected) repositoryHostSelect.value = selected;
+			repositoryHostSelect.required = Boolean(requirement.required);
+			return;
+		}
 		option(repositoryHostSelect, 'TreeSeed hosted repositories (managed)', 'platform:github:hosted-hubs');
 		const seen = new Set(['platform:github:hosted-hubs']);
 		for (const host of pageData.repositoryHosts ?? []) {
@@ -355,9 +446,18 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 		option(repositoryHostSelect, 'Create new GitHub repository host...', 'new:repository');
 		selectDefaultHost(repositoryHostSelect, 'repository');
 	}
-	function refreshHostSelect(select: HTMLSelectElement | null, hostKind: string, provider: string, managedLabel: string) {
+	function refreshHostSelect(select: HTMLSelectElement | null, hostKind: string, provider: string, managedLabel: string, requirement = requirementForSelect(select)) {
 		if (!select) return;
 		select.replaceChildren();
+		if (requirement?.choices?.length) {
+			for (const choice of requirement.choices) {
+				option(select, choice.label, choice.value, choiceDataset(choice));
+			}
+			const selected = requirement.choices.find((choice: any) => choice.selected)?.value ?? requirement.choices[0]?.value ?? '';
+			if (selected) select.value = selected;
+			select.required = Boolean(requirement.required);
+			return;
+		}
 		for (const host of hostsFor(hostKind, provider)) {
 			const mode = host.ownership === 'treeseed_managed' ? 'treeseed_managed' : 'team_owned';
 			option(select, hostLabel(host, managedLabel), `${mode}:${host.id}`, { rootDomain: hostRootDomain(host) });
@@ -372,20 +472,26 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 	function selectedId(select: HTMLSelectElement | null) {
 		return String(select?.value ?? '').split(':').slice(1).join(':');
 	}
+	function selectedHostId(select: HTMLSelectElement | null) {
+		return select?.selectedOptions?.[0]?.dataset?.hostId || selectedId(select);
+	}
+	function selectedManagedHostKey(select: HTMLSelectElement | null) {
+		return select?.selectedOptions?.[0]?.dataset?.managedHostKey || '';
+	}
 	function selectedRepositoryHost() {
-		const id = selectedId(repositoryHostSelect);
+		const id = selectedHostId(repositoryHostSelect);
 		return (pageData.repositoryHosts ?? []).find((host: any) => host.id === id) ?? null;
 	}
 	function selectedTeamHost(select: HTMLSelectElement | null, hostKind: string, provider: string) {
-		const id = selectedId(select);
+		const id = selectedHostId(select);
 		return hostsFor(hostKind, provider).find((host: any) => host.id === id) ?? null;
 	}
 	function selectedCredentialTargets() {
 		const targets: Array<{ key: string; hostKind: string; hostId: string; label: string }> = [];
-		if (selectedMode(repositoryHostSelect) === 'existing') {
+		if (selectedMode(repositoryHostSelect) === 'team_owned' || selectedMode(repositoryHostSelect) === 'existing') {
 			const host = selectedRepositoryHost();
 			if (host?.ownership === 'team_owned') {
-				targets.push({ key: 'repositoryHost', hostKind: 'repository_host', hostId: selectedId(repositoryHostSelect), label: hostLabel(host, 'repository host') });
+				targets.push({ key: 'repositoryHost', hostKind: 'repository_host', hostId: selectedHostId(repositoryHostSelect), label: hostLabel(host, 'repository host') });
 			}
 		}
 		if (selectedMode(webHostSelect) === 'team_owned') {
@@ -409,7 +515,7 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 		validatedLaunchUnlock = null;
 	}
 	function selectedWebHost() {
-		const id = selectedId(webHostSelect);
+		const id = selectedHostId(webHostSelect);
 		return hostsFor('web', 'cloudflare').find((host: any) => host.id === id) ?? null;
 	}
 	function normalizeDomain(value: unknown) {
@@ -466,6 +572,9 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 	function syncTemplateSelection() {
 		const selected = launchForm?.querySelector<HTMLInputElement>('input[name="templateSlug"]:checked');
 		if (templateSourceRef && selected) templateSourceRef.value = selected.value;
+		syncRequirementCards();
+		refreshRequirementSelects();
+		syncInlineFields();
 	}
 	function filterTemplates() {
 		const needle = String(templateSearch?.value ?? '').trim().toLowerCase();
@@ -501,6 +610,50 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 			|| selectedRepositoryHost()?.ownership === 'team_owned'
 			|| selectedMode(webHostSelect) === 'team_owned'
 			|| selectedMode(emailHostSelect) === 'team_owned';
+	}
+	function previewList(entries: any[], mapper: (entry: any) => string, empty: string) {
+		const values = (entries ?? []).map(mapper).filter(Boolean);
+		return values.length ? values.join(' · ') : empty;
+	}
+	function syncRequirementCards() {
+		const view = activeRequirementsView();
+		const model = activeTemplateModel();
+		for (const card of document.querySelectorAll<HTMLElement>('[data-requirement-card]')) {
+			const kind = card.dataset.requirementKind ?? '';
+			const key = card.dataset.requirementKey ?? '';
+			const requirement = kind === 'host'
+				? (view.hosts ?? []).find((entry: any) => entry.key === key)
+				: kind === 'resource'
+					? (view.resources ?? []).find((entry: any) => entry.key === key)
+					: (view.secrets ?? []).find((entry: any) => entry.key === key);
+			card.hidden = !requirement;
+			if (!requirement) continue;
+			const title = card.querySelector<HTMLElement>('[data-requirement-title]');
+			const purpose = card.querySelector<HTMLElement>('[data-requirement-purpose]');
+			const requiredLabel = card.querySelector<HTMLElement>('[data-requirement-required-label]');
+			const provider = card.querySelector<HTMLElement>('[data-requirement-provider]');
+			const readiness = card.querySelector<HTMLElement>('[data-requirement-readiness]');
+			const configPreview = card.querySelector<HTMLElement>('[data-config-preview]');
+			const secretPreview = card.querySelector<HTMLElement>('[data-secret-preview]');
+			if (title) title.textContent = requirement.displayName ?? requirement.env ?? key;
+			if (purpose) purpose.textContent = requirement.purpose ?? (requirement.source ? `Secret source: ${requirement.source}` : '');
+			if (requiredLabel) requiredLabel.textContent = requirement.required ? 'Required' : 'Optional';
+			if (provider) provider.textContent = Array.isArray(requirement.compatibleProviders) && requirement.compatibleProviders.length ? requirement.compatibleProviders.join(', ') : requirement.sensitivity ?? 'Any compatible provider';
+			if (readiness) readiness.textContent = kind === 'resource' ? 'Planned for a later launch phase' : kind === 'secret' ? 'Metadata preview only' : 'Ready to select';
+			if (configPreview) configPreview.textContent = previewList(requirement.configWritePreviews, (write) => `${write.target}:${write.path}`, kind === 'secret' ? previewList(requirement.targets, (target) => String(target), 'No targets declared') : 'No config writes');
+			if (secretPreview) secretPreview.textContent = kind === 'secret' ? 'No secret values shown or written here' : previewList(requirement.environmentWritePreviews, (write) => `${write.env} -> ${(write.targets ?? []).join(', ') || 'environment'}`, 'No secret values written');
+			const select = card.querySelector<HTMLSelectElement>('select');
+			if (select) select.required = Boolean(requirement.required);
+		}
+		const summaryTemplate = document.querySelector<HTMLElement>('[data-requirement-summary-template]');
+		const summaryCounts = document.querySelector<HTMLElement>('[data-requirement-summary-counts]');
+		if (summaryTemplate) summaryTemplate.textContent = model?.title ?? 'Selected template';
+		if (summaryCounts) summaryCounts.textContent = `${(view.hosts ?? []).length} hosts · ${(view.resources ?? []).length} resources · ${(view.secrets ?? []).length} secrets`;
+	}
+	function refreshRequirementSelects() {
+		refreshRepositories(activeHostRequirement('sourceRepository'));
+		refreshHostSelect(webHostSelect, 'web', 'cloudflare', 'TreeSeed managed web host', activeHostRequirement('publicWeb'));
+		refreshHostSelect(emailHostSelect, 'email', 'smtp', 'TreeSeed managed email host', activeHostRequirement('transactionalEmail'));
 	}
 	function isSensitiveUnlocked() {
 		return Boolean((window as any).treeseedSensitiveUnlock?.isUnlocked?.());
@@ -627,9 +780,76 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 			encryptedPayload,
 		});
 	}
-	refreshRepositories();
-	refreshHostSelect(webHostSelect, 'web', 'cloudflare', 'TreeSeed managed web host');
-	refreshHostSelect(emailHostSelect, 'email', 'smtp', 'TreeSeed managed email host');
+	function selectedChoice(select: HTMLSelectElement | null) {
+		const option = select?.selectedOptions?.[0] ?? null;
+		return option ? {
+			value: option.value,
+			mode: option.dataset.mode || selectedMode(select),
+			hostId: option.dataset.hostId || selectedHostId(select),
+			managedHostKey: option.dataset.managedHostKey || selectedManagedHostKey(select),
+			provider: option.dataset.provider || '',
+			type: option.dataset.hostType || '',
+			readiness: option.dataset.readiness || '',
+		} : null;
+	}
+	function selectForRequirementKey(key: string) {
+		if (key === 'sourceRepository') return repositoryHostSelect;
+		if (key === 'publicWeb') return webHostSelect;
+		if (key === 'transactionalEmail') return emailHostSelect;
+		return null;
+	}
+	function validateActiveRequirements() {
+		for (const requirement of activeRequirementsView().hosts ?? []) {
+			const select = selectForRequirementKey(requirement.key);
+			const choice = selectedChoice(select);
+			if (String(requirement.type ?? '').includes('capacity')) {
+				throw new Error(`${requirement.displayName} uses capacity-provider hosts, which are not supported for standard project launch.`);
+			}
+			if (requirement.required && (!choice || choice.mode === 'none' || !select?.value)) {
+				throw new Error(`${requirement.displayName} is required.`);
+			}
+			if (!choice || choice.mode === 'none' || choice.mode === 'new') continue;
+			if (choice.type && choice.type !== requirement.type) throw new Error(`${requirement.displayName} must use a ${requirement.type} host.`);
+			if (choice.provider && Array.isArray(requirement.compatibleProviders) && requirement.compatibleProviders.length > 0 && !requirement.compatibleProviders.includes(choice.provider)) {
+				throw new Error(`${requirement.displayName} must use ${requirement.compatibleProviders.join(', ')}.`);
+			}
+			if (choice.readiness === 'inactive' || choice.readiness === 'configuration_required') {
+				throw new Error(`${requirement.displayName} host is not ready for launch.`);
+			}
+		}
+	}
+	function bindingForRequirement(requirement: any, hostIdOverrides: Record<string, string | null>) {
+		const select = selectForRequirementKey(requirement.key);
+		const choice = selectedChoice(select);
+		const overrideHostId = hostIdOverrides[requirement.key];
+		const mode = overrideHostId ? 'team_owned' : choice?.mode || 'none';
+		const provider = choice?.provider || requirement.compatibleProviders?.[0] || '';
+		const isManaged = mode === 'treeseed_managed';
+		const isNone = mode === 'none';
+		return {
+			requirementKey: requirement.key,
+			requirementKind: 'host',
+			type: requirement.type,
+			provider,
+			hostId: isNone ? null : overrideHostId ?? (isManaged && requirement.type !== 'repository' ? null : choice?.hostId || null),
+			managedHostKey: isNone ? null : isManaged ? choice?.managedHostKey || choice?.hostId || null : null,
+			mode,
+			environmentScopes: requirement.environmentScopes ?? ['staging', 'prod'],
+			selectedBy: isNone ? 'user' : isManaged ? 'managed-default' : 'user',
+		};
+	}
+	function buildHostBindings(hostIdOverrides: Record<string, string | null>) {
+		return Object.fromEntries((activeRequirementsView().hosts ?? []).map((requirement: any) => [
+			requirement.key,
+			bindingForRequirement(requirement, hostIdOverrides),
+		]));
+	}
+	function bindingHostMode(binding: any) {
+		if (!binding || binding.mode === 'none') return null;
+		return binding.mode === 'team_owned' || binding.hostId && !binding.managedHostKey ? 'team_owned' : 'treeseed_managed';
+	}
+	syncRequirementCards();
+	refreshRequirementSelects();
 	[repositoryHostSelect, webHostSelect, emailHostSelect].forEach((select) => select?.addEventListener('change', () => {
 		clearValidatedLaunchUnlock();
 		syncInlineFields();
@@ -655,9 +875,11 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 			input.dataset.userEdited = 'true';
 		});
 	}
-	launchForm?.querySelectorAll<HTMLInputElement>('input[name="templateSlug"]').forEach((input) => input.addEventListener('change', syncTemplateSelection));
+	launchForm?.querySelectorAll<HTMLInputElement>('input[name="templateSlug"]').forEach((input) => input.addEventListener('change', () => {
+		clearValidatedLaunchUnlock();
+		syncTemplateSelection();
+	}));
 	templateSearch?.addEventListener('input', filterTemplates);
-	syncTemplateSelection();
 	filterTemplates();
 	syncInlineFields();
 	safeInitializeCoreObjectiveEditors();
@@ -666,6 +888,7 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 		const formData = new FormData(launchForm);
 		setStatus('Preparing project hosts...');
 		try {
+			validateActiveRequirements();
 			const unlock = (window as any).treeseedSensitiveUnlock;
 			let passphrase = requiresSensitiveUnlock() && validatedLaunchUnlock?.signature === selectedCredentialSignature()
 				? validatedLaunchUnlock.passphrase
@@ -678,32 +901,38 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 				passphrase = validation.passphrase;
 			}
 
-			let repositoryHostId = 'platform:github:hosted-hubs';
+			const hostIdOverrides: Record<string, string | null> = {};
+			let repositoryHostId = selectedHostId(repositoryHostSelect) || 'platform:github:hosted-hubs';
 			if (selectedMode(repositoryHostSelect) === 'new') {
 				const host = await createRepositoryHost(formData, String(passphrase));
 				repositoryHostId = host.id;
-			} else if (selectedMode(repositoryHostSelect) === 'existing') {
-				repositoryHostId = selectedId(repositoryHostSelect);
+				hostIdOverrides.sourceRepository = host.id;
+			} else if (selectedMode(repositoryHostSelect) === 'existing' || selectedMode(repositoryHostSelect) === 'team_owned') {
+				repositoryHostId = selectedHostId(repositoryHostSelect);
 				const host = selectedRepositoryHost();
 				if (host?.ownership === 'team_owned' && !passphrase) throw new Error('Unlock sensitive data before launching with this repository host.');
+			} else if (selectedMode(repositoryHostSelect) === 'treeseed_managed') {
+				repositoryHostId = selectedHostId(repositoryHostSelect) || selectedManagedHostKey(repositoryHostSelect) || 'platform:github:hosted-hubs';
 			}
 
-			let cloudflareHostMode = selectedMode(webHostSelect) === 'team_owned' || selectedMode(webHostSelect) === 'new' ? 'team_owned' : 'treeseed_managed';
-			let cloudflareHostId = selectedMode(webHostSelect) === 'team_owned' ? selectedId(webHostSelect) : null;
+			let cloudflareHostMode: string | null = selectedMode(webHostSelect) === 'team_owned' || selectedMode(webHostSelect) === 'new' ? 'team_owned' : selectedMode(webHostSelect) === 'none' ? null : 'treeseed_managed';
+			let cloudflareHostId = selectedMode(webHostSelect) === 'team_owned' ? selectedHostId(webHostSelect) : null;
 			if (selectedMode(webHostSelect) === 'new') {
 				const host = await createWebHost(formData, String(passphrase));
 				cloudflareHostId = host.id;
+				hostIdOverrides.publicWeb = host.id;
 			} else if (cloudflareHostMode === 'team_owned') {
 				const host = selectedTeamHost(webHostSelect, 'web', 'cloudflare');
 				if (!host) throw new Error('Selected web host is not available.');
 				if (!passphrase) throw new Error('Unlock sensitive data before launching with this web host.');
 			}
 
-			let emailHostMode = selectedMode(emailHostSelect) === 'team_owned' || selectedMode(emailHostSelect) === 'new' ? 'team_owned' : 'treeseed_managed';
-			let emailHostId = selectedMode(emailHostSelect) === 'team_owned' ? selectedId(emailHostSelect) : null;
+			let emailHostMode: string | null = selectedMode(emailHostSelect) === 'team_owned' || selectedMode(emailHostSelect) === 'new' ? 'team_owned' : selectedMode(emailHostSelect) === 'none' ? null : 'treeseed_managed';
+			let emailHostId = selectedMode(emailHostSelect) === 'team_owned' ? selectedHostId(emailHostSelect) : null;
 			if (selectedMode(emailHostSelect) === 'new') {
 				const host = await createEmailHost(formData, String(passphrase));
 				emailHostId = host.id;
+				hostIdOverrides.transactionalEmail = host.id;
 			} else if (emailHostMode === 'team_owned') {
 				const host = selectedTeamHost(emailHostSelect, 'email', 'smtp');
 				if (!host) throw new Error('Selected email host is not available.');
@@ -713,6 +942,13 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 			setStatus('Creating durable deployment record...');
 			const slug = value(formData, 'slug');
 			const launchRequestId = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
+			const hostBindings = buildHostBindings(hostIdOverrides);
+			const publicWebBinding = hostBindings.publicWeb;
+			const transactionalEmailBinding = hostBindings.transactionalEmail;
+			cloudflareHostMode = bindingHostMode(publicWebBinding);
+			cloudflareHostId = cloudflareHostMode === 'team_owned' ? publicWebBinding?.hostId ?? cloudflareHostId : null;
+			emailHostMode = bindingHostMode(transactionalEmailBinding);
+			emailHostId = emailHostMode === 'team_owned' ? transactionalEmailBinding?.hostId ?? emailHostId : null;
 			const launchRequest = {
 				action: `/v1/teams/${encodeURIComponent(pageData.teamId)}/projects/launch`,
 				method: 'POST',
@@ -726,7 +962,7 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 					summary: value(formData, 'coreObjective'),
 					coreObjective: value(formData, 'coreObjective'),
 					sourceKind: 'template',
-					sourceRef: value(formData, 'sourceRef') || 'starter-basic',
+					sourceRef: value(formData, 'sourceRef') || pageData.defaultTemplateId || 'starter-research',
 					hostingMode: 'managed',
 					repoProvider: 'github',
 					repoVisibility: 'private',
@@ -735,6 +971,7 @@ const launchJson = JSON.stringify({ teamId: team?.id ?? null, hosts: [...managed
 					cloudflareHostId,
 					emailHostMode,
 					emailHostId,
+					hostBindings,
 					sensitivePassphrase: passphrase,
 					domains: {
 						productionDomain: value(formData, 'productionDomain'),

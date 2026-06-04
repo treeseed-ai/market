@@ -8,26 +8,27 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  CI: "true"
+  TREESEED_BOOTSTRAP_MODE: auto
+  TREESEED_STAGE_WAIT_MODE: skip
+  TREESEED_AGENT_DISABLE_GIT: "true"
+  TREESEED_FIXTURE_ID: treeseed-working-site
+
 jobs:
-  verify:
+  check:
     runs-on: ubuntu-latest
-    env:
-      CI: "true"
-      TREESEED_BOOTSTRAP_MODE: auto
-      TREESEED_STAGE_WAIT_MODE: skip
-      TREESEED_AGENT_DISABLE_GIT: "true"
-      TREESEED_FIXTURE_ID: treeseed-working-site
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
+          cache: npm
+          cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: |
           node -e "const fs = require('fs'); for (const file of ['packages/sdk/package.json', 'packages/agent/package.json', 'packages/core/package.json', 'packages/cli/package.json']) { if (!fs.existsSync(file)) continue; const p = JSON.parse(fs.readFileSync(file, 'utf8')); if (p.scripts) delete p.scripts.prepare; fs.writeFileSync(file, JSON.stringify(p, null, '\t') + '\n'); }"
@@ -37,23 +38,146 @@ jobs:
               git -C "${dir}" checkout -- package.json
             fi
           done
-
-      - name: Verify package
-        run: npm run verify:direct
-
-      - name: Verify package-owned provider runtime and transparent agent ladder
-        run: |
-          npm run build:market-operations-runner
-          npm run test:agent-contracts
-          npm run test:agent-handlers
-          npm run test:agent-message-chains
-          npm run test:manager-worker
-          npm -w packages/agent run test:capacity-provider-runtime
-
+      - name: Check
+        run: npm run check
       - name: Upload Treeseed test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: treeseed-test-reports
+          name: treeseed-test-reports-check
+          path: .treeseed/test-reports/**
+          if-no-files-found: ignore
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: |
+          node -e "const fs = require('fs'); for (const file of ['packages/sdk/package.json', 'packages/agent/package.json', 'packages/core/package.json', 'packages/cli/package.json']) { if (!fs.existsSync(file)) continue; const p = JSON.parse(fs.readFileSync(file, 'utf8')); if (p.scripts) delete p.scripts.prepare; fs.writeFileSync(file, JSON.stringify(p, null, '\t') + '\n'); }"
+          npm ci
+          for dir in packages/sdk packages/agent packages/core packages/cli; do
+            if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
+              git -C "${dir}" checkout -- package.json
+            fi
+          done
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Upload Treeseed test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: treeseed-test-reports-unit
+          path: .treeseed/test-reports/**
+          if-no-files-found: ignore
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: |
+          node -e "const fs = require('fs'); for (const file of ['packages/sdk/package.json', 'packages/agent/package.json', 'packages/core/package.json', 'packages/cli/package.json']) { if (!fs.existsSync(file)) continue; const p = JSON.parse(fs.readFileSync(file, 'utf8')); if (p.scripts) delete p.scripts.prepare; fs.writeFileSync(file, JSON.stringify(p, null, '\t') + '\n'); }"
+          npm ci
+          for dir in packages/sdk packages/agent packages/core packages/cli; do
+            if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
+              git -C "${dir}" checkout -- package.json
+            fi
+          done
+      - name: Build
+        run: npm run build
+      - name: Upload Treeseed test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: treeseed-test-reports-build
+          path: .treeseed/test-reports/**
+          if-no-files-found: ignore
+
+  provider-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: |
+          node -e "const fs = require('fs'); for (const file of ['packages/sdk/package.json', 'packages/agent/package.json', 'packages/core/package.json', 'packages/cli/package.json']) { if (!fs.existsSync(file)) continue; const p = JSON.parse(fs.readFileSync(file, 'utf8')); if (p.scripts) delete p.scripts.prepare; fs.writeFileSync(file, JSON.stringify(p, null, '\t') + '\n'); }"
+          npm ci
+          for dir in packages/sdk packages/agent packages/core packages/cli; do
+            if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
+              git -C "${dir}" checkout -- package.json
+            fi
+          done
+      - name: Provider runtime
+        run: |
+          npm run build:market-operations-runner
+          npm -w packages/agent run test:capacity-provider-runtime
+      - name: Upload Treeseed test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: treeseed-test-reports-provider-runtime
+          path: .treeseed/test-reports/**
+          if-no-files-found: ignore
+
+  agent-ladder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: |
+          node -e "const fs = require('fs'); for (const file of ['packages/sdk/package.json', 'packages/agent/package.json', 'packages/core/package.json', 'packages/cli/package.json']) { if (!fs.existsSync(file)) continue; const p = JSON.parse(fs.readFileSync(file, 'utf8')); if (p.scripts) delete p.scripts.prepare; fs.writeFileSync(file, JSON.stringify(p, null, '\t') + '\n'); }"
+          npm ci
+          for dir in packages/sdk packages/agent packages/core packages/cli; do
+            if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
+              git -C "${dir}" checkout -- package.json
+            fi
+          done
+      - name: Agent ladder
+        run: |
+          npm run test:agent-contracts
+          npm run test:agent-handlers
+          npm run test:agent-message-chains
+          npm run test:manager-worker
+      - name: Upload Treeseed test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: treeseed-test-reports-agent-ladder
           path: .treeseed/test-reports/**
           if-no-files-found: ignore

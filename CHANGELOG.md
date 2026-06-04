@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.6.23] - 2026-06-04
+
+### Fixed
+
+- fix(deps): sync integrated package updates (f6c79559dae1)
+
+### Infrastructure
+
+- release: sync package staging heads (39a8af3bbb4b)
+
+### Tests
+
+- ci(workflow): refactor CI pipelines and update package dependencies (36b3183e18d0)
+- test(deps): sync integrated package updates (4771762f609e)
+- build(deps): sync integrated package updates (d8bd7553bffb)
+
+### Dependencies
+
+- build(deps): sync integrated package updates (46a0e134e145)
+- build(deps): sync integrated package updates (c46b81bbc040)
+- chore(deps): update submodules and dependency pointers (6d2148f46f2a)
+- build(deps): sync integrated package updates (23651f8120f6)
+- build(deps): bump workspace dependencies and submodules (fdfe0d23a0e9)
+- build(deps): sync integrated package updates (73251344a179)
+- Release @treeseed/market 0.6.23.
+- Release package @treeseed/agent: 0.10.19.
+- Release package @treeseed/cli: 0.10.20.
+- Release package @treeseed/core: 0.10.20.
+- Release package @treeseed/sdk: 0.10.26.
+
 ## [0.6.22] - 2026-06-02
 
 ### Changed

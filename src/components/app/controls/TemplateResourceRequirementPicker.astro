@@ -1,0 +1,44 @@
+---
+import type { ProjectLaunchResourceRequirementViewModel } from '../../../../packages/sdk/src/template-launch-ui.ts';
+
+interface Props {
+	requirement: ProjectLaunchResourceRequirementViewModel;
+}
+
+const { requirement } = Astro.props;
+const providerText = requirement.compatibleProviders.length > 0 ? requirement.compatibleProviders.join(', ') : 'Any compatible provider';
+const configPreview = requirement.configWritePreviews.map((write) => `${write.target}:${write.path}`);
+const secretPreview = requirement.environmentWritePreviews.map((write) => `${write.env} -> ${(write.targets ?? []).join(', ') || 'environment'}`);
+---
+
+<section
+	class="ts-inline-host-card ts-template-resource-requirement"
+	data-requirement-card
+	data-requirement-kind="resource"
+	data-requirement-key={requirement.key}
+	data-requirement-type={requirement.type}
+	data-requirement-required={String(requirement.required)}
+>
+	<div class="ts-inline-host-card__header">
+		<strong data-requirement-title>{requirement.displayName}</strong>
+		<span data-requirement-purpose>{requirement.purpose}</span>
+	</div>
+	<div class="ts-requirement-meta" aria-label={`${requirement.displayName} requirement details`}>
+		<span data-requirement-required-label>{requirement.required ? 'Required' : 'Optional'}</span>
+		<span data-requirement-provider>{providerText}</span>
+		<span data-requirement-readiness>Planned for a later launch phase</span>
+	</div>
+	<div class="ts-template-requirement-unsupported">
+		Resource lifecycle creation is not part of standard project launch yet.
+	</div>
+	<div class="ts-requirement-preview" data-requirement-preview>
+		<div>
+			<strong>Config writes</strong>
+			<span data-config-preview>{configPreview.length > 0 ? configPreview.join(' · ') : 'No config writes'}</span>
+		</div>
+		<div>
+			<strong>Secrets</strong>
+			<span data-secret-preview>{secretPreview.length > 0 ? secretPreview.join(' · ') : 'No secret values written'}</span>
+		</div>
+	</div>
+</section>

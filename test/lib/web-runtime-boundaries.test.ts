@@ -2,14 +2,15 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
+import { createExecutorsForOptions } from '../../src/market-operations-runner/entrypoint.js';
 
 function files(root: string): string[] {
-	return readdirSync(root).flatMap((entry) => {
-		const path = join(root, entry);
-		if (statSync(path).isDirectory() && ['.fixtures', '.git', '.treeseed', 'dist', 'node_modules'].includes(entry)) {
+	return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+		const path = join(root, entry.name);
+		if (entry.isDirectory() && ['.fixtures', '.git', '.treeseed', 'dist', 'node_modules'].includes(entry.name)) {
 			return [];
 		}
-		return statSync(path).isDirectory() ? files(path) : [path];
+		return entry.isDirectory() ? files(path) : [path];
 	});
 }
 
@@ -40,7 +41,7 @@ describe('web runtime boundaries', () => {
 				.map((term) => `${path}: ${term}`);
 		});
 		expect(offenders).toEqual([]);
-	}, 15_000);
+	}, 30_000);
 
 	it('keeps root Market free of the deleted processing plane', () => {
 		expect(existsSync('Dockerfile.processing')).toBe(false);
@@ -82,6 +83,17 @@ describe('web runtime boundaries', () => {
 		});
 		const serialized = JSON.stringify(site.services?.marketOperationsRunner ?? {});
 		expect(serialized).not.toMatch(/provider:|capacity|TREESEED_CAPACITY_PROVIDER_API_KEY|provider:tasks|provider:heartbeat/u);
+	});
+
+	it('registers project-host operation executors on the market operations runner', () => {
+		const capabilities = createExecutorsForOptions({ operationKey: null })
+			.map((executor) => `${executor.namespace}:${executor.operation}`);
+		expect(capabilities).toEqual(expect.arrayContaining([
+			'project_hosts:host_binding_audit',
+			'project_hosts:host_binding_resync',
+			'project_hosts:host_binding_replace',
+			'project_hosts:host_binding_rotate',
+		]));
 	});
 
 	it('keeps root Market source out of agent runtime modules', () => {

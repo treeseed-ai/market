@@ -1601,6 +1601,67 @@ textarea.ts-control {
 	overflow-wrap: anywhere;
 }
 
+.ts-launch-requirement-summary,
+.ts-requirement-preview,
+.ts-template-requirement-unsupported {
+	display: grid;
+	gap: 0.45rem;
+	padding: 0.75rem 0.85rem;
+	border: 1px solid var(--ts-color-border);
+	border-radius: var(--ts-radius-sm);
+	background: var(--ts-color-surface);
+	color: var(--ts-color-text-muted);
+	font-size: 0.84rem;
+	line-height: 1.4;
+}
+
+.ts-launch-requirement-summary {
+	margin-top: 0.85rem;
+}
+
+.ts-launch-requirement-summary > div,
+.ts-requirement-preview > div,
+.ts-requirement-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem 0.6rem;
+	align-items: center;
+	min-width: 0;
+}
+
+.ts-launch-requirement-summary strong,
+.ts-requirement-preview strong {
+	color: var(--ts-color-text);
+	font-size: 0.86rem;
+}
+
+.ts-launch-requirement-summary p {
+	margin: 0;
+}
+
+.ts-requirement-meta span {
+	display: inline-flex;
+	max-width: 100%;
+	padding: 0.18rem 0.45rem;
+	border: 1px solid var(--ts-color-border);
+	border-radius: var(--ts-radius-xs);
+	background: var(--ts-color-surface);
+	color: var(--ts-color-text-muted);
+	font-size: 0.76rem;
+	line-height: 1.2;
+	overflow-wrap: anywhere;
+}
+
+.ts-requirement-preview span {
+	overflow-wrap: anywhere;
+}
+
+.ts-template-requirement-unsupported {
+	border-color: var(--ts-color-warning-border);
+	background: var(--ts-color-warning-soft);
+	color: var(--ts-color-warning-text);
+}
+
 .ts-inline-host-fields {
 	display: grid;
 	gap: 0.7rem;

@@ -126,10 +126,35 @@ jobs:
       preview_id: ${{ inputs.preview_id || needs.classify.outputs.preview_id }}
     secrets: inherit
 
+  acceptance-prepare:
+    needs: classify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Build SDK client for acceptance
+        run: npm -w packages/sdk run build:dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: market-acceptance-sdk-${{ github.sha }}
+          path: packages/sdk/dist/
+          if-no-files-found: error
+
   acceptance:
     needs:
       - classify
       - deploy-web
+      - acceptance-prepare
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -153,8 +178,10 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: npm ci --ignore-scripts
-      - name: Build SDK client for acceptance
-        run: npm -w packages/sdk run build:dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: market-acceptance-sdk-${{ github.sha }}
+          path: packages/sdk/dist/
       - name: Run live Market API acceptance
         run: |
           npm run test:acceptance -- \
