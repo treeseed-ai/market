@@ -3,7 +3,7 @@ import EmptyState from '../../../../../packages/core/src/components/ui/surface/E
 import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
 import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
-import { TREESEED_DEFAULT_STARTER_TEMPLATE_ID } from '../../../../../packages/sdk/src/sdk-types.ts';
+import { TREESEED_DEFAULT_STARTER_TEMPLATE_ID, normalizeTreeseedTemplateId } from '../../../../../packages/sdk/src/sdk-types.ts';
 import { deriveProjectHostBindingsView } from '../../../../../packages/sdk/src/operations/services/project-host-operations.ts';
 import { deriveProjectLaunchRequirementsViewModel } from '../../../../../packages/sdk/src/template-launch-ui.ts';
 import { escapeHtml as esc, hostTypeLabel, ownershipLabel, providerLabel } from '../../../../lib/market/control-ui.ts';
@@ -28,10 +28,10 @@ const metadata = {
 	...(details?.hosting?.metadata ?? {}),
 	...(project?.metadata ?? {}),
 };
-const sourceRef = String(metadata.sourceRef ?? TREESEED_DEFAULT_STARTER_TEMPLATE_ID);
+const sourceRef = normalizeTreeseedTemplateId(String(metadata.sourceRef ?? TREESEED_DEFAULT_STARTER_TEMPLATE_ID));
 const templateListing = await listMarketplaceSiteTemplates(Astro).catch(() => ({ items: [] as any[] }));
-const template = templateListing.items.find((item: any) => item.slug === sourceRef)
-	?? templateListing.items.find((item: any) => item.slug === TREESEED_DEFAULT_STARTER_TEMPLATE_ID)
+const template = templateListing.items.find((item: any) => (item.sourceRef ?? item.slug) === sourceRef)
+	?? templateListing.items.find((item: any) => (item.sourceRef ?? item.slug) === TREESEED_DEFAULT_STARTER_TEMPLATE_ID)
 	?? null;
 const launchRequirements = template?.launchRequirements ?? metadata.launchRequirements ?? null;
 const teamId = project?.teamId ?? layoutActiveTeam?.id ?? null;

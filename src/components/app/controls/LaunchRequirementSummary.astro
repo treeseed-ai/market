@@ -6,12 +6,12 @@ type RequirementSummary = {
 };
 
 interface Props {
-	templates: Array<{ slug: string; title: string; launchRequirements?: RequirementSummary }>;
+	templates: Array<{ slug: string; sourceRef?: string; title: string; launchRequirements?: RequirementSummary }>;
 	defaultTemplateId: string;
 }
 
 const { templates, defaultTemplateId } = Astro.props;
-const defaultTemplate = templates.find((template) => template.slug === defaultTemplateId) ?? templates[0];
+const defaultTemplate = templates.find((template) => (template.sourceRef ?? template.slug) === defaultTemplateId) ?? templates[0];
 const hostCount = defaultTemplate?.launchRequirements?.hosts?.length ?? 0;
 const resourceCount = defaultTemplate?.launchRequirements?.resources?.length ?? 0;
 const secretCount = defaultTemplate?.launchRequirements?.secrets?.length ?? 0;

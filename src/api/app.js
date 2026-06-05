@@ -24,7 +24,7 @@ import {
 	slugifyPlatformContent as slugifyRepositoryContent,
 } from '@treeseed/sdk';
 import { calculateActualCredits } from '../../packages/sdk/src/capacity.ts';
-import { TREESEED_DEFAULT_STARTER_TEMPLATE_ID } from '../../packages/sdk/src/sdk-types.ts';
+import { normalizeTreeseedTemplateId } from '../../packages/sdk/src/sdk-types.ts';
 import {
 	normalizeProjectLaunchHostBindings,
 	normalizeTemplateLaunchRequirements,
@@ -78,21 +78,25 @@ function jsonError(c, status, error, details = {}) {
 	}, { status });
 }
 
-async function resolveLaunchTemplateRequirements({ store, principal, config, sourceKind, sourceRef }) {
+async function resolveLaunchTemplateRequirements({ store, principal, config, sourceKind, sourceRef, requireKnownTemplate = false }) {
 	if (!['template', 'market_listing'].includes(sourceKind) || typeof sourceRef !== 'string' || !sourceRef.trim()) {
 		return null;
 	}
-	const ref = sourceRef.trim();
+	const ref = normalizeTreeseedTemplateId(sourceRef);
 	try {
 		const catalog = loadTemplateCatalog(config);
 		const catalogEntry = catalog.items.find((item) => item.id === ref);
 		if (catalogEntry?.launchRequirements) return catalogEntry.launchRequirements;
+		if (catalogEntry) return null;
 	} catch {
 		// Catalog lookup is best-effort here; custom catalog metadata can still provide requirements.
 	}
 	const item = await store.getCatalogItem(ref).catch(() => null)
 		?? await store.getCatalogItemBySlug('template', ref).catch(() => null);
-	if (!item) return null;
+	if (!item) {
+		if (requireKnownTemplate) throw new Error(`Unknown template "${ref}".`);
+		return null;
+	}
 	const canAccess = await store.principalCanAccessCatalogItem(principal, item).catch(() => false);
 	if (!canAccess) return null;
 	return normalizeTemplateLaunchRequirements(item.metadata?.launchRequirements, `catalog item ${ref} launchRequirements`) ?? null;
@@ -117,9 +121,10 @@ function sourceFromProjectDetails(details) {
 	const sourceKind = optionalTrimmedString(projectMetadata.sourceKind)
 		?? optionalTrimmedString(hostingMetadata.sourceKind)
 		?? (optionalTrimmedString(projectMetadata.sourceRef) || optionalTrimmedString(hostingMetadata.sourceRef) ? 'template' : null);
-	const sourceRef = optionalTrimmedString(projectMetadata.sourceRef)
+	const rawSourceRef = optionalTrimmedString(projectMetadata.sourceRef)
 		?? optionalTrimmedString(hostingMetadata.sourceRef)
-		?? TREESEED_DEFAULT_STARTER_TEMPLATE_ID;
+		?? null;
+	const sourceRef = normalizeTreeseedTemplateId(rawSourceRef);
 	return { sourceKind, sourceRef };
 }
 
@@ -7547,18 +7552,20 @@ export function createMarketApiApp(options = {}) {
 				const hostingKind = hostingMode === 'managed' ? 'hosted_project' : 'self_hosted_project';
 				const registration = hostingMode === 'hybrid' ? 'optional' : 'none';
 				const sourceKind = typeof body.sourceKind === 'string' ? body.sourceKind : typeof requestedSource?.kind === 'string' ? requestedSource.kind : 'blank';
-				const sourceRef = typeof body.sourceRef === 'string'
+				const rawSourceRef = typeof body.sourceRef === 'string'
 					? body.sourceRef
 					: typeof requestedSource?.ref === 'string'
 						? requestedSource.ref
-						: sourceKind === 'template' || sourceKind === 'market_listing'
-							? TREESEED_DEFAULT_STARTER_TEMPLATE_ID
-							: null;
+						: null;
+				const sourceRef = rawSourceRef ? normalizeTreeseedTemplateId(rawSourceRef) : null;
 				const sourceVersion = typeof requestedSource?.version === 'string' ? requestedSource.version : typeof body.sourceVersion === 'string' ? body.sourceVersion : null;
 				const repoProvider = typeof body.repoProvider === 'string' ? body.repoProvider : typeof requestedRepository?.provider === 'string' ? requestedRepository.provider : 'github';
 				const repoVisibility = typeof body.repoVisibility === 'string' ? body.repoVisibility : typeof requestedRepository?.visibility === 'string' ? requestedRepository.visibility : 'private';
 				if (!['blank', 'blank_hub', 'template', 'knowledge_pack', 'market_listing'].includes(sourceKind)) {
 					return jsonError(c, 400, `Unsupported sourceKind "${sourceKind}".`);
+				}
+				if ((sourceKind === 'template' || sourceKind === 'market_listing') && !sourceRef) {
+					return jsonError(c, 400, 'Project launch requires a selected template.', { code: 'missing_template' });
 				}
 				if (repoProvider !== 'github') {
 					return jsonError(c, 400, 'Knowledge Hub launch currently supports GitHub repositories only.');
@@ -7576,14 +7583,20 @@ export function createMarketApiApp(options = {}) {
 					if (removedRuntimeHostFields.some((field) => body[field] !== undefined) || credentialSessions[removedRuntimeSessionKey] !== undefined) {
 						return jsonError(c, 400, 'Project launch no longer accepts runtime host configuration. Create and deploy a capacity provider from the capacity provider lifecycle pages.');
 					}
-					const [templateLaunchRequirements, managedHostInventory, teamWebHosts, repositoryHostRows] = await Promise.all([
-						resolveLaunchTemplateRequirements({
+					let templateLaunchRequirements;
+					try {
+						templateLaunchRequirements = await resolveLaunchTemplateRequirements({
 							store,
 							principal: c.get('principal'),
 							config: runtime.resolved.config,
 							sourceKind,
 							sourceRef,
-						}),
+							requireKnownTemplate: true,
+						});
+					} catch (error) {
+						return jsonError(c, 400, error instanceof Error ? error.message : String(error), { code: 'unknown_template' });
+					}
+					const [managedHostInventory, teamWebHosts, repositoryHostRows] = await Promise.all([
 						listTreeseedManagedHostsFromConfig(teamId, runtime).catch(() => []),
 						store.listTeamWebHosts(teamId).catch(() => []),
 						store.listRepositoryHosts(teamId).catch(() => []),
