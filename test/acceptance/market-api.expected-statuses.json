@@ -374,6 +374,18 @@
       "providerKey": 401,
       "platformRunner": 200
     },
+    "get.v1.project-deployments.deploymentId": {
+      "anonymous": 401,
+      "siteAdmin": 404,
+      "marketSteward": 404,
+      "teamOwner": 404,
+      "teamOperator": 404,
+      "teamViewer": 404,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
     "get.v1.projects": {
       "anonymous": 401,
       "siteAdmin": 200,
@@ -614,18 +626,6 @@
       "providerKey": 401,
       "platformRunner": 401
     },
-    "get.v1.project-deployments.deploymentId": {
-      "anonymous": 401,
-      "siteAdmin": 404,
-      "marketSteward": 404,
-      "teamOwner": 404,
-      "teamOperator": 404,
-      "teamViewer": 404,
-      "nonMember": 403,
-      "providerOperator": 403,
-      "providerKey": 401,
-      "platformRunner": 401
-    },
     "get.v1.projects.projectId.deployments": {
       "anonymous": 401,
       "siteAdmin": 200,
@@ -789,6 +789,18 @@
       "teamOwner": 409,
       "teamOperator": 409,
       "teamViewer": 409,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "get.v1.projects.projectId.repository-topology": {
+      "anonymous": 401,
+      "siteAdmin": 200,
+      "marketSteward": 200,
+      "teamOwner": 200,
+      "teamOperator": 200,
+      "teamViewer": 200,
       "nonMember": 403,
       "providerOperator": 403,
       "providerKey": 401,
@@ -975,6 +987,18 @@
       "platformRunner": 401
     },
     "get.v1.projects.projectId.tasks.taskId.events": {
+      "anonymous": 401,
+      "siteAdmin": 200,
+      "marketSteward": 200,
+      "teamOwner": 200,
+      "teamOperator": 200,
+      "teamViewer": 200,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "get.v1.projects.projectId.treedb-library": {
       "anonymous": 401,
       "siteAdmin": 200,
       "marketSteward": 200,
@@ -1401,6 +1425,42 @@
       "teamOwner": 200,
       "teamOperator": 403,
       "teamViewer": 403,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "get.v1.teams.teamId.treedb": {
+      "anonymous": 401,
+      "siteAdmin": 200,
+      "marketSteward": 200,
+      "teamOwner": 200,
+      "teamOperator": 200,
+      "teamViewer": 200,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "get.v1.teams.teamId.treedb.mirrors": {
+      "anonymous": 401,
+      "siteAdmin": 200,
+      "marketSteward": 200,
+      "teamOwner": 200,
+      "teamOperator": 200,
+      "teamViewer": 200,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "get.v1.teams.teamId.treedb.shares": {
+      "anonymous": 401,
+      "siteAdmin": 200,
+      "marketSteward": 200,
+      "teamOwner": 200,
+      "teamOperator": 200,
+      "teamViewer": 200,
       "nonMember": 403,
       "providerOperator": 403,
       "providerKey": 401,
@@ -2930,6 +2990,18 @@
       "providerKey": 401,
       "platformRunner": 401
     },
+    "post.v1.projects.projectId.treedb-library": {
+      "anonymous": 401,
+      "siteAdmin": 201,
+      "marketSteward": 201,
+      "teamOwner": 201,
+      "teamOperator": 201,
+      "teamViewer": 201,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
     "post.v1.projects.projectId.update-plans": {
       "anonymous": 401,
       "siteAdmin": 202,
@@ -3470,6 +3542,54 @@
       "providerKey": 401,
       "platformRunner": 401
     },
+    "post.v1.teams.teamId.treedb.mirrors": {
+      "anonymous": 401,
+      "siteAdmin": 201,
+      "marketSteward": 201,
+      "teamOwner": 201,
+      "teamOperator": 403,
+      "teamViewer": 403,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "post.v1.teams.teamId.treedb.mirrors.mirrorId.sync": {
+      "anonymous": 401,
+      "siteAdmin": 200,
+      "marketSteward": 200,
+      "teamOwner": 200,
+      "teamOperator": 403,
+      "teamViewer": 403,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "post.v1.teams.teamId.treedb.provision": {
+      "anonymous": 401,
+      "siteAdmin": 202,
+      "marketSteward": 202,
+      "teamOwner": 202,
+      "teamOperator": 403,
+      "teamViewer": 403,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "post.v1.teams.teamId.treedb.shares": {
+      "anonymous": 401,
+      "siteAdmin": 201,
+      "marketSteward": 201,
+      "teamOwner": 201,
+      "teamOperator": 403,
+      "teamViewer": 403,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
     "post.v1.teams.teamId.web-hosts": {
       "anonymous": 401,
       "siteAdmin": 400,
@@ -3542,6 +3662,18 @@
       "providerKey": 401,
       "platformRunner": 401
     },
+    "put.v1.projects.projectId.repository-topology": {
+      "anonymous": 401,
+      "siteAdmin": 200,
+      "marketSteward": 200,
+      "teamOwner": 200,
+      "teamOperator": 200,
+      "teamViewer": 200,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
     "put.v1.projects.projectId.runner.environments.environment": {
       "anonymous": 401,
       "siteAdmin": 401,
@@ -3607,6 +3739,18 @@
       "siteAdmin": 400,
       "marketSteward": 400,
       "teamOwner": 400,
+      "teamOperator": 403,
+      "teamViewer": 403,
+      "nonMember": 403,
+      "providerOperator": 403,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "put.v1.teams.teamId.treedb": {
+      "anonymous": 401,
+      "siteAdmin": 200,
+      "marketSteward": 200,
+      "teamOwner": 200,
       "teamOperator": 403,
       "teamViewer": 403,
       "nonMember": 403,

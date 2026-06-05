@@ -66,6 +66,18 @@ export const SDK_METHOD_ROUTE_MAP = {
 	updateExecutionProvider: 'patch.v1.teams.teamId.capacity-providers.providerId.execution-providers.executionProviderId',
 	createExecutionProviderNativeLimit: 'post.v1.teams.teamId.capacity-providers.providerId.execution-providers.executionProviderId.native-limits',
 	projectCapacityPlan: 'get.v1.projects.projectId.capacity-plan',
+	teamTreeDb: 'get.v1.teams.teamId.treedb',
+	updateTeamTreeDb: 'put.v1.teams.teamId.treedb',
+	provisionTeamTreeDb: 'post.v1.teams.teamId.treedb.provision',
+	treeDbMirrors: 'get.v1.teams.teamId.treedb.mirrors',
+	createTreeDbMirror: 'post.v1.teams.teamId.treedb.mirrors',
+	syncTreeDbMirror: 'post.v1.teams.teamId.treedb.mirrors.mirrorId.sync',
+	treeDbShares: 'get.v1.teams.teamId.treedb.shares',
+	createTreeDbShare: 'post.v1.teams.teamId.treedb.shares',
+	projectTreeDbLibrary: 'get.v1.projects.projectId.treedb-library',
+	upsertProjectTreeDbLibrary: 'post.v1.projects.projectId.treedb-library',
+	projectRepositoryTopology: 'get.v1.projects.projectId.repository-topology',
+	updateProjectRepositoryTopology: 'put.v1.projects.projectId.repository-topology',
 	planSeed: 'post.v1.seeds.name.plan',
 	applySeed: 'post.v1.seeds.name.apply',
 	listSeedRuns: 'get.v1.seeds.runs',
@@ -160,7 +172,7 @@ function safeProduction(path, method) {
 
 function routeNeedsManagement(path, method) {
 	if (method === 'get') return false;
-	return /\/members\/|\/invites|\/api-keys|\/repository-hosts|\/web-hosts|\/hosts|\/capacity-providers|\/capacity-grants|\/provider-credential-sessions|\/projects\/launch/u.test(path);
+	return /\/members\/|\/invites|\/api-keys|\/repository-hosts|\/web-hosts|\/hosts|\/capacity-providers|\/capacity-grants|\/provider-credential-sessions|\/projects\/launch|\/treedb/u.test(path);
 }
 
 function successActorsFor(path, method) {
