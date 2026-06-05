@@ -6489,7 +6489,7 @@ describe('market api', () => {
 			warnings: [],
 			blockers: [{ code: 'missing_config', message: 'Cloudflare account is not configured.' }],
 			nextActions: ['Configure Cloudflare before launching.'],
-		});
+		} as any);
 
 		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
