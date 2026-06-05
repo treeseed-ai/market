@@ -12,10 +12,10 @@
 	url = git@github.com:treeseed-ai/agent.git
 [submodule "starters/research"]
 	path = starters/research
-	url = git@github.com:treeseed-ai/starter-research.git
+	url = git@github.com:treeseed-templates/research.git
 [submodule "starters/engineering"]
 	path = starters/engineering
-	url = git@github.com:treeseed-ai/starter-engineering.git
+	url = git@github.com:treeseed-templates/engineering.git
 [submodule "starters/information-hub"]
 	path = starters/information-hub
-	url = git@github.com:treeseed-ai/starter-information-hub.git
+	url = git@github.com:treeseed-templates/information-hub.git

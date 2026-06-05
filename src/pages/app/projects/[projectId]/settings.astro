@@ -7,7 +7,7 @@ import EmptyState from '../../../../../packages/core/src/components/ui/surface/E
 import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
 import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
-import { TREESEED_DEFAULT_STARTER_TEMPLATE_ID } from '../../../../../packages/sdk/src/sdk-types.ts';
+import { TREESEED_DEFAULT_STARTER_TEMPLATE_ID, normalizeTreeseedTemplateId } from '../../../../../packages/sdk/src/sdk-types.ts';
 import { loadAppContext, persistActiveTeamSelection, resolveAppProject } from '../../../../view-models/app-access.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
@@ -27,12 +27,11 @@ const coreObjective = typeof metadata.coreObjective === 'string' && metadata.cor
 	: project?.description ?? '';
 const templateLineage = Array.isArray(metadata.templateLineage) ? metadata.templateLineage : [];
 const sourceKind = String(metadata.sourceKind ?? templateLineage[0]?.kind ?? 'template');
-const sourceRef = String(metadata.sourceRef ?? templateLineage[0]?.ref ?? TREESEED_DEFAULT_STARTER_TEMPLATE_ID);
+const sourceRef = normalizeTreeseedTemplateId(String(metadata.sourceRef ?? templateLineage[0]?.ref ?? TREESEED_DEFAULT_STARTER_TEMPLATE_ID));
 const starterTemplateNames: Record<string, string> = {
-	'starter-research': 'TreeSeed Research Starter',
-	'starter-engineering': 'TreeSeed Engineering Starter',
-	'starter-information-hub': 'TreeSeed Information Hub Starter',
-	'starter-basic': 'TreeSeed Core Starter',
+	'research': 'TreeSeed Research Starter',
+	'engineering': 'TreeSeed Engineering Starter',
+	'information-hub': 'TreeSeed Information Hub Starter',
 };
 const templateName = starterTemplateNames[sourceRef] ?? sourceRef;
 const templateVersion = templateLineage[0]?.version ? `v${templateLineage[0].version}` : null;

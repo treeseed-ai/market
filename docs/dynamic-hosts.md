@@ -27,11 +27,11 @@ adapters.
 
 Completed behavior:
 
-* `starter-research` is the default launch/init template.
-* Product launch cards are limited to `starter-research`,
-  `starter-engineering`, and `starter-information-hub`.
-* `starter-basic` remains a backward-compatible explicit scaffold/template
-  artifact, but is hidden from product launch choices.
+* `research` is the default launch/init template.
+* Product launch cards are limited to `research`,
+  `engineering`, and `information-hub`.
+* The deprecated legacy basic template artifact has been removed rather than
+  hidden.
 * The three active starter manifests and catalog entries carry normalized
   `launchRequirements`.
 * `/app/projects/new` renders requirement-driven host cards from template data
@@ -74,7 +74,7 @@ Current boundaries:
 The remainder of this document is retained as historical design context. When it
 conflicts with the implementation record above, the implementation record is the
 current source of truth. In particular, product launch is limited to the three
-active starter templates, `starter-basic` is explicit/backward-compatible only,
+active starter templates are `research`, `engineering`, and `information-hub`,
 `market-control-plane` is hidden/draft, resource lifecycle remains outside
 standard project launch, and persistence remains metadata-first with no host
 binding database table.
@@ -707,7 +707,7 @@ Remove hardcoding only after project launch tests use the dynamic contract.
 Show launch requirements:
 
 ```bash
-treeseed template show starter-research
+treeseed template show research
 ```
 
 Output should include:
@@ -726,7 +726,7 @@ Support host binding input without requiring Market UI:
 
 ```bash
 treeseed init my-site \
-  --template starter-research \
+  --template research \
   --host sourceRepository=github:acme \
   --host publicWeb=cloudflare:acme-prod \
   --host transactionalEmail=smtp:postmark
@@ -873,7 +873,7 @@ Deliverables:
 
 Acceptance:
 
-* Existing `starter-basic` launches still work.
+* Deprecated legacy basic launches are rejected.
 * Templates can declare host requirements without changing UI yet.
 * Tests prove old launch payloads normalize to host bindings.
 
@@ -1048,7 +1048,7 @@ treeseed release reads config produced by Market UI launch
 ```text
 1. Create repository, web, and email hosts.
 2. Mark repository and web as team defaults.
-3. Launch starter-basic.
+3. Launch research.
 4. Confirm hostBindings stored on project metadata.
 5. Confirm generated treeseed.site.yaml includes selected repository/web/email-derived values.
 6. Confirm src/env.yaml includes generated environment entries.
@@ -1062,7 +1062,7 @@ treeseed release reads config produced by Market UI launch
 ## Migration Strategy
 
 1. Keep old launch fields working through a compatibility adapter.
-2. Add launch requirement declarations to `starter-basic` without changing behavior.
+2. Remove the deprecated legacy basic template artifact.
 3. Convert API tests to assert dynamic `hostBindings`.
 4. Convert UI to submit dynamic bindings.
 5. Remove hardcoded project-create assumptions after starter and Market-control-plane templates use the new contract.
@@ -1075,7 +1075,7 @@ treeseed release reads config produced by Market UI launch
 1. Should host binding snapshots live only in project metadata for v1, or should they get a first-class `project_host_bindings` table immediately?
 2. Should the generated repository include `.treeseed/host-bindings.yaml`, or should `treeseed.site.yaml` and `src/env.yaml` be the only durable config surfaces?
 3. Should `treeseed init --host` resolve against local machine config only, or should it optionally authenticate against a Market host inventory?
-4. How much of the Market-control-plane template should be supported in the first dynamic-host release versus after starter-basic is migrated?
+4. How much of the Market-control-plane template should be supported in the first dynamic-host release after the deprecated template removal?
 5. Should host replacement create a PR against the project repository by default, or can managed projects allow direct controlled config mutation?
 
 ---

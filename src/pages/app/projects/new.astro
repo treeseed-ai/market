@@ -37,14 +37,15 @@ const [managedHosts, customHosts, repositoryHosts] = team && context.store
 const templateListing = await listMarketplaceSiteTemplates(Astro).catch(() => ({ rendered: true, items: [] as TemplateSiteCard[] }));
 const marketplaceTemplateItems = templateListing.items as TemplateSiteCard[];
 const activeStarterTemplateIds = new Set([
-	'starter-research',
-	'starter-engineering',
-	'starter-information-hub',
+	'research',
+	'engineering',
+	'information-hub',
 ]);
-const launchableTemplates = marketplaceTemplateItems.filter((template) => activeStarterTemplateIds.has(template.slug));
+const templateSourceRef = (template: TemplateSiteCard) => template.sourceRef ?? template.slug;
+const launchableTemplates = marketplaceTemplateItems.filter((template) => activeStarterTemplateIds.has(templateSourceRef(template)));
 const templateCards = [
-	...launchableTemplates.filter((template) => template.slug === TREESEED_DEFAULT_STARTER_TEMPLATE_ID),
-	...launchableTemplates.filter((template) => template.slug !== TREESEED_DEFAULT_STARTER_TEMPLATE_ID),
+	...launchableTemplates.filter((template) => templateSourceRef(template) === TREESEED_DEFAULT_STARTER_TEMPLATE_ID),
+	...launchableTemplates.filter((template) => templateSourceRef(template) !== TREESEED_DEFAULT_STARTER_TEMPLATE_ID),
 ];
 const defaultCoreObjective = `# Core Objective
 
@@ -55,6 +56,7 @@ const defaultHosts = team?.metadata?.defaultHosts && typeof team.metadata.defaul
 	: {};
 const templateRequirementModels = templateCards.map((template) => ({
 	slug: template.slug,
+	sourceRef: templateSourceRef(template),
 	title: template.title,
 	launchRequirements: template.launchRequirements,
 	requirementsView: deriveProjectLaunchRequirementsViewModel({
@@ -65,7 +67,7 @@ const templateRequirementModels = templateCards.map((template) => ({
 		defaultHosts,
 	}),
 }));
-const defaultTemplateRequirementModel = templateRequirementModels.find((template) => template.slug === TREESEED_DEFAULT_STARTER_TEMPLATE_ID) ?? templateRequirementModels[0];
+const defaultTemplateRequirementModel = templateRequirementModels.find((template) => template.sourceRef === TREESEED_DEFAULT_STARTER_TEMPLATE_ID) ?? templateRequirementModels[0];
 const defaultRequirementsView = defaultTemplateRequirementModel?.requirementsView ?? deriveProjectLaunchRequirementsViewModel({});
 const defaultRequirementByKey = new Map(defaultRequirementsView.hosts.map((requirement) => [requirement.key, requirement]));
 const fallbackHostRequirement = (key: string, type: string, displayName: string, purpose: string, required: boolean, provider: string, selectValue: string): ProjectLaunchHostRequirementViewModel => ({
@@ -162,13 +164,14 @@ const launchJson = JSON.stringify({
 
 				<Panel eyebrow="Template" title="Choose project template" description="Every hosted project starts from a first-party starter or marketplace template.">
 					<input type="hidden" name="sourceKind" value="template" />
-					<input type="hidden" name="sourceRef" value={TREESEED_DEFAULT_STARTER_TEMPLATE_ID} data-template-source-ref />
+					<input type="hidden" name="sourceRef" value="" data-template-source-ref />
 					<Field label="Search templates" name="templateSearch">
 						<TextInput name="templateSearch" type="search" placeholder="Search by name, publisher, category, or summary" data-template-search />
 					</Field>
 					<div class="ts-template-choice-grid" role="radiogroup" aria-label="Project template">
-						{templateCards.map((template, index) => {
-							const templateInputId = `template-${template.slug.replace(/[^a-zA-Z0-9_-]/gu, '-')}`;
+						{templateCards.map((template) => {
+							const sourceRef = templateSourceRef(template);
+							const templateInputId = `template-${sourceRef.replace(/[^a-zA-Z0-9_-]/gu, '-')}`;
 							const details = [
 								template.category,
 								template.publisherName,
@@ -178,7 +181,7 @@ const launchJson = JSON.stringify({
 							const searchable = `${template.title} ${template.summary} ${template.category} ${template.publisherName} ${template.priceModel ?? ''}`.toLowerCase();
 							return (
 								<div class="ts-template-choice" data-template-card data-template-search-text={searchable}>
-									<input id={templateInputId} type="radio" name="templateSlug" value={template.slug} checked={index === 0} />
+									<input id={templateInputId} type="radio" name="templateSlug" value={sourceRef} required />
 									<label class="ts-template-choice__body" for={templateInputId}>
 										<span class="ts-template-choice__title">
 											<strong>{template.title}</strong>
@@ -357,10 +360,13 @@ const launchJson = JSON.stringify({
 		select.append(item);
 	}
 	function activeTemplateId() {
-		return String(launchForm?.querySelector<HTMLInputElement>('input[name="templateSlug"]:checked')?.value ?? templateSourceRef?.value ?? pageData.defaultTemplateId ?? 'starter-research');
+		return String(launchForm?.querySelector<HTMLInputElement>('input[name="templateSlug"]:checked')?.value ?? templateSourceRef?.value ?? '');
 	}
 	function activeTemplateModel() {
-		return templateModels.find((template: any) => template.slug === activeTemplateId()) ?? templateModels.find((template: any) => template.slug === pageData.defaultTemplateId) ?? templateModels[0] ?? null;
+		return templateModels.find((template: any) => (template.sourceRef ?? template.slug) === activeTemplateId())
+			?? templateModels.find((template: any) => (template.sourceRef ?? template.slug) === pageData.defaultTemplateId)
+			?? templateModels[0]
+			?? null;
 	}
 	function activeRequirementsView() {
 		return activeTemplateModel()?.requirementsView ?? { hosts: [], resources: [], secrets: [] };
@@ -548,7 +554,7 @@ const launchJson = JSON.stringify({
 	}
 	function syncTemplateSelection() {
 		const selected = launchForm?.querySelector<HTMLInputElement>('input[name="templateSlug"]:checked');
-		if (templateSourceRef && selected) templateSourceRef.value = selected.value;
+		if (templateSourceRef) templateSourceRef.value = selected?.value ?? '';
 		syncRequirementCards();
 		refreshRequirementSelects();
 		syncInlineFields();
@@ -862,9 +868,12 @@ const launchJson = JSON.stringify({
 	safeInitializeCoreObjectiveEditors();
 	launchForm?.addEventListener('submit', async (event) => {
 		event.preventDefault();
+		if (!launchForm.reportValidity()) return;
 		const formData = new FormData(launchForm);
 		setStatus('Preparing project hosts...');
 		try {
+			const selectedSourceRef = value(formData, 'sourceRef');
+			if (!selectedSourceRef) throw new Error('Choose a project template before launching.');
 			validateActiveRequirements();
 			const unlock = (window as any).treeseedSensitiveUnlock;
 			let passphrase = requiresSensitiveUnlock() && validatedLaunchUnlock?.signature === selectedCredentialSignature()
@@ -939,7 +948,7 @@ const launchJson = JSON.stringify({
 					summary: value(formData, 'coreObjective'),
 					coreObjective: value(formData, 'coreObjective'),
 					sourceKind: 'template',
-					sourceRef: value(formData, 'sourceRef') || pageData.defaultTemplateId || 'starter-research',
+					sourceRef: selectedSourceRef,
 					hostingMode: 'managed',
 					repoProvider: 'github',
 					repoVisibility: 'private',

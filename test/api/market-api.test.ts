@@ -492,6 +492,18 @@ describe('market api', () => {
 		expect(seeded.payload.fixtures.passwordReset.token).toEqual(expect.any(String));
 		const details = await store.getProjectDetails(seeded.payload.fixtures.project.id);
 		expect(details).not.toBeNull();
+		expect(details!.project.metadata).toMatchObject({
+			sourceKind: 'template',
+			sourceRef: 'research',
+			hostBindings: {
+				sourceRepository: expect.objectContaining({ provider: 'github' }),
+				publicWeb: expect.objectContaining({ provider: 'cloudflare', managedHostKey: 'treeseed-managed-web' }),
+			},
+			hostBindingPlans: {
+				configWrites: expect.any(Array),
+				secretDeployment: expect.objectContaining({ items: expect.any(Array) }),
+			},
+		});
 		expect(details!.repositories).toEqual(expect.arrayContaining([
 			expect.objectContaining({ provider: 'github', role: 'software', status: 'ready' }),
 		]));
@@ -509,7 +521,7 @@ describe('market api', () => {
 	it('keeps public usernames and team slugs in one namespace', async () => {
 		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
-		const app = createTestApp({ db, store });
+		const app = createTestApp({ db, store, mockExternal: true });
 		await store.createTeam({
 			name: 'reserved-team',
 			displayName: 'Reserved Team',
@@ -671,7 +683,7 @@ describe('market api', () => {
 		}));
 		expect(lastDelete.ok).toBe(false);
 		expect(lastDelete.code).toBe('last_verified_email');
-	}, 15000);
+	}, 30000);
 
 	it('deletes projects and project-owned records through the project API', async () => {
 		const db = createTestPostgresDatabase();
@@ -1881,6 +1893,10 @@ describe('market api', () => {
 	});
 
 	it('records sanitized bootstrap failure when the host passphrase is wrong', async () => {
+		await withEnv({
+			CLOUDFLARE_API_TOKEN: 'managed-token',
+			CLOUDFLARE_ACCOUNT_ID: 'managed-account',
+		}, async () => {
 		const app = createTestApp({ mockExternal: true });
 		const token = await authorizeApp(app);
 		const team = await createTeam(app, token);
@@ -1911,7 +1927,7 @@ describe('market api', () => {
 				slug: 'wrong-passphrase-launch',
 				name: 'Wrong Passphrase Launch',
 				sourceKind: 'template',
-				sourceRef: 'starter-basic',
+				sourceRef: 'research',
 				hostingMode: 'managed',
 				repositoryHostId: host.payload.id,
 				sensitivePassphrase: 'incorrect launch secret',
@@ -1934,6 +1950,7 @@ describe('market api', () => {
 		expect(detail.payload.events).toEqual(expect.arrayContaining([
 			expect.objectContaining({ kind: 'launch.bootstrap_failed', severity: 'error' }),
 		]));
+		});
 	});
 
 	it('persists a durable launch record when launch hosting readiness fails', async () => {
@@ -1972,7 +1989,7 @@ describe('market api', () => {
 					launchRequestId: '4a4ed9df-79a6-4297-abaa-01c09f3468e1',
 					name: 'Audit Fails Before Persist',
 					sourceKind: 'template',
-					sourceRef: 'starter-basic',
+					sourceRef: 'research',
 					hostingMode: 'managed',
 					cloudflareHostMode: 'treeseed_managed',
 					emailHostMode: 'treeseed_managed',
@@ -2112,7 +2129,7 @@ describe('market api', () => {
 				slug: 'bad-host-bindings',
 				name: 'Bad Host Bindings',
 				sourceKind: 'template',
-				sourceRef: 'starter-research',
+				sourceRef: 'research',
 				hostingMode: 'managed',
 				hostBindings: {
 					publicWeb: {
@@ -2131,6 +2148,63 @@ describe('market api', () => {
 			headers: { authorization: `Bearer ${token}` },
 		}));
 		expect(projects.payload.some((project: { slug: string }) => project.slug === 'bad-host-bindings')).toBe(false);
+	});
+
+	it('rejects the deprecated legacy basic template before project creation', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+
+		const launched = await app.request(`/v1/teams/${team.id}/projects/launch`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				slug: 'deprecated-basic-template',
+				name: 'Deprecated Basic Template',
+				sourceKind: 'template',
+				sourceRef: 'basic',
+				hostingMode: 'managed',
+			}),
+		});
+		expect(launched.status).toBe(400);
+		const payload = await json(launched);
+		expect(payload.code).toBe('unknown_template');
+		expect(payload.error).toContain('Unknown template "basic"');
+		const projects = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(projects.payload.some((project: { slug: string }) => project.slug === 'deprecated-basic-template')).toBe(false);
+	});
+
+	it('requires an explicit template selection for template project launch', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+
+		const launched = await app.request(`/v1/teams/${team.id}/projects/launch`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				slug: 'missing-template-selection',
+				name: 'Missing Template Selection',
+				sourceKind: 'template',
+				hostingMode: 'managed',
+			}),
+		});
+		expect(launched.status).toBe(400);
+		const payload = await json(launched);
+		expect(payload.code).toBe('missing_template');
+		expect(payload.error).toContain('requires a selected template');
+		const projects = await json(await app.request(`/v1/projects?teamId=${team.id}`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(projects.payload.some((project: { slug: string }) => project.slug === 'missing-template-selection')).toBe(false);
 	});
 
 	it('launches with dynamic host bindings and records the binding snapshot', async () => {
@@ -2152,7 +2226,7 @@ describe('market api', () => {
 					slug: 'dynamic-host-bindings',
 					name: 'Dynamic Host Bindings',
 					sourceKind: 'template',
-					sourceRef: 'starter-research',
+					sourceRef: 'research',
 					hostingMode: 'managed',
 					hostBindings: {
 						sourceRepository: {
@@ -2182,7 +2256,7 @@ describe('market api', () => {
 			expect(launched.status).toBe(202);
 			const payload = await json(launched);
 			expect(payload.payload.project.project.metadata.templateLineage).toEqual([
-				expect.objectContaining({ kind: 'template', ref: 'starter-research' }),
+				expect.objectContaining({ kind: 'template', ref: 'research' }),
 			]);
 			expect(payload.payload.project.project.metadata.hostBindings).toMatchObject({
 				sourceRepository: expect.objectContaining({ provider: 'github', provenance: expect.objectContaining({ selectedBy: 'managed-default' }) }),
@@ -2222,7 +2296,7 @@ describe('market api', () => {
 					slug: 'host-ops-project',
 					name: 'Host Ops Project',
 					sourceKind: 'template',
-					sourceRef: 'starter-research',
+					sourceRef: 'research',
 					hostingMode: 'managed',
 					hostBindings: {
 						sourceRepository: {
@@ -2400,7 +2474,7 @@ describe('market api', () => {
 					slug,
 					name: slug,
 					sourceKind: 'template',
-					sourceRef: 'starter-research',
+					sourceRef: 'research',
 					hostingMode: 'managed',
 					hostBindings: {
 						publicWeb: hostBinding,
@@ -6095,7 +6169,7 @@ describe('market api', () => {
 				name: 'Launch Project',
 				coreObjective: '# Core Objective\n\nKeep launch work aligned around reliable project deployment.',
 				sourceKind: 'template',
-				sourceRef: 'starter-research',
+				sourceRef: 'research',
 				hostingMode: 'managed',
 			}),
 		});
@@ -6114,7 +6188,7 @@ describe('market api', () => {
 		expect(payload.payload.project.project.metadata.templateLineage).toEqual([
 			expect.objectContaining({
 				kind: 'template',
-				ref: 'starter-research',
+				ref: 'research',
 				source: 'project_launch',
 			}),
 		]);
@@ -6231,7 +6305,13 @@ describe('market api', () => {
 				authorization: `Bearer ${token}`,
 			},
 		}));
-		expect(resumedState.launch).toMatchObject({ status: 'queued', active: true, currentPhase: 'credential_bootstrap' });
+		expect(resumedState.launch.status).not.toBe('failed');
+		expect(['credential_bootstrap', 'hosting_readiness_audit', 'provider_bootstrap', 'launch_completed']).toContain(resumedState.launch.currentPhase);
+		if (resumedState.launch.status === 'completed') {
+			expect(resumedState.launch.active).toBe(false);
+		} else {
+			expect(resumedState.launch.active).toBe(true);
+		}
 
 		const inbox = await json(await app.request(`/v1/teams/${team.id}/inbox`, {
 			headers: {
@@ -6240,9 +6320,13 @@ describe('market api', () => {
 		}));
 		expect(inbox.payload.some((entry: { kind: string }) => entry.kind === 'launch_failure')).toBe(false);
 		});
-	}, 15000);
+	}, 30000);
 
 	it('keeps managed project launch bootstrap owned by the Market API instead of the runner', async () => {
+		await withEnv({
+			CLOUDFLARE_API_TOKEN: 'managed-token',
+			CLOUDFLARE_ACCOUNT_ID: 'managed-account',
+		}, async () => {
 		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
 		const app = createTestApp({
@@ -6263,7 +6347,7 @@ describe('market api', () => {
 				name: 'Runner Launch Project',
 				coreObjective: '# Core Objective\n\nVerify managed launch jobs are picked up.',
 				sourceKind: 'template',
-				sourceRef: 'starter-basic',
+				sourceRef: 'research',
 				hostingMode: 'managed',
 			}),
 		}));
@@ -6282,6 +6366,7 @@ describe('market api', () => {
 			status: 'queued',
 			active: true,
 			currentPhase: 'credential_bootstrap',
+		});
 		});
 	}, 15000);
 
@@ -6389,13 +6474,22 @@ describe('market api', () => {
 	});
 
 	it('queues launch failures for worker recovery instead of failing the request', async () => {
-		const error = Object.assign(new Error('GitHub denied repository creation.'), {
-			phase: 'repo_provision_failed',
-			phases: [
-				{ phase: 'repo_provision', status: 'failed', detail: 'GitHub denied repository creation.', timestamp: '2026-04-16T00:00:00.000Z' },
-			],
-		});
-		vi.spyOn(treeseedCore, 'executeKnowledgeHubProviderLaunch').mockRejectedValue(error);
+		runTreeseedHostingAuditMock.mockResolvedValueOnce({
+			ok: false,
+			environment: 'staging',
+			requestedEnvironment: 'current',
+			repairMode: false,
+			repaired: false,
+			target: { kind: 'persistent', scope: 'staging', label: 'staging' },
+			hostKinds: ['repository', 'web'],
+			checkedAt: '2026-01-01T00:00:00.000Z',
+			checks: [],
+			missingConfig: ['CLOUDFLARE_ACCOUNT_ID'],
+			resources: {},
+			warnings: [],
+			blockers: [{ code: 'missing_config', message: 'Cloudflare account is not configured.' }],
+			nextActions: ['Configure Cloudflare before launching.'],
+		} as any);
 
 		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);

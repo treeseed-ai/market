@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.6.25] - 2026-06-05
+
+### Added
+
+- feat(api): implement acceptance project template resolution (4107ec3db0ef)
+
+### Infrastructure
+
+- chore(starters): move starter submodules to treeseed-templates (4cc7d518732a)
+- release: sync package staging heads (a876220ee863)
+
+### Tests
+
+- test(deps): sync integrated package updates (44b3a6813ca0)
+- test(deps): sync integrated package updates (01d52c2671b7)
+- build(deps): sync integrated package updates (5acd00d8c877)
+
+### Dependencies
+
+- Release @treeseed/market 0.6.25.
+- Release package @treeseed/agent: 0.10.21.
+- Release package @treeseed/cli: 0.10.22.
+- Release package @treeseed/core: 0.10.22.
+- Release package @treeseed/sdk: 0.10.28.
+
 ## [0.6.24] - 2026-06-04
 
 ### Infrastructure
