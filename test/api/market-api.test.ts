@@ -492,6 +492,18 @@ describe('market api', () => {
 		expect(seeded.payload.fixtures.passwordReset.token).toEqual(expect.any(String));
 		const details = await store.getProjectDetails(seeded.payload.fixtures.project.id);
 		expect(details).not.toBeNull();
+		expect(details!.project.metadata).toMatchObject({
+			sourceKind: 'template',
+			sourceRef: 'research',
+			hostBindings: {
+				sourceRepository: expect.objectContaining({ provider: 'github' }),
+				publicWeb: expect.objectContaining({ provider: 'cloudflare', managedHostKey: 'treeseed-managed-web' }),
+			},
+			hostBindingPlans: {
+				configWrites: expect.any(Array),
+				secretDeployment: expect.objectContaining({ items: expect.any(Array) }),
+			},
+		});
 		expect(details!.repositories).toEqual(expect.arrayContaining([
 			expect.objectContaining({ provider: 'github', role: 'software', status: 'ready' }),
 		]));

@@ -4726,6 +4726,75 @@ export function createMarketApiApp(options = {}) {
 						createdById: owner?.userId,
 					}).catch(() => null);
 				}
+				const acceptanceLaunchRequirements = await resolveLaunchTemplateRequirements({
+					store,
+					principal: { id: owner?.userId ?? 'acceptance', roles: ['platform_admin'] },
+					config: runtime.resolved.config,
+					sourceKind: 'template',
+					sourceRef: 'research',
+					requireKnownTemplate: true,
+				});
+				const acceptanceManagedHosts = (await listTreeseedManagedHostsFromConfig(team.id, runtime).catch(() => []))
+					.map((host) => host.id === 'treeseed-managed-web'
+						? {
+							...host,
+							status: 'active',
+							metadata: {
+								...(host.metadata ?? {}),
+								configured: true,
+								missingConfigKeys: [],
+							},
+						}
+						: host);
+				const acceptanceHostBindingResolution = resolveProjectLaunchHostBindings({
+					hostBindings: normalizeProjectLaunchHostBindings({
+						hostBindings: {
+							sourceRepository: {
+								requirementKind: 'host',
+								type: 'repository',
+								provider: 'github',
+								hostId: 'platform:github:hosted-hubs',
+								mode: 'treeseed_managed',
+							},
+							publicWeb: {
+								requirementKind: 'host',
+								type: 'web',
+								provider: 'cloudflare',
+								managedHostKey: 'treeseed-managed-web',
+								mode: 'treeseed_managed',
+							},
+							transactionalEmail: {
+								requirementKind: 'host',
+								type: 'email',
+								provider: 'smtp',
+								managedHostKey: 'treeseed-managed-email',
+								mode: 'treeseed_managed',
+							},
+						},
+					}),
+					launchRequirements: acceptanceLaunchRequirements,
+					repositoryHosts: repositoryInventoryWithPlatform([], 'treeseed-acceptance'),
+					teamHosts: [],
+					managedHosts: acceptanceManagedHosts,
+					defaultHosts: team?.metadata?.defaultHosts && typeof team.metadata.defaultHosts === 'object' ? team.metadata.defaultHosts : {},
+					projectSlug,
+					projectName: project.name,
+					standardProjectLaunch: true,
+				});
+				project = await store.updateProject(project.id, {
+					metadata: {
+						...(project.metadata ?? {}),
+						acceptance: true,
+						namespace,
+						sourceKind: 'template',
+						sourceRef: 'research',
+						hostBindings: acceptanceHostBindingResolution.hostBindings,
+						hostBindingPlans: {
+							configWrites: acceptanceHostBindingResolution.configWritePlan,
+							secretDeployment: acceptanceHostBindingResolution.secretDeploymentPlan,
+						},
+					},
+				}) ?? project;
 				await store.upsertProjectEnvironment(project.id, {
 					environment: 'staging',
 					deploymentProfile: 'hosted_project',
