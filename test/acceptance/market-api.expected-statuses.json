@@ -3570,7 +3570,7 @@
       "anonymous": 401,
       "siteAdmin": 202,
       "marketSteward": 202,
-      "teamOwner": 202,
+      "teamOwner": 200,
       "teamOperator": 403,
       "teamViewer": 403,
       "nonMember": 403,
