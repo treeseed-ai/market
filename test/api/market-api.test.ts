@@ -8188,6 +8188,7 @@ describe('TreeDB market integration', () => {
 		expect(topology.payload.projectRepository.accessMode).toBe('filesystem');
 
 		const manifest = await store.buildCapacityProviderPortfolio({ teamId: team.id });
+		if (!manifest) throw new Error('Expected capacity provider portfolio manifest for TreeDB project topology test.');
 		expect(manifest.projects[0].repository.name).toBe('hub-one-site');
 		expect(manifest.projects[0].repositoryTopology.contentRepository.accessMode).toBe('treedb');
 		expect(manifest.projects[0].repositoryTopology.siteRepository.accessMode).toBe('filesystem');
