@@ -8081,3 +8081,115 @@ describe('market api', () => {
 		expect(applied.run).toMatchObject({ state: 'completed', mode: 'apply' });
 	});
 });
+
+describe('TreeDB market integration', () => {
+	it('provisions one active team TreeDB binding and exposes mirrors and shares', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+
+		const first = await json(await app.request(`/v1/teams/${team.id}/treedb/provision`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({ baseUrl: 'https://treedb.team.example' }),
+		}));
+		expect(first.payload.instance).toMatchObject({
+			teamId: team.id,
+			provider: 'railway',
+			status: 'active',
+			baseUrl: 'https://treedb.team.example',
+		});
+
+		const second = await json(await app.request(`/v1/teams/${team.id}/treedb`, {
+			method: 'PUT',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({ baseUrl: 'https://treedb.next.example', status: 'active', provider: 'railway' }),
+		}));
+		expect(second.payload.instance.id).toBe(first.payload.instance.id);
+		expect(second.payload.instance.baseUrl).toBe('https://treedb.next.example');
+
+		const mirror = await json(await app.request(`/v1/teams/${team.id}/treedb/mirrors`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({ name: 'Customer mirror', targetKind: 'treedb', targetUrl: 'https://customer.example' }),
+		}));
+		expect(mirror.payload).toMatchObject({ name: 'Customer mirror', targetUrl: 'https://customer.example' });
+
+		const share = await json(await app.request(`/v1/teams/${team.id}/treedb/shares`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({ scope: 'public_federation', publicRead: true }),
+		}));
+		expect(share.payload).toMatchObject({ scope: 'public_federation', publicRead: true, status: 'active' });
+
+		const status = await json(await app.request(`/v1/teams/${team.id}/treedb`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(status.payload.mirrors).toHaveLength(1);
+		expect(status.payload.shares).toHaveLength(1);
+	});
+
+	it('binds project content to TreeDB and keeps site/project repositories filesystem-backed in provider portfolio', async () => {
+		const db = createTestPostgresDatabase();
+		const store = createTestStore(db);
+		const app = createTestApp({ db, store });
+		const token = await authorizeApp(app);
+		const { team, project } = await createTeamAndProject(app, token, {
+			slug: 'hub-one',
+			name: 'Hub One',
+			metadata: {},
+		});
+
+		await store.upsertHubRepository(project.id, {
+			teamId: team.id,
+			role: 'software',
+			provider: 'github',
+			owner: 'acme',
+			name: 'hub-one-site',
+			url: 'https://github.com/acme/hub-one-site',
+			defaultBranch: 'staging',
+			status: 'active',
+		});
+		await store.upsertHubRepository(project.id, {
+			teamId: team.id,
+			role: 'content',
+			provider: 'github',
+			owner: 'acme',
+			name: 'hub-one-content',
+			url: 'https://github.com/acme/hub-one-content',
+			defaultBranch: 'main',
+			status: 'active',
+		});
+		await store.upsertHubWorkspaceLink(project.id, {
+			teamId: team.id,
+			parentOwner: 'acme',
+			parentName: 'software',
+			parentUrl: 'https://github.com/acme/software',
+			parentBranch: 'main',
+			softwareSubmodulePath: 'docs',
+		});
+		await store.upsertTeamTreeDb(team.id, {
+			baseUrl: 'https://treedb.team.example',
+			status: 'active',
+		});
+
+		const binding = await json(await app.request(`/v1/projects/${project.id}/treedb-library`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({ libraryId: 'acme/hub-one', repositoryId: 'repo_hub_one' }),
+		}));
+		expect(binding.payload.contentRepositoryUrl).toBe('https://github.com/acme/hub-one-content');
+
+		const topology = await json(await app.request(`/v1/projects/${project.id}/repository-topology`, {
+			headers: { authorization: `Bearer ${token}` },
+		}));
+		expect(topology.payload.contentRepository.accessMode).toBe('treedb');
+		expect(topology.payload.siteRepository.accessMode).toBe('filesystem');
+		expect(topology.payload.projectRepository.accessMode).toBe('filesystem');
+
+		const manifest = await store.buildCapacityProviderPortfolio({ teamId: team.id });
+		expect(manifest.projects[0].repository.name).toBe('hub-one-site');
+		expect(manifest.projects[0].repositoryTopology.contentRepository.accessMode).toBe('treedb');
+		expect(manifest.projects[0].repositoryTopology.siteRepository.accessMode).toBe('filesystem');
+	});
+});

@@ -9,12 +9,30 @@ function safeArray(value: unknown): any[] {
 	return Array.isArray(value) ? value : [];
 }
 
-export function selectProjectDeploymentRepository(details: any) {
+export function selectProjectDeploymentRepository(details: any, action?: ProjectWebDeploymentAction | null) {
 	const repositories = safeArray(details?.repositories);
+	if (action === 'publish_content') {
+		return repositories.find((repository) => repository?.role === 'content' && (repository?.provider === 'treedb' || repository?.metadata?.contentCanonical === 'treedb'))
+			?? repositories.find((repository) => repository?.role === 'content')
+			?? repositories.find((repository) => repository?.provider === 'treedb')
+			?? repositories.find((repository) => repository?.provider === 'github')
+			?? repositories[0]
+			?? null;
+	}
 	return repositories.find((repository) => ['software', 'primary', 'package'].includes(repository?.role))
 		?? repositories.find((repository) => repository?.provider === 'github')
 		?? repositories[0]
 		?? null;
+}
+
+function repositoryReadyForAction(repository: any, action?: ProjectWebDeploymentAction) {
+	if (action === 'publish_content' && (repository?.provider === 'treedb' || repository?.metadata?.contentCanonical === 'treedb')) return true;
+	return Boolean(repository?.provider === 'github' && repository?.owner && repository?.name);
+}
+
+function workflowReadyForAction(repository: any, action?: ProjectWebDeploymentAction) {
+	if (action === 'publish_content' && (repository?.provider === 'treedb' || repository?.metadata?.contentCanonical === 'treedb')) return true;
+	return Boolean(repository?.provider === 'github');
 }
 
 export function selectProjectWebTarget(details: any, teamWebHosts: any[] = []) {
@@ -59,7 +77,7 @@ export function buildProjectDeploymentReadiness(input: {
 	confirmProduction?: boolean;
 }) {
 	const details = input.details;
-	const repository = selectProjectDeploymentRepository(details);
+	const repository = selectProjectDeploymentRepository(details, input.action);
 	const target = selectProjectWebTarget(details, input.teamWebHosts ?? []);
 	const environments = safeArray(details?.environments);
 	const runner = resolveRunnerDisplay(input.runners ?? []);
@@ -77,16 +95,18 @@ export function buildProjectDeploymentReadiness(input: {
 		},
 		{
 			code: 'repository_configured',
-			label: 'GitHub repository configured',
-			ready: Boolean(repository?.provider === 'github' && repository?.owner && repository?.name),
+			label: input.action === 'publish_content' ? 'Content repository configured' : 'GitHub repository configured',
+			ready: repositoryReadyForAction(repository, input.action),
 			message: repository ? 'Repository record is available.' : 'Repository records appear after launch completes.',
 			href: details?.project?.id ? `/app/projects/${encodeURIComponent(details.project.id)}/hosts` : undefined,
 		},
 		{
 			code: 'workflow_installable',
-			label: 'Deploy workflow installable',
-			ready: Boolean(repository?.provider === 'github'),
-			message: repository?.provider === 'github' ? 'The deploy workflow can be dispatched for this repository.' : 'A GitHub repository is required.',
+			label: input.action === 'publish_content' ? 'Publish executor available' : 'Deploy workflow installable',
+			ready: workflowReadyForAction(repository, input.action),
+			message: input.action === 'publish_content' && (repository?.provider === 'treedb' || repository?.metadata?.contentCanonical === 'treedb')
+				? 'TreeDB content publish can run through the Market operations runner.'
+				: repository?.provider === 'github' ? 'The deploy workflow can be dispatched for this repository.' : 'A GitHub repository is required.',
 		},
 		{
 			code: 'web_host_configured',

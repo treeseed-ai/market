@@ -6345,6 +6345,98 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
+			app.get('/v1/teams/:teamId/treedb', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({ ok: true, payload: await store.getTeamTreeDb(c.req.param('teamId')) });
+			});
+
+			app.put('/v1/teams/:teamId/treedb', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const instance = await store.upsertTeamTreeDb(c.req.param('teamId'), body);
+				return c.json({ ok: true, payload: { instance } });
+			});
+
+			app.post('/v1/teams/:teamId/treedb/provision', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const payload = await store.provisionTeamTreeDb(c.req.param('teamId'), body);
+				if (!payload) return jsonError(c, 404, 'Unknown team.');
+				const deployment = Array.isArray(payload.deployments) ? payload.deployments[0] : null;
+				if (!deployment || deployment.status === 'succeeded' || payload.instance?.publicRead) {
+					return c.json({ ok: true, payload: { ...payload, operation: null } }, { status: payload.instance?.publicRead ? 200 : 202 });
+				}
+				const idempotencyKey = typeof body.idempotencyKey === 'string' && body.idempotencyKey.trim()
+					? body.idempotencyKey.trim()
+					: `team:${c.req.param('teamId')}:treedb:provision:${deployment.id}`;
+				const operation = await store.createPlatformOperation({
+					namespace: 'treedb',
+					operation: 'provision',
+					target: 'market_operations_runner',
+					idempotencyKey,
+					input: {
+						teamId: c.req.param('teamId'),
+						instanceId: payload.instance?.id ?? null,
+						deploymentId: deployment.id,
+						imageRef: payload.instance?.imageRef ?? body.imageRef ?? 'treeseed/treedb:latest',
+						volumeMountPath: payload.instance?.volumeMountPath ?? '/data',
+						dataDirEnv: '/data',
+						publicRead: payload.instance?.publicRead === true,
+						dryRun: body.dryRun === true,
+					},
+					requestedByType: 'user',
+					requestedById: access.principal.id,
+				});
+				await store.updateTreeDbDeployment?.(deployment.id, {
+					result: {
+						operationId: operation.id,
+						operationStatus: operation.status,
+					},
+				});
+				return c.json({ ok: true, payload: { ...payload, operation } }, { status: 202 });
+			});
+
+			app.get('/v1/teams/:teamId/treedb/mirrors', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({ ok: true, payload: await store.listTreeDbMirrors(c.req.param('teamId')) });
+			});
+
+			app.post('/v1/teams/:teamId/treedb/mirrors', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const mirror = await store.createTreeDbMirror(c.req.param('teamId'), body);
+				if (!mirror) return jsonError(c, 404, 'Create a team TreeDB binding before adding mirrors.');
+				return c.json({ ok: true, payload: mirror }, { status: 201 });
+			});
+
+			app.post('/v1/teams/:teamId/treedb/mirrors/:mirrorId/sync', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const mirror = await store.syncTreeDbMirror(c.req.param('teamId'), c.req.param('mirrorId'), body);
+				if (!mirror) return jsonError(c, 404, 'Unknown TreeDB mirror.');
+				return c.json({ ok: true, payload: mirror });
+			});
+
+			app.get('/v1/teams/:teamId/treedb/shares', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({ ok: true, payload: await store.listTreeDbShares(c.req.param('teamId')) });
+			});
+
+			app.post('/v1/teams/:teamId/treedb/shares', async (c) => {
+				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const share = await store.createTreeDbShare(c.req.param('teamId'), body);
+				return c.json({ ok: true, payload: share }, { status: 201 });
+			});
+
 			app.get('/v1/teams/:teamId/web-hosts', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
 				if (access.response) return access.response;
@@ -8264,6 +8356,38 @@ export function createMarketApiApp(options = {}) {
 					details: access.details,
 				});
 				return c.json({ ok: true, payload: projectHostResponsePayload(context) });
+			});
+
+			app.get('/v1/projects/:projectId/treedb-library', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				return c.json({ ok: true, payload: await store.getProjectTreeDbLibrary(c.req.param('projectId')) });
+			});
+
+			app.post('/v1/projects/:projectId/treedb-library', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const payload = await store.upsertProjectTreeDbLibrary(c.req.param('projectId'), body);
+				if (!payload) return jsonError(c, 404, 'Create a team TreeDB binding before binding a project library.');
+				return c.json({ ok: true, payload }, { status: 201 });
+			});
+
+			app.get('/v1/projects/:projectId/repository-topology', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
+				if (access.response) return access.response;
+				const payload = await store.getProjectRepositoryTopology(c.req.param('projectId'));
+				if (!payload) return jsonError(c, 404, 'Repository topology is not available until the project has a TreeDB library binding.');
+				return c.json({ ok: true, payload });
+			});
+
+			app.put('/v1/projects/:projectId/repository-topology', async (c) => {
+				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
+				if (access.response) return access.response;
+				const body = await c.req.json().catch(() => ({}));
+				const payload = await store.upsertProjectRepositoryTopology(c.req.param('projectId'), body);
+				if (!payload) return jsonError(c, 404, 'Create a team TreeDB binding before updating repository topology.');
+				return c.json({ ok: true, payload: payload.topology });
 			});
 
 			const queueProjectHostOperation = async (c, kind) => {

@@ -1,6 +1,7 @@
 ---
 import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
 import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
+import PlainTable from '../../../../components/app/controls/PlainTable.astro';
 import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { TREESEED_DEFAULT_STARTER_TEMPLATE_ID, normalizeTreeseedTemplateId } from '../../../../../packages/sdk/src/sdk-types.ts';
@@ -35,13 +36,14 @@ const template = templateListing.items.find((item: any) => (item.sourceRef ?? it
 	?? null;
 const launchRequirements = template?.launchRequirements ?? metadata.launchRequirements ?? null;
 const teamId = project?.teamId ?? layoutActiveTeam?.id ?? null;
-const [managedHosts, teamHosts, repositoryHosts] = teamId && context.store
+const [managedHosts, teamHosts, repositoryHosts, repositoryTopology] = teamId && context.store
 	? await Promise.all([
 		listTreeseedManagedHostsFromConfig(teamId, runtime).catch(() => []),
 		context.store.listTeamWebHosts(teamId).catch(() => []),
 		context.store.listRepositoryHosts(teamId).catch(() => []),
+		project?.id ? context.store.getProjectRepositoryTopology(project.id).catch(() => null) : null,
 	])
-	: [[], [], []];
+	: [[], [], [], null];
 const defaultHosts = layoutActiveTeam?.metadata?.defaultHosts && typeof layoutActiveTeam.metadata.defaultHosts === 'object'
 	? layoutActiveTeam.metadata.defaultHosts
 	: {};
@@ -61,6 +63,32 @@ const requirementsView = deriveProjectLaunchRequirementsViewModel({
 });
 const requirementChoicesByKey = new Map(requirementsView.hosts.map((requirement) => [requirement.key, requirement.choices]));
 const operationRows = Array.isArray(metadata.hostBindingOperations) ? metadata.hostBindingOperations : [];
+const topologyRows = repositoryTopology ? [
+	{
+		id: 'content',
+		location: '<strong>Content repository</strong><span>src/content canonical library</span>',
+		access: esc(repositoryTopology.contentRepository?.accessMode ?? 'treedb'),
+		source: esc(repositoryTopology.contentRepository?.treeDb?.libraryId ?? 'TreeDB library'),
+		workspace: esc(repositoryTopology.contentRepository?.githubUrl ?? 'Git mirror/source identity'),
+		notes: esc('TreeDB canonical; publishes snapshots to R2 without GitHub Actions.'),
+	},
+	{
+		id: 'site',
+		location: '<strong>Site repository</strong><span>Knowledge Hub code outside src/content</span>',
+		access: esc(repositoryTopology.siteRepository?.accessMode ?? 'filesystem'),
+		source: esc(repositoryTopology.siteRepository?.url ?? repositoryTopology.siteRepository?.name ?? 'site repository'),
+		workspace: esc(repositoryTopology.siteRepository?.volumePath ?? repositoryTopology.siteRepository?.checkoutPath ?? 'capacity provider volume'),
+		notes: esc('Filesystem worktree for agent code edits and site deployment workflows.'),
+	},
+	...(repositoryTopology.projectRepository ? [{
+		id: 'project',
+		location: '<strong>Project repository</strong><span>Optional parent/root repository</span>',
+		access: esc(repositoryTopology.projectRepository.accessMode ?? 'filesystem'),
+		source: esc(repositoryTopology.projectRepository.url ?? repositoryTopology.projectRepository.name ?? 'parent project'),
+		workspace: esc(repositoryTopology.projectRepository.volumePath ?? repositoryTopology.projectRepository.checkoutPath ?? 'capacity provider volume'),
+		notes: esc(repositoryTopology.projectRepository.siteSubmodulePath ? `Site submodule: ${repositoryTopology.projectRepository.siteSubmodulePath}` : 'Filesystem worktree for parent project edits.'),
+	}] : []),
+] : [];
 const pageJson = JSON.stringify({
 	projectId: project?.id ?? null,
 	hostRequirements: requirementsView.hosts,
@@ -145,6 +173,15 @@ const pageJson = JSON.stringify({
 					})}
 				</div>
 				<p class="ts-subtle" id="project-host-operation-message" role="status"></p>
+			</Panel>
+			<Panel eyebrow="Repository Topology" title="Content, site, and project locations" description="Capacity providers use this split to route content work to TreeDB and code work to filesystem checkouts on runner volumes.">
+				<PlainTable columns={[
+					{ key: 'location', label: 'Location' },
+					{ key: 'access', label: 'Access' },
+					{ key: 'source', label: 'Source' },
+					{ key: 'workspace', label: 'Runner workspace' },
+					{ key: 'notes', label: 'Notes' },
+				]} rows={topologyRows} emptyTitle="No repository topology" emptyDescription="Bind this project to a TreeDB library to make content/site/project access modes explicit." />
 			</Panel>
 			<Panel eyebrow="Audit" title="Recent host operations" description="Governed host operations record the Market host id and planned repository config changes.">
 				<div class="ts-table-wrap">

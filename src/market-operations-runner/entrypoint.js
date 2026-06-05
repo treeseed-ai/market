@@ -299,6 +299,108 @@ export function createExecutorsForOptions(options = {}) {
 			return redactProjectHostOperationValue(result);
 		},
 	});
+	const treeDbProvisionExecutor = {
+		namespace: 'treedb',
+		operation: 'provision',
+		async run(input, context) {
+			if (!options.deploymentStore) {
+				throw new Error('TreeDB provisioning requires a Market control-plane store.');
+			}
+			const payload = objectValue(input);
+			const teamId = typeof payload.teamId === 'string' ? payload.teamId : null;
+			const instanceId = typeof payload.instanceId === 'string' ? payload.instanceId : null;
+			const deploymentId = typeof payload.deploymentId === 'string' ? payload.deploymentId : null;
+			if (!teamId || !instanceId || !deploymentId) {
+				throw new Error('TreeDB provisioning input must include teamId, instanceId, and deploymentId.');
+			}
+			const imageRef = typeof payload.imageRef === 'string' && payload.imageRef.trim() ? payload.imageRef.trim() : 'treeseed/treedb:latest';
+			const volumeMountPath = typeof payload.volumeMountPath === 'string' && payload.volumeMountPath.trim() ? payload.volumeMountPath.trim() : '/data';
+			await context.checkpoint({
+				phase: 'treedb.provision.started',
+				teamId,
+				instanceId,
+				deploymentId,
+				imageRef,
+				volumeMountPath,
+			}, {
+				kind: 'treedb.provision.started',
+				data: { teamId, instanceId, deploymentId, imageRef, volumeMountPath },
+			});
+			await options.deploymentStore.updateTreeDbDeployment(deploymentId, {
+				status: 'running',
+				imageRef,
+				volumeMountPath,
+				result: {
+					operationId: context.operation.id,
+					phase: 'railway_service_planned',
+				},
+			});
+			const serviceName = `treedb-${String(teamId).replace(/[^a-z0-9-]+/giu, '-').toLowerCase()}`.replace(/-+/gu, '-').replace(/^-|-$/gu, '').slice(0, 48) || 'treedb';
+			const baseUrl = typeof payload.baseUrl === 'string' && payload.baseUrl.trim()
+				? payload.baseUrl.trim()
+				: `https://${serviceName}.up.railway.app`;
+			const serviceRefs = {
+				provider: 'railway',
+				serviceName,
+				imageRef,
+				volumeMountPath,
+				env: {
+					TREEDB_DATA_DIR: '/data',
+				},
+				dryRun: payload.dryRun === true,
+			};
+			await options.deploymentStore.upsertTeamTreeDb(teamId, {
+				id: instanceId,
+				kind: 'managed_private',
+				provider: 'railway',
+				status: 'active',
+				baseUrl,
+				registryUrl: baseUrl,
+				imageRef,
+				volumeMountPath,
+				metadata: {
+					lastProvisionOperationId: context.operation.id,
+					serviceName,
+					dataDirEnv: '/data',
+					dryRun: payload.dryRun === true,
+				},
+			});
+			const deployment = await options.deploymentStore.updateTreeDbDeployment(deploymentId, {
+				status: 'succeeded',
+				imageRef,
+				volumeMountPath,
+				serviceRefs,
+				result: {
+					operationId: context.operation.id,
+					baseUrl,
+					mode: 'managed_private',
+					provider: 'railway',
+					health: payload.dryRun === true ? 'dry_run_planned' : 'ready_unverified',
+				},
+				clearError: true,
+			});
+			await context.checkpoint({
+				phase: 'treedb.provision.completed',
+				teamId,
+				instanceId,
+				deploymentId,
+				baseUrl,
+			}, {
+				kind: 'treedb.provision.completed',
+				data: { teamId, instanceId, deploymentId, baseUrl },
+			});
+			return {
+				ok: true,
+				teamId,
+				instanceId,
+				deploymentId,
+				baseUrl,
+				imageRef,
+				volumeMountPath,
+				deployment,
+			};
+		},
+	};
 	return [
 		noop,
 		diagnostic,
@@ -309,6 +411,7 @@ export function createExecutorsForOptions(options = {}) {
 		projectHostExecutor('resync'),
 		projectHostExecutor('replace'),
 		projectHostExecutor('rotate'),
+		treeDbProvisionExecutor,
 		createProjectWebDeploymentExecutor({
 			deploymentStore: options.deploymentStore,
 			mockExternal: options.mockExternal,

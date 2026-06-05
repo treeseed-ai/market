@@ -297,6 +297,50 @@ export class MarketApiClientFacade {
 		return this.request<any[]>('GET', `/v1/teams/${encodeURIComponent(teamId)}/web-hosts`);
 	}
 
+	getTeamTreeDb(teamId: string) {
+		return this.request<any>('GET', `/v1/teams/${encodeURIComponent(teamId)}/treedb`);
+	}
+
+	updateTeamTreeDb(teamId: string, body: Record<string, unknown>) {
+		return this.request<any>('PUT', `/v1/teams/${encodeURIComponent(teamId)}/treedb`, { body });
+	}
+
+	provisionTeamTreeDb(teamId: string, body: Record<string, unknown> = {}) {
+		return this.request<any>('POST', `/v1/teams/${encodeURIComponent(teamId)}/treedb/provision`, { body });
+	}
+
+	listTreeDbMirrors(teamId: string) {
+		return this.request<any[]>('GET', `/v1/teams/${encodeURIComponent(teamId)}/treedb/mirrors`);
+	}
+
+	createTreeDbMirror(teamId: string, body: Record<string, unknown>) {
+		return this.request<any>('POST', `/v1/teams/${encodeURIComponent(teamId)}/treedb/mirrors`, { body });
+	}
+
+	listTreeDbShares(teamId: string) {
+		return this.request<any[]>('GET', `/v1/teams/${encodeURIComponent(teamId)}/treedb/shares`);
+	}
+
+	createTreeDbShare(teamId: string, body: Record<string, unknown>) {
+		return this.request<any>('POST', `/v1/teams/${encodeURIComponent(teamId)}/treedb/shares`, { body });
+	}
+
+	getProjectTreeDbLibrary(projectId: string) {
+		return this.request<any>('GET', `/v1/projects/${encodeURIComponent(projectId)}/treedb-library`);
+	}
+
+	upsertProjectTreeDbLibrary(projectId: string, body: Record<string, unknown>) {
+		return this.request<any>('POST', `/v1/projects/${encodeURIComponent(projectId)}/treedb-library`, { body });
+	}
+
+	getProjectRepositoryTopology(projectId: string) {
+		return this.request<any>('GET', `/v1/projects/${encodeURIComponent(projectId)}/repository-topology`);
+	}
+
+	updateProjectRepositoryTopology(projectId: string, body: Record<string, unknown>) {
+		return this.request<any>('PUT', `/v1/projects/${encodeURIComponent(projectId)}/repository-topology`, { body });
+	}
+
 	getTeamWebHost(teamId: string, hostId: string) {
 		return this.request<any>('GET', `/v1/teams/${encodeURIComponent(teamId)}/web-hosts/${encodeURIComponent(hostId)}`);
 	}

@@ -32,6 +32,8 @@ function repositoryPayload(repository) {
 		branch: repository.currentBranch ?? repository.defaultBranch ?? 'staging',
 		workflowFile: 'deploy-web.yml',
 		repositoryId: repository.id ?? null,
+		role: repository.role ?? null,
+		metadata: repository.metadata ?? {},
 	};
 }
 
@@ -203,7 +205,7 @@ export function installProjectDeploymentRoutes(app, { store, requireProjectAcces
 			if (hostBlocker) return jsonDeploymentError(c, 'host_not_ready', hostBlocker.message, { details: { blockers: readiness.blockers } });
 			return jsonDeploymentError(c, 'deployment_not_ready', 'Deployment is blocked by project readiness checks.', { details: { blockers: readiness.blockers } });
 		}
-		const repository = selectProjectDeploymentRepository(access.details);
+		const repository = selectProjectDeploymentRepository(access.details, body.action);
 		const target = selectProjectWebTarget(access.details, hosts);
 		const deployment = await store.createProjectDeployment(projectId, {
 			teamId: access.details.project.teamId,

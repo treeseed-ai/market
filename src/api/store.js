@@ -1327,6 +1327,113 @@ function serializeHubContentSource(row) {
 	};
 }
 
+function serializeTreeDbInstance(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		kind: row.kind,
+		provider: row.provider,
+		name: row.name,
+		baseUrl: row.base_url,
+		registryUrl: row.registry_url,
+		publicRead: Boolean(row.public_read),
+		primary: Boolean(row.primary),
+		status: row.status,
+		imageRef: row.image_ref,
+		railwayProjectId: row.railway_project_id,
+		railwayServiceId: row.railway_service_id,
+		railwayEnvironmentId: row.railway_environment_id,
+		volumeMountPath: row.volume_mount_path,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeTreeDbProjectLibrary(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		projectId: row.project_id,
+		instanceId: row.instance_id,
+		libraryId: row.library_id,
+		repositoryId: row.repository_id,
+		contentPath: row.content_path,
+		contentRepositoryUrl: row.content_repository_url,
+		contentRepositoryDefaultBranch: row.content_repository_default_branch,
+		contentRepositoryRef: row.content_repository_ref,
+		r2BucketName: row.r2_bucket_name,
+		r2ManifestKey: row.r2_manifest_key,
+		topology: parseJson(row.topology_json, {}),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeTreeDbMirror(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		instanceId: row.instance_id,
+		name: row.name,
+		direction: row.direction,
+		targetKind: row.target_kind,
+		targetUrl: row.target_url,
+		status: row.status,
+		instructions: row.instructions,
+		lastSyncAt: row.last_sync_at,
+		lastSyncStatus: row.last_sync_status,
+		lastSyncMetadata: parseJson(row.last_sync_metadata_json, {}),
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function serializeTreeDbShare(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		instanceId: row.instance_id,
+		projectId: row.project_id,
+		libraryId: row.library_id,
+		scope: row.scope,
+		targetTeamId: row.target_team_id,
+		trustGrant: parseJson(row.trust_grant_json, {}),
+		publicRead: Boolean(row.public_read),
+		status: row.status,
+		expiresAt: row.expires_at,
+		metadata: parseJson(row.metadata_json, {}),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+		revokedAt: row.revoked_at,
+	};
+}
+
+function serializeTreeDbDeployment(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		teamId: row.team_id,
+		instanceId: row.instance_id,
+		provider: row.provider,
+		status: row.status,
+		imageRef: row.image_ref,
+		volumeMountPath: row.volume_mount_path,
+		serviceRefs: parseJson(row.service_refs_json, {}),
+		result: parseJson(row.result_json, {}),
+		error: parseJson(row.error_json, null),
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+		completedAt: row.completed_at,
+	};
+}
+
 function serializeHubLaunch(row) {
 	if (!row) return null;
 	return {
@@ -3967,6 +4074,497 @@ export class MarketControlPlaneStore {
 		return deployment;
 	}
 
+	async getPrimaryTreeDbInstance(teamId) {
+		await this.ensureInitialized();
+		return serializeTreeDbInstance(await this.first(
+			`SELECT * FROM treedb_instances WHERE team_id = ? AND "primary" = 1 AND status != 'disabled' ORDER BY updated_at DESC LIMIT 1`,
+			[teamId],
+		));
+	}
+
+	async getTeamTreeDb(teamId) {
+		await this.ensureInitialized();
+		const instance = await this.getPrimaryTreeDbInstance(teamId);
+		return {
+			instance,
+			mirrors: instance ? await this.listTreeDbMirrors(teamId, instance.id) : [],
+			shares: await this.listTreeDbShares(teamId),
+			deployments: instance ? await this.listTreeDbDeployments(teamId, instance.id) : [],
+		};
+	}
+
+	async upsertTeamTreeDb(teamId, input = {}) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const existing = await this.getPrimaryTreeDbInstance(teamId);
+		const id = input.id ?? existing?.id ?? randomUUID();
+		const kind = String(input.kind ?? existing?.kind ?? (input.publicRead ? 'managed_public_federation' : 'managed_private'));
+		const provider = String(input.provider ?? existing?.provider ?? (kind === 'managed_public_federation' ? 'public_federation' : kind === 'self_hosted' ? 'self_hosted' : 'railway'));
+		const status = String(input.status ?? existing?.status ?? (input.baseUrl ? 'active' : 'pending'));
+		if (status === 'active') {
+			await this.run(
+				`UPDATE treedb_instances SET status = 'disabled', updated_at = ? WHERE team_id = ? AND "primary" = 1 AND id != ? AND status = 'active'`,
+				[timestamp, teamId, id],
+			);
+		}
+		await this.run(
+			`INSERT INTO treedb_instances (
+				id, team_id, kind, provider, name, base_url, registry_url, public_read, "primary", status, image_ref,
+				railway_project_id, railway_service_id, railway_environment_id, volume_mount_path, metadata_json, created_at, updated_at
+			) VALUES (
+				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+			)
+			ON CONFLICT (id) DO UPDATE SET
+				kind = EXCLUDED.kind,
+				provider = EXCLUDED.provider,
+				name = EXCLUDED.name,
+				base_url = EXCLUDED.base_url,
+				registry_url = EXCLUDED.registry_url,
+				public_read = EXCLUDED.public_read,
+				"primary" = EXCLUDED."primary",
+				status = EXCLUDED.status,
+				image_ref = EXCLUDED.image_ref,
+				railway_project_id = EXCLUDED.railway_project_id,
+				railway_service_id = EXCLUDED.railway_service_id,
+				railway_environment_id = EXCLUDED.railway_environment_id,
+				volume_mount_path = EXCLUDED.volume_mount_path,
+				metadata_json = EXCLUDED.metadata_json,
+				updated_at = EXCLUDED.updated_at`,
+			[
+				id,
+				teamId,
+				kind,
+				provider,
+				String(input.name ?? existing?.name ?? 'TreeDB Knowledge Library'),
+				input.baseUrl ?? existing?.baseUrl ?? null,
+				input.registryUrl ?? input.baseUrl ?? existing?.registryUrl ?? null,
+				input.publicRead === undefined ? Number(existing?.publicRead ?? false) : Number(Boolean(input.publicRead)),
+				1,
+				status,
+				input.imageRef ?? existing?.imageRef ?? 'treeseed/treedb:latest',
+				input.railwayProjectId ?? existing?.railwayProjectId ?? null,
+				input.railwayServiceId ?? existing?.railwayServiceId ?? null,
+				input.railwayEnvironmentId ?? existing?.railwayEnvironmentId ?? null,
+				input.volumeMountPath ?? existing?.volumeMountPath ?? (provider === 'railway' ? '/data' : null),
+				JSON.stringify({
+					...(existing?.metadata ?? {}),
+					...(objectValue(input.metadata, {}) ?? {}),
+					hostRole: 'knowledge-library',
+					contentCanonical: 'treedb',
+				}),
+				existing?.createdAt ?? timestamp,
+				timestamp,
+			],
+		);
+		return this.getPrimaryTreeDbInstance(teamId);
+	}
+
+	async provisionTeamTreeDb(teamId, input = {}) {
+		const team = await this.getTeam(teamId);
+		if (!team) return null;
+		const publicRead = input.publicRead ?? (team.visibility === 'public');
+		const instance = await this.upsertTeamTreeDb(teamId, {
+			...input,
+			kind: publicRead ? 'managed_public_federation' : 'managed_private',
+			provider: publicRead ? 'public_federation' : 'railway',
+			publicRead,
+			name: input.name ?? (publicRead ? 'TreeSeed public federation' : `${team.slug} TreeDB`),
+			status: input.baseUrl ? 'active' : 'pending',
+			imageRef: input.imageRef ?? 'treeseed/treedb:latest',
+			volumeMountPath: publicRead ? null : '/data',
+		});
+		const timestamp = isoNow();
+		const deploymentId = randomUUID();
+		await this.run(
+			`INSERT INTO treedb_deployments (
+				id, team_id, instance_id, provider, status, image_ref, volume_mount_path, service_refs_json, result_json, error_json, created_at, updated_at, completed_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				deploymentId,
+				teamId,
+				instance.id,
+				instance.provider,
+				instance.baseUrl || instance.publicRead ? 'succeeded' : 'queued',
+				instance.imageRef,
+				instance.volumeMountPath,
+				JSON.stringify({ railwayProjectId: instance.railwayProjectId, railwayServiceId: instance.railwayServiceId }),
+				JSON.stringify({
+					mode: instance.publicRead ? 'public_federation' : 'managed_private',
+					nextAction: instance.publicRead ? 'Attach team grants to public federation.' : 'Create Railway project, service, persistent /data volume, and service token.',
+					operation: instance.publicRead ? 'attached_public_federation' : 'queued_treedb_provision',
+				}),
+				null,
+				timestamp,
+				timestamp,
+				instance.baseUrl ? timestamp : null,
+			],
+		);
+		return this.getTeamTreeDb(teamId);
+	}
+
+	async updateTreeDbDeployment(deploymentId, patch = {}) {
+		await this.ensureInitialized();
+		const existing = serializeTreeDbDeployment(await this.first(`SELECT * FROM treedb_deployments WHERE id = ? LIMIT 1`, [deploymentId]));
+		if (!existing) return null;
+		const timestamp = isoNow();
+		const status = patch.status ?? existing.status;
+		const terminal = ['succeeded', 'failed', 'cancelled', 'timed_out'].includes(status);
+		await this.run(
+			`UPDATE treedb_deployments
+			 SET status = ?,
+			     image_ref = ?,
+			     volume_mount_path = ?,
+			     service_refs_json = ?,
+			     result_json = ?,
+			     error_json = ?,
+			     updated_at = ?,
+			     completed_at = ?
+			 WHERE id = ?`,
+			[
+				status,
+				patch.imageRef ?? existing.imageRef,
+				patch.volumeMountPath ?? existing.volumeMountPath,
+				JSON.stringify({
+					...(existing.serviceRefs ?? {}),
+					...(objectValue(patch.serviceRefs, {}) ?? {}),
+				}),
+				JSON.stringify({
+					...(existing.result ?? {}),
+					...(objectValue(patch.result, {}) ?? {}),
+				}),
+				patch.error ? JSON.stringify(redactDeploymentValue(patch.error)) : (patch.clearError ? null : JSON.stringify(existing.error ?? {})),
+				timestamp,
+				terminal ? patch.completedAt ?? timestamp : patch.completedAt ?? existing.completedAt ?? null,
+				deploymentId,
+			],
+		);
+		return serializeTreeDbDeployment(await this.first(`SELECT * FROM treedb_deployments WHERE id = ? LIMIT 1`, [deploymentId]));
+	}
+
+	async listTreeDbDeployments(teamId, instanceId = null) {
+		await this.ensureInitialized();
+		const rows = instanceId
+			? await this.all(`SELECT * FROM treedb_deployments WHERE team_id = ? AND instance_id = ? ORDER BY created_at DESC`, [teamId, instanceId])
+			: await this.all(`SELECT * FROM treedb_deployments WHERE team_id = ? ORDER BY created_at DESC`, [teamId]);
+		return rows.map(serializeTreeDbDeployment).filter(Boolean);
+	}
+
+	async listTreeDbMirrors(teamId, instanceId = null) {
+		await this.ensureInitialized();
+		const rows = instanceId
+			? await this.all(`SELECT * FROM treedb_mirrors WHERE team_id = ? AND instance_id = ? ORDER BY created_at ASC`, [teamId, instanceId])
+			: await this.all(`SELECT * FROM treedb_mirrors WHERE team_id = ? ORDER BY created_at ASC`, [teamId]);
+		return rows.map(serializeTreeDbMirror).filter(Boolean);
+	}
+
+	async createTreeDbMirror(teamId, input = {}) {
+		await this.ensureInitialized();
+		const instance = input.instanceId
+			? serializeTreeDbInstance(await this.first(`SELECT * FROM treedb_instances WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, input.instanceId]))
+			: await this.getPrimaryTreeDbInstance(teamId);
+		if (!instance) return null;
+		const timestamp = isoNow();
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO treedb_mirrors (
+				id, team_id, instance_id, name, direction, target_kind, target_url, status, instructions,
+				last_sync_at, last_sync_status, last_sync_metadata_json, metadata_json, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				teamId,
+				instance.id,
+				String(input.name ?? 'TreeDB mirror'),
+				String(input.direction ?? 'bidirectional'),
+				String(input.targetKind ?? 'git'),
+				input.targetUrl ?? null,
+				String(input.status ?? 'pending'),
+				input.instructions ?? `Connect this mirror to ${instance.baseUrl ?? 'the team TreeDB'} and sync the selected libraries. Store credentials in the target secret manager, not in seed exports.`,
+				null,
+				null,
+				JSON.stringify({}),
+				JSON.stringify(objectValue(input.metadata, {})),
+				timestamp,
+				timestamp,
+			],
+		);
+		return serializeTreeDbMirror(await this.first(`SELECT * FROM treedb_mirrors WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async syncTreeDbMirror(teamId, mirrorId, input = {}) {
+		await this.ensureInitialized();
+		const existing = serializeTreeDbMirror(await this.first(`SELECT * FROM treedb_mirrors WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, mirrorId]));
+		if (!existing) return null;
+		const timestamp = isoNow();
+		await this.run(
+			`UPDATE treedb_mirrors
+			 SET status = ?, last_sync_at = ?, last_sync_status = ?, last_sync_metadata_json = ?, updated_at = ?
+			 WHERE team_id = ? AND id = ?`,
+			[
+				String(input.status ?? 'syncing'),
+				timestamp,
+				String(input.lastSyncStatus ?? 'queued'),
+				JSON.stringify(objectValue(input.metadata, {})),
+				timestamp,
+				teamId,
+				mirrorId,
+			],
+		);
+		return serializeTreeDbMirror(await this.first(`SELECT * FROM treedb_mirrors WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, mirrorId]));
+	}
+
+	async listTreeDbShares(teamId) {
+		await this.ensureInitialized();
+		return (await this.all(`SELECT * FROM treedb_shares WHERE team_id = ? ORDER BY created_at ASC`, [teamId]))
+			.map(serializeTreeDbShare)
+			.filter(Boolean);
+	}
+
+	async createTreeDbShare(teamId, input = {}) {
+		await this.ensureInitialized();
+		const timestamp = isoNow();
+		const instance = input.instanceId
+			? serializeTreeDbInstance(await this.first(`SELECT * FROM treedb_instances WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, input.instanceId]))
+			: await this.getPrimaryTreeDbInstance(teamId);
+		const id = input.id ?? randomUUID();
+		await this.run(
+			`INSERT INTO treedb_shares (
+				id, team_id, instance_id, project_id, library_id, scope, target_team_id, trust_grant_json,
+				public_read, status, expires_at, metadata_json, created_at, updated_at, revoked_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[
+				id,
+				teamId,
+				input.instanceId ?? instance?.id ?? null,
+				input.projectId ?? null,
+				input.libraryId ?? null,
+				String(input.scope ?? (input.publicRead ? 'public_federation' : 'team')),
+				input.targetTeamId ?? null,
+				JSON.stringify(objectValue(input.trustGrant, {})),
+				Number(Boolean(input.publicRead)),
+				String(input.status ?? 'active'),
+				input.expiresAt ?? null,
+				JSON.stringify(objectValue(input.metadata, {})),
+				timestamp,
+				timestamp,
+				null,
+			],
+		);
+		return serializeTreeDbShare(await this.first(`SELECT * FROM treedb_shares WHERE id = ? LIMIT 1`, [id]));
+	}
+
+	async upsertProjectTreeDbLibrary(projectId, input = {}) {
+		await this.ensureInitialized();
+		const project = await this.getProject(projectId);
+		if (!project) return null;
+		const instance = input.instanceId
+			? serializeTreeDbInstance(await this.first(`SELECT * FROM treedb_instances WHERE team_id = ? AND id = ? LIMIT 1`, [project.teamId, input.instanceId]))
+			: await this.getPrimaryTreeDbInstance(project.teamId);
+		if (!instance) return null;
+		const existing = await this.getProjectTreeDbLibrary(projectId);
+		const repositories = await this.listHubRepositories(projectId);
+		const contentRepository = repositories.find((entry) => entry.role === 'content') ?? null;
+		const softwareRepository = repositories.find((entry) => ['software', 'primary', 'package'].includes(entry.role)) ?? repositories[0] ?? null;
+		const workspaceLink = serializeHubWorkspaceLink(await this.first(`SELECT * FROM hub_workspace_links WHERE hub_id = ? LIMIT 1`, [projectId]));
+		const timestamp = isoNow();
+		const id = input.id ?? existing?.id ?? randomUUID();
+		const libraryId = String(input.libraryId ?? existing?.libraryId ?? `${project.teamId}/${project.slug}`);
+		const topology = this.buildRepositoryTopologySnapshot({
+			project,
+			instance,
+			binding: {
+				libraryId,
+				repositoryId: input.repositoryId ?? existing?.repositoryId ?? null,
+				contentPath: input.contentPath ?? existing?.contentPath ?? 'src/content',
+				contentRepositoryUrl: input.contentRepositoryUrl ?? existing?.contentRepositoryUrl ?? contentRepository?.url ?? null,
+				contentRepositoryDefaultBranch: input.contentRepositoryDefaultBranch ?? existing?.contentRepositoryDefaultBranch ?? contentRepository?.defaultBranch ?? null,
+				contentRepositoryRef: input.contentRepositoryRef ?? existing?.contentRepositoryRef ?? contentRepository?.currentBranch ?? null,
+				r2BucketName: input.r2BucketName ?? existing?.r2BucketName ?? null,
+				r2ManifestKey: input.r2ManifestKey ?? existing?.r2ManifestKey ?? null,
+			},
+			softwareRepository,
+			workspaceLink,
+			metadata: objectValue(input.topology, {}),
+		});
+		if (existing) {
+			await this.run(
+				`UPDATE treedb_project_libraries
+				 SET instance_id = ?, library_id = ?, repository_id = ?, content_path = ?, content_repository_url = ?,
+				     content_repository_default_branch = ?, content_repository_ref = ?, r2_bucket_name = ?, r2_manifest_key = ?,
+				     topology_json = ?, metadata_json = ?, updated_at = ?
+				 WHERE project_id = ?`,
+				[
+					instance.id,
+					libraryId,
+					input.repositoryId ?? existing.repositoryId ?? null,
+					input.contentPath ?? existing.contentPath ?? 'src/content',
+					input.contentRepositoryUrl ?? existing.contentRepositoryUrl ?? contentRepository?.url ?? null,
+					input.contentRepositoryDefaultBranch ?? existing.contentRepositoryDefaultBranch ?? contentRepository?.defaultBranch ?? null,
+					input.contentRepositoryRef ?? existing.contentRepositoryRef ?? contentRepository?.currentBranch ?? null,
+					input.r2BucketName ?? existing.r2BucketName ?? null,
+					input.r2ManifestKey ?? existing.r2ManifestKey ?? null,
+					JSON.stringify(topology),
+					JSON.stringify({ ...(existing.metadata ?? {}), ...(objectValue(input.metadata, {}) ?? {}) }),
+					timestamp,
+					projectId,
+				],
+			);
+		} else {
+			await this.run(
+				`INSERT INTO treedb_project_libraries (
+					id, team_id, project_id, instance_id, library_id, repository_id, content_path, content_repository_url,
+					content_repository_default_branch, content_repository_ref, r2_bucket_name, r2_manifest_key,
+					topology_json, metadata_json, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[
+					id,
+					project.teamId,
+					projectId,
+					instance.id,
+					libraryId,
+					input.repositoryId ?? null,
+					input.contentPath ?? 'src/content',
+					input.contentRepositoryUrl ?? contentRepository?.url ?? null,
+					input.contentRepositoryDefaultBranch ?? contentRepository?.defaultBranch ?? null,
+					input.contentRepositoryRef ?? contentRepository?.currentBranch ?? null,
+					input.r2BucketName ?? null,
+					input.r2ManifestKey ?? null,
+					JSON.stringify(topology),
+					JSON.stringify(objectValue(input.metadata, {})),
+					timestamp,
+					timestamp,
+				],
+			);
+		}
+		await this.ensureHubContentSourceTreeDb(projectId, project.teamId, contentRepository?.id ?? null, topology);
+		return this.getProjectTreeDbLibrary(projectId);
+	}
+
+	async getProjectTreeDbLibrary(projectId) {
+		await this.ensureInitialized();
+		return serializeTreeDbProjectLibrary(await this.first(`SELECT * FROM treedb_project_libraries WHERE project_id = ? LIMIT 1`, [projectId]));
+	}
+
+	async getProjectRepositoryTopology(projectId) {
+		const binding = await this.getProjectTreeDbLibrary(projectId);
+		if (binding?.topology && Object.keys(binding.topology).length > 0) return binding.topology;
+		const project = await this.getProject(projectId);
+		if (!project) return null;
+		const instance = await this.getPrimaryTreeDbInstance(project.teamId);
+		if (!instance) return null;
+		const created = await this.upsertProjectTreeDbLibrary(projectId, {});
+		return created?.topology ?? null;
+	}
+
+	async upsertProjectRepositoryTopology(projectId, topology = {}) {
+		return this.upsertProjectTreeDbLibrary(projectId, { topology });
+	}
+
+	async ensureHubContentSourceTreeDb(projectId, teamId, contentRepositoryId, topology) {
+		const timestamp = isoNow();
+		const existing = serializeHubContentSource(await this.first(`SELECT * FROM hub_content_sources WHERE hub_id = ? LIMIT 1`, [projectId]));
+		const r2 = topology?.contentRepository?.r2 ?? {};
+		if (existing) {
+			await this.run(
+				`UPDATE hub_content_sources
+				 SET content_repository_id = ?, production_source = ?, overlay_policy = ?, r2_bucket_name = ?, r2_manifest_key = ?, metadata_json = ?, updated_at = ?
+				 WHERE hub_id = ?`,
+				[
+					contentRepositoryId,
+					'treedb',
+					existing.overlayPolicy ?? 'treedb_snapshot',
+					r2.bucketName ?? existing.r2BucketName ?? null,
+					r2.manifestKey ?? existing.r2ManifestKey ?? null,
+					JSON.stringify({
+						...(existing.metadata ?? {}),
+						contentCanonical: 'treedb',
+						publishSource: 'treedb_to_r2',
+						repositoryTopology: topology,
+					}),
+					timestamp,
+					projectId,
+				],
+			);
+		} else {
+			await this.run(
+				`INSERT INTO hub_content_sources (
+					id, hub_id, team_id, content_repository_id, production_source, overlay_policy, r2_bucket_name,
+					r2_manifest_key, r2_public_base_url, latest_publish_id, latest_content_version, metadata_json, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[
+					randomUUID(),
+					projectId,
+					teamId,
+					contentRepositoryId,
+					'treedb',
+					'treedb_snapshot',
+					r2.bucketName ?? null,
+					r2.manifestKey ?? null,
+					r2.publicBaseUrl ?? null,
+					null,
+					null,
+					JSON.stringify({
+						contentCanonical: 'treedb',
+						publishSource: 'treedb_to_r2',
+						repositoryTopology: topology,
+					}),
+					timestamp,
+					timestamp,
+				],
+			);
+		}
+	}
+
+	buildRepositoryTopologySnapshot({ project, instance, binding, softwareRepository, workspaceLink, metadata = {} }) {
+		const siteCheckoutBase = `/data/projects/${project.slug}/site`;
+		const projectCheckoutBase = workspaceLink?.parentName ? `/data/projects/${project.slug}/project` : null;
+		return {
+			contentRepository: {
+				accessMode: 'treedb',
+				githubUrl: binding.contentRepositoryUrl ?? null,
+				defaultBranch: binding.contentRepositoryDefaultBranch ?? null,
+				ref: binding.contentRepositoryRef ?? null,
+				contentPath: binding.contentPath ?? 'src/content',
+				treeDb: {
+					instanceId: instance.id,
+					libraryId: binding.libraryId,
+					repositoryId: binding.repositoryId ?? null,
+					baseUrl: instance.baseUrl ?? null,
+				},
+				r2: {
+					bucketName: binding.r2BucketName ?? null,
+					manifestKey: binding.r2ManifestKey ?? null,
+				},
+			},
+			siteRepository: {
+				accessMode: 'filesystem',
+				provider: softwareRepository?.provider ?? 'github',
+				owner: softwareRepository?.owner ?? null,
+				name: softwareRepository?.name ?? project.slug,
+				url: softwareRepository?.url ?? null,
+				defaultBranch: softwareRepository?.defaultBranch ?? 'staging',
+				ref: softwareRepository?.currentBranch ?? null,
+				checkoutPath: metadata.siteRepository?.checkoutPath ?? siteCheckoutBase,
+				volumePath: metadata.siteRepository?.volumePath ?? siteCheckoutBase,
+				submoduleMountPath: softwareRepository?.submodulePath ?? workspaceLink?.softwareSubmodulePath ?? null,
+			},
+			projectRepository: workspaceLink?.parentUrl || metadata.projectRepository
+				? {
+					accessMode: 'filesystem',
+					provider: metadata.projectRepository?.provider ?? 'github',
+					owner: workspaceLink?.parentOwner ?? metadata.projectRepository?.owner ?? null,
+					name: workspaceLink?.parentName ?? metadata.projectRepository?.name ?? null,
+					url: workspaceLink?.parentUrl ?? metadata.projectRepository?.url ?? null,
+					defaultBranch: workspaceLink?.parentBranch ?? metadata.projectRepository?.defaultBranch ?? 'staging',
+					ref: metadata.projectRepository?.ref ?? null,
+					checkoutPath: metadata.projectRepository?.checkoutPath ?? projectCheckoutBase,
+					volumePath: metadata.projectRepository?.volumePath ?? projectCheckoutBase,
+					siteSubmodulePath: workspaceLink?.softwareSubmodulePath ?? metadata.projectRepository?.siteSubmodulePath ?? null,
+				}
+				: null,
+		};
+	}
+
 	async buildCapacityProviderPortfolio(principal) {
 		await this.ensureInitialized();
 		const team = await this.getTeam(principal.teamId);
@@ -3976,7 +4574,8 @@ export class MarketControlPlaneStore {
 		for (const project of projects) {
 			const metadata = project.metadata ?? {};
 			const repositories = await this.listHubRepositories(project.id);
-			const canonicalRepository = repositories.find((entry) => ['primary', 'package', 'software', 'content'].includes(entry.role))
+			const topology = await this.getProjectRepositoryTopology(project.id).catch(() => null);
+			const canonicalRepository = repositories.find((entry) => ['software', 'primary', 'package'].includes(entry.role))
 				?? repositories[0]
 				?? null;
 			const repository = metadata.repository && typeof metadata.repository === 'object'
@@ -3999,6 +4598,7 @@ export class MarketControlPlaneStore {
 					submodulePath: canonicalRepository?.submodulePath ?? repository.submodulePath ?? metadata.submodulePath ?? null,
 					webUrl: canonicalRepository?.metadata?.webUrl ?? repository.webUrl ?? null,
 				},
+				...(topology ? { repositoryTopology: topology } : {}),
 				agentSpecs: {
 					root: String(metadata.agentSpecs?.root ?? 'src/content/agents'),
 					testsRoot: String(metadata.agentSpecs?.testsRoot ?? 'src/content/agent-tests'),
