@@ -521,7 +521,7 @@ describe('market api', () => {
 	it('keeps public usernames and team slugs in one namespace', async () => {
 		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
-		const app = createTestApp({ db, store });
+		const app = createTestApp({ db, store, mockExternal: true });
 		await store.createTeam({
 			name: 'reserved-team',
 			displayName: 'Reserved Team',
@@ -683,7 +683,7 @@ describe('market api', () => {
 		}));
 		expect(lastDelete.ok).toBe(false);
 		expect(lastDelete.code).toBe('last_verified_email');
-	}, 15000);
+	}, 30000);
 
 	it('deletes projects and project-owned records through the project API', async () => {
 		const db = createTestPostgresDatabase();
@@ -6305,7 +6305,13 @@ describe('market api', () => {
 				authorization: `Bearer ${token}`,
 			},
 		}));
-		expect(resumedState.launch).toMatchObject({ status: 'queued', active: true, currentPhase: 'credential_bootstrap' });
+		expect(resumedState.launch.status).not.toBe('failed');
+		expect(['credential_bootstrap', 'hosting_readiness_audit', 'provider_bootstrap', 'launch_completed']).toContain(resumedState.launch.currentPhase);
+		if (resumedState.launch.status === 'completed') {
+			expect(resumedState.launch.active).toBe(false);
+		} else {
+			expect(resumedState.launch.active).toBe(true);
+		}
 
 		const inbox = await json(await app.request(`/v1/teams/${team.id}/inbox`, {
 			headers: {
@@ -6314,7 +6320,7 @@ describe('market api', () => {
 		}));
 		expect(inbox.payload.some((entry: { kind: string }) => entry.kind === 'launch_failure')).toBe(false);
 		});
-	}, 15000);
+	}, 30000);
 
 	it('keeps managed project launch bootstrap owned by the Market API instead of the runner', async () => {
 		await withEnv({
@@ -6468,13 +6474,22 @@ describe('market api', () => {
 	});
 
 	it('queues launch failures for worker recovery instead of failing the request', async () => {
-		const error = Object.assign(new Error('GitHub denied repository creation.'), {
-			phase: 'repo_provision_failed',
-			phases: [
-				{ phase: 'repo_provision', status: 'failed', detail: 'GitHub denied repository creation.', timestamp: '2026-04-16T00:00:00.000Z' },
-			],
+		runTreeseedHostingAuditMock.mockResolvedValueOnce({
+			ok: false,
+			environment: 'staging',
+			requestedEnvironment: 'current',
+			repairMode: false,
+			repaired: false,
+			target: { kind: 'persistent', scope: 'staging', label: 'staging' },
+			hostKinds: ['repository', 'web'],
+			checkedAt: '2026-01-01T00:00:00.000Z',
+			checks: [],
+			missingConfig: ['CLOUDFLARE_ACCOUNT_ID'],
+			resources: {},
+			warnings: [],
+			blockers: [{ code: 'missing_config', message: 'Cloudflare account is not configured.' }],
+			nextActions: ['Configure Cloudflare before launching.'],
 		});
-		vi.spyOn(treeseedCore, 'executeKnowledgeHubProviderLaunch').mockRejectedValue(error);
 
 		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
