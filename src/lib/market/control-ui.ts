@@ -90,6 +90,44 @@ export function hostPurposeFor(type: unknown): string {
 	return 'Stores provider credentials for team workflows.';
 }
 
+export function hostingPlacementLabel(value: unknown): string {
+	const normalized = String(value ?? '').trim();
+	if (normalized === 'web') return 'Site Hosting';
+	if (normalized === 'api') return 'API Runtime';
+	if (normalized === 'database') return 'Database';
+	if (normalized === 'knowledge-library' || normalized === 'knowledge_library') return 'Knowledge Library';
+	if (normalized === 'runner-capacity' || normalized === 'runner_capacity') return 'Runner Capacity';
+	if (normalized === 'repository') return 'Repository';
+	if (normalized === 'content-storage' || normalized === 'content_storage') return 'Content Storage';
+	if (normalized === 'email') return 'Email';
+	if (normalized === 'operations') return 'Operations';
+	return normalized ? normalized.replaceAll('-', ' ') : 'Hosting';
+}
+
+export function hostingPlacementPurpose(value: unknown): string {
+	const normalized = String(value ?? '').trim();
+	if (normalized === 'web') return 'Publishes the project site or public web surface.';
+	if (normalized === 'api') return 'Runs API routes and project runtime endpoints.';
+	if (normalized === 'database') return 'Stores control-plane and relational runtime state.';
+	if (normalized === 'knowledge-library' || normalized === 'knowledge_library') return 'Stores and federates canonical project content libraries.';
+	if (normalized === 'runner-capacity' || normalized === 'runner_capacity') return 'Runs operations, capacity, and agent processing workloads.';
+	if (normalized === 'repository') return 'Connects source repositories and workflow metadata.';
+	if (normalized === 'content-storage' || normalized === 'content_storage') return 'Stores published content snapshots and generated artifacts.';
+	if (normalized === 'email') return 'Sends transactional email and notifications.';
+	if (normalized === 'operations') return 'Runs background operational services.';
+	return 'Hosts one project capability.';
+}
+
+export function hostingProfileLabel(value: unknown): string {
+	const normalized = String(value ?? '').trim();
+	if (normalized === 'treeseed-managed-public-team') return 'TreeSeed managed public team';
+	if (normalized === 'treeseed-managed-private-team') return 'TreeSeed managed private team';
+	if (normalized === 'customer-self-hosted') return 'Customer self-hosted';
+	if (normalized === 'local-development') return 'Local development';
+	if (normalized === 'production-like-local') return 'Production-like local';
+	return normalized ? normalized.replaceAll('-', ' ') : 'Hosting profile';
+}
+
 export function hostDisplayName(host: any, type?: string): string {
 	const hostType = type ?? hostTypeFor(host);
 	const candidates = [
