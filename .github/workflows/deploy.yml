@@ -150,10 +150,34 @@ jobs:
           path: packages/sdk/dist/
           if-no-files-found: error
 
+  bootstrap-public-treedb:
+    needs:
+      - classify
+      - deploy-web
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment: ${{ needs.classify.outputs.scope == 'prod' && 'production' || 'staging' }}
+    env:
+      TREESEED_WORKFLOW_ENVIRONMENT: ${{ needs.classify.outputs.scope }}
+      TREESEED_MARKET_API_BASE_URL: ${{ needs.classify.outputs.scope == 'prod' && (vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-market-staging-ca844c56.treeseed.ai') }}
+      TREESEED_PUBLIC_TREEDB_TEAM_ID: ${{ vars.TREESEED_PUBLIC_TREEDB_TEAM_ID || vars.TREESEED_HOSTING_TEAM_ID }}
+      TREESEED_PUBLIC_TREEDB_TOKEN: ${{ secrets.TREESEED_PUBLIC_TREEDB_TOKEN || secrets.TREESEED_ACCEPTANCE_TEAM_OWNER_TOKEN }}
+      TREESEED_PUBLIC_TREEDB_IMAGE_REF: ${{ vars.TREESEED_PUBLIC_TREEDB_IMAGE_REF || 'treeseed/treedb:0.1.0' }}
+      TREESEED_PUBLIC_TREEDB_WAIT_MS: ${{ vars.TREESEED_PUBLIC_TREEDB_WAIT_MS || '900000' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Ensure public TreeDB federation
+        run: node ./scripts/bootstrap-public-treedb.mjs
+
   acceptance:
     needs:
       - classify
       - deploy-web
+      - bootstrap-public-treedb
       - acceptance-prepare
     runs-on: ubuntu-latest
     permissions:
