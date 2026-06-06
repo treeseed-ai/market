@@ -8315,6 +8315,15 @@ describe('TreeDB market integration', () => {
 		});
 		expect(railwaySecretValues).toHaveLength(1);
 		expect(JSON.stringify(status)).not.toContain(railwaySecretValues[0]);
+
+		const idempotent = await store.provisionTeamTreeDb(team.id, { publicRead: true, imageRef: 'treeseed/treedb:0.1.0' });
+		expect(idempotent?.instance).toMatchObject({
+			id: queued.payload.instance.id,
+			status: 'active',
+			baseUrl: 'https://treedb-public-staging.up.railway.app',
+			railwayProjectId: 'railway-project-1',
+			railwayServiceId: 'railway-service-1',
+		});
 	});
 
 	it('binds project content to TreeDB and keeps site/project repositories filesystem-backed in provider portfolio', async () => {

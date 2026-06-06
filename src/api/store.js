@@ -4187,13 +4187,16 @@ export class MarketControlPlaneStore {
 		const team = await this.getTeam(teamId);
 		if (!team) return null;
 		const publicRead = input.publicRead ?? (team.visibility === 'public');
+		const existing = await this.getPrimaryTreeDbInstance(teamId);
+		const status = input.status
+			?? (input.baseUrl || existing?.baseUrl ? 'active' : 'pending');
 		const instance = await this.upsertTeamTreeDb(teamId, {
 			...input,
 			kind: publicRead ? 'managed_public_federation' : 'managed_private',
 			provider: 'railway',
 			publicRead,
 			name: input.name ?? (publicRead ? 'TreeSeed public federation' : `${team.slug} TreeDB`),
-			status: input.baseUrl ? 'active' : 'pending',
+			status,
 			imageRef: input.imageRef ?? 'treeseed/treedb:latest',
 			volumeMountPath: '/data',
 			metadata: {
