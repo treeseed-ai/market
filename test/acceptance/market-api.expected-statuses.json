@@ -278,6 +278,18 @@
       "providerKey": 401,
       "platformRunner": 401
     },
+    "get.v1.internal.treedb.public-federation.status": {
+      "anonymous": 401,
+      "siteAdmin": 401,
+      "marketSteward": 401,
+      "teamOwner": 401,
+      "teamOperator": 401,
+      "teamViewer": 401,
+      "nonMember": 401,
+      "providerOperator": 401,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
     "get.v1.knowledge-packs": {
       "anonymous": 200,
       "siteAdmin": 200,
@@ -2703,6 +2715,18 @@
       "platformRunner": 401
     },
     "post.v1.projects.projectId.runner.jobs.pull": {
+      "anonymous": 401,
+      "siteAdmin": 401,
+      "marketSteward": 401,
+      "teamOwner": 401,
+      "teamOperator": 401,
+      "teamViewer": 401,
+      "nonMember": 401,
+      "providerOperator": 401,
+      "providerKey": 401,
+      "platformRunner": 401
+    },
+    "post.v1.internal.treedb.public-federation.provision": {
       "anonymous": 401,
       "siteAdmin": 401,
       "marketSteward": 401,
