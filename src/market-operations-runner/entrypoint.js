@@ -1,15 +1,25 @@
 #!/usr/bin/env node
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { createDecipheriv, createHash } from 'node:crypto';
+import { createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
 	PlatformRunnerClient,
 	TreeseedOperationsSdk,
+	deployRailwayServiceInstance,
+	ensureRailwayEnvironment,
+	ensureRailwayGeneratedServiceDomain,
+	ensureRailwayProject,
+	ensureRailwayService,
+	ensureRailwayServiceInstanceConfiguration,
+	ensureRailwayServiceVolume,
 	executeProjectHostBindingOperation,
 	executePlatformRepositoryOperation,
+	listRailwayVariables,
+	normalizeRailwayEnvironmentName,
 	runPlatformOperationOnce,
+	upsertRailwayVariables,
 } from '@treeseed/sdk';
 import {
 	createPlatformOperationStoreFromEnv,
@@ -135,6 +145,62 @@ function createDeploymentStore(config) {
 	if (!config.marketDatabaseUrl) return null;
 	const db = createMarketPostgresDatabase(config.marketDatabaseUrl);
 	return new MarketControlPlaneStore(config, db);
+}
+
+function treeDbSlug(value, fallback = 'treedb') {
+	const slug = String(value ?? '')
+		.normalize('NFKD')
+		.replace(/[\u0300-\u036f]/gu, '')
+		.replace(/[^a-z0-9-]+/giu, '-')
+		.toLowerCase()
+		.replace(/-+/gu, '-')
+		.replace(/^-|-$/gu, '')
+		.slice(0, 56);
+	return slug || fallback;
+}
+
+function treeDbRailwayEnvironment(value) {
+	return normalizeRailwayEnvironmentName(value || process.env.TREESEED_PLATFORM_RUNNER_ENVIRONMENT || 'staging') || 'staging';
+}
+
+function treeDbRailwayNames({ team, teamId, publicRead, environment }) {
+	const envName = treeDbRailwayEnvironment(environment);
+	const envSuffix = envName === 'production' ? 'prod' : treeDbSlug(envName, 'staging');
+	if (publicRead) {
+		return {
+			projectName: process.env.TREESEED_PUBLIC_TREEDB_RAILWAY_PROJECT_NAME || `treeseed-public-treedb-${envSuffix}`,
+			serviceName: process.env.TREESEED_PUBLIC_TREEDB_RAILWAY_SERVICE_NAME || 'public-federation',
+			volumeName: process.env.TREESEED_PUBLIC_TREEDB_RAILWAY_VOLUME_NAME || 'public-treedb-data',
+			environmentName: envName,
+			scope: 'public_federation',
+		};
+	}
+	const teamSlug = treeDbSlug(team?.slug ?? team?.name ?? teamId, 'team');
+	return {
+		projectName: `treeseed-team-${teamSlug}-treedb-${envSuffix}`,
+		serviceName: 'treedb',
+		volumeName: 'treedb-data',
+		environmentName: envName,
+		scope: 'private_team',
+	};
+}
+
+function treeDbSecretBase() {
+	return randomBytes(48).toString('base64url');
+}
+
+function treeDbRailway(options = {}) {
+	return {
+		ensureProject: options.ensureProject ?? ensureRailwayProject,
+		ensureEnvironment: options.ensureEnvironment ?? ensureRailwayEnvironment,
+		ensureService: options.ensureService ?? ensureRailwayService,
+		ensureServiceInstanceConfiguration: options.ensureServiceInstanceConfiguration ?? ensureRailwayServiceInstanceConfiguration,
+		ensureServiceVolume: options.ensureServiceVolume ?? ensureRailwayServiceVolume,
+		ensureGeneratedServiceDomain: options.ensureGeneratedServiceDomain ?? ensureRailwayGeneratedServiceDomain,
+		listVariables: options.listVariables ?? listRailwayVariables,
+		upsertVariables: options.upsertVariables ?? upsertRailwayVariables,
+		deployServiceInstance: options.deployServiceInstance ?? deployRailwayServiceInstance,
+	};
 }
 
 export function createExecutors() {
@@ -315,6 +381,15 @@ export function createExecutorsForOptions(options = {}) {
 			}
 			const imageRef = typeof payload.imageRef === 'string' && payload.imageRef.trim() ? payload.imageRef.trim() : 'treeseed/treedb:latest';
 			const volumeMountPath = typeof payload.volumeMountPath === 'string' && payload.volumeMountPath.trim() ? payload.volumeMountPath.trim() : '/data';
+			const publicRead = payload.publicRead === true;
+			const team = await options.deploymentStore.getTeam?.(teamId);
+			const names = treeDbRailwayNames({
+				team,
+				teamId,
+				publicRead,
+				environment: options.config?.environment ?? context.operation?.environment ?? process.env.TREESEED_PLATFORM_RUNNER_ENVIRONMENT,
+			});
+			const railway = treeDbRailway(options.railway);
 			await context.checkpoint({
 				phase: 'treedb.provision.started',
 				teamId,
@@ -322,9 +397,12 @@ export function createExecutorsForOptions(options = {}) {
 				deploymentId,
 				imageRef,
 				volumeMountPath,
+				publicRead,
+				projectName: names.projectName,
+				serviceName: names.serviceName,
 			}, {
 				kind: 'treedb.provision.started',
-				data: { teamId, instanceId, deploymentId, imageRef, volumeMountPath },
+				data: { teamId, instanceId, deploymentId, imageRef, volumeMountPath, publicRead, projectName: names.projectName, serviceName: names.serviceName },
 			});
 			await options.deploymentStore.updateTreeDbDeployment(deploymentId, {
 				status: 'running',
@@ -332,36 +410,136 @@ export function createExecutorsForOptions(options = {}) {
 				volumeMountPath,
 				result: {
 					operationId: context.operation.id,
-					phase: 'railway_service_planned',
+					phase: payload.dryRun === true ? 'railway_service_planned' : 'railway_service_provisioning',
+					scope: names.scope,
 				},
 			});
-			const serviceName = `treedb-${String(teamId).replace(/[^a-z0-9-]+/giu, '-').toLowerCase()}`.replace(/-+/gu, '-').replace(/^-|-$/gu, '').slice(0, 48) || 'treedb';
-			const baseUrl = typeof payload.baseUrl === 'string' && payload.baseUrl.trim()
-				? payload.baseUrl.trim()
-				: `https://${serviceName}.up.railway.app`;
+			let railwayRefs = {};
+			let baseUrl = typeof payload.baseUrl === 'string' && payload.baseUrl.trim() ? payload.baseUrl.trim() : null;
+			let externalDeploymentId = null;
+			if (payload.dryRun !== true) {
+				const ensuredProject = await railway.ensureProject({
+					projectName: names.projectName,
+					defaultEnvironmentName: names.environmentName,
+				});
+				const ensuredEnvironment = await railway.ensureEnvironment({
+					projectId: ensuredProject.project.id,
+					environmentName: names.environmentName,
+				});
+				const ensuredService = await railway.ensureService({
+					projectId: ensuredProject.project.id,
+					environmentId: ensuredEnvironment.environment.id,
+					serviceName: names.serviceName,
+					imageRef,
+				});
+				const currentVariables = await railway.listVariables({
+					projectId: ensuredProject.project.id,
+					environmentId: ensuredEnvironment.environment.id,
+					serviceId: ensuredService.service.id,
+				}).catch(() => ({}));
+				const variables = {
+					TREEDB_DATA_DIR: volumeMountPath,
+					PORT: '4000',
+					PHX_SERVER: 'true',
+					PHX_HOST: `${names.serviceName}.railway.app`,
+					TREESEED_TREEDB_SCOPE: names.scope,
+				};
+				if (!currentVariables.SECRET_KEY_BASE) {
+					variables.SECRET_KEY_BASE = treeDbSecretBase();
+				}
+				await railway.upsertVariables({
+					projectId: ensuredProject.project.id,
+					environmentId: ensuredEnvironment.environment.id,
+					serviceId: ensuredService.service.id,
+					variables,
+				});
+				await railway.ensureServiceInstanceConfiguration({
+					serviceId: ensuredService.service.id,
+					environmentId: ensuredEnvironment.environment.id,
+					healthcheckPath: '/api/v1/health',
+					healthcheckTimeoutSeconds: 30,
+					runtimeMode: 'replicated',
+				});
+				const ensuredVolume = await railway.ensureServiceVolume({
+					projectId: ensuredProject.project.id,
+					environmentId: ensuredEnvironment.environment.id,
+					serviceId: ensuredService.service.id,
+					name: names.volumeName,
+					mountPath: volumeMountPath,
+				});
+				const ensuredDomain = await railway.ensureGeneratedServiceDomain({
+					projectId: ensuredProject.project.id,
+					environmentId: ensuredEnvironment.environment.id,
+					serviceId: ensuredService.service.id,
+					targetPort: 4000,
+				});
+				if (ensuredDomain.domain?.domain) {
+					baseUrl = `https://${ensuredDomain.domain.domain}`;
+					await railway.upsertVariables({
+						projectId: ensuredProject.project.id,
+						environmentId: ensuredEnvironment.environment.id,
+						serviceId: ensuredService.service.id,
+						variables: { PHX_HOST: ensuredDomain.domain.domain },
+					});
+				}
+				const deployment = await railway.deployServiceInstance({
+					serviceId: ensuredService.service.id,
+					environmentId: ensuredEnvironment.environment.id,
+				});
+				externalDeploymentId = deployment.deploymentId ?? null;
+				railwayRefs = {
+					workspaceId: ensuredProject.workspace?.id ?? null,
+					projectId: ensuredProject.project.id,
+					projectName: ensuredProject.project.name,
+					environmentId: ensuredEnvironment.environment.id,
+					environmentName: ensuredEnvironment.environment.name,
+					serviceId: ensuredService.service.id,
+					serviceName: ensuredService.service.name,
+					volumeId: ensuredVolume.volume?.id ?? null,
+					volumeName: ensuredVolume.volume?.name ?? names.volumeName,
+					domainId: ensuredDomain.domain?.id ?? null,
+					domain: ensuredDomain.domain?.domain ?? null,
+					deploymentId: externalDeploymentId,
+				};
+			}
+			baseUrl = baseUrl ?? `https://${names.serviceName}.railway.app`;
 			const serviceRefs = {
 				provider: 'railway',
-				serviceName,
+				projectName: names.projectName,
+				serviceName: names.serviceName,
 				imageRef,
 				volumeMountPath,
+				railway: railwayRefs,
 				env: {
 					TREEDB_DATA_DIR: '/data',
+					PORT: '4000',
+					PHX_SERVER: 'true',
+					SECRET_KEY_BASE: 'railway:SECRET_KEY_BASE',
 				},
 				dryRun: payload.dryRun === true,
 			};
 			await options.deploymentStore.upsertTeamTreeDb(teamId, {
 				id: instanceId,
-				kind: 'managed_private',
+				kind: publicRead ? 'managed_public_federation' : 'managed_private',
 				provider: 'railway',
 				status: 'active',
 				baseUrl,
 				registryUrl: baseUrl,
 				imageRef,
 				volumeMountPath,
+				railwayProjectId: railwayRefs.projectId ?? null,
+				railwayServiceId: railwayRefs.serviceId ?? null,
+				railwayEnvironmentId: railwayRefs.environmentId ?? null,
+				publicRead,
 				metadata: {
 					lastProvisionOperationId: context.operation.id,
-					serviceName,
+					projectName: names.projectName,
+					serviceName: names.serviceName,
 					dataDirEnv: '/data',
+					deploymentScope: names.scope,
+					railwaySecretRefs: {
+						SECRET_KEY_BASE: 'service-variable',
+					},
 					dryRun: payload.dryRun === true,
 				},
 			});
@@ -373,9 +551,11 @@ export function createExecutorsForOptions(options = {}) {
 				result: {
 					operationId: context.operation.id,
 					baseUrl,
-					mode: 'managed_private',
+					mode: publicRead ? 'public_federation' : 'managed_private',
 					provider: 'railway',
-					health: payload.dryRun === true ? 'dry_run_planned' : 'ready_unverified',
+					scope: names.scope,
+					health: payload.dryRun === true ? 'dry_run_planned' : 'deployment_started',
+					externalDeploymentId,
 				},
 				clearError: true,
 			});
@@ -385,9 +565,11 @@ export function createExecutorsForOptions(options = {}) {
 				instanceId,
 				deploymentId,
 				baseUrl,
+				projectName: names.projectName,
+				serviceName: names.serviceName,
 			}, {
 				kind: 'treedb.provision.completed',
-				data: { teamId, instanceId, deploymentId, baseUrl },
+				data: { teamId, instanceId, deploymentId, baseUrl, projectName: names.projectName, serviceName: names.serviceName },
 			});
 			return {
 				ok: true,

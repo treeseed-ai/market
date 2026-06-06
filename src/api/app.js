@@ -6366,8 +6366,8 @@ export function createMarketApiApp(options = {}) {
 				const payload = await store.provisionTeamTreeDb(c.req.param('teamId'), body);
 				if (!payload) return jsonError(c, 404, 'Unknown team.');
 				const deployment = Array.isArray(payload.deployments) ? payload.deployments[0] : null;
-				if (!deployment || deployment.status === 'succeeded' || payload.instance?.publicRead) {
-					return c.json({ ok: true, payload: { ...payload, operation: null } }, { status: payload.instance?.publicRead ? 200 : 202 });
+				if (!deployment || deployment.status === 'succeeded') {
+					return c.json({ ok: true, payload: { ...payload, operation: null } }, { status: 202 });
 				}
 				const idempotencyKey = typeof body.idempotencyKey === 'string' && body.idempotencyKey.trim()
 					? body.idempotencyKey.trim()

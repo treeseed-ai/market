@@ -4077,7 +4077,7 @@ export class MarketControlPlaneStore {
 	async getPrimaryTreeDbInstance(teamId) {
 		await this.ensureInitialized();
 		return serializeTreeDbInstance(await this.first(
-			`SELECT * FROM treedb_instances WHERE team_id = ? AND "primary" = 1 AND status != 'disabled' ORDER BY updated_at DESC LIMIT 1`,
+			`SELECT * FROM treedb_instances WHERE team_id = ? AND COALESCE("primary", 1) != 0 AND status != 'disabled' ORDER BY updated_at DESC LIMIT 1`,
 			[teamId],
 		));
 	}
@@ -4103,7 +4103,7 @@ export class MarketControlPlaneStore {
 		const status = String(input.status ?? existing?.status ?? (input.baseUrl ? 'active' : 'pending'));
 		if (status === 'active') {
 			await this.run(
-				`UPDATE treedb_instances SET status = 'disabled', updated_at = ? WHERE team_id = ? AND "primary" = 1 AND id != ? AND status = 'active'`,
+				`UPDATE treedb_instances SET status = 'disabled', updated_at = ? WHERE team_id = ? AND COALESCE("primary", 1) != 0 AND id != ? AND status = 'active'`,
 				[timestamp, teamId, id],
 			);
 		}
@@ -4156,7 +4156,31 @@ export class MarketControlPlaneStore {
 				timestamp,
 			],
 		);
-		return this.getPrimaryTreeDbInstance(teamId);
+		return serializeTreeDbInstance(await this.first(`SELECT * FROM treedb_instances WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, id])) ?? {
+			id,
+			teamId,
+			kind,
+			provider,
+			name: String(input.name ?? existing?.name ?? 'TreeDB Knowledge Library'),
+			baseUrl: input.baseUrl ?? existing?.baseUrl ?? null,
+			registryUrl: input.registryUrl ?? input.baseUrl ?? existing?.registryUrl ?? null,
+			publicRead: input.publicRead === undefined ? Boolean(existing?.publicRead ?? false) : Boolean(input.publicRead),
+			primary: true,
+			status,
+			imageRef: input.imageRef ?? existing?.imageRef ?? 'treeseed/treedb:latest',
+			railwayProjectId: input.railwayProjectId ?? existing?.railwayProjectId ?? null,
+			railwayServiceId: input.railwayServiceId ?? existing?.railwayServiceId ?? null,
+			railwayEnvironmentId: input.railwayEnvironmentId ?? existing?.railwayEnvironmentId ?? null,
+			volumeMountPath: input.volumeMountPath ?? existing?.volumeMountPath ?? (provider === 'railway' ? '/data' : null),
+			metadata: {
+				...(existing?.metadata ?? {}),
+				...(objectValue(input.metadata, {}) ?? {}),
+				hostRole: 'knowledge-library',
+				contentCanonical: 'treedb',
+			},
+			createdAt: existing?.createdAt ?? timestamp,
+			updatedAt: timestamp,
+		};
 	}
 
 	async provisionTeamTreeDb(teamId, input = {}) {
@@ -4166,12 +4190,16 @@ export class MarketControlPlaneStore {
 		const instance = await this.upsertTeamTreeDb(teamId, {
 			...input,
 			kind: publicRead ? 'managed_public_federation' : 'managed_private',
-			provider: publicRead ? 'public_federation' : 'railway',
+			provider: 'railway',
 			publicRead,
 			name: input.name ?? (publicRead ? 'TreeSeed public federation' : `${team.slug} TreeDB`),
 			status: input.baseUrl ? 'active' : 'pending',
 			imageRef: input.imageRef ?? 'treeseed/treedb:latest',
-			volumeMountPath: publicRead ? null : '/data',
+			volumeMountPath: '/data',
+			metadata: {
+				...(objectValue(input.metadata, {}) ?? {}),
+				deploymentScope: publicRead ? 'public_federation' : 'private_team',
+			},
 		});
 		const timestamp = isoNow();
 		const deploymentId = randomUUID();
@@ -4184,14 +4212,16 @@ export class MarketControlPlaneStore {
 				teamId,
 				instance.id,
 				instance.provider,
-				instance.baseUrl || instance.publicRead ? 'succeeded' : 'queued',
+				instance.baseUrl ? 'succeeded' : 'queued',
 				instance.imageRef,
 				instance.volumeMountPath,
 				JSON.stringify({ railwayProjectId: instance.railwayProjectId, railwayServiceId: instance.railwayServiceId }),
 				JSON.stringify({
 					mode: instance.publicRead ? 'public_federation' : 'managed_private',
-					nextAction: instance.publicRead ? 'Attach team grants to public federation.' : 'Create Railway project, service, persistent /data volume, and service token.',
-					operation: instance.publicRead ? 'attached_public_federation' : 'queued_treedb_provision',
+					nextAction: instance.publicRead
+						? 'Create or attach the shared public Railway TreeDB federation project, service, persistent /data volume, and public service domain.'
+						: 'Create dedicated Railway project, service, persistent /data volume, and service token.',
+					operation: 'queued_treedb_provision',
 				}),
 				null,
 				timestamp,
@@ -4199,7 +4229,14 @@ export class MarketControlPlaneStore {
 				instance.baseUrl ? timestamp : null,
 			],
 		);
-		return this.getTeamTreeDb(teamId);
+		const payload = await this.getTeamTreeDb(teamId);
+		if (payload.instance) return payload;
+		return {
+			instance,
+			mirrors: await this.listTreeDbMirrors(teamId, instance.id),
+			shares: await this.listTreeDbShares(teamId),
+			deployments: await this.listTreeDbDeployments(teamId, instance.id),
+		};
 	}
 
 	async updateTreeDbDeployment(deploymentId, patch = {}) {

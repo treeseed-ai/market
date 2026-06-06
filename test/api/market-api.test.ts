@@ -8129,6 +8129,148 @@ describe('TreeDB market integration', () => {
 		expect(status.payload.shares).toHaveLength(1);
 	});
 
+	it('queues public federation provisioning instead of treating it as a metadata-only attachment', async () => {
+		const app = createTestApp();
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+
+		const response = await app.request(`/v1/teams/${team.id}/treedb/provision`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({ publicRead: true, imageRef: 'treeseed/treedb:0.1.0' }),
+		});
+		expect(response.status).toBe(202);
+		const payload = await json(response);
+		expect(payload.payload.instance).toMatchObject({
+			teamId: team.id,
+			kind: 'managed_public_federation',
+			provider: 'railway',
+			publicRead: true,
+			status: 'pending',
+			volumeMountPath: '/data',
+		});
+		expect(payload.payload.operation).toMatchObject({
+			namespace: 'treedb',
+			operation: 'provision',
+			status: 'queued',
+			input: expect.objectContaining({ publicRead: true, volumeMountPath: '/data' }),
+		});
+		expect(payload.payload.deployments[0]).toMatchObject({
+			provider: 'railway',
+			status: 'queued',
+			volumeMountPath: '/data',
+		});
+	});
+
+	it('runs TreeDB provisioning through Railway project, service, volume, variable, domain, and deploy adapters', async () => {
+		const db = createTestPostgresDatabase();
+		const store = createTestStore(db);
+		const app = createTestApp({
+			db,
+			store,
+			config: {
+				platformRunnerSecret: 'platform-runner-secret',
+			},
+		});
+		const token = await authorizeApp(app);
+		const team = await createTeam(app, token);
+		const queued = await json(await app.request(`/v1/teams/${team.id}/treedb/provision`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+			body: JSON.stringify({ publicRead: true, imageRef: 'treeseed/treedb:0.1.0' }),
+		}));
+		const calls: string[] = [];
+		const railwaySecretValues: string[] = [];
+		const fakeRailway = {
+			ensureProject: vi.fn(async ({ projectName }: any) => {
+				calls.push(`project:${projectName}`);
+				return { workspace: { id: 'workspace-1' }, project: { id: 'railway-project-1', name: projectName }, created: true };
+			}),
+			ensureEnvironment: vi.fn(async ({ environmentName }: any) => {
+				calls.push(`environment:${environmentName}`);
+				return { environment: { id: 'railway-environment-1', name: environmentName }, created: false };
+			}),
+			ensureService: vi.fn(async ({ serviceName, imageRef }: any) => {
+				calls.push(`service:${serviceName}:${imageRef}`);
+				return { service: { id: 'railway-service-1', name: serviceName }, created: true };
+			}),
+			listVariables: vi.fn(async () => ({})),
+			upsertVariables: vi.fn(async ({ variables }: any) => {
+				calls.push(`variables:${Object.keys(variables).sort().join(',')}`);
+				if (typeof variables.SECRET_KEY_BASE === 'string') {
+					railwaySecretValues.push(variables.SECRET_KEY_BASE);
+				}
+				return { variables, changed: true };
+			}),
+			ensureServiceInstanceConfiguration: vi.fn(async () => {
+				calls.push('instance-config');
+				return { instance: { id: 'service-instance-1' }, updated: true };
+			}),
+			ensureServiceVolume: vi.fn(async () => {
+				calls.push('volume:/data');
+				return { volume: { id: 'volume-1', name: 'public-treedb-data' }, instance: { id: 'volume-instance-1' }, created: true, updated: false };
+			}),
+			ensureGeneratedServiceDomain: vi.fn(async () => {
+				calls.push('domain');
+				return { domain: { id: 'domain-1', domain: 'treedb-public-staging.up.railway.app' }, created: true };
+			}),
+			deployServiceInstance: vi.fn(async () => {
+				calls.push('deploy');
+				return { deploymentId: 'railway-deployment-1' };
+			}),
+		};
+
+		await withHttpMarketApp(app, async (baseUrl) => {
+			const client = new PlatformRunnerClient({
+				marketUrl: baseUrl,
+				marketId: 'local',
+				runnerSecret: 'platform-runner-secret',
+			});
+			const result = await runOnceWithClient({
+				runnerId: 'market-ops-treedb-runner-01',
+				environment: 'staging',
+				dataDir: packageRoot,
+			}, client, 'test', {
+				deploymentStore: store,
+				operationKey: 'treedb:provision',
+				config: { environment: 'staging' },
+				railway: fakeRailway,
+			});
+			expect(result).toMatchObject({
+				ok: true,
+				claimed: true,
+				output: {
+					ok: true,
+					baseUrl: 'https://treedb-public-staging.up.railway.app',
+				},
+			});
+		});
+
+		expect(calls).toEqual(expect.arrayContaining([
+			'project:treeseed-public-treedb-staging',
+			'environment:staging',
+			'service:public-federation:treeseed/treedb:0.1.0',
+			'volume:/data',
+			'domain',
+			'deploy',
+		]));
+		const status = await store.getTeamTreeDb(team.id);
+		expect(status.instance).toMatchObject({
+			id: queued.payload.instance.id,
+			kind: 'managed_public_federation',
+			provider: 'railway',
+			status: 'active',
+			publicRead: true,
+			baseUrl: 'https://treedb-public-staging.up.railway.app',
+			railwayProjectId: 'railway-project-1',
+			railwayServiceId: 'railway-service-1',
+			railwayEnvironmentId: 'railway-environment-1',
+			volumeMountPath: '/data',
+		});
+		expect(railwaySecretValues).toHaveLength(1);
+		expect(JSON.stringify(status)).not.toContain(railwaySecretValues[0]);
+	});
+
 	it('binds project content to TreeDB and keeps site/project repositories filesystem-backed in provider portfolio', async () => {
 		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
