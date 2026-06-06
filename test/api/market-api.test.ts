@@ -8266,34 +8266,36 @@ describe('TreeDB market integration', () => {
 			}),
 		};
 
-		await withHttpMarketApp(app, async (baseUrl) => {
-			const client = new PlatformRunnerClient({
-				marketUrl: baseUrl,
-				marketId: 'local',
-				runnerSecret: 'platform-runner-secret',
-			});
-			const result = await runOnceWithClient({
-				runnerId: 'market-ops-treedb-runner-01',
-				environment: 'staging',
-				dataDir: packageRoot,
-			}, client, 'test', {
-				deploymentStore: store,
-				operationKey: 'treedb:provision',
-				config: { environment: 'staging' },
-				railway: fakeRailway,
-			});
-			expect(result).toMatchObject({
-				ok: true,
-				claimed: true,
-				output: {
+		await withEnv({ TREESEED_PUBLIC_TREEDB_RAILWAY_PROJECT_NAME: 'treeseed-public-treedb-staging' }, async () => {
+			await withHttpMarketApp(app, async (baseUrl) => {
+				const client = new PlatformRunnerClient({
+					marketUrl: baseUrl,
+					marketId: 'local',
+					runnerSecret: 'platform-runner-secret',
+				});
+				const result = await runOnceWithClient({
+					runnerId: 'market-ops-treedb-runner-01',
+					environment: 'staging',
+					dataDir: packageRoot,
+				}, client, 'test', {
+					deploymentStore: store,
+					operationKey: 'treedb:provision',
+					config: { environment: 'staging' },
+					railway: fakeRailway,
+				});
+				expect(result).toMatchObject({
 					ok: true,
-					baseUrl: 'https://treedb-public-staging.up.railway.app',
-				},
+					claimed: true,
+					output: {
+						ok: true,
+						baseUrl: 'https://treedb-public-staging.up.railway.app',
+					},
+				});
 			});
 		});
 
 		expect(calls).toEqual(expect.arrayContaining([
-			'project:treeseed-public-treedb-staging',
+			'project:treeseed-public-treedb',
 			'environment:staging',
 			'service:public-federation:treeseed/treedb:0.1.0',
 			'volume:/data',

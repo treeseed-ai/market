@@ -163,12 +163,22 @@ function treeDbRailwayEnvironment(value) {
 	return normalizeRailwayEnvironmentName(value || process.env.TREESEED_PLATFORM_RUNNER_ENVIRONMENT || 'staging') || 'staging';
 }
 
+function treeDbEnvironmentNeutralProjectName(value, fallback) {
+	const projectName = String(value || fallback || '').trim();
+	if (!projectName) return fallback;
+	return projectName
+		.replace(/^(treeseed-public-treedb)-(?:staging|prod|production)$/iu, '$1')
+		.replace(/^(treeseed-team-[a-z0-9-]+-treedb)-(?:staging|prod|production)$/iu, '$1');
+}
+
 function treeDbRailwayNames({ team, teamId, publicRead, environment }) {
 	const envName = treeDbRailwayEnvironment(environment);
-	const envSuffix = envName === 'production' ? 'prod' : treeDbSlug(envName, 'staging');
 	if (publicRead) {
 		return {
-			projectName: process.env.TREESEED_PUBLIC_TREEDB_RAILWAY_PROJECT_NAME || `treeseed-public-treedb-${envSuffix}`,
+			projectName: treeDbEnvironmentNeutralProjectName(
+				process.env.TREESEED_PUBLIC_TREEDB_RAILWAY_PROJECT_NAME,
+				'treeseed-public-treedb',
+			),
 			serviceName: process.env.TREESEED_PUBLIC_TREEDB_RAILWAY_SERVICE_NAME || 'public-federation',
 			volumeName: process.env.TREESEED_PUBLIC_TREEDB_RAILWAY_VOLUME_NAME || 'public-treedb-data',
 			environmentName: envName,
@@ -177,7 +187,7 @@ function treeDbRailwayNames({ team, teamId, publicRead, environment }) {
 	}
 	const teamSlug = treeDbSlug(team?.slug ?? team?.name ?? teamId, 'team');
 	return {
-		projectName: `treeseed-team-${teamSlug}-treedb-${envSuffix}`,
+		projectName: treeDbEnvironmentNeutralProjectName(null, `treeseed-team-${teamSlug}-treedb`),
 		serviceName: 'treedb',
 		volumeName: 'treedb-data',
 		environmentName: envName,

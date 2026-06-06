@@ -6434,7 +6434,7 @@ export function createMarketApiApp(options = {}) {
 				const payload = await store.provisionTeamTreeDb(team.id, {
 					...body,
 					publicRead: true,
-					imageRef: optionalTrimmedString(body.imageRef) ?? 'treeseed/treedb:0.1.0',
+					imageRef: optionalTrimmedString(body.imageRef) ?? 'treeseed/treedb:latest',
 					name: optionalTrimmedString(body.name) ?? 'TreeSeed public federation',
 				});
 				const { operation } = await enqueueTreeDbProvisionOperation(store, team.id, payload, body, {
