@@ -3668,6 +3668,60 @@ function requireConfiguredServiceCredential(c, config) {
 	return { ok: true };
 }
 
+async function resolvePublicTreeDbTeam(store, input = {}) {
+	const requested = optionalTrimmedString(input.teamId)
+		?? optionalTrimmedString(input.teamSlug)
+		?? optionalTrimmedString(input.slug)
+		?? 'treeseed-public';
+	const existing = await store.getTeam(requested).catch(() => null)
+		?? await store.getTeamBySlug(requested).catch(() => null);
+	if (existing) return existing;
+	return store.createTeam({
+		id: requested === 'treeseed-public' ? 'team-treeseed-public' : undefined,
+		name: requested,
+		displayName: optionalTrimmedString(input.displayName) ?? 'TreeSeed Public Knowledge',
+		metadata: {
+			kind: 'system_public_treedb_federation',
+			publicKnowledge: true,
+		},
+	});
+}
+
+async function enqueueTreeDbProvisionOperation(store, teamId, payload, body = {}, requestedBy = {}) {
+	const deployment = Array.isArray(payload.deployments) ? payload.deployments[0] : null;
+	if (!deployment || deployment.status === 'succeeded') {
+		return { operation: null, deployment };
+	}
+	const idempotencyKey = typeof body.idempotencyKey === 'string' && body.idempotencyKey.trim()
+		? body.idempotencyKey.trim()
+		: `team:${teamId}:treedb:provision:${deployment.id}`;
+	const operation = await store.createPlatformOperation({
+		namespace: 'treedb',
+		operation: 'provision',
+		target: 'market_operations_runner',
+		idempotencyKey,
+		input: {
+			teamId,
+			instanceId: payload.instance?.id ?? null,
+			deploymentId: deployment.id,
+			imageRef: payload.instance?.imageRef ?? body.imageRef ?? 'treeseed/treedb:latest',
+			volumeMountPath: payload.instance?.volumeMountPath ?? '/data',
+			dataDirEnv: '/data',
+			publicRead: payload.instance?.publicRead === true,
+			dryRun: body.dryRun === true,
+		},
+		requestedByType: requestedBy.type ?? 'user',
+		requestedById: requestedBy.id ?? 'unknown',
+	});
+	await store.updateTreeDbDeployment?.(deployment.id, {
+		result: {
+			operationId: operation.id,
+			operationStatus: operation.status,
+		},
+	});
+	return { operation, deployment };
+}
+
 function principalHasGlobalPlatformRole(principal) {
 	return Boolean(
 		principal?.roles?.includes?.('platform_admin')
@@ -6365,38 +6419,45 @@ export function createMarketApiApp(options = {}) {
 				const body = await c.req.json().catch(() => ({}));
 				const payload = await store.provisionTeamTreeDb(c.req.param('teamId'), body);
 				if (!payload) return jsonError(c, 404, 'Unknown team.');
-				const deployment = Array.isArray(payload.deployments) ? payload.deployments[0] : null;
-				if (!deployment || deployment.status === 'succeeded') {
-					return c.json({ ok: true, payload: { ...payload, operation: null } }, { status: 202 });
-				}
-				const idempotencyKey = typeof body.idempotencyKey === 'string' && body.idempotencyKey.trim()
-					? body.idempotencyKey.trim()
-					: `team:${c.req.param('teamId')}:treedb:provision:${deployment.id}`;
-				const operation = await store.createPlatformOperation({
-					namespace: 'treedb',
-					operation: 'provision',
-					target: 'market_operations_runner',
-					idempotencyKey,
-					input: {
-						teamId: c.req.param('teamId'),
-						instanceId: payload.instance?.id ?? null,
-						deploymentId: deployment.id,
-						imageRef: payload.instance?.imageRef ?? body.imageRef ?? 'treeseed/treedb:latest',
-						volumeMountPath: payload.instance?.volumeMountPath ?? '/data',
-						dataDirEnv: '/data',
-						publicRead: payload.instance?.publicRead === true,
-						dryRun: body.dryRun === true,
-					},
-					requestedByType: 'user',
-					requestedById: access.principal.id,
-				});
-				await store.updateTreeDbDeployment?.(deployment.id, {
-					result: {
-						operationId: operation.id,
-						operationStatus: operation.status,
-					},
+				const { operation } = await enqueueTreeDbProvisionOperation(store, c.req.param('teamId'), payload, body, {
+					type: 'user',
+					id: access.principal.id,
 				});
 				return c.json({ ok: true, payload: { ...payload, operation } }, { status: 202 });
+			});
+
+			app.post('/v1/internal/treedb/public-federation/provision', async (c) => {
+				const service = requireConfiguredServiceCredential(c, runtime.resolved.config);
+				if (service.response) return service.response;
+				const body = await c.req.json().catch(() => ({}));
+				const team = await resolvePublicTreeDbTeam(store, body);
+				const payload = await store.provisionTeamTreeDb(team.id, {
+					...body,
+					publicRead: true,
+					imageRef: optionalTrimmedString(body.imageRef) ?? 'treeseed/treedb:0.1.0',
+					name: optionalTrimmedString(body.name) ?? 'TreeSeed public federation',
+				});
+				const { operation } = await enqueueTreeDbProvisionOperation(store, team.id, payload, body, {
+					type: 'service',
+					id: 'public-treedb-bootstrap',
+				});
+				return c.json({ ok: true, payload: { ...payload, team, operation } }, { status: 202 });
+			});
+
+			app.get('/v1/internal/treedb/public-federation/status', async (c) => {
+				const service = requireConfiguredServiceCredential(c, runtime.resolved.config);
+				if (service.response) return service.response;
+				const teamId = optionalTrimmedString(c.req.query('teamId'));
+				const teamSlug = optionalTrimmedString(c.req.query('teamSlug')) ?? optionalTrimmedString(c.req.query('slug')) ?? 'treeseed-public';
+				const team = teamId
+					? await store.getTeam(teamId).catch(() => null)
+					: await store.getTeamBySlug(teamSlug).catch(() => null);
+				if (!team) return c.json({ ok: true, payload: { team: null, instance: null, deployments: [] } });
+				const payload = await store.getTeamTreeDb(team.id);
+				const deployments = Array.isArray(payload.deployments) && payload.deployments.length > 0
+					? payload.deployments
+					: await store.listTreeDbDeployments(team.id).catch(() => []);
+				return c.json({ ok: true, payload: { ...payload, deployments, team } });
 			});
 
 			app.get('/v1/teams/:teamId/treedb/mirrors', async (c) => {

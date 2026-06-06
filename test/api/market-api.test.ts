@@ -8162,6 +8162,52 @@ describe('TreeDB market integration', () => {
 		});
 	});
 
+	it('lets trusted deploy services bootstrap the default public TreeDB federation team', async () => {
+		const app = createTestApp({
+			config: {
+				webServiceId: 'web',
+				webServiceSecret: 'web-test-secret',
+			},
+		});
+		const response = await app.request('/v1/internal/treedb/public-federation/provision', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				'x-treeseed-service-id': 'web',
+				'x-treeseed-service-secret': 'web-test-secret',
+			},
+			body: JSON.stringify({ imageRef: 'treeseed/treedb:0.1.0', idempotencyKey: 'test-public-treedb-bootstrap' }),
+		});
+		expect(response.status).toBe(202);
+		const payload = await json(response);
+		expect(payload.payload.team).toMatchObject({
+			id: 'team-treeseed-public',
+			slug: 'treeseed-public',
+		});
+		expect(payload.payload.instance).toMatchObject({
+			teamId: 'team-treeseed-public',
+			kind: 'managed_public_federation',
+			provider: 'railway',
+			publicRead: true,
+			status: 'pending',
+			volumeMountPath: '/data',
+		});
+		expect(payload.payload.operation).toMatchObject({
+			namespace: 'treedb',
+			operation: 'provision',
+			status: 'queued',
+		});
+
+		const status = await json(await app.request('/v1/internal/treedb/public-federation/status?teamSlug=treeseed-public', {
+			headers: {
+				'x-treeseed-service-id': 'web',
+				'x-treeseed-service-secret': 'web-test-secret',
+			},
+		}));
+		expect(status.payload.team).toMatchObject({ id: 'team-treeseed-public' });
+		expect(status.payload.deployments[0]).toMatchObject({ status: 'queued', provider: 'railway' });
+	});
+
 	it('runs TreeDB provisioning through Railway project, service, volume, variable, domain, and deploy adapters', async () => {
 		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);

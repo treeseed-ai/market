@@ -43,21 +43,27 @@ function latestDeployment(payload) {
 
 async function main() {
 	const baseUrl = required('TREESEED_MARKET_API_BASE_URL').replace(/\/+$/u, '');
-	const teamId = required('TREESEED_PUBLIC_TREEDB_TEAM_ID');
-	const token = required('TREESEED_PUBLIC_TREEDB_TOKEN');
+	const serviceId = required('TREESEED_API_WEB_SERVICE_ID');
+	const serviceSecret = required('TREESEED_API_WEB_SERVICE_SECRET');
+	const teamId = env('TREESEED_PUBLIC_TREEDB_TEAM_ID');
+	const teamSlug = env('TREESEED_PUBLIC_TREEDB_TEAM_SLUG', 'treeseed-public');
 	const environment = env('TREESEED_WORKFLOW_ENVIRONMENT', 'staging');
 	const imageRef = env('TREESEED_PUBLIC_TREEDB_IMAGE_REF', 'treeseed/treedb:0.1.0');
 	const idempotencyKey = env('TREESEED_PUBLIC_TREEDB_IDEMPOTENCY_KEY', `system:${environment}:public-treedb-federation`);
 	const waitMs = Number(env('TREESEED_PUBLIC_TREEDB_WAIT_MS', '900000'));
 	const pollMs = Number(env('TREESEED_PUBLIC_TREEDB_POLL_MS', '10000'));
 	const deadline = Date.now() + (Number.isFinite(waitMs) && waitMs > 0 ? waitMs : 900000);
-	const headers = { authorization: `Bearer ${token}` };
+	const headers = {
+		'x-treeseed-service-id': serviceId,
+		'x-treeseed-service-secret': serviceSecret,
+	};
 
-	console.log(`Ensuring TreeSeed public TreeDB federation for team ${teamId} in ${environment}.`);
-	const provisioned = await requestJson(`${baseUrl}/v1/teams/${encodeURIComponent(teamId)}/treedb/provision`, {
+	console.log(`Ensuring TreeSeed public TreeDB federation for ${teamId || teamSlug} in ${environment}.`);
+	const provisioned = await requestJson(`${baseUrl}/v1/internal/treedb/public-federation/provision`, {
 		method: 'POST',
 		headers,
 		body: JSON.stringify({
+			...(teamId ? { teamId } : { teamSlug }),
 			publicRead: true,
 			imageRef,
 			idempotencyKey,
@@ -75,7 +81,10 @@ async function main() {
 	let lastOperationStatus = operation?.status ?? null;
 	while (Date.now() < deadline) {
 		await sleep(Number.isFinite(pollMs) && pollMs > 0 ? pollMs : 10000);
-		const status = await requestJson(`${baseUrl}/v1/teams/${encodeURIComponent(teamId)}/treedb`, { headers });
+		const query = teamId
+			? `teamId=${encodeURIComponent(teamId)}`
+			: `teamSlug=${encodeURIComponent(teamSlug)}`;
+		const status = await requestJson(`${baseUrl}/v1/internal/treedb/public-federation/status?${query}`, { headers });
 		const deployment = latestDeployment(status);
 		const deploymentStatus = deployment?.status ?? 'unknown';
 		const operationStatus = deployment?.result?.operationStatus ?? deployment?.result?.phase ?? lastOperationStatus;
