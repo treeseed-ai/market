@@ -472,6 +472,17 @@ export function createExecutorsForOptions(options = {}) {
 					environmentId: ensuredEnvironment.environment.id,
 					serviceId: ensuredService.service.id,
 					targetPort: 4000,
+				}).catch(async (error) => {
+					await context.emit({
+						kind: 'treedb.provision.domain_skipped',
+						data: {
+							projectId: ensuredProject.project.id,
+							environmentId: ensuredEnvironment.environment.id,
+							serviceId: ensuredService.service.id,
+							message: error instanceof Error ? error.message : String(error ?? 'unknown error'),
+						},
+					});
+					return { domain: null, created: false };
 				});
 				if (ensuredDomain.domain?.domain) {
 					baseUrl = `https://${ensuredDomain.domain.domain}`;
