@@ -899,8 +899,8 @@ interface ProjectWebDeploymentOperationInput {
 Add or document a canonical runner command for this feature:
 
 ```bash
-npm run market:operations-runner -- --market local --once --operation project:web_deployment --mock-external
-npm run market:operations-runner -- --market local --watch --operation project:web_deployment --mock-external
+npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external
+npm -w packages/api run dev:runner -- --market local --watch --operation project:web_deployment --mock-external
 ```
 
 The stable release-readiness command is the npm script wrapper over the existing runner entrypoint in mocked-external mode; no new `trsd` command root is added for deployment runner operations.
@@ -908,7 +908,7 @@ The stable release-readiness command is the npm script wrapper over the existing
 Mocked release acceptance uses:
 
 ```bash
-npm run market:operations-runner -- --market local --once --operation project:web_deployment --mock-external
+npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external
 ```
 
 Required flags:
@@ -2154,7 +2154,7 @@ The API should return project, readiness, actions, environments, runner, and rec
 The operations runner is already supervised by `npx trsd dev` or `npx trsd dev start` from the Market repo root. The standalone command remains available for focused mocked acceptance or debugging:
 
 ```bash
-npm run market:operations-runner -- \
+npm -w packages/api run dev:runner -- \
   --market local \
   --watch \
   --operation project:web_deployment \
@@ -2164,7 +2164,7 @@ npm run market:operations-runner -- \
 For one-job verification:
 
 ```bash
-npm run market:operations-runner -- \
+npm -w packages/api run dev:runner -- \
   --market local \
   --once \
   --operation project:web_deployment \
@@ -2212,7 +2212,7 @@ npx trsd projects monitor <project-id> --environment prod --market local --wait
 Run with a mocked failed workflow result:
 
 ```bash
-npm run market:operations-runner -- \
+npm -w packages/api run dev:runner -- \
   --market local \
   --once \
   --operation project:web_deployment \

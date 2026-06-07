@@ -16,7 +16,7 @@ TreeSeed Market now exposes a governed web deployment path for hosted projects. 
 * Mocked local acceptance through:
 
 ```bash
-npm run market:operations-runner -- --market local --once --operation project:web_deployment --mock-external
+npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external
 ```
 
 ## Deferred External Proof

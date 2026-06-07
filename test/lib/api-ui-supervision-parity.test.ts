@@ -7,7 +7,7 @@ describe('API/UI workday supervision parity coverage', () => {
 	it('records explicit supervision coverage for workday and governance surfaces', async () => {
 		const requiredSurfaces = [
 			'src/pages/v1/[...all].ts',
-			'src/api/app.js',
+			'src/lib/market/api-client.ts',
 			'src/pages/app/projects/[projectId]/workdays.astro',
 			'src/pages/app/projects/[projectId]/workdays/[workdayId].astro',
 			'src/pages/app/work/decisions/[approvalId].astro',

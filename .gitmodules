@@ -22,3 +22,6 @@
 [submodule "packages/treedx"]
 	path = packages/treedx
 	url = git@github.com:treeseed-ai/treedx.git
+[submodule "packages/api"]
+	path = packages/api
+	url = git@github.com:treeseed-ai/api.git

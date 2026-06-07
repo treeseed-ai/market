@@ -265,10 +265,6 @@ describe('one-purpose control app information architecture', () => {
 		const projectsIndex = source('src/pages/app/projects/index.astro');
 		expect(projectsIndex).toContain('/deploy">Deploy</a>');
 		expect(projectsIndex).not.toContain('/app/projects/deployment/${encodeURIComponent(latestDeployment.id)}');
-		const api = source('src/api/app.js');
-		expect(api).toContain('retryMarketApiLaunchBootstrapFromRequest');
-		expect(api).toContain('sensitive_passphrase_required');
-		expect(api).toContain('runProjectLaunchApiBootstrap');
 		expect(apiClient).toContain('listProjectDeployments');
 		expect(apiClient).toContain('listProjectDeploymentEvents');
 		expect(deploymentVm).toContain('const seen = new Set<string>();');
@@ -354,10 +350,10 @@ describe('one-purpose control app information architecture', () => {
 		const plan = source('docs/web-ui-deployment.md');
 		const releaseNotes = source('docs/web-deployment-release-notes.md');
 		const acceptanceSpec = source('test/acceptance/market-api.base.yaml');
-		const acceptanceHarness = source('scripts/market-acceptance.mjs');
-		const stableRunnerCommand = 'npm run market:operations-runner -- --market local --once --operation project:web_deployment --mock-external';
+		const stableRunnerCommand = 'npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external';
 
-		expect(packageJson.scripts['market:operations-runner']).toBe('node --experimental-transform-types ./src/market-operations-runner/entrypoint.js');
+		expect(packageJson.scripts['market:operations-runner']).toBeUndefined();
+		expect(packageJson.dependencies?.['@treeseed/api']).toBeUndefined();
 		for (const contents of [deploymentDocs, demo, plan, releaseNotes]) {
 			expect(contents).toContain(stableRunnerCommand);
 			expect(contents).not.toContain('npx trsd market:operations-runner');
@@ -371,8 +367,6 @@ describe('one-purpose control app information architecture', () => {
 		expect(purpose).toContain('/app/projects/:projectId/deploy');
 		expect(releaseNotes).toContain('Deferred External Proof');
 		expect(acceptanceSpec).toContain('deployment-flow.mocked-web-deployment');
-		expect(acceptanceHarness).toContain('expandDeploymentFlows');
-		expect(acceptanceHarness).toContain('assertNoForbiddenDeploymentOutput');
 		expect(plan).toContain('* [x] Acceptance flow passes with mocked external providers.');
 		expect(plan).toContain('* [ ] One real external staging deploy is verified. Deferred blocker:');
 		for (const contents of [deploymentDocs, demo, uiSpec, purpose, releaseNotes]) {
@@ -497,7 +491,6 @@ describe('one-purpose control app information architecture', () => {
 		const helper = source('src/lib/market/control-ui.ts');
 		const hostCredentialClient = source('src/lib/market/host-credential-form-client.ts');
 		const hostPermissionNote = source('src/components/app/controls/HostCredentialPermissionNote.astro');
-		const api = source('src/api/app.js');
 		const providerLaunch = source('packages/sdk/src/operations/services/hub-provider-launch.ts');
 
 		expect(hosts).toContain('Operational host inventory');
@@ -681,13 +674,6 @@ describe('one-purpose control app information architecture', () => {
 		expect(projectCreate).toContain('Create new ${hostKind} host');
 		expect(projectCreate).toContain('sensitivePassphrase: passphrase');
 		expect(projectCreate).not.toContain('provider-credential-sessions');
-		expect(api).toContain('templateLineage');
-		expect(api).toContain("source: 'project_launch'");
-		expect(api).toContain('markdownToPlainProjectSummary(requestedCoreObjective');
-		expect(api).toContain("project_settings.core_objective_sync_queued");
-		expect(api).toContain("operation: 'write_content_record'");
-		expect(api).toContain("role: 'content'");
-		expect(api).toContain('const requestedRole = optionalTrimmedString(configured.role) ?? optionalTrimmedString(body.repositoryRole)');
 		expect(projectHosts).toContain('Template host bindings');
 		expect(projectHosts).toContain('data-project-host-card');
 		expect(projectHosts).toContain('data-host-action="replace"');
@@ -696,7 +682,6 @@ describe('one-purpose control app information architecture', () => {
 		expect(helper).toContain('hostReadinessSummary');
 		expect(helper).toContain("host?.metadata?.hostType === 'web_host'");
 		expect(helper).toContain("host?.metadata?.hostType === 'email_host'");
-		expect(api).toContain('requestedCoreObjective');
 		expect(providerLaunch).toContain("src/content/objectives', 'core.md'");
 		expect(providerLaunch).toContain('input.coreObjective');
 		expect(styles).toContain('.ts-host-setup-grid');
@@ -725,7 +710,7 @@ describe('one-purpose control app information architecture', () => {
 			expect(source(routePath), routePath).toContain('loadWorkContentEntries');
 		}
 		expect(source('src/view-models/work-content.ts')).toContain("['questions', 'objectives', 'notes', 'proposals', 'decisions']");
-		expect(source('src/view-models/knowledge-content.ts')).toContain("'objectives'");
+		expect(source('src/view-models/work-content.ts')).toContain("'objectives'");
 	});
 
 	it('removes dashboard and bundled setup surfaces from primary app code', () => {
@@ -779,12 +764,6 @@ describe('one-purpose control app information architecture', () => {
 		expect(hostEdit).toContain('const smtpSettings =');
 		expect(hostCreate).not.toContain('data-sensitive-lock');
 		expect(hostEdit).not.toContain('data-sensitive-lock');
-		const api = source('src/api/app.js');
-		expect(api).toContain('rejectPlaintextHostCredentialFields');
-		expect(api).toContain("if (hostKind === 'email_host')");
-		expect(api).toContain("SMTP_HOST: smtp.host.trim()");
-		expect(api).not.toContain("'smtpHost',");
-		expect(api).not.toContain("'SMTP_HOST',");
 	});
 
 	it('keeps styling in shared CSS for the control interface', () => {

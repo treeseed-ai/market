@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -130,6 +130,64 @@ function formatDuration(durationMs) {
 	return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
 }
 
+function assertBackendMovedToApiPackage() {
+	const forbidden = [
+		'src/api',
+		'src/market-operations-runner',
+		'scripts/build-api.mjs',
+		'scripts/build-market-operations-runner.mjs',
+		'scripts/migrate-market-db.mjs',
+		'scripts/market-acceptance.mjs',
+	];
+	const present = forbidden.filter((entry) => existsSync(resolve(root, entry)));
+	if (present.length > 0) {
+		process.stderr.write(`Root Market must not own backend API implementation files after packages/api migration: ${present.join(', ')}\n`);
+		process.exit(1);
+	}
+	const packageJson = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
+	const forbiddenScripts = ['build:api', 'build:market-operations-runner', 'db:migrate:market', 'test:acceptance', 'market:operations-runner'];
+	const configuredScripts = forbiddenScripts.filter((name) => Object.prototype.hasOwnProperty.call(packageJson.scripts ?? {}, name));
+	if (configuredScripts.length > 0) {
+		process.stderr.write(`Root Market package.json must not expose backend API scripts: ${configuredScripts.join(', ')}\n`);
+		process.exit(1);
+	}
+	const forbiddenDependencies = ['@treeseed/api', 'drizzle-orm', 'hono', 'libsodium-wrappers', 'libsodium-wrappers-sumo', 'octokit', 'pg'];
+	const configuredDependencies = forbiddenDependencies.filter((name) =>
+		Object.prototype.hasOwnProperty.call(packageJson.dependencies ?? {}, name)
+		|| Object.prototype.hasOwnProperty.call(packageJson.devDependencies ?? {}, name));
+	if (configuredDependencies.length > 0) {
+		process.stderr.write(`Root Market package.json must not depend on backend API packages: ${configuredDependencies.join(', ')}\n`);
+		process.exit(1);
+	}
+	const sourceOffenders = executableSourceFiles(['src'])
+		.filter((path) => {
+			const source = readFileSync(resolve(root, path), 'utf8');
+			return /@treeseed\/api|packages\/api\/src|MarketControlPlaneStore|createMarketPostgresDatabase|TREESEED_MARKET_DATABASE_URL/u.test(source);
+		});
+	if (sourceOffenders.length > 0) {
+		process.stderr.write(`Root Market executable source/tests must not import or inspect backend API implementation:\n${sourceOffenders.join('\n')}\n`);
+		process.exit(1);
+	}
+}
+
+function executableSourceFiles(entries) {
+	const ignored = new Set(['.git', '.treeseed', '.wrangler', 'coverage', 'dist', 'node_modules']);
+	const results = [];
+	const visit = (entry) => {
+		const absolute = resolve(root, entry);
+		if (!existsSync(absolute)) return;
+		const stat = statSync(absolute);
+		if (stat.isDirectory()) {
+			if (ignored.has(entry.split(/[\\/]/u).pop())) return;
+			for (const child of readdirSync(absolute)) visit(`${entry}/${child}`);
+			return;
+		}
+		if (/\.(astro|ts|js|mjs|tsx|jsx)$/u.test(entry)) results.push(entry);
+	};
+	for (const entry of entries) visit(entry);
+	return results;
+}
+
 async function runParallel() {
 	const tempBase = resolve(dirname(root), '.treeseed-market-verify-tmp');
 	mkdirSync(tempBase, { recursive: true });
@@ -170,5 +228,6 @@ async function runParallel() {
 }
 
 process.chdir(root);
+assertBackendMovedToApiPackage();
 const code = parallel ? await runParallel() : await runSerial();
 process.exit(code);

@@ -3,8 +3,6 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadAndPlanSeed } from '@treeseed/sdk/seeds';
 import YAML from 'yaml';
-import { createMarketPostgresDatabase } from '../../../api/market-postgres.js';
-import { MarketControlPlaneStore } from '../../../api/store.js';
 
 function isoNow() {
 	return new Date().toISOString();
@@ -174,21 +172,9 @@ export function resolveLocalSeedEnv(projectRoot, env = process.env) {
 	};
 }
 
-async function createLocalSeedStore(projectRoot, env = process.env) {
-	const localEnv = resolveLocalSeedEnv(projectRoot, env);
-	const marketDatabaseUrl = localEnv.TREESEED_MARKET_DATABASE_URL?.trim();
-	if (!marketDatabaseUrl) {
-		throw new Error('TREESEED_MARKET_DATABASE_URL is required to apply Market seeds through the PostgreSQL control-plane database.');
-	}
-	const db = createMarketPostgresDatabase(marketDatabaseUrl);
-	return new MarketControlPlaneStore({
-		repoRoot: projectRoot,
-		projectId: localEnv.TREESEED_PROJECT_ID ?? 'treeseed-market',
-		authSecret: localEnv.TREESEED_AUTH_SECRET ?? localEnv.TREESEED_API_AUTH_SECRET ?? localEnv.TREESEED_BETTER_AUTH_SECRET ?? 'treeseed-local-seed-auth-secret',
-		assertionSecret: localEnv.TREESEED_WEB_ASSERTION_SECRET ?? localEnv.TREESEED_API_WEB_ASSERTION_SECRET ?? 'treeseed-local-seed-assertion-secret',
-		serviceId: localEnv.TREESEED_WEB_SERVICE_ID ?? localEnv.TREESEED_API_SERVICE_ID ?? 'web',
-		serviceSecret: localEnv.TREESEED_WEB_SERVICE_SECRET ?? localEnv.TREESEED_API_WEB_SERVICE_SECRET ?? localEnv.TREESEED_API_SERVICE_SECRET ?? 'treeseed-local-seed-service-secret',
-	}, db);
+function requireSeedStore(input) {
+	if (input?.store) return input.store;
+	throw new Error('A Market API store facade is required for root seed planning. DB-backed seed apply/export is owned by packages/api.');
 }
 
 function manifestHashFor(path) {
@@ -1146,7 +1132,7 @@ export async function planSeedWithStore(input) {
 	if (!planned.plan) {
 		return planned;
 	}
-	const store = input.store ?? await createLocalSeedStore(input.projectRoot, input.env);
+	const store = requireSeedStore(input);
 	const plan = await reconcilePlanWithStore(planned.plan, store);
 	const manifestHash = manifestHashFor(planned.manifestPath);
 	let run = null;
@@ -1184,7 +1170,7 @@ export async function applySeedWithStore(input) {
 	if (input.localOnly === true && planned.plan.environments.some((environment) => environment !== 'local')) {
 		throw new Error('Local seed apply only supports the local environment.');
 	}
-	const store = input.store ?? await createLocalSeedStore(input.projectRoot, input.env);
+	const store = requireSeedStore(input);
 	const manifestHash = planned['manifestHash'] ?? manifestHashFor(planned.manifestPath);
 	let run = await createSeedRunIfAvailable(store, seedRunInput({
 		plan: planned.plan,
@@ -1589,7 +1575,7 @@ export async function exportSeedWithStore(input) {
 }
 
 export async function exportSeedFromCli(input) {
-	const store = input.store ?? await createLocalSeedStore(input.projectRoot, input.env);
+	const store = requireSeedStore(input);
 	return exportSeedWithStore({
 		...input,
 		store,

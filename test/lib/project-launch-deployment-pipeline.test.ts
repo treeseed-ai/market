@@ -103,24 +103,12 @@ describe('project launch deployment pipeline contracts', () => {
 		expect(launch).toContain("defaultBranch: input.contentRepository.defaultBranch ?? 'main'");
 	});
 
-	it('persists durable launch records before running hosting readiness', () => {
-		const api = source('src/api/app.js');
-		const routeStart = api.indexOf("app.post('/v1/teams/:teamId/projects/launch'");
-		const routeEnd = api.indexOf("app.get('/v1/projects/:projectId'", routeStart);
-		const launchRoute = api.slice(routeStart, routeEnd);
-		const repositoryHostLookup = launchRoute.indexOf('let repositoryHost = await store.getRepositoryHost(teamId, repositoryHostId)');
-		const audit = launchRoute.indexOf('hostingAudit = await runTreeseedHostingAudit');
-		const createProject = launchRoute.indexOf('details = await store.createProject(c.req.param');
-		const createJob = launchRoute.indexOf('const launchJob = await store.createJob');
-		const createHubLaunch = launchRoute.indexOf('const hubLaunch = await store.createHubLaunch');
-		const bootstrap = launchRoute.indexOf('scheduleBackgroundBootstrap');
-		expect(repositoryHostLookup).toBeGreaterThan(-1);
-		expect(audit).toBe(-1);
-		expect(createProject).toBeGreaterThan(repositoryHostLookup);
-		expect(createJob).toBeGreaterThan(createProject);
-		expect(createHubLaunch).toBeGreaterThan(createJob);
-		expect(bootstrap).toBeGreaterThan(createHubLaunch);
-		expect(launchRoute).toContain('sensitivePassphrase');
-		expect(launchRoute).not.toContain('bindProviderCredentialSession');
+	it('routes launch status and deployment recovery through UI client paths', () => {
+		const apiClient = source('src/lib/market/api-client.ts');
+		const deploymentVm = source('src/view-models/deployment.vm.ts');
+		expect(apiClient).toContain('listProjectDeployments');
+		expect(apiClient).toContain('listProjectDeploymentEvents');
+		expect(deploymentVm).toContain('no_active_operation');
+		expect(deploymentVm).toContain('Prevents overlapping deployment work');
 	});
 });

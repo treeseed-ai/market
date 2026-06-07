@@ -86,7 +86,7 @@ jobs:
                     content_changed="true"
                     web_changed="true"
                     ;;
-                  src/api/*|scripts/build-api.mjs|treeseed.site.yaml|.railwayignore|.gitignore)
+                  packages/api/**|treeseed.site.yaml|.railwayignore|.gitignore)
                     web_changed="true"
                     ;;
                   packages/sdk/*|package.json|package-lock.json|.github/workflows/*)

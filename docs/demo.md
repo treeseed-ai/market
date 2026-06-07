@@ -149,7 +149,7 @@ npx trsd dev --web-runtime local --force
 That command supervises the Market API, managed local PostgreSQL, migrations, and the deployment runner. For a focused mocked rehearsal outside the integrated supervisor, queue staging deploy or monitor, then run:
 
 ```bash
-npm run market:operations-runner -- --market local --once --operation project:web_deployment --mock-external
+npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external
 ```
 
 Walk through:
@@ -256,7 +256,7 @@ Inspect capacity readiness, worker runner logs, task state, and queue polling. T
 Confirm the project has repository and web host readiness. In normal local development, the deployment runner is already supervised by `npx trsd dev --web-runtime local --force`. For focused mocked debugging outside the integrated supervisor, run:
 
 ```bash
-npm run market:operations-runner -- --market local --once --operation project:web_deployment --mock-external
+npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external
 ```
 
 If the runner cannot authenticate, unlock or configure the local Market runner secret. If a real external staging proof is required, use a disposable GitHub/Cloudflare target or document the missing credential/target blocker.

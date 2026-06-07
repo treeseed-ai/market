@@ -77,8 +77,8 @@ Use foreground `npx trsd dev --web-runtime local` when you want shell-owned life
 The stable standalone runner command remains available for focused acceptance and debugging:
 
 ```bash
-npm run market:operations-runner -- --market local --watch --operation project:web_deployment --mock-external
-npm run market:operations-runner -- --market local --once --operation project:web_deployment --mock-external
+npm -w packages/api run dev:runner -- --market local --watch --operation project:web_deployment --mock-external
+npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external
 ```
 
 Use `--mock-external` for release acceptance. It exercises API, store, platform operation claim, checkpoints, deployment events, monitor output, audit records, UI polling, and CLI wait behavior without real GitHub or Cloudflare side effects.
@@ -118,7 +118,7 @@ npx trsd dev start --web-runtime local --json
 For mocked acceptance outside the integrated dev supervisor, start the web/API runtime, seed local data, queue an action, and run:
 
 ```bash
-npm run market:operations-runner -- --market local --once --operation project:web_deployment --mock-external
+npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external
 ```
 
 For real external staging proof, use only disposable GitHub and Cloudflare targets. If safe credentials or disposable targets are unavailable, record the blocker and keep mocked acceptance as the automated release gate.

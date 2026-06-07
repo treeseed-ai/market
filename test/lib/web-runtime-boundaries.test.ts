@@ -2,7 +2,6 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
-import { createExecutorsForOptions } from '../../src/market-operations-runner/entrypoint.js';
 
 function files(root: string): string[] {
 	return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
@@ -69,10 +68,12 @@ describe('web runtime boundaries', () => {
 		expect(site.services?.marketOperationsRunner).toMatchObject({
 			enabled: true,
 			provider: 'railway',
+			rootDir: 'packages/api',
 			railway: {
 				serviceName: 'treeseed-market-operations-runner',
-				buildCommand: 'npm run build:market-operations-runner',
-				startCommand: 'node ./dist/market-operations-runner/entrypoint.js run',
+				rootDir: 'packages/api',
+				buildCommand: 'npm run build',
+				startCommand: 'npm run start:runner',
 				volumeMountPath: '/data',
 				runnerPool: {
 					bootstrapCount: 1,
@@ -85,17 +86,6 @@ describe('web runtime boundaries', () => {
 		expect(serialized).not.toMatch(/provider:|capacity|TREESEED_CAPACITY_PROVIDER_API_KEY|provider:tasks|provider:heartbeat/u);
 	});
 
-	it('registers project-host operation executors on the market operations runner', () => {
-		const capabilities = createExecutorsForOptions({ operationKey: null })
-			.map((executor) => `${executor.namespace}:${executor.operation}`);
-		expect(capabilities).toEqual(expect.arrayContaining([
-			'project_hosts:host_binding_audit',
-			'project_hosts:host_binding_resync',
-			'project_hosts:host_binding_replace',
-			'project_hosts:host_binding_rotate',
-		]));
-	});
-
 	it('keeps root Market source out of agent runtime modules', () => {
 		const sourceFiles = files('src')
 			.filter((path) => /\.(astro|ts|js)$/u.test(path));
@@ -104,18 +94,6 @@ describe('web runtime boundaries', () => {
 			return /from ['"]@treeseed\/agent|import\(['"]@treeseed\/agent|require\(['"]@treeseed\/agent|treeseed-processing|\/v1\/processing/u.test(source);
 		});
 		expect(offenders).toEqual([]);
-	});
-
-	it('keeps Market API local content routes job-backed instead of filesystem-backed', () => {
-		const source = readFileSync('src/api/app.js', 'utf8');
-		const routeStart = source.indexOf("app.post('/v1/projects/:projectId/local-content/decisions/from-proposals'");
-		const routeEnd = source.indexOf("app.post('/v1/projects/:projectId/update-plans'", routeStart);
-		expect(routeStart).toBeGreaterThan(-1);
-		expect(routeEnd).toBeGreaterThan(routeStart);
-		const routeBlock = source.slice(routeStart, routeEnd);
-		expect(routeBlock).toContain('createPlatformOperation');
-		expect(routeBlock).not.toMatch(/\bwriteLocalContentRecord\(|\bcreateRelatedLocalContentRecord\(|\bcreateDecisionFromProposals\(/u);
-		expect(routeBlock).not.toMatch(/\bwriteFile\(|process\.cwd\(\).*src.*content/u);
 	});
 
 	it('routes app, market, and auth session state through the backend Market API facade', () => {
@@ -150,6 +128,19 @@ describe('web runtime boundaries', () => {
 	});
 
 	it('keeps the Astro endpoint surface thin and routes Market APIs through v1', () => {
+		expect(existsSync('src/api')).toBe(false);
+		expect(existsSync('src/market-operations-runner')).toBe(false);
+		const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
+			scripts?: Record<string, string>;
+			dependencies?: Record<string, string>;
+			devDependencies?: Record<string, string>;
+		};
+		expect(packageJson.dependencies).not.toHaveProperty('@treeseed/api');
+		expect(packageJson.devDependencies).not.toHaveProperty('@treeseed/api');
+		for (const forbidden of ['build:api', 'build:market-operations-runner', 'db:migrate:market', 'test:acceptance', 'market:operations-runner']) {
+			expect(packageJson.scripts).not.toHaveProperty(forbidden);
+		}
+		expect(packageJson.scripts?.build).toBe('npm run build:web');
 		const endpointFiles = files('src/pages')
 			.filter((path) => /\.(ts|js)$/u.test(path))
 			.filter((path) => path.startsWith('src/pages/api/')
@@ -165,7 +156,6 @@ describe('web runtime boundaries', () => {
 
 		const runtimeFiles = files('src')
 			.filter((path) => /\.(astro|ts|js)$/u.test(path))
-			.filter((path) => !path.startsWith('src/api/'))
 			.filter((path) => !path.startsWith('src/content/'));
 		const offenders = runtimeFiles.filter((path) => {
 			const source = readFileSync(path, 'utf8');
@@ -189,8 +179,6 @@ describe('web runtime boundaries', () => {
 				|| path === 'src/middleware.ts'
 				|| path === 'src/lib/market/store.ts'
 				|| path === 'src/lib/market/catalog.ts')
-			.filter((path) => !path.startsWith('src/api/'))
-			.filter((path) => !path.startsWith('src/market-operations-runner/'))
 			.filter((path) => !path.startsWith('src/lib/market/seeds/'));
 		const offenders = sourceFiles.filter((path) => {
 			const source = readFileSync(path, 'utf8');

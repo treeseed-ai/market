@@ -166,20 +166,8 @@ describe('Treeseed Drizzle schema baseline', () => {
 });
 
 describe('Market migration architecture guardrails', () => {
-	it('keeps Market runtime migration ownership out of the raw store', () => {
-		const storeSource = readFileSync(join(repoRoot, 'src/api/store.js'), 'utf8');
-		expect(storeSource).not.toMatch(/migrations\/|migrationPaths|loadMigrationSql|PostgresD1Database/u);
-		expect(storeSource).not.toMatch(/\bCREATE\s+TABLE\b|\bALTER\s+TABLE\b|PRAGMA\s+table_info/iu);
-	});
-
-	it('keeps the Market API on the PostgreSQL adapter boundary', () => {
-		const appSource = readFileSync(join(repoRoot, 'src/api/app.js'), 'utf8');
-		const adapterSource = readFileSync(join(repoRoot, 'src/api/market-postgres.js'), 'utf8');
-		const testSource = readFileSync(join(repoRoot, 'test/api/market-api.test.ts'), 'utf8');
-		expect(appSource).not.toContain('resolveApiD1Database');
-		expect(appSource).not.toContain('postgres-d1');
-		expect(adapterSource).not.toContain('PostgresD1');
-		expect(testSource).not.toContain('TestD1Database');
-		expect(adapterSource).toContain('applyDrizzleMigrations');
+	it('keeps Market runtime migration ownership out of the root project', () => {
+		expect(existsSync(join(repoRoot, 'src/api'))).toBe(false);
+		expect(existsSync(join(repoRoot, 'scripts/migrate-market-db.mjs'))).toBe(false);
 	});
 });

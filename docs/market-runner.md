@@ -692,7 +692,7 @@ services:
     provider: railway
     railway:
       serviceName: treeseed-market-api
-      buildCommand: npm run build:api
+      buildCommand: npm run build
       startCommand: node ./dist/market-api/server.js
       healthcheckPath: /healthz
 
@@ -701,7 +701,7 @@ services:
     provider: railway
     railway:
       serviceName: treeseed-market-operations-runner
-      buildCommand: npm run build:market-operations-runner
+      buildCommand: npm run build
       startCommand: node ./dist/market-operations-runner/entrypoint.js run
       healthcheckPath: /healthz
       volumeMountPath: /data
@@ -768,7 +768,7 @@ Schema ownership is split by runtime:
 
 * Market control-plane schema lives in `packages/sdk/src/db/market-schema.ts`.
 * Market PostgreSQL migration SQL is generated into `packages/sdk/drizzle/market` with `npm run db:generate:market`.
-* Market startup and deploy workflows apply generated Drizzle SQL with `npm run db:migrate:market` against `TREESEED_MARKET_DATABASE_URL`.
+* Market startup and deploy workflows apply generated Drizzle SQL with `npm -w packages/api run db:migrate:market` against `TREESEED_MARKET_DATABASE_URL`.
 * SDK/Core D1 schema remains only for unauthenticated static knowledge-hub form storage: `runtime_records`, `subscribers`, and `contact_submissions`. It is generated into `packages/sdk/drizzle/d1` with `npm -w packages/sdk run db:generate:d1`.
 
 The top-level `migrations/` directory and hand-authored Market SQL migrations are retired. Market runtime code must fail clearly when PostgreSQL migrations cannot be applied; it must not create or repair Market tables ad hoc.
