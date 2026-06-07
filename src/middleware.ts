@@ -13,7 +13,7 @@ function runtimeEnv(context: any) {
 function envValue(context: any, name: string) {
 	const runtimeValue = runtimeEnv(context)?.[name];
 	if (typeof runtimeValue === 'string' && runtimeValue.trim()) return runtimeValue.trim();
-	const processValue = process.env[name];
+	const processValue = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[name];
 	return typeof processValue === 'string' && processValue.trim() ? processValue.trim() : '';
 }
 
