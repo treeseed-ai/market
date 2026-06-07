@@ -70,7 +70,10 @@ export const ALL: APIRoute = async (context) => {
 		return context.redirect(target.toString(), 302);
 	}
 
-	const upstream = new URL(`/v1/${path}`, resolveMarketApiBaseUrl(context.locals));
+	const upstreamPath = path === 'healthz' || path.startsWith('healthz/')
+		? `/${path}`
+		: `/v1/${path}`;
+	const upstream = new URL(upstreamPath, resolveMarketApiBaseUrl(context.locals));
 	upstream.search = context.url.search;
 
 	const headers = copyClientHeaders(context.request);

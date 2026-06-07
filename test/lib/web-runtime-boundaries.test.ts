@@ -103,6 +103,7 @@ describe('web runtime boundaries', () => {
 		expect(proxy).toContain('skipUserAssertion: Boolean(token)');
 		expect(proxy).toContain('setApiAccessTokenCookie');
 		expect(proxy).toContain('redactAuthTokens');
+		expect(proxy).toContain("path === 'healthz' || path.startsWith('healthz/')");
 		expect(proxy).not.toMatch(/resolveMarketStore|loadSiteWebSession|AGENT_WORK_QUEUE|SITE_DATA_DB/u);
 
 		const apiClient = readFileSync('src/lib/market/api-client.ts', 'utf8');
