@@ -12,9 +12,9 @@ function safeArray(value: unknown): any[] {
 export function selectProjectDeploymentRepository(details: any, action?: ProjectWebDeploymentAction | null) {
 	const repositories = safeArray(details?.repositories);
 	if (action === 'publish_content') {
-		return repositories.find((repository) => repository?.role === 'content' && (repository?.provider === 'treedb' || repository?.metadata?.contentCanonical === 'treedb'))
+		return repositories.find((repository) => repository?.role === 'content' && (repository?.provider === 'treedx' || repository?.metadata?.contentCanonical === 'treedx'))
 			?? repositories.find((repository) => repository?.role === 'content')
-			?? repositories.find((repository) => repository?.provider === 'treedb')
+			?? repositories.find((repository) => repository?.provider === 'treedx')
 			?? repositories.find((repository) => repository?.provider === 'github')
 			?? repositories[0]
 			?? null;
@@ -26,12 +26,12 @@ export function selectProjectDeploymentRepository(details: any, action?: Project
 }
 
 function repositoryReadyForAction(repository: any, action?: ProjectWebDeploymentAction) {
-	if (action === 'publish_content' && (repository?.provider === 'treedb' || repository?.metadata?.contentCanonical === 'treedb')) return true;
+	if (action === 'publish_content' && (repository?.provider === 'treedx' || repository?.metadata?.contentCanonical === 'treedx')) return true;
 	return Boolean(repository?.provider === 'github' && repository?.owner && repository?.name);
 }
 
 function workflowReadyForAction(repository: any, action?: ProjectWebDeploymentAction) {
-	if (action === 'publish_content' && (repository?.provider === 'treedb' || repository?.metadata?.contentCanonical === 'treedb')) return true;
+	if (action === 'publish_content' && (repository?.provider === 'treedx' || repository?.metadata?.contentCanonical === 'treedx')) return true;
 	return Boolean(repository?.provider === 'github');
 }
 
@@ -104,8 +104,8 @@ export function buildProjectDeploymentReadiness(input: {
 			code: 'workflow_installable',
 			label: input.action === 'publish_content' ? 'Publish executor available' : 'Deploy workflow installable',
 			ready: workflowReadyForAction(repository, input.action),
-			message: input.action === 'publish_content' && (repository?.provider === 'treedb' || repository?.metadata?.contentCanonical === 'treedb')
-				? 'TreeDB content publish can run through the Market operations runner.'
+			message: input.action === 'publish_content' && (repository?.provider === 'treedx' || repository?.metadata?.contentCanonical === 'treedx')
+				? 'TreeDX content publish can run through the Market operations runner.'
 				: repository?.provider === 'github' ? 'The deploy workflow can be dispatched for this repository.' : 'A GitHub repository is required.',
 		},
 		{

@@ -3668,7 +3668,7 @@ function requireConfiguredServiceCredential(c, config) {
 	return { ok: true };
 }
 
-async function resolvePublicTreeDbTeam(store, input = {}) {
+async function resolvePublicTreeDxTeam(store, input = {}) {
 	const requested = optionalTrimmedString(input.teamId)
 		?? optionalTrimmedString(input.teamSlug)
 		?? optionalTrimmedString(input.slug)
@@ -3681,22 +3681,22 @@ async function resolvePublicTreeDbTeam(store, input = {}) {
 		name: requested,
 		displayName: optionalTrimmedString(input.displayName) ?? 'TreeSeed Public Knowledge',
 		metadata: {
-			kind: 'system_public_treedb_federation',
+			kind: 'system_public_treedx_federation',
 			publicKnowledge: true,
 		},
 	});
 }
 
-async function enqueueTreeDbProvisionOperation(store, teamId, payload, body = {}, requestedBy = {}) {
+async function enqueueTreeDxProvisionOperation(store, teamId, payload, body = {}, requestedBy = {}) {
 	const deployment = Array.isArray(payload.deployments) ? payload.deployments[0] : null;
 	if (!deployment || deployment.status === 'succeeded') {
 		return { operation: null, deployment };
 	}
 	const idempotencyKey = typeof body.idempotencyKey === 'string' && body.idempotencyKey.trim()
 		? body.idempotencyKey.trim()
-		: `team:${teamId}:treedb:provision:${deployment.id}`;
+		: `team:${teamId}:treedx:provision:${deployment.id}`;
 	const operation = await store.createPlatformOperation({
-		namespace: 'treedb',
+		namespace: 'treedx',
 		operation: 'provision',
 		target: 'market_operations_runner',
 		idempotencyKey,
@@ -3704,7 +3704,7 @@ async function enqueueTreeDbProvisionOperation(store, teamId, payload, body = {}
 			teamId,
 			instanceId: payload.instance?.id ?? null,
 			deploymentId: deployment.id,
-			imageRef: payload.instance?.imageRef ?? body.imageRef ?? 'treeseed/treedb:latest',
+			imageRef: payload.instance?.imageRef ?? body.imageRef ?? 'treeseed/treedx:latest',
 			volumeMountPath: payload.instance?.volumeMountPath ?? '/data',
 			dataDirEnv: '/data',
 			publicRead: payload.instance?.publicRead === true,
@@ -3713,7 +3713,7 @@ async function enqueueTreeDbProvisionOperation(store, teamId, payload, body = {}
 		requestedByType: requestedBy.type ?? 'user',
 		requestedById: requestedBy.id ?? 'unknown',
 	});
-	await store.updateTreeDbDeployment?.(deployment.id, {
+	await store.updateTreeDxDeployment?.(deployment.id, {
 		result: {
 			operationId: operation.id,
 			operationStatus: operation.status,
@@ -6399,52 +6399,52 @@ export function createMarketApiApp(options = {}) {
 				});
 			});
 
-			app.get('/v1/teams/:teamId/treedb', async (c) => {
+			app.get('/v1/teams/:teamId/treedx', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
 				if (access.response) return access.response;
-				return c.json({ ok: true, payload: await store.getTeamTreeDb(c.req.param('teamId')) });
+				return c.json({ ok: true, payload: await store.getTeamTreeDx(c.req.param('teamId')) });
 			});
 
-			app.put('/v1/teams/:teamId/treedb', async (c) => {
+			app.put('/v1/teams/:teamId/treedx', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
-				const instance = await store.upsertTeamTreeDb(c.req.param('teamId'), body);
+				const instance = await store.upsertTeamTreeDx(c.req.param('teamId'), body);
 				return c.json({ ok: true, payload: { instance } });
 			});
 
-			app.post('/v1/teams/:teamId/treedb/provision', async (c) => {
+			app.post('/v1/teams/:teamId/treedx/provision', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
-				const payload = await store.provisionTeamTreeDb(c.req.param('teamId'), body);
+				const payload = await store.provisionTeamTreeDx(c.req.param('teamId'), body);
 				if (!payload) return jsonError(c, 404, 'Unknown team.');
-				const { operation } = await enqueueTreeDbProvisionOperation(store, c.req.param('teamId'), payload, body, {
+				const { operation } = await enqueueTreeDxProvisionOperation(store, c.req.param('teamId'), payload, body, {
 					type: 'user',
 					id: access.principal.id,
 				});
 				return c.json({ ok: true, payload: { ...payload, operation } }, { status: 202 });
 			});
 
-			app.post('/v1/internal/treedb/public-federation/provision', async (c) => {
+			app.post('/v1/internal/treedx/public-federation/provision', async (c) => {
 				const service = requireConfiguredServiceCredential(c, runtime.resolved.config);
 				if (service.response) return service.response;
 				const body = await c.req.json().catch(() => ({}));
-				const team = await resolvePublicTreeDbTeam(store, body);
-				const payload = await store.provisionTeamTreeDb(team.id, {
+				const team = await resolvePublicTreeDxTeam(store, body);
+				const payload = await store.provisionTeamTreeDx(team.id, {
 					...body,
 					publicRead: true,
-					imageRef: optionalTrimmedString(body.imageRef) ?? 'treeseed/treedb:latest',
+					imageRef: optionalTrimmedString(body.imageRef) ?? 'treeseed/treedx:latest',
 					name: optionalTrimmedString(body.name) ?? 'TreeSeed public federation',
 				});
-				const { operation } = await enqueueTreeDbProvisionOperation(store, team.id, payload, body, {
+				const { operation } = await enqueueTreeDxProvisionOperation(store, team.id, payload, body, {
 					type: 'service',
-					id: 'public-treedb-bootstrap',
+					id: 'public-treedx-bootstrap',
 				});
 				return c.json({ ok: true, payload: { ...payload, team, operation } }, { status: 202 });
 			});
 
-			app.get('/v1/internal/treedb/public-federation/status', async (c) => {
+			app.get('/v1/internal/treedx/public-federation/status', async (c) => {
 				const service = requireConfiguredServiceCredential(c, runtime.resolved.config);
 				if (service.response) return service.response;
 				const teamId = optionalTrimmedString(c.req.query('teamId'));
@@ -6453,48 +6453,48 @@ export function createMarketApiApp(options = {}) {
 					? await store.getTeam(teamId).catch(() => null)
 					: await store.getTeamBySlug(teamSlug).catch(() => null);
 				if (!team) return c.json({ ok: true, payload: { team: null, instance: null, deployments: [] } });
-				const payload = await store.getTeamTreeDb(team.id);
+				const payload = await store.getTeamTreeDx(team.id);
 				const deployments = Array.isArray(payload.deployments) && payload.deployments.length > 0
 					? payload.deployments
-					: await store.listTreeDbDeployments(team.id).catch(() => []);
+					: await store.listTreeDxDeployments(team.id).catch(() => []);
 				return c.json({ ok: true, payload: { ...payload, deployments, team } });
 			});
 
-			app.get('/v1/teams/:teamId/treedb/mirrors', async (c) => {
+			app.get('/v1/teams/:teamId/treedx/mirrors', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
 				if (access.response) return access.response;
-				return c.json({ ok: true, payload: await store.listTreeDbMirrors(c.req.param('teamId')) });
+				return c.json({ ok: true, payload: await store.listTreeDxMirrors(c.req.param('teamId')) });
 			});
 
-			app.post('/v1/teams/:teamId/treedb/mirrors', async (c) => {
+			app.post('/v1/teams/:teamId/treedx/mirrors', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
-				const mirror = await store.createTreeDbMirror(c.req.param('teamId'), body);
-				if (!mirror) return jsonError(c, 404, 'Create a team TreeDB binding before adding mirrors.');
+				const mirror = await store.createTreeDxMirror(c.req.param('teamId'), body);
+				if (!mirror) return jsonError(c, 404, 'Create a team TreeDX binding before adding mirrors.');
 				return c.json({ ok: true, payload: mirror }, { status: 201 });
 			});
 
-			app.post('/v1/teams/:teamId/treedb/mirrors/:mirrorId/sync', async (c) => {
+			app.post('/v1/teams/:teamId/treedx/mirrors/:mirrorId/sync', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
-				const mirror = await store.syncTreeDbMirror(c.req.param('teamId'), c.req.param('mirrorId'), body);
-				if (!mirror) return jsonError(c, 404, 'Unknown TreeDB mirror.');
+				const mirror = await store.syncTreeDxMirror(c.req.param('teamId'), c.req.param('mirrorId'), body);
+				if (!mirror) return jsonError(c, 404, 'Unknown TreeDX mirror.');
 				return c.json({ ok: true, payload: mirror });
 			});
 
-			app.get('/v1/teams/:teamId/treedb/shares', async (c) => {
+			app.get('/v1/teams/:teamId/treedx/shares', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'projects:read:team');
 				if (access.response) return access.response;
-				return c.json({ ok: true, payload: await store.listTreeDbShares(c.req.param('teamId')) });
+				return c.json({ ok: true, payload: await store.listTreeDxShares(c.req.param('teamId')) });
 			});
 
-			app.post('/v1/teams/:teamId/treedb/shares', async (c) => {
+			app.post('/v1/teams/:teamId/treedx/shares', async (c) => {
 				const access = await requireTeamAccess(c, store, c.req.param('teamId'), 'teams:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
-				const share = await store.createTreeDbShare(c.req.param('teamId'), body);
+				const share = await store.createTreeDxShare(c.req.param('teamId'), body);
 				return c.json({ ok: true, payload: share }, { status: 201 });
 			});
 
@@ -8419,18 +8419,18 @@ export function createMarketApiApp(options = {}) {
 				return c.json({ ok: true, payload: projectHostResponsePayload(context) });
 			});
 
-			app.get('/v1/projects/:projectId/treedb-library', async (c) => {
+			app.get('/v1/projects/:projectId/treedx-library', async (c) => {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
 				if (access.response) return access.response;
-				return c.json({ ok: true, payload: await store.getProjectTreeDbLibrary(c.req.param('projectId')) });
+				return c.json({ ok: true, payload: await store.getProjectTreeDxLibrary(c.req.param('projectId')) });
 			});
 
-			app.post('/v1/projects/:projectId/treedb-library', async (c) => {
+			app.post('/v1/projects/:projectId/treedx-library', async (c) => {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:manage:team');
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
-				const payload = await store.upsertProjectTreeDbLibrary(c.req.param('projectId'), body);
-				if (!payload) return jsonError(c, 404, 'Create a team TreeDB binding before binding a project library.');
+				const payload = await store.upsertProjectTreeDxLibrary(c.req.param('projectId'), body);
+				if (!payload) return jsonError(c, 404, 'Create a team TreeDX binding before binding a project library.');
 				return c.json({ ok: true, payload }, { status: 201 });
 			});
 
@@ -8438,7 +8438,7 @@ export function createMarketApiApp(options = {}) {
 				const access = await requireProjectAccess(c, store, c.req.param('projectId'), 'projects:read:team');
 				if (access.response) return access.response;
 				const payload = await store.getProjectRepositoryTopology(c.req.param('projectId'));
-				if (!payload) return jsonError(c, 404, 'Repository topology is not available until the project has a TreeDB library binding.');
+				if (!payload) return jsonError(c, 404, 'Repository topology is not available until the project has a TreeDX library binding.');
 				return c.json({ ok: true, payload });
 			});
 
@@ -8447,7 +8447,7 @@ export function createMarketApiApp(options = {}) {
 				if (access.response) return access.response;
 				const body = await c.req.json().catch(() => ({}));
 				const payload = await store.upsertProjectRepositoryTopology(c.req.param('projectId'), body);
-				if (!payload) return jsonError(c, 404, 'Create a team TreeDB binding before updating repository topology.');
+				if (!payload) return jsonError(c, 404, 'Create a team TreeDX binding before updating repository topology.');
 				return c.json({ ok: true, payload: payload.topology });
 			});
 

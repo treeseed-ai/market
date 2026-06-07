@@ -67,10 +67,10 @@ const topologyRows = repositoryTopology ? [
 	{
 		id: 'content',
 		location: '<strong>Content repository</strong><span>src/content canonical library</span>',
-		access: esc(repositoryTopology.contentRepository?.accessMode ?? 'treedb'),
-		source: esc(repositoryTopology.contentRepository?.treeDb?.libraryId ?? 'TreeDB library'),
+		access: esc(repositoryTopology.contentRepository?.accessMode ?? 'treedx'),
+		source: esc(repositoryTopology.contentRepository?.treeDx?.libraryId ?? 'TreeDX library'),
 		workspace: esc(repositoryTopology.contentRepository?.githubUrl ?? 'Git mirror/source identity'),
-		notes: esc('TreeDB canonical; publishes snapshots to R2 without GitHub Actions.'),
+		notes: esc('TreeDX canonical; publishes snapshots to R2 without GitHub Actions.'),
 	},
 	{
 		id: 'site',
@@ -174,14 +174,14 @@ const pageJson = JSON.stringify({
 				</div>
 				<p class="ts-subtle" id="project-host-operation-message" role="status"></p>
 			</Panel>
-			<Panel eyebrow="Repository Topology" title="Content, site, and project locations" description="Capacity providers use this split to route content work to TreeDB and code work to filesystem checkouts on runner volumes.">
+			<Panel eyebrow="Repository Topology" title="Content, site, and project locations" description="Capacity providers use this split to route content work to TreeDX and code work to filesystem checkouts on runner volumes.">
 				<PlainTable columns={[
 					{ key: 'location', label: 'Location' },
 					{ key: 'access', label: 'Access' },
 					{ key: 'source', label: 'Source' },
 					{ key: 'workspace', label: 'Runner workspace' },
 					{ key: 'notes', label: 'Notes' },
-				]} rows={topologyRows} emptyTitle="No repository topology" emptyDescription="Bind this project to a TreeDB library to make content/site/project access modes explicit." />
+				]} rows={topologyRows} emptyTitle="No repository topology" emptyDescription="Bind this project to a TreeDX library to make content/site/project access modes explicit." />
 			</Panel>
 			<Panel eyebrow="Audit" title="Recent host operations" description="Governed host operations record the Market host id and planned repository config changes.">
 				<div class="ts-table-wrap">

@@ -27,12 +27,12 @@ if (!Astro.locals.auth?.principal) {
 const context = await loadAppContext(Astro);
 const team = context.activeTeam;
 const runtime = (Astro.locals as any).runtime ?? Astro.locals;
-const [managedHosts, repositoryHosts, providerHosts, treeDbState] = team && context.store
+const [managedHosts, repositoryHosts, providerHosts, treeDxState] = team && context.store
 	? await Promise.all([
 			listTreeseedManagedHostsFromConfig(team.id, runtime).catch(() => []),
 			context.store.listRepositoryHosts(team.id, { includePlatform: true }).catch(() => []),
 			context.store.listTeamWebHosts(team.id).catch(() => []),
-			context.store.getTeamTreeDb(team.id).catch(() => null),
+			context.store.getTeamTreeDx(team.id).catch(() => null),
 		])
 	: [[], [], [], null];
 
@@ -100,15 +100,15 @@ function rowsFor(type: string) {
 		});
 }
 const hostDefaultsData = JSON.stringify({ teamId: team?.id ?? null, defaultHosts }).replace(/</gu, '\\u003c');
-const treeDbInstance = treeDbState?.instance ?? null;
-const treeDbRows = treeDbInstance ? [{
-	id: treeDbInstance.id,
-	name: `<strong>${esc(treeDbInstance.name ?? 'TreeDB Knowledge Library')}</strong><span>${esc(treeDbInstance.baseUrl ?? 'Deployment pending')}</span>`,
-	readiness: esc(treeDbInstance.status ?? 'pending'),
-	provider: esc(providerLabel(treeDbInstance.provider ?? 'treedb')),
-	ownership: esc(treeDbInstance.kind === 'self_hosted' ? 'Self hosted' : treeDbInstance.publicRead ? 'TreeSeed public federation' : 'TreeSeed managed private'),
-	environments: esc(treeDbInstance.publicRead ? 'public federation' : 'staging, prod'),
-	purpose: esc('Canonical content store for src/content, mirrors, shares, and TreeDB-to-R2 publishing.'),
+const treeDxInstance = treeDxState?.instance ?? null;
+const treeDxRows = treeDxInstance ? [{
+	id: treeDxInstance.id,
+	name: `<strong>${esc(treeDxInstance.name ?? 'TreeDX Knowledge Library')}</strong><span>${esc(treeDxInstance.baseUrl ?? 'Deployment pending')}</span>`,
+	readiness: esc(treeDxInstance.status ?? 'pending'),
+	provider: esc(providerLabel(treeDxInstance.provider ?? 'treedx')),
+	ownership: esc(treeDxInstance.kind === 'self_hosted' ? 'Self hosted' : treeDxInstance.publicRead ? 'TreeSeed public federation' : 'TreeSeed managed private'),
+	environments: esc(treeDxInstance.publicRead ? 'public federation' : 'staging, prod'),
+	purpose: esc('Canonical content store for src/content, mirrors, shares, and TreeDX-to-R2 publishing.'),
 	actions: '<a class="ts-link-button ts-link-button--primary" href="/app/hosts/knowledge-library">Manage</a>',
 }] : [];
 ---
@@ -127,8 +127,8 @@ const treeDbRows = treeDbInstance ? [{
 			)}
 		</Panel>
 		{team ? (
-			<Panel eyebrow="Knowledge Library" title="Team TreeDB binding" description="Each team has one active primary TreeDB instance for canonical content libraries, with optional mirrors and shares.">
-				<Button slot="actions" href="/app/hosts/knowledge-library" size="sm" variant={treeDbInstance ? 'secondary' : 'primary'}>{treeDbInstance ? 'Manage Library' : 'Set Up TreeDB'}</Button>
+			<Panel eyebrow="Knowledge Library" title="Team TreeDX binding" description="Each team has one active primary TreeDX instance for canonical content libraries, with optional mirrors and shares.">
+				<Button slot="actions" href="/app/hosts/knowledge-library" size="sm" variant={treeDxInstance ? 'secondary' : 'primary'}>{treeDxInstance ? 'Manage Library' : 'Set Up TreeDX'}</Button>
 				<PlainTable columns={[
 					{ key: 'name', label: 'Library' },
 					{ key: 'readiness', label: 'Readiness' },
@@ -137,7 +137,7 @@ const treeDbRows = treeDbInstance ? [{
 					{ key: 'environments', label: 'Scope' },
 					{ key: 'purpose', label: 'Purpose' },
 					{ key: 'actions', label: 'Actions' },
-				]} rows={treeDbRows} emptyTitle="No TreeDB binding" emptyDescription="Private teams provision a dedicated TreeDB service; public teams attach to the shared TreeSeed federation." />
+				]} rows={treeDxRows} emptyTitle="No TreeDX binding" emptyDescription="Private teams provision a dedicated TreeDX service; public teams attach to the shared TreeSeed federation." />
 			</Panel>
 		) : null}
 		{team ? groups.map((group) => (

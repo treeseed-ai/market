@@ -525,32 +525,32 @@ function sdkArgsForMethod(method) {
 			reserveBufferPercent: 20,
 		}],
 		projectCapacityPlan: ['${fixtures.project.id}', 'staging'],
-		teamTreeDb: ['${fixtures.team.id}'],
-		updateTeamTreeDb: ['${fixtures.team.id}', {
-			name: 'Acceptance SDK TreeDB',
+		teamTreeDx: ['${fixtures.team.id}'],
+		updateTeamTreeDx: ['${fixtures.team.id}', {
+			name: 'Acceptance SDK TreeDX',
 			kind: 'self_hosted',
 			provider: 'self_hosted',
-			baseUrl: 'https://treedb.acceptance.example',
+			baseUrl: 'https://treedx.acceptance.example',
 			status: 'active',
 		}],
-		provisionTeamTreeDb: ['${fixtures.team.id}', { publicRead: true, idempotencyKey: 'acceptance-${runNonce}-treedb-provision' }],
-		treeDbMirrors: ['${fixtures.team.id}'],
-		createTreeDbMirror: ['${fixtures.team.id}', {
-			id: 'acceptance-${runNonce}-treedb-mirror',
+		provisionTeamTreeDx: ['${fixtures.team.id}', { publicRead: true, idempotencyKey: 'acceptance-${runNonce}-treedx-provision' }],
+		treeDxMirrors: ['${fixtures.team.id}'],
+		createTreeDxMirror: ['${fixtures.team.id}', {
+			id: 'acceptance-${runNonce}-treedx-mirror',
 			name: 'Acceptance SDK Mirror',
 			targetKind: 'git',
-			targetUrl: 'https://github.com/treeseed-acceptance/treedb-mirror',
+			targetUrl: 'https://github.com/treeseed-acceptance/treedx-mirror',
 		}],
-		syncTreeDbMirror: ['${fixtures.team.id}', 'acceptance-${runNonce}-treedb-mirror', { status: 'syncing', lastSyncStatus: 'queued' }],
-		treeDbShares: ['${fixtures.team.id}'],
-		createTreeDbShare: ['${fixtures.team.id}', {
-			id: 'acceptance-${runNonce}-treedb-share',
+		syncTreeDxMirror: ['${fixtures.team.id}', 'acceptance-${runNonce}-treedx-mirror', { status: 'syncing', lastSyncStatus: 'queued' }],
+		treeDxShares: ['${fixtures.team.id}'],
+		createTreeDxShare: ['${fixtures.team.id}', {
+			id: 'acceptance-${runNonce}-treedx-share',
 			projectId: '${fixtures.project.id}',
 			libraryId: 'acceptance/${runNonce}',
 			scope: 'team',
 		}],
-		projectTreeDbLibrary: ['${fixtures.project.id}'],
-		upsertProjectTreeDbLibrary: ['${fixtures.project.id}', {
+		projectTreeDxLibrary: ['${fixtures.project.id}'],
+		upsertProjectTreeDxLibrary: ['${fixtures.project.id}', {
 			libraryId: 'acceptance/${runNonce}',
 			repositoryId: 'acceptance-${runNonce}-repository',
 		}],

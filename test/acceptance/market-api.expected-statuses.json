@@ -278,7 +278,7 @@
       "providerKey": 401,
       "platformRunner": 401
     },
-    "get.v1.internal.treedb.public-federation.status": {
+    "get.v1.internal.treedx.public-federation.status": {
       "anonymous": 401,
       "siteAdmin": 401,
       "marketSteward": 401,
@@ -1010,7 +1010,7 @@
       "providerKey": 401,
       "platformRunner": 401
     },
-    "get.v1.projects.projectId.treedb-library": {
+    "get.v1.projects.projectId.treedx-library": {
       "anonymous": 401,
       "siteAdmin": 200,
       "marketSteward": 200,
@@ -1442,7 +1442,7 @@
       "providerKey": 401,
       "platformRunner": 401
     },
-    "get.v1.teams.teamId.treedb": {
+    "get.v1.teams.teamId.treedx": {
       "anonymous": 401,
       "siteAdmin": 200,
       "marketSteward": 200,
@@ -1454,7 +1454,7 @@
       "providerKey": 401,
       "platformRunner": 401
     },
-    "get.v1.teams.teamId.treedb.mirrors": {
+    "get.v1.teams.teamId.treedx.mirrors": {
       "anonymous": 401,
       "siteAdmin": 200,
       "marketSteward": 200,
@@ -1466,7 +1466,7 @@
       "providerKey": 401,
       "platformRunner": 401
     },
-    "get.v1.teams.teamId.treedb.shares": {
+    "get.v1.teams.teamId.treedx.shares": {
       "anonymous": 401,
       "siteAdmin": 200,
       "marketSteward": 200,
@@ -2726,7 +2726,7 @@
       "providerKey": 401,
       "platformRunner": 401
     },
-    "post.v1.internal.treedb.public-federation.provision": {
+    "post.v1.internal.treedx.public-federation.provision": {
       "anonymous": 401,
       "siteAdmin": 401,
       "marketSteward": 401,
@@ -3014,7 +3014,7 @@
       "providerKey": 401,
       "platformRunner": 401
     },
-    "post.v1.projects.projectId.treedb-library": {
+    "post.v1.projects.projectId.treedx-library": {
       "anonymous": 401,
       "siteAdmin": 201,
       "marketSteward": 201,
@@ -3566,7 +3566,7 @@
       "providerKey": 401,
       "platformRunner": 401
     },
-    "post.v1.teams.teamId.treedb.mirrors": {
+    "post.v1.teams.teamId.treedx.mirrors": {
       "anonymous": 401,
       "siteAdmin": 201,
       "marketSteward": 201,
@@ -3578,7 +3578,7 @@
       "providerKey": 401,
       "platformRunner": 401
     },
-    "post.v1.teams.teamId.treedb.mirrors.mirrorId.sync": {
+    "post.v1.teams.teamId.treedx.mirrors.mirrorId.sync": {
       "anonymous": 401,
       "siteAdmin": 200,
       "marketSteward": 200,
@@ -3590,7 +3590,7 @@
       "providerKey": 401,
       "platformRunner": 401
     },
-    "post.v1.teams.teamId.treedb.provision": {
+    "post.v1.teams.teamId.treedx.provision": {
       "anonymous": 401,
       "siteAdmin": 202,
       "marketSteward": 202,
@@ -3602,7 +3602,7 @@
       "providerKey": 401,
       "platformRunner": 401
     },
-    "post.v1.teams.teamId.treedb.shares": {
+    "post.v1.teams.teamId.treedx.shares": {
       "anonymous": 401,
       "siteAdmin": 201,
       "marketSteward": 201,
@@ -3770,7 +3770,7 @@
       "providerKey": 401,
       "platformRunner": 401
     },
-    "put.v1.teams.teamId.treedb": {
+    "put.v1.teams.teamId.treedx": {
       "anonymous": 401,
       "siteAdmin": 200,
       "marketSteward": 200,

@@ -24,7 +24,7 @@ describe('CI/CD parallelism workflows', () => {
 		expect(deploy.jobs.acceptance.needs).toEqual([
 			'classify',
 			'deploy-web',
-			'bootstrap-public-treedb',
+			'bootstrap-public-treedx',
 			'acceptance-prepare',
 		]);
 		expect(deploy.jobs.acceptance.steps).toEqual(expect.arrayContaining([

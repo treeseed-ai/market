@@ -12,13 +12,13 @@ export function hostTypeFor(host: any): string {
 	if (host?.metadata?.hostType === 'web_host' || host?.metadata?.hostType === 'cloudflare') return 'web';
 	if (host?.metadata?.hostType === 'email_host' || host?.metadata?.hostType === 'smtp') return 'email';
 	if (host?.metadata?.hostType === 'ai_host') return 'ai';
-	if (host?.metadata?.hostType === 'knowledge_library' || host?.metadata?.hostType === 'knowledge-library' || host?.metadata?.hostType === 'treedb') return 'knowledge-library';
+	if (host?.metadata?.hostType === 'knowledge_library' || host?.metadata?.hostType === 'knowledge-library' || host?.metadata?.hostType === 'treedx') return 'knowledge-library';
 	const hostType = host?.metadata?.hostType === 'agent' ? 'processing' : host?.metadata?.hostType;
 	if (hostType) return String(hostType);
 	if (host?.provider === 'github' && (host?.organizationOrOwner || host?.defaultVisibility || host?.softwareRepositoryNameTemplate || host?.contentRepositoryNameTemplate)) return 'repository';
 	if (host?.provider === 'railway') return 'processing';
 	if (host?.provider === 'smtp') return 'email';
-	if (host?.provider === 'treedb') return 'knowledge-library';
+	if (host?.provider === 'treedx') return 'knowledge-library';
 	if (['openai', 'github_copilot', 'openrouter', 'custom'].includes(String(host?.provider))) return 'ai';
 	return 'web';
 }
@@ -28,7 +28,7 @@ export function hostProviderFor(type: string): string {
 	if (type === 'processing' || type === 'capacity-provider') return 'railway';
 	if (type === 'email') return 'smtp';
 	if (type === 'ai') return 'openai';
-	if (type === 'knowledge-library') return 'treedb';
+	if (type === 'knowledge-library') return 'treedx';
 	return 'cloudflare';
 }
 
@@ -64,7 +64,7 @@ export function providerLabel(value: unknown): string {
 	if (provider === 'openai') return 'OpenAI';
 	if (provider === 'github_copilot') return 'GitHub Copilot';
 	if (provider === 'openrouter') return 'OpenRouter';
-	if (provider === 'treedb') return 'TreeDB';
+	if (provider === 'treedx') return 'TreeDX';
 	if (provider === 'public_federation') return 'TreeSeed public federation';
 	if (provider === '@treeseed/agent') return 'TreeSeed Agent';
 	return provider || 'Provider';
@@ -85,7 +85,7 @@ export function hostPurposeFor(type: unknown): string {
 	if (normalized === 'email') return 'Sends project email and notification traffic.';
 	if (normalized === 'capacity-provider' || normalized === 'capacity_provider') return 'Launches package-owned capacity provider services.';
 	if (normalized === 'ai') return 'Provides model access for agent and content workflows.';
-	if (normalized === 'knowledge-library' || normalized === 'knowledge_library') return 'Stores and federates project content libraries through TreeDB.';
+	if (normalized === 'knowledge-library' || normalized === 'knowledge_library') return 'Stores and federates project content libraries through TreeDX.';
 	if (normalized === 'processing') return 'Runs processing workloads.';
 	return 'Stores provider credentials for team workflows.';
 }

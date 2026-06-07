@@ -1327,7 +1327,7 @@ function serializeHubContentSource(row) {
 	};
 }
 
-function serializeTreeDbInstance(row) {
+function serializeTreeDxInstance(row) {
 	if (!row) return null;
 	return {
 		id: row.id,
@@ -1351,7 +1351,7 @@ function serializeTreeDbInstance(row) {
 	};
 }
 
-function serializeTreeDbProjectLibrary(row) {
+function serializeTreeDxProjectLibrary(row) {
 	if (!row) return null;
 	return {
 		id: row.id,
@@ -1373,7 +1373,7 @@ function serializeTreeDbProjectLibrary(row) {
 	};
 }
 
-function serializeTreeDbMirror(row) {
+function serializeTreeDxMirror(row) {
 	if (!row) return null;
 	return {
 		id: row.id,
@@ -1394,7 +1394,7 @@ function serializeTreeDbMirror(row) {
 	};
 }
 
-function serializeTreeDbShare(row) {
+function serializeTreeDxShare(row) {
 	if (!row) return null;
 	return {
 		id: row.id,
@@ -1415,7 +1415,7 @@ function serializeTreeDbShare(row) {
 	};
 }
 
-function serializeTreeDbDeployment(row) {
+function serializeTreeDxDeployment(row) {
 	if (!row) return null;
 	return {
 		id: row.id,
@@ -4074,41 +4074,41 @@ export class MarketControlPlaneStore {
 		return deployment;
 	}
 
-	async getPrimaryTreeDbInstance(teamId) {
+	async getPrimaryTreeDxInstance(teamId) {
 		await this.ensureInitialized();
-		return serializeTreeDbInstance(await this.first(
-			`SELECT * FROM treedb_instances WHERE team_id = ? AND COALESCE("primary", 1) != 0 AND status != 'disabled' ORDER BY updated_at DESC LIMIT 1`,
+		return serializeTreeDxInstance(await this.first(
+			`SELECT * FROM treedx_instances WHERE team_id = ? AND COALESCE("primary", 1) != 0 AND status != 'disabled' ORDER BY updated_at DESC LIMIT 1`,
 			[teamId],
 		));
 	}
 
-	async getTeamTreeDb(teamId) {
+	async getTeamTreeDx(teamId) {
 		await this.ensureInitialized();
-		const instance = await this.getPrimaryTreeDbInstance(teamId);
+		const instance = await this.getPrimaryTreeDxInstance(teamId);
 		return {
 			instance,
-			mirrors: instance ? await this.listTreeDbMirrors(teamId, instance.id) : [],
-			shares: await this.listTreeDbShares(teamId),
-			deployments: instance ? await this.listTreeDbDeployments(teamId, instance.id) : [],
+			mirrors: instance ? await this.listTreeDxMirrors(teamId, instance.id) : [],
+			shares: await this.listTreeDxShares(teamId),
+			deployments: instance ? await this.listTreeDxDeployments(teamId, instance.id) : [],
 		};
 	}
 
-	async upsertTeamTreeDb(teamId, input = {}) {
+	async upsertTeamTreeDx(teamId, input = {}) {
 		await this.ensureInitialized();
 		const timestamp = isoNow();
-		const existing = await this.getPrimaryTreeDbInstance(teamId);
+		const existing = await this.getPrimaryTreeDxInstance(teamId);
 		const id = input.id ?? existing?.id ?? randomUUID();
 		const kind = String(input.kind ?? existing?.kind ?? (input.publicRead ? 'managed_public_federation' : 'managed_private'));
 		const provider = String(input.provider ?? existing?.provider ?? (kind === 'managed_public_federation' ? 'public_federation' : kind === 'self_hosted' ? 'self_hosted' : 'railway'));
 		const status = String(input.status ?? existing?.status ?? (input.baseUrl ? 'active' : 'pending'));
 		if (status === 'active') {
 			await this.run(
-				`UPDATE treedb_instances SET status = 'disabled', updated_at = ? WHERE team_id = ? AND COALESCE("primary", 1) != 0 AND id != ? AND status = 'active'`,
+				`UPDATE treedx_instances SET status = 'disabled', updated_at = ? WHERE team_id = ? AND COALESCE("primary", 1) != 0 AND id != ? AND status = 'active'`,
 				[timestamp, teamId, id],
 			);
 		}
 		await this.run(
-			`INSERT INTO treedb_instances (
+			`INSERT INTO treedx_instances (
 				id, team_id, kind, provider, name, base_url, registry_url, public_read, "primary", status, image_ref,
 				railway_project_id, railway_service_id, railway_environment_id, volume_mount_path, metadata_json, created_at, updated_at
 			) VALUES (
@@ -4135,13 +4135,13 @@ export class MarketControlPlaneStore {
 				teamId,
 				kind,
 				provider,
-				String(input.name ?? existing?.name ?? 'TreeDB Knowledge Library'),
+				String(input.name ?? existing?.name ?? 'TreeDX Knowledge Library'),
 				input.baseUrl ?? existing?.baseUrl ?? null,
 				input.registryUrl ?? input.baseUrl ?? existing?.registryUrl ?? null,
 				input.publicRead === undefined ? Number(existing?.publicRead ?? false) : Number(Boolean(input.publicRead)),
 				1,
 				status,
-				input.imageRef ?? existing?.imageRef ?? 'treeseed/treedb:latest',
+				input.imageRef ?? existing?.imageRef ?? 'treeseed/treedx:latest',
 				input.railwayProjectId ?? existing?.railwayProjectId ?? null,
 				input.railwayServiceId ?? existing?.railwayServiceId ?? null,
 				input.railwayEnvironmentId ?? existing?.railwayEnvironmentId ?? null,
@@ -4150,24 +4150,24 @@ export class MarketControlPlaneStore {
 					...(existing?.metadata ?? {}),
 					...(objectValue(input.metadata, {}) ?? {}),
 					hostRole: 'knowledge-library',
-					contentCanonical: 'treedb',
+					contentCanonical: 'treedx',
 				}),
 				existing?.createdAt ?? timestamp,
 				timestamp,
 			],
 		);
-		return serializeTreeDbInstance(await this.first(`SELECT * FROM treedb_instances WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, id])) ?? {
+		return serializeTreeDxInstance(await this.first(`SELECT * FROM treedx_instances WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, id])) ?? {
 			id,
 			teamId,
 			kind,
 			provider,
-			name: String(input.name ?? existing?.name ?? 'TreeDB Knowledge Library'),
+			name: String(input.name ?? existing?.name ?? 'TreeDX Knowledge Library'),
 			baseUrl: input.baseUrl ?? existing?.baseUrl ?? null,
 			registryUrl: input.registryUrl ?? input.baseUrl ?? existing?.registryUrl ?? null,
 			publicRead: input.publicRead === undefined ? Boolean(existing?.publicRead ?? false) : Boolean(input.publicRead),
 			primary: true,
 			status,
-			imageRef: input.imageRef ?? existing?.imageRef ?? 'treeseed/treedb:latest',
+			imageRef: input.imageRef ?? existing?.imageRef ?? 'treeseed/treedx:latest',
 			railwayProjectId: input.railwayProjectId ?? existing?.railwayProjectId ?? null,
 			railwayServiceId: input.railwayServiceId ?? existing?.railwayServiceId ?? null,
 			railwayEnvironmentId: input.railwayEnvironmentId ?? existing?.railwayEnvironmentId ?? null,
@@ -4176,28 +4176,28 @@ export class MarketControlPlaneStore {
 				...(existing?.metadata ?? {}),
 				...(objectValue(input.metadata, {}) ?? {}),
 				hostRole: 'knowledge-library',
-				contentCanonical: 'treedb',
+				contentCanonical: 'treedx',
 			},
 			createdAt: existing?.createdAt ?? timestamp,
 			updatedAt: timestamp,
 		};
 	}
 
-	async provisionTeamTreeDb(teamId, input = {}) {
+	async provisionTeamTreeDx(teamId, input = {}) {
 		const team = await this.getTeam(teamId);
 		if (!team) return null;
 		const publicRead = input.publicRead ?? (team.visibility === 'public');
-		const existing = await this.getPrimaryTreeDbInstance(teamId);
+		const existing = await this.getPrimaryTreeDxInstance(teamId);
 		const status = input.status
 			?? (input.baseUrl || existing?.baseUrl ? 'active' : 'pending');
-		const instance = await this.upsertTeamTreeDb(teamId, {
+		const instance = await this.upsertTeamTreeDx(teamId, {
 			...input,
 			kind: publicRead ? 'managed_public_federation' : 'managed_private',
 			provider: 'railway',
 			publicRead,
-			name: input.name ?? (publicRead ? 'TreeSeed public federation' : `${team.slug} TreeDB`),
+			name: input.name ?? (publicRead ? 'TreeSeed public federation' : `${team.slug} TreeDX`),
 			status,
-			imageRef: input.imageRef ?? 'treeseed/treedb:latest',
+			imageRef: input.imageRef ?? 'treeseed/treedx:latest',
 			volumeMountPath: '/data',
 			metadata: {
 				...(objectValue(input.metadata, {}) ?? {}),
@@ -4207,7 +4207,7 @@ export class MarketControlPlaneStore {
 		const timestamp = isoNow();
 		const deploymentId = randomUUID();
 		await this.run(
-			`INSERT INTO treedb_deployments (
+			`INSERT INTO treedx_deployments (
 				id, team_id, instance_id, provider, status, image_ref, volume_mount_path, service_refs_json, result_json, error_json, created_at, updated_at, completed_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[
@@ -4222,9 +4222,9 @@ export class MarketControlPlaneStore {
 				JSON.stringify({
 					mode: instance.publicRead ? 'public_federation' : 'managed_private',
 					nextAction: instance.publicRead
-						? 'Create or attach the shared public Railway TreeDB federation project, service, persistent /data volume, and public service domain.'
+						? 'Create or attach the shared public Railway TreeDX federation project, service, persistent /data volume, and public service domain.'
 						: 'Create dedicated Railway project, service, persistent /data volume, and service token.',
-					operation: 'queued_treedb_provision',
+					operation: 'queued_treedx_provision',
 				}),
 				null,
 				timestamp,
@@ -4232,25 +4232,25 @@ export class MarketControlPlaneStore {
 				instance.baseUrl ? timestamp : null,
 			],
 		);
-		const payload = await this.getTeamTreeDb(teamId);
+		const payload = await this.getTeamTreeDx(teamId);
 		if (payload.instance) return payload;
 		return {
 			instance,
-			mirrors: await this.listTreeDbMirrors(teamId, instance.id),
-			shares: await this.listTreeDbShares(teamId),
-			deployments: await this.listTreeDbDeployments(teamId, instance.id),
+			mirrors: await this.listTreeDxMirrors(teamId, instance.id),
+			shares: await this.listTreeDxShares(teamId),
+			deployments: await this.listTreeDxDeployments(teamId, instance.id),
 		};
 	}
 
-	async updateTreeDbDeployment(deploymentId, patch = {}) {
+	async updateTreeDxDeployment(deploymentId, patch = {}) {
 		await this.ensureInitialized();
-		const existing = serializeTreeDbDeployment(await this.first(`SELECT * FROM treedb_deployments WHERE id = ? LIMIT 1`, [deploymentId]));
+		const existing = serializeTreeDxDeployment(await this.first(`SELECT * FROM treedx_deployments WHERE id = ? LIMIT 1`, [deploymentId]));
 		if (!existing) return null;
 		const timestamp = isoNow();
 		const status = patch.status ?? existing.status;
 		const terminal = ['succeeded', 'failed', 'cancelled', 'timed_out'].includes(status);
 		await this.run(
-			`UPDATE treedb_deployments
+			`UPDATE treedx_deployments
 			 SET status = ?,
 			     image_ref = ?,
 			     volume_mount_path = ?,
@@ -4278,35 +4278,35 @@ export class MarketControlPlaneStore {
 				deploymentId,
 			],
 		);
-		return serializeTreeDbDeployment(await this.first(`SELECT * FROM treedb_deployments WHERE id = ? LIMIT 1`, [deploymentId]));
+		return serializeTreeDxDeployment(await this.first(`SELECT * FROM treedx_deployments WHERE id = ? LIMIT 1`, [deploymentId]));
 	}
 
-	async listTreeDbDeployments(teamId, instanceId = null) {
+	async listTreeDxDeployments(teamId, instanceId = null) {
 		await this.ensureInitialized();
 		const rows = instanceId
-			? await this.all(`SELECT * FROM treedb_deployments WHERE team_id = ? AND instance_id = ? ORDER BY created_at DESC`, [teamId, instanceId])
-			: await this.all(`SELECT * FROM treedb_deployments WHERE team_id = ? ORDER BY created_at DESC`, [teamId]);
-		return rows.map(serializeTreeDbDeployment).filter(Boolean);
+			? await this.all(`SELECT * FROM treedx_deployments WHERE team_id = ? AND instance_id = ? ORDER BY created_at DESC`, [teamId, instanceId])
+			: await this.all(`SELECT * FROM treedx_deployments WHERE team_id = ? ORDER BY created_at DESC`, [teamId]);
+		return rows.map(serializeTreeDxDeployment).filter(Boolean);
 	}
 
-	async listTreeDbMirrors(teamId, instanceId = null) {
+	async listTreeDxMirrors(teamId, instanceId = null) {
 		await this.ensureInitialized();
 		const rows = instanceId
-			? await this.all(`SELECT * FROM treedb_mirrors WHERE team_id = ? AND instance_id = ? ORDER BY created_at ASC`, [teamId, instanceId])
-			: await this.all(`SELECT * FROM treedb_mirrors WHERE team_id = ? ORDER BY created_at ASC`, [teamId]);
-		return rows.map(serializeTreeDbMirror).filter(Boolean);
+			? await this.all(`SELECT * FROM treedx_mirrors WHERE team_id = ? AND instance_id = ? ORDER BY created_at ASC`, [teamId, instanceId])
+			: await this.all(`SELECT * FROM treedx_mirrors WHERE team_id = ? ORDER BY created_at ASC`, [teamId]);
+		return rows.map(serializeTreeDxMirror).filter(Boolean);
 	}
 
-	async createTreeDbMirror(teamId, input = {}) {
+	async createTreeDxMirror(teamId, input = {}) {
 		await this.ensureInitialized();
 		const instance = input.instanceId
-			? serializeTreeDbInstance(await this.first(`SELECT * FROM treedb_instances WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, input.instanceId]))
-			: await this.getPrimaryTreeDbInstance(teamId);
+			? serializeTreeDxInstance(await this.first(`SELECT * FROM treedx_instances WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, input.instanceId]))
+			: await this.getPrimaryTreeDxInstance(teamId);
 		if (!instance) return null;
 		const timestamp = isoNow();
 		const id = input.id ?? randomUUID();
 		await this.run(
-			`INSERT INTO treedb_mirrors (
+			`INSERT INTO treedx_mirrors (
 				id, team_id, instance_id, name, direction, target_kind, target_url, status, instructions,
 				last_sync_at, last_sync_status, last_sync_metadata_json, metadata_json, created_at, updated_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -4314,12 +4314,12 @@ export class MarketControlPlaneStore {
 				id,
 				teamId,
 				instance.id,
-				String(input.name ?? 'TreeDB mirror'),
+				String(input.name ?? 'TreeDX mirror'),
 				String(input.direction ?? 'bidirectional'),
 				String(input.targetKind ?? 'git'),
 				input.targetUrl ?? null,
 				String(input.status ?? 'pending'),
-				input.instructions ?? `Connect this mirror to ${instance.baseUrl ?? 'the team TreeDB'} and sync the selected libraries. Store credentials in the target secret manager, not in seed exports.`,
+				input.instructions ?? `Connect this mirror to ${instance.baseUrl ?? 'the team TreeDX'} and sync the selected libraries. Store credentials in the target secret manager, not in seed exports.`,
 				null,
 				null,
 				JSON.stringify({}),
@@ -4328,16 +4328,16 @@ export class MarketControlPlaneStore {
 				timestamp,
 			],
 		);
-		return serializeTreeDbMirror(await this.first(`SELECT * FROM treedb_mirrors WHERE id = ? LIMIT 1`, [id]));
+		return serializeTreeDxMirror(await this.first(`SELECT * FROM treedx_mirrors WHERE id = ? LIMIT 1`, [id]));
 	}
 
-	async syncTreeDbMirror(teamId, mirrorId, input = {}) {
+	async syncTreeDxMirror(teamId, mirrorId, input = {}) {
 		await this.ensureInitialized();
-		const existing = serializeTreeDbMirror(await this.first(`SELECT * FROM treedb_mirrors WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, mirrorId]));
+		const existing = serializeTreeDxMirror(await this.first(`SELECT * FROM treedx_mirrors WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, mirrorId]));
 		if (!existing) return null;
 		const timestamp = isoNow();
 		await this.run(
-			`UPDATE treedb_mirrors
+			`UPDATE treedx_mirrors
 			 SET status = ?, last_sync_at = ?, last_sync_status = ?, last_sync_metadata_json = ?, updated_at = ?
 			 WHERE team_id = ? AND id = ?`,
 			[
@@ -4350,25 +4350,25 @@ export class MarketControlPlaneStore {
 				mirrorId,
 			],
 		);
-		return serializeTreeDbMirror(await this.first(`SELECT * FROM treedb_mirrors WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, mirrorId]));
+		return serializeTreeDxMirror(await this.first(`SELECT * FROM treedx_mirrors WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, mirrorId]));
 	}
 
-	async listTreeDbShares(teamId) {
+	async listTreeDxShares(teamId) {
 		await this.ensureInitialized();
-		return (await this.all(`SELECT * FROM treedb_shares WHERE team_id = ? ORDER BY created_at ASC`, [teamId]))
-			.map(serializeTreeDbShare)
+		return (await this.all(`SELECT * FROM treedx_shares WHERE team_id = ? ORDER BY created_at ASC`, [teamId]))
+			.map(serializeTreeDxShare)
 			.filter(Boolean);
 	}
 
-	async createTreeDbShare(teamId, input = {}) {
+	async createTreeDxShare(teamId, input = {}) {
 		await this.ensureInitialized();
 		const timestamp = isoNow();
 		const instance = input.instanceId
-			? serializeTreeDbInstance(await this.first(`SELECT * FROM treedb_instances WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, input.instanceId]))
-			: await this.getPrimaryTreeDbInstance(teamId);
+			? serializeTreeDxInstance(await this.first(`SELECT * FROM treedx_instances WHERE team_id = ? AND id = ? LIMIT 1`, [teamId, input.instanceId]))
+			: await this.getPrimaryTreeDxInstance(teamId);
 		const id = input.id ?? randomUUID();
 		await this.run(
-			`INSERT INTO treedb_shares (
+			`INSERT INTO treedx_shares (
 				id, team_id, instance_id, project_id, library_id, scope, target_team_id, trust_grant_json,
 				public_read, status, expires_at, metadata_json, created_at, updated_at, revoked_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -4390,18 +4390,18 @@ export class MarketControlPlaneStore {
 				null,
 			],
 		);
-		return serializeTreeDbShare(await this.first(`SELECT * FROM treedb_shares WHERE id = ? LIMIT 1`, [id]));
+		return serializeTreeDxShare(await this.first(`SELECT * FROM treedx_shares WHERE id = ? LIMIT 1`, [id]));
 	}
 
-	async upsertProjectTreeDbLibrary(projectId, input = {}) {
+	async upsertProjectTreeDxLibrary(projectId, input = {}) {
 		await this.ensureInitialized();
 		const project = await this.getProject(projectId);
 		if (!project) return null;
 		const instance = input.instanceId
-			? serializeTreeDbInstance(await this.first(`SELECT * FROM treedb_instances WHERE team_id = ? AND id = ? LIMIT 1`, [project.teamId, input.instanceId]))
-			: await this.getPrimaryTreeDbInstance(project.teamId);
+			? serializeTreeDxInstance(await this.first(`SELECT * FROM treedx_instances WHERE team_id = ? AND id = ? LIMIT 1`, [project.teamId, input.instanceId]))
+			: await this.getPrimaryTreeDxInstance(project.teamId);
 		if (!instance) return null;
-		const existing = await this.getProjectTreeDbLibrary(projectId);
+		const existing = await this.getProjectTreeDxLibrary(projectId);
 		const repositories = await this.listHubRepositories(projectId);
 		const contentRepository = repositories.find((entry) => entry.role === 'content') ?? null;
 		const softwareRepository = repositories.find((entry) => ['software', 'primary', 'package'].includes(entry.role)) ?? repositories[0] ?? null;
@@ -4428,7 +4428,7 @@ export class MarketControlPlaneStore {
 		});
 		if (existing) {
 			await this.run(
-				`UPDATE treedb_project_libraries
+				`UPDATE treedx_project_libraries
 				 SET instance_id = ?, library_id = ?, repository_id = ?, content_path = ?, content_repository_url = ?,
 				     content_repository_default_branch = ?, content_repository_ref = ?, r2_bucket_name = ?, r2_manifest_key = ?,
 				     topology_json = ?, metadata_json = ?, updated_at = ?
@@ -4451,7 +4451,7 @@ export class MarketControlPlaneStore {
 			);
 		} else {
 			await this.run(
-				`INSERT INTO treedb_project_libraries (
+				`INSERT INTO treedx_project_libraries (
 					id, team_id, project_id, instance_id, library_id, repository_id, content_path, content_repository_url,
 					content_repository_default_branch, content_repository_ref, r2_bucket_name, r2_manifest_key,
 					topology_json, metadata_json, created_at, updated_at
@@ -4476,31 +4476,31 @@ export class MarketControlPlaneStore {
 				],
 			);
 		}
-		await this.ensureHubContentSourceTreeDb(projectId, project.teamId, contentRepository?.id ?? null, topology);
-		return this.getProjectTreeDbLibrary(projectId);
+		await this.ensureHubContentSourceTreeDx(projectId, project.teamId, contentRepository?.id ?? null, topology);
+		return this.getProjectTreeDxLibrary(projectId);
 	}
 
-	async getProjectTreeDbLibrary(projectId) {
+	async getProjectTreeDxLibrary(projectId) {
 		await this.ensureInitialized();
-		return serializeTreeDbProjectLibrary(await this.first(`SELECT * FROM treedb_project_libraries WHERE project_id = ? LIMIT 1`, [projectId]));
+		return serializeTreeDxProjectLibrary(await this.first(`SELECT * FROM treedx_project_libraries WHERE project_id = ? LIMIT 1`, [projectId]));
 	}
 
 	async getProjectRepositoryTopology(projectId) {
-		const binding = await this.getProjectTreeDbLibrary(projectId);
+		const binding = await this.getProjectTreeDxLibrary(projectId);
 		if (binding?.topology && Object.keys(binding.topology).length > 0) return binding.topology;
 		const project = await this.getProject(projectId);
 		if (!project) return null;
-		const instance = await this.getPrimaryTreeDbInstance(project.teamId);
+		const instance = await this.getPrimaryTreeDxInstance(project.teamId);
 		if (!instance) return null;
-		const created = await this.upsertProjectTreeDbLibrary(projectId, {});
+		const created = await this.upsertProjectTreeDxLibrary(projectId, {});
 		return created?.topology ?? null;
 	}
 
 	async upsertProjectRepositoryTopology(projectId, topology = {}) {
-		return this.upsertProjectTreeDbLibrary(projectId, { topology });
+		return this.upsertProjectTreeDxLibrary(projectId, { topology });
 	}
 
-	async ensureHubContentSourceTreeDb(projectId, teamId, contentRepositoryId, topology) {
+	async ensureHubContentSourceTreeDx(projectId, teamId, contentRepositoryId, topology) {
 		const timestamp = isoNow();
 		const existing = serializeHubContentSource(await this.first(`SELECT * FROM hub_content_sources WHERE hub_id = ? LIMIT 1`, [projectId]));
 		const r2 = topology?.contentRepository?.r2 ?? {};
@@ -4511,14 +4511,14 @@ export class MarketControlPlaneStore {
 				 WHERE hub_id = ?`,
 				[
 					contentRepositoryId,
-					'treedb',
-					existing.overlayPolicy ?? 'treedb_snapshot',
+					'treedx',
+					existing.overlayPolicy ?? 'treedx_snapshot',
 					r2.bucketName ?? existing.r2BucketName ?? null,
 					r2.manifestKey ?? existing.r2ManifestKey ?? null,
 					JSON.stringify({
 						...(existing.metadata ?? {}),
-						contentCanonical: 'treedb',
-						publishSource: 'treedb_to_r2',
+						contentCanonical: 'treedx',
+						publishSource: 'treedx_to_r2',
 						repositoryTopology: topology,
 					}),
 					timestamp,
@@ -4536,16 +4536,16 @@ export class MarketControlPlaneStore {
 					projectId,
 					teamId,
 					contentRepositoryId,
-					'treedb',
-					'treedb_snapshot',
+					'treedx',
+					'treedx_snapshot',
 					r2.bucketName ?? null,
 					r2.manifestKey ?? null,
 					r2.publicBaseUrl ?? null,
 					null,
 					null,
 					JSON.stringify({
-						contentCanonical: 'treedb',
-						publishSource: 'treedb_to_r2',
+						contentCanonical: 'treedx',
+						publishSource: 'treedx_to_r2',
 						repositoryTopology: topology,
 					}),
 					timestamp,
@@ -4560,12 +4560,12 @@ export class MarketControlPlaneStore {
 		const projectCheckoutBase = workspaceLink?.parentName ? `/data/projects/${project.slug}/project` : null;
 		return {
 			contentRepository: {
-				accessMode: 'treedb',
+				accessMode: 'treedx',
 				githubUrl: binding.contentRepositoryUrl ?? null,
 				defaultBranch: binding.contentRepositoryDefaultBranch ?? null,
 				ref: binding.contentRepositoryRef ?? null,
 				contentPath: binding.contentPath ?? 'src/content',
-				treeDb: {
+				treeDx: {
 					instanceId: instance.id,
 					libraryId: binding.libraryId,
 					repositoryId: binding.repositoryId ?? null,

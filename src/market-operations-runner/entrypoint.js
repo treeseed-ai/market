@@ -147,7 +147,7 @@ function createDeploymentStore(config) {
 	return new MarketControlPlaneStore(config, db);
 }
 
-function treeDbSlug(value, fallback = 'treedb') {
+function treeDxSlug(value, fallback = 'treedx') {
 	const slug = String(value ?? '')
 		.normalize('NFKD')
 		.replace(/[\u0300-\u036f]/gu, '')
@@ -159,47 +159,47 @@ function treeDbSlug(value, fallback = 'treedb') {
 	return slug || fallback;
 }
 
-function treeDbRailwayEnvironment(value) {
+function treeDxRailwayEnvironment(value) {
 	return normalizeRailwayEnvironmentName(value || process.env.TREESEED_PLATFORM_RUNNER_ENVIRONMENT || 'staging') || 'staging';
 }
 
-function treeDbEnvironmentNeutralProjectName(value, fallback) {
+function treeDxEnvironmentNeutralProjectName(value, fallback) {
 	const projectName = String(value || fallback || '').trim();
 	if (!projectName) return fallback;
 	return projectName
-		.replace(/^(treeseed-public-treedb)-(?:staging|prod|production)$/iu, '$1')
-		.replace(/^(treeseed-team-[a-z0-9-]+-treedb)-(?:staging|prod|production)$/iu, '$1');
+		.replace(/^(treeseed-public-treedx)-(?:staging|prod|production)$/iu, '$1')
+		.replace(/^(treeseed-team-[a-z0-9-]+-treedx)-(?:staging|prod|production)$/iu, '$1');
 }
 
-function treeDbRailwayNames({ team, teamId, publicRead, environment }) {
-	const envName = treeDbRailwayEnvironment(environment);
+function treeDxRailwayNames({ team, teamId, publicRead, environment }) {
+	const envName = treeDxRailwayEnvironment(environment);
 	if (publicRead) {
 		return {
-			projectName: treeDbEnvironmentNeutralProjectName(
-				process.env.TREESEED_PUBLIC_TREEDB_RAILWAY_PROJECT_NAME,
-				'treeseed-public-treedb',
+			projectName: treeDxEnvironmentNeutralProjectName(
+				process.env.TREESEED_PUBLIC_TREEDX_RAILWAY_PROJECT_NAME,
+				'treeseed-public-treedx',
 			),
-			serviceName: process.env.TREESEED_PUBLIC_TREEDB_RAILWAY_SERVICE_NAME || 'public-federation',
-			volumeName: process.env.TREESEED_PUBLIC_TREEDB_RAILWAY_VOLUME_NAME || 'public-treedb-data',
+			serviceName: process.env.TREESEED_PUBLIC_TREEDX_RAILWAY_SERVICE_NAME || 'public-federation',
+			volumeName: process.env.TREESEED_PUBLIC_TREEDX_RAILWAY_VOLUME_NAME || 'public-treedx-data',
 			environmentName: envName,
 			scope: 'public_federation',
 		};
 	}
-	const teamSlug = treeDbSlug(team?.slug ?? team?.name ?? teamId, 'team');
+	const teamSlug = treeDxSlug(team?.slug ?? team?.name ?? teamId, 'team');
 	return {
-		projectName: treeDbEnvironmentNeutralProjectName(null, `treeseed-team-${teamSlug}-treedb`),
-		serviceName: 'treedb',
-		volumeName: 'treedb-data',
+		projectName: treeDxEnvironmentNeutralProjectName(null, `treeseed-team-${teamSlug}-treedx`),
+		serviceName: 'treedx',
+		volumeName: 'treedx-data',
 		environmentName: envName,
 		scope: 'private_team',
 	};
 }
 
-function treeDbSecretBase() {
+function treeDxSecretBase() {
 	return randomBytes(48).toString('base64url');
 }
 
-function treeDbRailway(options = {}) {
+function treeDxRailway(options = {}) {
 	return {
 		ensureProject: options.ensureProject ?? ensureRailwayProject,
 		ensureEnvironment: options.ensureEnvironment ?? ensureRailwayEnvironment,
@@ -375,33 +375,33 @@ export function createExecutorsForOptions(options = {}) {
 			return redactProjectHostOperationValue(result);
 		},
 	});
-	const treeDbProvisionExecutor = {
-		namespace: 'treedb',
+	const treeDxProvisionExecutor = {
+		namespace: 'treedx',
 		operation: 'provision',
 		async run(input, context) {
 			if (!options.deploymentStore) {
-				throw new Error('TreeDB provisioning requires a Market control-plane store.');
+				throw new Error('TreeDX provisioning requires a Market control-plane store.');
 			}
 			const payload = objectValue(input);
 			const teamId = typeof payload.teamId === 'string' ? payload.teamId : null;
 			const instanceId = typeof payload.instanceId === 'string' ? payload.instanceId : null;
 			const deploymentId = typeof payload.deploymentId === 'string' ? payload.deploymentId : null;
 			if (!teamId || !instanceId || !deploymentId) {
-				throw new Error('TreeDB provisioning input must include teamId, instanceId, and deploymentId.');
+				throw new Error('TreeDX provisioning input must include teamId, instanceId, and deploymentId.');
 			}
-			const imageRef = typeof payload.imageRef === 'string' && payload.imageRef.trim() ? payload.imageRef.trim() : 'treeseed/treedb:latest';
+			const imageRef = typeof payload.imageRef === 'string' && payload.imageRef.trim() ? payload.imageRef.trim() : 'treeseed/treedx:latest';
 			const volumeMountPath = typeof payload.volumeMountPath === 'string' && payload.volumeMountPath.trim() ? payload.volumeMountPath.trim() : '/data';
 			const publicRead = payload.publicRead === true;
 			const team = await options.deploymentStore.getTeam?.(teamId);
-			const names = treeDbRailwayNames({
+			const names = treeDxRailwayNames({
 				team,
 				teamId,
 				publicRead,
 				environment: options.config?.environment ?? context.operation?.environment ?? process.env.TREESEED_PLATFORM_RUNNER_ENVIRONMENT,
 			});
-			const railway = treeDbRailway(options.railway);
+			const railway = treeDxRailway(options.railway);
 			await context.checkpoint({
-				phase: 'treedb.provision.started',
+				phase: 'treedx.provision.started',
 				teamId,
 				instanceId,
 				deploymentId,
@@ -411,10 +411,10 @@ export function createExecutorsForOptions(options = {}) {
 				projectName: names.projectName,
 				serviceName: names.serviceName,
 			}, {
-				kind: 'treedb.provision.started',
+				kind: 'treedx.provision.started',
 				data: { teamId, instanceId, deploymentId, imageRef, volumeMountPath, publicRead, projectName: names.projectName, serviceName: names.serviceName },
 			});
-			await options.deploymentStore.updateTreeDbDeployment(deploymentId, {
+			await options.deploymentStore.updateTreeDxDeployment(deploymentId, {
 				status: 'running',
 				imageRef,
 				volumeMountPath,
@@ -448,14 +448,14 @@ export function createExecutorsForOptions(options = {}) {
 					serviceId: ensuredService.service.id,
 				}).catch(() => ({}));
 				const variables = {
-					TREEDB_DATA_DIR: volumeMountPath,
+					TREEDX_DATA_DIR: volumeMountPath,
 					PORT: '4000',
 					PHX_SERVER: 'true',
 					PHX_HOST: `${names.serviceName}.railway.app`,
-					TREESEED_TREEDB_SCOPE: names.scope,
+					TREESEED_TREEDX_SCOPE: names.scope,
 				};
 				if (!currentVariables.SECRET_KEY_BASE) {
-					variables.SECRET_KEY_BASE = treeDbSecretBase();
+					variables.SECRET_KEY_BASE = treeDxSecretBase();
 				}
 				await railway.upsertVariables({
 					projectId: ensuredProject.project.id,
@@ -484,7 +484,7 @@ export function createExecutorsForOptions(options = {}) {
 					targetPort: 4000,
 				}).catch(async (error) => {
 					await context.emit({
-						kind: 'treedb.provision.domain_skipped',
+						kind: 'treedx.provision.domain_skipped',
 						data: {
 							projectId: ensuredProject.project.id,
 							environmentId: ensuredEnvironment.environment.id,
@@ -532,14 +532,14 @@ export function createExecutorsForOptions(options = {}) {
 				volumeMountPath,
 				railway: railwayRefs,
 				env: {
-					TREEDB_DATA_DIR: '/data',
+					TREEDX_DATA_DIR: '/data',
 					PORT: '4000',
 					PHX_SERVER: 'true',
 					SECRET_KEY_BASE: 'railway:SECRET_KEY_BASE',
 				},
 				dryRun: payload.dryRun === true,
 			};
-			await options.deploymentStore.upsertTeamTreeDb(teamId, {
+			await options.deploymentStore.upsertTeamTreeDx(teamId, {
 				id: instanceId,
 				kind: publicRead ? 'managed_public_federation' : 'managed_private',
 				provider: 'railway',
@@ -564,7 +564,7 @@ export function createExecutorsForOptions(options = {}) {
 					dryRun: payload.dryRun === true,
 				},
 			});
-			const deployment = await options.deploymentStore.updateTreeDbDeployment(deploymentId, {
+			const deployment = await options.deploymentStore.updateTreeDxDeployment(deploymentId, {
 				status: 'succeeded',
 				imageRef,
 				volumeMountPath,
@@ -581,7 +581,7 @@ export function createExecutorsForOptions(options = {}) {
 				clearError: true,
 			});
 			await context.checkpoint({
-				phase: 'treedb.provision.completed',
+				phase: 'treedx.provision.completed',
 				teamId,
 				instanceId,
 				deploymentId,
@@ -589,7 +589,7 @@ export function createExecutorsForOptions(options = {}) {
 				projectName: names.projectName,
 				serviceName: names.serviceName,
 			}, {
-				kind: 'treedb.provision.completed',
+				kind: 'treedx.provision.completed',
 				data: { teamId, instanceId, deploymentId, baseUrl, projectName: names.projectName, serviceName: names.serviceName },
 			});
 			return {
@@ -614,7 +614,7 @@ export function createExecutorsForOptions(options = {}) {
 		projectHostExecutor('resync'),
 		projectHostExecutor('replace'),
 		projectHostExecutor('rotate'),
-		treeDbProvisionExecutor,
+		treeDxProvisionExecutor,
 		createProjectWebDeploymentExecutor({
 			deploymentStore: options.deploymentStore,
 			mockExternal: options.mockExternal,

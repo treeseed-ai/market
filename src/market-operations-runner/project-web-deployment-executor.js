@@ -39,12 +39,12 @@ function failedJobName(result) {
 	return result?.failedJobs?.[0]?.name ?? null;
 }
 
-function isTreeDbContentRepository(repository) {
-	return repository?.provider === 'treedb' || repository?.metadata?.contentCanonical === 'treedb';
+function isTreeDxContentRepository(repository) {
+	return repository?.provider === 'treedx' || repository?.metadata?.contentCanonical === 'treedx';
 }
 
-function isTreeDbContentPublish(deployment, input) {
-	return input.action === 'publish_content' && isTreeDbContentRepository(objectValue(deployment.repository));
+function isTreeDxContentPublish(deployment, input) {
+	return input.action === 'publish_content' && isTreeDxContentRepository(objectValue(deployment.repository));
 }
 
 function mockWorkflowResult(deployment, input, result) {
@@ -229,34 +229,34 @@ export function createProjectWebDeploymentExecutor(options = {}) {
 		if (deployment.action !== input.action) throw new Error('Deployment action does not match operation input.');
 		if (!ACTIVE_STATUSES.has(deployment.status)) throw new Error(`Deployment is not runnable from status "${deployment.status}".`);
 		const repository = objectValue(deployment.repository);
-		const treeDbPublish = isTreeDbContentPublish(deployment, input);
-		if (!repositorySlug(repository) && input.action !== 'monitor' && !treeDbPublish) throw new Error('Deployment repository is not ready.');
-		if (repository.provider && repository.provider !== 'github' && !treeDbPublish) throw new Error('Deployment repository must be a GitHub repository.');
-		if (!stringValue(repository.branch) && input.action !== 'monitor' && !treeDbPublish) throw new Error('Deployment repository branch is not configured.');
+		const treeDxPublish = isTreeDxContentPublish(deployment, input);
+		if (!repositorySlug(repository) && input.action !== 'monitor' && !treeDxPublish) throw new Error('Deployment repository is not ready.');
+		if (repository.provider && repository.provider !== 'github' && !treeDxPublish) throw new Error('Deployment repository must be a GitHub repository.');
+		if (!stringValue(repository.branch) && input.action !== 'monitor' && !treeDxPublish) throw new Error('Deployment repository branch is not configured.');
 		const workflowFile = stringValue(input.workflowFile ?? repository.workflowFile, 'deploy-web.yml');
-		if (!treeDbPublish && !workflowFile.endsWith('.yml') && !workflowFile.endsWith('.yaml')) throw new Error('Deployment workflow file must be a YAML workflow.');
+		if (!treeDxPublish && !workflowFile.endsWith('.yml') && !workflowFile.endsWith('.yaml')) throw new Error('Deployment workflow file must be a YAML workflow.');
 		if (input.action !== 'monitor' && (!deployment.target || Object.keys(objectValue(deployment.target)).length === 0)) throw new Error('Deployment web host target is not configured.');
-		if (input.action !== 'monitor' && !treeDbPublish && !mockExternal && !effectiveDryRun && !String(process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN ?? '').trim()) {
+		if (input.action !== 'monitor' && !treeDxPublish && !mockExternal && !effectiveDryRun && !String(process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN ?? '').trim()) {
 			throw new Error('Configure GH_TOKEN before dispatching a project web deployment.');
 		}
 		return {
 			repository,
 			repositorySlug: repositorySlug(repository),
 			branch: stringValue(repository.branch, input.environment === 'prod' ? 'main' : 'staging'),
-			workflowFile: treeDbPublish ? 'treedb-to-r2' : workflowFile,
-			treeDbPublish,
+			workflowFile: treeDxPublish ? 'treedx-to-r2' : workflowFile,
+			treeDxPublish,
 		};
 	}
 
-	async function executeTreeDbContentPublish(deployment, input, context, preflight, effectiveDryRun) {
-		const binding = await deploymentStore.getProjectTreeDbLibrary?.(deployment.projectId);
+	async function executeTreeDxContentPublish(deployment, input, context, preflight, effectiveDryRun) {
+		const binding = await deploymentStore.getProjectTreeDxLibrary?.(deployment.projectId);
 		if (!binding?.libraryId && !binding?.repositoryId) {
-			throw new Error('Project TreeDB library binding is required before TreeDB content can publish.');
+			throw new Error('Project TreeDX library binding is required before TreeDX content can publish.');
 		}
 		await deploymentStore.updateProjectDeployment(deployment.id, { status: 'running' });
 		deployment = await loadDeployment(deployment.id);
-		await emit(deployment, context, 'deployment.treedb_publish.running', {
-			message: 'TreeDB content publish is running.',
+		await emit(deployment, context, 'deployment.treedx_publish.running', {
+			message: 'TreeDX content publish is running.',
 			status: 'running',
 			payload: {
 				libraryId: binding.libraryId ?? null,
@@ -265,8 +265,8 @@ export function createProjectWebDeploymentExecutor(options = {}) {
 			},
 		});
 		const artifact = {
-			provider: 'treedb',
-			mode: 'treedb_to_r2',
+			provider: 'treedx',
+			mode: 'treedx_to_r2',
 			libraryId: binding.libraryId ?? null,
 			repositoryId: binding.repositoryId ?? null,
 			snapshotId: effectiveDryRun || mockExternal ? `dry-run-${deployment.id}` : `planned-${deployment.id}`,
@@ -276,20 +276,20 @@ export function createProjectWebDeploymentExecutor(options = {}) {
 			},
 			repository: preflight.repository,
 		};
-		await checkpoint(deployment, context, 'treedb_content_exported', { artifact }, {
-			kind: 'deployment.treedb_publish.exported',
-			message: 'TreeDB content snapshot prepared for R2 publishing.',
+		await checkpoint(deployment, context, 'treedx_content_exported', { artifact }, {
+			kind: 'deployment.treedx_publish.exported',
+			message: 'TreeDX content snapshot prepared for R2 publishing.',
 			status: 'running',
 			payload: artifact,
 		});
-		await checkpoint(deployment, context, 'treedb_content_published', { artifact }, {
-			kind: 'deployment.treedb_publish.published',
-			message: 'TreeDB content publish completed without GitHub Actions.',
+		await checkpoint(deployment, context, 'treedx_content_published', { artifact }, {
+			kind: 'deployment.treedx_publish.published',
+			message: 'TreeDX content publish completed without GitHub Actions.',
 			status: 'running',
 			payload: artifact,
 		});
 		return {
-			provider: 'treedb',
+			provider: 'treedx',
 			conclusion: 'success',
 			status: 'completed',
 			artifact,
@@ -478,10 +478,10 @@ export function createProjectWebDeploymentExecutor(options = {}) {
 				await throwIfDeploymentCancelled(deployment, context);
 				let workflowResult = null;
 				if (deployment.action !== 'monitor') {
-					workflowResult = preflight.treeDbPublish
-						? await executeTreeDbContentPublish(deployment, input, context, preflight, effectiveDryRun)
+					workflowResult = preflight.treeDxPublish
+						? await executeTreeDxContentPublish(deployment, input, context, preflight, effectiveDryRun)
 						: await executeWorkflow(deployment, input, context, preflight, effectiveDryRun);
-					externalWorkflow = preflight.treeDbPublish
+					externalWorkflow = preflight.treeDxPublish
 						? null
 						: {
 							provider: 'github',
@@ -531,9 +531,9 @@ export function createProjectWebDeploymentExecutor(options = {}) {
 					});
 					throw new Error(failure.summary);
 				}
-				const target = workflowResult && !preflight.treeDbPublish ? deploymentTarget(deployment, workflowResult) : {
+				const target = workflowResult && !preflight.treeDxPublish ? deploymentTarget(deployment, workflowResult) : {
 					...(deployment.target ?? {}),
-					contentPublish: preflight.treeDbPublish ? workflowResult?.artifact ?? null : deployment.target?.contentPublish ?? null,
+					contentPublish: preflight.treeDxPublish ? workflowResult?.artifact ?? null : deployment.target?.contentPublish ?? null,
 				};
 				const monitor = await runMonitor(deployment, context, input, preflight, workflowResult, target);
 				if (deployment.action !== 'monitor') {

@@ -297,40 +297,40 @@ export class MarketApiClientFacade {
 		return this.request<any[]>('GET', `/v1/teams/${encodeURIComponent(teamId)}/web-hosts`);
 	}
 
-	getTeamTreeDb(teamId: string) {
-		return this.request<any>('GET', `/v1/teams/${encodeURIComponent(teamId)}/treedb`);
+	getTeamTreeDx(teamId: string) {
+		return this.request<any>('GET', `/v1/teams/${encodeURIComponent(teamId)}/treedx`);
 	}
 
-	updateTeamTreeDb(teamId: string, body: Record<string, unknown>) {
-		return this.request<any>('PUT', `/v1/teams/${encodeURIComponent(teamId)}/treedb`, { body });
+	updateTeamTreeDx(teamId: string, body: Record<string, unknown>) {
+		return this.request<any>('PUT', `/v1/teams/${encodeURIComponent(teamId)}/treedx`, { body });
 	}
 
-	provisionTeamTreeDb(teamId: string, body: Record<string, unknown> = {}) {
-		return this.request<any>('POST', `/v1/teams/${encodeURIComponent(teamId)}/treedb/provision`, { body });
+	provisionTeamTreeDx(teamId: string, body: Record<string, unknown> = {}) {
+		return this.request<any>('POST', `/v1/teams/${encodeURIComponent(teamId)}/treedx/provision`, { body });
 	}
 
-	listTreeDbMirrors(teamId: string) {
-		return this.request<any[]>('GET', `/v1/teams/${encodeURIComponent(teamId)}/treedb/mirrors`);
+	listTreeDxMirrors(teamId: string) {
+		return this.request<any[]>('GET', `/v1/teams/${encodeURIComponent(teamId)}/treedx/mirrors`);
 	}
 
-	createTreeDbMirror(teamId: string, body: Record<string, unknown>) {
-		return this.request<any>('POST', `/v1/teams/${encodeURIComponent(teamId)}/treedb/mirrors`, { body });
+	createTreeDxMirror(teamId: string, body: Record<string, unknown>) {
+		return this.request<any>('POST', `/v1/teams/${encodeURIComponent(teamId)}/treedx/mirrors`, { body });
 	}
 
-	listTreeDbShares(teamId: string) {
-		return this.request<any[]>('GET', `/v1/teams/${encodeURIComponent(teamId)}/treedb/shares`);
+	listTreeDxShares(teamId: string) {
+		return this.request<any[]>('GET', `/v1/teams/${encodeURIComponent(teamId)}/treedx/shares`);
 	}
 
-	createTreeDbShare(teamId: string, body: Record<string, unknown>) {
-		return this.request<any>('POST', `/v1/teams/${encodeURIComponent(teamId)}/treedb/shares`, { body });
+	createTreeDxShare(teamId: string, body: Record<string, unknown>) {
+		return this.request<any>('POST', `/v1/teams/${encodeURIComponent(teamId)}/treedx/shares`, { body });
 	}
 
-	getProjectTreeDbLibrary(projectId: string) {
-		return this.request<any>('GET', `/v1/projects/${encodeURIComponent(projectId)}/treedb-library`);
+	getProjectTreeDxLibrary(projectId: string) {
+		return this.request<any>('GET', `/v1/projects/${encodeURIComponent(projectId)}/treedx-library`);
 	}
 
-	upsertProjectTreeDbLibrary(projectId: string, body: Record<string, unknown>) {
-		return this.request<any>('POST', `/v1/projects/${encodeURIComponent(projectId)}/treedb-library`, { body });
+	upsertProjectTreeDxLibrary(projectId: string, body: Record<string, unknown>) {
+		return this.request<any>('POST', `/v1/projects/${encodeURIComponent(projectId)}/treedx-library`, { body });
 	}
 
 	getProjectRepositoryTopology(projectId: string) {

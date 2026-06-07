@@ -8082,47 +8082,47 @@ describe('market api', () => {
 	});
 });
 
-describe('TreeDB market integration', () => {
-	it('provisions one active team TreeDB binding and exposes mirrors and shares', async () => {
+describe('TreeDX market integration', () => {
+	it('provisions one active team TreeDX binding and exposes mirrors and shares', async () => {
 		const app = createTestApp();
 		const token = await authorizeApp(app);
 		const team = await createTeam(app, token);
 
-		const first = await json(await app.request(`/v1/teams/${team.id}/treedb/provision`, {
+		const first = await json(await app.request(`/v1/teams/${team.id}/treedx/provision`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-			body: JSON.stringify({ baseUrl: 'https://treedb.team.example' }),
+			body: JSON.stringify({ baseUrl: 'https://treedx.team.example' }),
 		}));
 		expect(first.payload.instance).toMatchObject({
 			teamId: team.id,
 			provider: 'railway',
 			status: 'active',
-			baseUrl: 'https://treedb.team.example',
+			baseUrl: 'https://treedx.team.example',
 		});
 
-		const second = await json(await app.request(`/v1/teams/${team.id}/treedb`, {
+		const second = await json(await app.request(`/v1/teams/${team.id}/treedx`, {
 			method: 'PUT',
 			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-			body: JSON.stringify({ baseUrl: 'https://treedb.next.example', status: 'active', provider: 'railway' }),
+			body: JSON.stringify({ baseUrl: 'https://treedx.next.example', status: 'active', provider: 'railway' }),
 		}));
 		expect(second.payload.instance.id).toBe(first.payload.instance.id);
-		expect(second.payload.instance.baseUrl).toBe('https://treedb.next.example');
+		expect(second.payload.instance.baseUrl).toBe('https://treedx.next.example');
 
-		const mirror = await json(await app.request(`/v1/teams/${team.id}/treedb/mirrors`, {
+		const mirror = await json(await app.request(`/v1/teams/${team.id}/treedx/mirrors`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-			body: JSON.stringify({ name: 'Customer mirror', targetKind: 'treedb', targetUrl: 'https://customer.example' }),
+			body: JSON.stringify({ name: 'Customer mirror', targetKind: 'treedx', targetUrl: 'https://customer.example' }),
 		}));
 		expect(mirror.payload).toMatchObject({ name: 'Customer mirror', targetUrl: 'https://customer.example' });
 
-		const share = await json(await app.request(`/v1/teams/${team.id}/treedb/shares`, {
+		const share = await json(await app.request(`/v1/teams/${team.id}/treedx/shares`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
 			body: JSON.stringify({ scope: 'public_federation', publicRead: true }),
 		}));
 		expect(share.payload).toMatchObject({ scope: 'public_federation', publicRead: true, status: 'active' });
 
-		const status = await json(await app.request(`/v1/teams/${team.id}/treedb`, {
+		const status = await json(await app.request(`/v1/teams/${team.id}/treedx`, {
 			headers: { authorization: `Bearer ${token}` },
 		}));
 		expect(status.payload.mirrors).toHaveLength(1);
@@ -8134,10 +8134,10 @@ describe('TreeDB market integration', () => {
 		const token = await authorizeApp(app);
 		const team = await createTeam(app, token);
 
-		const response = await app.request(`/v1/teams/${team.id}/treedb/provision`, {
+		const response = await app.request(`/v1/teams/${team.id}/treedx/provision`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-			body: JSON.stringify({ publicRead: true, imageRef: 'treeseed/treedb:0.1.0' }),
+			body: JSON.stringify({ publicRead: true, imageRef: 'treeseed/treedx:0.1.0' }),
 		});
 		expect(response.status).toBe(202);
 		const payload = await json(response);
@@ -8150,7 +8150,7 @@ describe('TreeDB market integration', () => {
 			volumeMountPath: '/data',
 		});
 		expect(payload.payload.operation).toMatchObject({
-			namespace: 'treedb',
+			namespace: 'treedx',
 			operation: 'provision',
 			status: 'queued',
 			input: expect.objectContaining({ publicRead: true, volumeMountPath: '/data' }),
@@ -8162,21 +8162,21 @@ describe('TreeDB market integration', () => {
 		});
 	});
 
-	it('lets trusted deploy services bootstrap the default public TreeDB federation team', async () => {
+	it('lets trusted deploy services bootstrap the default public TreeDX federation team', async () => {
 		const app = createTestApp({
 			config: {
 				webServiceId: 'web',
 				webServiceSecret: 'web-test-secret',
 			},
 		});
-		const response = await app.request('/v1/internal/treedb/public-federation/provision', {
+		const response = await app.request('/v1/internal/treedx/public-federation/provision', {
 			method: 'POST',
 			headers: {
 				'content-type': 'application/json',
 				'x-treeseed-service-id': 'web',
 				'x-treeseed-service-secret': 'web-test-secret',
 			},
-			body: JSON.stringify({ imageRef: 'treeseed/treedb:0.1.0', idempotencyKey: 'test-public-treedb-bootstrap' }),
+			body: JSON.stringify({ imageRef: 'treeseed/treedx:0.1.0', idempotencyKey: 'test-public-treedx-bootstrap' }),
 		});
 		expect(response.status).toBe(202);
 		const payload = await json(response);
@@ -8193,12 +8193,12 @@ describe('TreeDB market integration', () => {
 			volumeMountPath: '/data',
 		});
 		expect(payload.payload.operation).toMatchObject({
-			namespace: 'treedb',
+			namespace: 'treedx',
 			operation: 'provision',
 			status: 'queued',
 		});
 
-		const status = await json(await app.request('/v1/internal/treedb/public-federation/status?teamSlug=treeseed-public', {
+		const status = await json(await app.request('/v1/internal/treedx/public-federation/status?teamSlug=treeseed-public', {
 			headers: {
 				'x-treeseed-service-id': 'web',
 				'x-treeseed-service-secret': 'web-test-secret',
@@ -8208,7 +8208,7 @@ describe('TreeDB market integration', () => {
 		expect(status.payload.deployments[0]).toMatchObject({ status: 'queued', provider: 'railway' });
 	});
 
-	it('runs TreeDB provisioning through Railway project, service, volume, variable, domain, and deploy adapters', async () => {
+	it('runs TreeDX provisioning through Railway project, service, volume, variable, domain, and deploy adapters', async () => {
 		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
 		const app = createTestApp({
@@ -8220,10 +8220,10 @@ describe('TreeDB market integration', () => {
 		});
 		const token = await authorizeApp(app);
 		const team = await createTeam(app, token);
-		const queued = await json(await app.request(`/v1/teams/${team.id}/treedb/provision`, {
+		const queued = await json(await app.request(`/v1/teams/${team.id}/treedx/provision`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-			body: JSON.stringify({ publicRead: true, imageRef: 'treeseed/treedb:0.1.0' }),
+			body: JSON.stringify({ publicRead: true, imageRef: 'treeseed/treedx:0.1.0' }),
 		}));
 		const calls: string[] = [];
 		const railwaySecretValues: string[] = [];
@@ -8254,11 +8254,11 @@ describe('TreeDB market integration', () => {
 			}),
 			ensureServiceVolume: vi.fn(async () => {
 				calls.push('volume:/data');
-				return { volume: { id: 'volume-1', name: 'public-treedb-data' }, instance: { id: 'volume-instance-1' }, created: true, updated: false };
+				return { volume: { id: 'volume-1', name: 'public-treedx-data' }, instance: { id: 'volume-instance-1' }, created: true, updated: false };
 			}),
 			ensureGeneratedServiceDomain: vi.fn(async () => {
 				calls.push('domain');
-				return { domain: { id: 'domain-1', domain: 'treedb-public-staging.up.railway.app' }, created: true };
+				return { domain: { id: 'domain-1', domain: 'treedx-public-staging.up.railway.app' }, created: true };
 			}),
 			deployServiceInstance: vi.fn(async () => {
 				calls.push('deploy');
@@ -8266,7 +8266,7 @@ describe('TreeDB market integration', () => {
 			}),
 		};
 
-		await withEnv({ TREESEED_PUBLIC_TREEDB_RAILWAY_PROJECT_NAME: 'treeseed-public-treedb-staging' }, async () => {
+		await withEnv({ TREESEED_PUBLIC_TREEDX_RAILWAY_PROJECT_NAME: 'treeseed-public-treedx-staging' }, async () => {
 			await withHttpMarketApp(app, async (baseUrl) => {
 				const client = new PlatformRunnerClient({
 					marketUrl: baseUrl,
@@ -8274,12 +8274,12 @@ describe('TreeDB market integration', () => {
 					runnerSecret: 'platform-runner-secret',
 				});
 				const result = await runOnceWithClient({
-					runnerId: 'market-ops-treedb-runner-01',
+					runnerId: 'market-ops-treedx-runner-01',
 					environment: 'staging',
 					dataDir: packageRoot,
 				}, client, 'test', {
 					deploymentStore: store,
-					operationKey: 'treedb:provision',
+					operationKey: 'treedx:provision',
 					config: { environment: 'staging' },
 					railway: fakeRailway,
 				});
@@ -8288,28 +8288,28 @@ describe('TreeDB market integration', () => {
 					claimed: true,
 					output: {
 						ok: true,
-						baseUrl: 'https://treedb-public-staging.up.railway.app',
+						baseUrl: 'https://treedx-public-staging.up.railway.app',
 					},
 				});
 			});
 		});
 
 		expect(calls).toEqual(expect.arrayContaining([
-			'project:treeseed-public-treedb',
+			'project:treeseed-public-treedx',
 			'environment:staging',
-			'service:public-federation:treeseed/treedb:0.1.0',
+			'service:public-federation:treeseed/treedx:0.1.0',
 			'volume:/data',
 			'domain',
 			'deploy',
 		]));
-		const status = await store.getTeamTreeDb(team.id);
+		const status = await store.getTeamTreeDx(team.id);
 		expect(status.instance).toMatchObject({
 			id: queued.payload.instance.id,
 			kind: 'managed_public_federation',
 			provider: 'railway',
 			status: 'active',
 			publicRead: true,
-			baseUrl: 'https://treedb-public-staging.up.railway.app',
+			baseUrl: 'https://treedx-public-staging.up.railway.app',
 			railwayProjectId: 'railway-project-1',
 			railwayServiceId: 'railway-service-1',
 			railwayEnvironmentId: 'railway-environment-1',
@@ -8318,17 +8318,17 @@ describe('TreeDB market integration', () => {
 		expect(railwaySecretValues).toHaveLength(1);
 		expect(JSON.stringify(status)).not.toContain(railwaySecretValues[0]);
 
-		const idempotent = await store.provisionTeamTreeDb(team.id, { publicRead: true, imageRef: 'treeseed/treedb:0.1.0' });
+		const idempotent = await store.provisionTeamTreeDx(team.id, { publicRead: true, imageRef: 'treeseed/treedx:0.1.0' });
 		expect(idempotent?.instance).toMatchObject({
 			id: queued.payload.instance.id,
 			status: 'active',
-			baseUrl: 'https://treedb-public-staging.up.railway.app',
+			baseUrl: 'https://treedx-public-staging.up.railway.app',
 			railwayProjectId: 'railway-project-1',
 			railwayServiceId: 'railway-service-1',
 		});
 	});
 
-	it('binds project content to TreeDB and keeps site/project repositories filesystem-backed in provider portfolio', async () => {
+	it('binds project content to TreeDX and keeps site/project repositories filesystem-backed in provider portfolio', async () => {
 		const db = createTestPostgresDatabase();
 		const store = createTestStore(db);
 		const app = createTestApp({ db, store });
@@ -8367,12 +8367,12 @@ describe('TreeDB market integration', () => {
 			parentBranch: 'main',
 			softwareSubmodulePath: 'docs',
 		});
-		await store.upsertTeamTreeDb(team.id, {
-			baseUrl: 'https://treedb.team.example',
+		await store.upsertTeamTreeDx(team.id, {
+			baseUrl: 'https://treedx.team.example',
 			status: 'active',
 		});
 
-		const binding = await json(await app.request(`/v1/projects/${project.id}/treedb-library`, {
+		const binding = await json(await app.request(`/v1/projects/${project.id}/treedx-library`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
 			body: JSON.stringify({ libraryId: 'acme/hub-one', repositoryId: 'repo_hub_one' }),
@@ -8382,14 +8382,14 @@ describe('TreeDB market integration', () => {
 		const topology = await json(await app.request(`/v1/projects/${project.id}/repository-topology`, {
 			headers: { authorization: `Bearer ${token}` },
 		}));
-		expect(topology.payload.contentRepository.accessMode).toBe('treedb');
+		expect(topology.payload.contentRepository.accessMode).toBe('treedx');
 		expect(topology.payload.siteRepository.accessMode).toBe('filesystem');
 		expect(topology.payload.projectRepository.accessMode).toBe('filesystem');
 
 		const manifest = await store.buildCapacityProviderPortfolio({ teamId: team.id });
-		if (!manifest) throw new Error('Expected capacity provider portfolio manifest for TreeDB project topology test.');
+		if (!manifest) throw new Error('Expected capacity provider portfolio manifest for TreeDX project topology test.');
 		expect(manifest.projects[0].repository.name).toBe('hub-one-site');
-		expect(manifest.projects[0].repositoryTopology.contentRepository.accessMode).toBe('treedb');
+		expect(manifest.projects[0].repositoryTopology.contentRepository.accessMode).toBe('treedx');
 		expect(manifest.projects[0].repositoryTopology.siteRepository.accessMode).toBe('filesystem');
 	});
 });

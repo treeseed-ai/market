@@ -150,7 +150,7 @@ jobs:
           path: packages/sdk/dist/
           if-no-files-found: error
 
-  bootstrap-public-treedb:
+  bootstrap-public-treedx:
     needs:
       - classify
       - deploy-web
@@ -163,23 +163,23 @@ jobs:
       TREESEED_MARKET_API_BASE_URL: ${{ needs.classify.outputs.scope == 'prod' && (vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-market-staging-ca844c56.treeseed.ai') }}
       TREESEED_API_WEB_SERVICE_ID: ${{ vars.TREESEED_API_WEB_SERVICE_ID || vars.TREESEED_WEB_SERVICE_ID || 'web' }}
       TREESEED_API_WEB_SERVICE_SECRET: ${{ secrets.TREESEED_API_WEB_SERVICE_SECRET || secrets.TREESEED_WEB_SERVICE_SECRET }}
-      TREESEED_PUBLIC_TREEDB_TEAM_ID: ${{ vars.TREESEED_PUBLIC_TREEDB_TEAM_ID || vars.TREESEED_HOSTING_TEAM_ID }}
-      TREESEED_PUBLIC_TREEDB_TEAM_SLUG: ${{ vars.TREESEED_PUBLIC_TREEDB_TEAM_SLUG || 'treeseed-public' }}
-      TREESEED_PUBLIC_TREEDB_IMAGE_REF: ${{ vars.TREESEED_PUBLIC_TREEDB_IMAGE_REF || 'treeseed/treedb:latest' }}
-      TREESEED_PUBLIC_TREEDB_WAIT_MS: ${{ vars.TREESEED_PUBLIC_TREEDB_WAIT_MS || '900000' }}
+      TREESEED_PUBLIC_TREEDX_TEAM_ID: ${{ vars.TREESEED_PUBLIC_TREEDX_TEAM_ID || vars.TREESEED_HOSTING_TEAM_ID }}
+      TREESEED_PUBLIC_TREEDX_TEAM_SLUG: ${{ vars.TREESEED_PUBLIC_TREEDX_TEAM_SLUG || 'treeseed-public' }}
+      TREESEED_PUBLIC_TREEDX_IMAGE_REF: ${{ vars.TREESEED_PUBLIC_TREEDX_IMAGE_REF || 'treeseed/treedx:latest' }}
+      TREESEED_PUBLIC_TREEDX_WAIT_MS: ${{ vars.TREESEED_PUBLIC_TREEDX_WAIT_MS || '900000' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Ensure public TreeDB federation
-        run: node ./scripts/bootstrap-public-treedb.mjs
+      - name: Ensure public TreeDX federation
+        run: node ./scripts/bootstrap-public-treedx.mjs
 
   acceptance:
     needs:
       - classify
       - deploy-web
-      - bootstrap-public-treedb
+      - bootstrap-public-treedx
       - acceptance-prepare
     runs-on: ubuntu-latest
     permissions:
