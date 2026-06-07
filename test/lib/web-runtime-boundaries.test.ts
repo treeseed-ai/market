@@ -71,7 +71,7 @@ describe('web runtime boundaries', () => {
 			rootDir: 'packages/api',
 			railway: {
 				serviceName: 'treeseed-market-operations-runner',
-				rootDir: '.',
+				rootDir: 'packages/api',
 				buildCommand: 'npm run build',
 				startCommand: 'npm run start:runner',
 				volumeMountPath: '/data',

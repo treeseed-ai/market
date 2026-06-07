@@ -1,5 +1,5 @@
 import type { APIContext } from 'astro';
-import type { CloudflareRuntime } from '@treeseed/core/types/cloudflare';
+import type { CloudflareRuntime } from '@treeseed/sdk/types/cloudflare';
 
 export const WEB_SESSION_COOKIE = 'ts_session';
 export const WEB_CSRF_COOKIE = 'ts_csrf';
