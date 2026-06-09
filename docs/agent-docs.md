@@ -998,7 +998,7 @@ trsd dev:manager
 TreeSeed should:
 
 1. load local Market operational config;
-2. ensure local Market PostgreSQL schema state exists;
+2. ensure local Treeseed PostgreSQL schema state exists;
 3. run migrations if needed;
 4. load agent specs from `src/content/agents`;
 5. load work policy;
@@ -1718,7 +1718,7 @@ workday_report
 Local development:
 
 ```text
-Market PostgreSQL for metadata and governance state
+Treeseed PostgreSQL for metadata and governance state
 static-hub D1/local sqlite only for unauthenticated form submissions
 repo content files for generated content
 .agent-worktrees for isolated mutations
@@ -1727,11 +1727,11 @@ repo content files for generated content
 Hosted/runtime later:
 
 ```text
-Market PostgreSQL for metadata
+Treeseed PostgreSQL for metadata
 static-hub D1 only for unauthenticated form submissions
 R2 for large artifact bodies
 repository branches/worktrees for mutations
-Market API for governance state
+API for governance state
 ```
 
 ---
@@ -2365,7 +2365,7 @@ Graph build/query/ranking
 Context query contracts
 Operation tools
 Workflow state
-Stores, Market PostgreSQL contracts, and static-hub D1 form storage
+Stores, Treeseed PostgreSQL contracts, and static-hub D1 form storage
 ```
 
 ### Core

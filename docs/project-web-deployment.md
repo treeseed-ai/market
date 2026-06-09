@@ -1,4 +1,4 @@
-# Market Web Deployment
+# Project Web Deployment
 
 Market web deployment is the operator path for launching, deploying, publishing, and monitoring a hosted project web surface. The implementation uses the existing project, host, repository, environment, platform operation, deployment, deployment event, runner, and audit records. It does not introduce a separate deployment system.
 
@@ -9,12 +9,29 @@ Deploy page / CLI
   -> /v1/projects/:projectId/deployment-state
   -> /v1/projects/:projectId/deployments/web
   -> project_deployments + platform_operations
-  -> Market operations runner
+  -> Treeseed operations runner
   -> project_deployment_events + platform operation events
   -> deployment state, history, monitor result, audit_events
 ```
 
-The API owns validation, readiness, idempotency, production confirmation, authorization, and audit request records. The Market operations runner owns execution, checkpoints, deployment progress events, mocked or real workflow interaction, monitor checks, terminal deployment state, and terminal audit records.
+The API owns validation, readiness, idempotency, production confirmation, authorization, and audit request records. The Treeseed operations runner owns execution, checkpoints, deployment progress events, mocked or real workflow interaction, monitor checks, terminal deployment state, and terminal audit records.
+
+The deployed API and runner live in `packages/api`, not in the root Market app. The root web app owns UI and proxy/client behavior only.
+
+Hosted service shape:
+
+```text
+Cloudflare root web app
+  -> /v1/* proxy
+  -> Railway api service
+       rootDir: packages/api
+       buildCommand: npm run build
+       startCommand: npm run start:api
+  -> Railway operationsRunner service
+       rootDir: packages/api
+       buildCommand: npm run build
+       startCommand: npm run start:runner
+```
 
 ## Operator Flow
 
@@ -60,9 +77,31 @@ trsd projects deployment cancel <project-id> <deployment-id> --market local
 
 Production deploy and publish require `--yes` before the CLI sends the API request.
 
+## Hosted Readiness
+
+Before using hosted deploy/publish workflows, run the fail-fast hosting checks:
+
+```bash
+npx trsd ready staging --json
+npx trsd hosting plan --environment staging --service api --json
+npx trsd hosting plan --environment staging --service operationsRunner --json
+npx trsd hosting verify --environment staging --service api --live --json
+npx trsd hosting verify --environment staging --service operationsRunner --live --json
+npx trsd operations smoke --environment staging --service operationsRunner --json
+```
+
+`operations smoke` creates a diagnostic platform operation and verifies that the runner claims, checkpoints, and completes it. If this fails, do not run TreeDX bootstrap or project web deployment actions until the runner, database, or service credentials are repaired.
+
+For targeted repair:
+
+```bash
+npx trsd hosting plan --environment staging --service operationsRunner --json
+npx trsd hosting apply --environment staging --service operationsRunner --execute --json
+```
+
 ## Local Development
 
-From the Market repo root, `trsd dev` is the foreground local development surface. `trsd dev start` runs the same surface as a managed, worktree-scoped background instance. Both start the web UI, the Market API, a Treeseed-managed local PostgreSQL control-plane database, Market migrations, and the Market operations runner with `project:web_deployment` capability.
+From the Market repo root, `trsd dev` is the foreground local development surface. `trsd dev start` runs the same surface as a managed, worktree-scoped background instance. Both start the web UI, the API, a Treeseed-managed local PostgreSQL control-plane database, API migrations, and the Treeseed operations runner with `project:web_deployment` capability.
 
 ```bash
 npx trsd dev start --web-runtime local --json

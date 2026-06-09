@@ -70,8 +70,8 @@ Use this as the intended local runtime shape:
 
 ```text
 TreeSeed operational app
-  -> local Market API / control plane
-  -> local Market PostgreSQL control-plane store
+  -> local API / control plane
+  -> local Treeseed PostgreSQL control-plane store
   -> static-hub D1 form store for unauthenticated submissions only
   -> seeded TreeSeed team
   -> seeded market project

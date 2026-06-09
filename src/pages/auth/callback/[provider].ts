@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { isSupportedAuthProvider, normalizeReturnTo } from '../../../lib/auth/flow';
-import { resolveMarketApiBaseUrl, setApiAccessTokenCookie } from '../../../lib/market/api-client';
+import { resolveApiBaseUrl, setApiAccessTokenCookie } from '../../../lib/market/api-client';
 
 export const prerender = false;
 
@@ -9,7 +9,7 @@ export const GET: APIRoute = async (context) => {
 	if (!isSupportedAuthProvider(provider)) {
 		return context.redirect('/auth/sign-in?error=unsupported_provider', 302);
 	}
-	const target = new URL(`/v1/auth/oauth/${provider}/callback`, resolveMarketApiBaseUrl(context.locals));
+	const target = new URL(`/v1/auth/oauth/${provider}/callback`, resolveApiBaseUrl(context.locals));
 	target.search = context.url.search;
 	const response = await fetch(target, {
 		method: 'GET',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { marketApiServiceHeaders } from '../../src/lib/market/api-client';
+import { apiServiceHeaders } from '../../src/lib/market/api-client';
 
 function context() {
 	return {
@@ -20,16 +20,16 @@ function context() {
 	} as any;
 }
 
-describe('Market API web auth headers', () => {
+describe('API web auth headers', () => {
 	it('does not send internal service credentials when forwarding a user bearer token', () => {
-		const headers = marketApiServiceHeaders(context(), { skipUserAssertion: true });
+		const headers = apiServiceHeaders(context(), { skipUserAssertion: true });
 		expect(headers.get('x-treeseed-service-id')).toBeNull();
 		expect(headers.get('x-treeseed-service-secret')).toBeNull();
 		expect(headers.get('x-treeseed-user-assertion')).toBeNull();
 	});
 
 	it('can still create trusted service assertion headers when no user bearer token is available', () => {
-		const headers = marketApiServiceHeaders(context());
+		const headers = apiServiceHeaders(context());
 		expect(headers.get('x-treeseed-service-id')).toBe('web');
 		expect(headers.get('x-treeseed-service-secret')).toBe('site-secret');
 		expect(headers.get('x-treeseed-user-assertion')).toMatch(/^[^.]+\.[^.]+$/u);

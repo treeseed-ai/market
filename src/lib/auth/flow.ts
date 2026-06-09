@@ -1,7 +1,7 @@
 import type { APIContext } from 'astro';
 import { getSiteAuthConfig } from './config.ts';
 import { setPrincipalThemeCookies } from './appearance.ts';
-import { resolveMarketApiBaseUrl, setApiAccessTokenCookie } from '../market/api-client.ts';
+import { resolveApiBaseUrl, setApiAccessTokenCookie } from '../market/api-client.ts';
 
 export const SUPPORTED_AUTH_PROVIDERS = ['github', 'google', 'microsoft', 'apple'] as const;
 export type SupportedAuthProvider = (typeof SUPPORTED_AUTH_PROVIDERS)[number];
@@ -78,7 +78,7 @@ export function authProviderCapabilities(context: Pick<APIContext, 'locals'>) {
 }
 
 export function providerSignInPath(context: Pick<APIContext, 'locals' | 'url'>, provider: SupportedAuthProvider, returnTo = normalizeReturnTo(context)) {
-	const target = new URL(`/v1/auth/oauth/${provider}/start`, resolveMarketApiBaseUrl(context.locals));
+	const target = new URL(`/v1/auth/oauth/${provider}/start`, resolveApiBaseUrl(context.locals));
 	target.searchParams.set('returnTo', returnTo);
 	target.searchParams.set('callbackUrl', `${context.url.origin}/auth/callback/${provider}?returnTo=${encodeURIComponent(returnTo)}`);
 	return target.toString();
@@ -93,7 +93,7 @@ export async function submitMarketEmailAuthFlow(
 	const endpoint = path === 'sign-up/email' ? '/v1/auth/web/sign-up' : '/v1/auth/web/sign-in';
 	const headers = authApiJsonHeaders(context);
 	try {
-		const response = await fetch(`${resolveMarketApiBaseUrl(context.locals)}${endpoint}`, {
+		const response = await fetch(`${resolveApiBaseUrl(context.locals)}${endpoint}`, {
 			method: 'POST',
 			headers,
 			body: JSON.stringify(body),

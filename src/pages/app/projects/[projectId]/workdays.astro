@@ -5,14 +5,14 @@ import PlainTable from '../../../../components/app/controls/PlainTable.astro';
 import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
-import { createMarketApiFacade } from '../../../../lib/market/api-client';
+import { createApiFacade } from '../../../../lib/market/api-client';
 import { loadAppContext, persistActiveTeamSelection, resolveAppProject } from '../../../../view-models/app-access.js';
 import { normalizeWorkdayEntry } from '../../../../view-models/shared.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 const context = await loadAppContext(Astro);
-const marketApi = createMarketApiFacade(Astro);
+const api = createApiFacade(Astro);
 const resolvedProject = await resolveAppProject(context, projectParam);
 const project = resolvedProject.resource;
 const layoutActiveTeam = resolvedProject.team ?? context.activeTeam;
@@ -20,8 +20,8 @@ if (resolvedProject.team?.id && resolvedProject.team.id !== context.activeTeam?.
 let workdays: any[] = [];
 if (project) {
 	const [summaries, runtime] = await Promise.all([
-		marketApi.listProjectWorkdaySummaries(project.id, null).catch(() => []),
-		marketApi.listRuntimeWorkDays(project.id, { limit: 1000 }).catch(() => []),
+		api.listProjectWorkdaySummaries(project.id, null).catch(() => []),
+		api.listRuntimeWorkDays(project.id, { limit: 1000 }).catch(() => []),
 	]);
 	const seen = new Set();
 	workdays = [...summaries, ...runtime].map((entry: any) => normalizeWorkdayEntry(project, entry)).filter((entry: any) => {
@@ -33,7 +33,7 @@ if (project) {
 if (!project) Astro.response.status = resolvedProject.status === 'forbidden' ? 403 : 404;
 const rows = await Promise.all(workdays.map(async (workday: any) => {
 	const tasks = project
-		? await marketApi.listRuntimeTasks(project.id, { workDayId: workday.id, limit: 1000 }).catch(() => [])
+		? await api.listRuntimeTasks(project.id, { workDayId: workday.id, limit: 1000 }).catch(() => [])
 		: [];
 	const agentCount = new Set(tasks.map((task: any) => task.agentId ?? task.agent_id).filter(Boolean)).size;
 	const credits = Number(workday.summary?.capacityUsed ?? workday.summary?.creditsUsed ?? workday.summary?.budget?.capacityUsed ?? 0);

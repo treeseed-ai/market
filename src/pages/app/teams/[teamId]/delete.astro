@@ -8,7 +8,7 @@ import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.
 import PlainTable from '../../../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
-import { MarketApiClientFacade } from '../../../../lib/market/api-client';
+import { ApiClientFacade } from '../../../../lib/market/api-client';
 import { loadAppContext, persistActiveTeamSelection, resolveAppTeam } from '../../../../view-models/app-access.js';
 
 const teamParam = String(Astro.params.teamId ?? '');
@@ -44,7 +44,7 @@ if (Astro.request.method === 'POST' && team && canManageTeam) {
 		formError = `Type "${confirmation}" to delete this team.`;
 	} else {
 	try {
-		await new MarketApiClientFacade(Astro).request<any>('DELETE', `/v1/teams/${encodeURIComponent(team.id)}`, {
+		await new ApiClientFacade(Astro).request<any>('DELETE', `/v1/teams/${encodeURIComponent(team.id)}`, {
 			body: { confirmation: confirmationValue },
 		});
 		Astro.cookies.delete('treeseed_active_team', {

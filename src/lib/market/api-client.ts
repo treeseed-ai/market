@@ -40,7 +40,7 @@ function envValue(locals: App.Locals | Record<string, unknown> | null | undefine
 	return typeof processValue === 'string' && processValue.trim() ? processValue.trim() : '';
 }
 
-export function resolveMarketApiBaseUrl(locals?: App.Locals | Record<string, unknown> | null) {
+export function resolveApiBaseUrl(locals?: App.Locals | Record<string, unknown> | null) {
 	return (
 		envValue(locals, 'TREESEED_MARKET_API_BASE_URL')
 		|| envValue(locals, 'TREESEED_CENTRAL_MARKET_API_BASE_URL')
@@ -76,7 +76,7 @@ export function createTrustedWebUserAssertion(context: Pick<APIContext, 'locals'
 	return `${payload}.${signAssertionPayload(payload, config.apiAssertionSecret)}`;
 }
 
-export function marketApiServiceHeaders(
+export function apiServiceHeaders(
 	context: Pick<APIContext, 'locals' | 'url'>,
 	options: { forceService?: boolean; skipUserAssertion?: boolean } = {},
 ) {
@@ -126,19 +126,19 @@ function unwrapEnvelope<T = unknown>(envelope: any): T {
 	return envelope as T;
 }
 
-export class MarketApiClientFacade {
+export class ApiClientFacade {
 	constructor(private readonly context: AstroLike) {}
 
 	private headers(body = false) {
 		const token = apiAccessTokenFromCookies(this.context);
-		const headers = marketApiServiceHeaders(this.context, { skipUserAssertion: Boolean(token) });
+		const headers = apiServiceHeaders(this.context, { skipUserAssertion: Boolean(token) });
 		if (token) headers.set('authorization', `Bearer ${token}`);
 		if (body) headers.set('content-type', 'application/json');
 		return headers;
 	}
 
 	private url(path: string) {
-		return `${resolveMarketApiBaseUrl(this.context.locals)}${path}`;
+		return `${resolveApiBaseUrl(this.context.locals)}${path}`;
 	}
 
 	async request<T = unknown>(method: string, path: string, options: { body?: unknown } = {}): Promise<T> {
@@ -149,7 +149,7 @@ export class MarketApiClientFacade {
 		});
 		const envelope = await response.json().catch(() => null);
 		if (!response.ok || envelope?.ok === false) {
-			const error = new Error(envelope?.error ?? `Market API request failed: ${response.status}`);
+			const error = new Error(envelope?.error ?? `API request failed: ${response.status}`);
 			(error as any).status = response.status;
 			(error as any).details = isObject(envelope) ? envelope : {};
 			throw error;
@@ -441,8 +441,8 @@ export class MarketApiClientFacade {
 	}
 }
 
-export function createMarketApiFacade(context: AstroLike) {
-	return new MarketApiClientFacade(context);
+export function createApiFacade(context: AstroLike) {
+	return new ApiClientFacade(context);
 }
 
 export function safeTokenEquals(left: string, right: string) {

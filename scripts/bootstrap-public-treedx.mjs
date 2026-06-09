@@ -36,13 +36,18 @@ async function requestJson(url, options = {}) {
 	return payload;
 }
 
+async function assertApiReady(baseUrl, headers) {
+	await requestJson(`${baseUrl}/healthz`, { headers });
+	await requestJson(`${baseUrl}/healthz/deep`, { headers });
+}
+
 function latestDeployment(payload) {
 	const deployments = Array.isArray(payload?.payload?.deployments) ? payload.payload.deployments : [];
 	return deployments[0] ?? null;
 }
 
 async function main() {
-	const baseUrl = required('TREESEED_MARKET_API_BASE_URL').replace(/\/+$/u, '');
+	const baseUrl = required('TREESEED_API_BASE_URL').replace(/\/+$/u, '');
 	const serviceId = required('TREESEED_API_WEB_SERVICE_ID');
 	const serviceSecret = required('TREESEED_API_WEB_SERVICE_SECRET');
 	const teamId = env('TREESEED_PUBLIC_TREEDX_TEAM_ID');
@@ -52,6 +57,7 @@ async function main() {
 	const idempotencyKey = env('TREESEED_PUBLIC_TREEDX_IDEMPOTENCY_KEY', `system:${environment}:public-treedx-federation`);
 	const waitMs = Number(env('TREESEED_PUBLIC_TREEDX_WAIT_MS', '900000'));
 	const pollMs = Number(env('TREESEED_PUBLIC_TREEDX_POLL_MS', '10000'));
+	const queuedGraceMs = Number(env('TREESEED_PUBLIC_TREEDX_QUEUED_GRACE_MS', '120000'));
 	const deadline = Date.now() + (Number.isFinite(waitMs) && waitMs > 0 ? waitMs : 900000);
 	const headers = {
 		'x-treeseed-service-id': serviceId,
@@ -59,6 +65,7 @@ async function main() {
 	};
 
 	console.log(`Ensuring TreeSeed public TreeDX federation for ${teamId || teamSlug} in ${environment}.`);
+	await assertApiReady(baseUrl, headers);
 	const provisioned = await requestJson(`${baseUrl}/v1/internal/treedx/public-federation/provision`, {
 		method: 'POST',
 		headers,
@@ -79,6 +86,7 @@ async function main() {
 
 	let lastStatus = initialDeployment?.status ?? 'queued';
 	let lastOperationStatus = operation?.status ?? null;
+	const queuedDeadline = Date.now() + (Number.isFinite(queuedGraceMs) && queuedGraceMs > 0 ? queuedGraceMs : 120000);
 	while (Date.now() < deadline) {
 		await sleep(Number.isFinite(pollMs) && pollMs > 0 ? pollMs : 10000);
 		const query = teamId
@@ -92,6 +100,16 @@ async function main() {
 			console.log(`TreeDX deployment status: deployment=${deployment?.id ?? 'none'} status=${deploymentStatus} operation=${operationStatus ?? 'unknown'}.`);
 			lastStatus = deploymentStatus;
 			lastOperationStatus = operationStatus ?? null;
+		}
+		if (deploymentStatus === 'queued' && Date.now() >= queuedDeadline) {
+			throw new Error([
+				`TreeDX provisioning remained queued for ${queuedGraceMs}ms.`,
+				`The API accepted the operation, but no operations runner claimed it.`,
+				`deployment=${deployment?.id ?? initialDeployment?.id ?? 'none'} operation=${operation?.id ?? 'none'}`,
+				'Run:',
+				`npx trsd operations smoke --environment ${environment} --service operationsRunner --json`,
+				`npx trsd hosting verify --environment ${environment} --service operationsRunner --live --json`,
+			].join('\n'));
 		}
 		if (deploymentStatus === 'succeeded') {
 			const base = status?.payload?.instance?.baseUrl ?? deployment?.result?.baseUrl ?? null;

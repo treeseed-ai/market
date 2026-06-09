@@ -90,7 +90,7 @@ export async function submitPlatformOperationForm(options: {
 		window.location.href = href;
 		return;
 	}
-	if (status) status.textContent = 'Queued. Waiting for the market operations runner...';
+	if (status) status.textContent = 'Queued. Waiting for the Treeseed operations runner...';
 	const started = Date.now();
 	const timeoutMs = options.timeoutMs ?? 120_000;
 	let operation = queued;

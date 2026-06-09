@@ -5,9 +5,8 @@
 This runbook describes how to demonstrate TreeSeed through the real local operating system:
 
 * seeded TreeSeed portfolio;
-* local Market API and web UI;
-* workday manager;
-* worker runner;
+* local API and web UI;
+* optional capacity-provider workday manager and worker runner;
 * capacity provider, lanes, grants, and work policy;
 * governance records;
 * generated artifacts and operational knowledge.
@@ -34,10 +33,10 @@ npx trsd status --json
 npx trsd install --json
 ```
 
-Start the local web and API runtime:
+Start the local web, API, local PostgreSQL, migrations, and Treeseed operations runner:
 
 ```bash
-npx trsd dev --surfaces web,api --setup auto
+npx trsd dev start --web-runtime local --json
 ```
 
 Keep that terminal running. The web UI should be available at:
@@ -79,7 +78,15 @@ If these records do not appear in the app, treat that as a seed, store, auth, me
 
 ## Workday Runtime
 
-Start with dry-run automation for a reliable demo rehearsal:
+The API and Treeseed operations runner are started by `npx trsd dev start --web-runtime local --json`.
+
+Capacity-provider workday automation is optional for this demo. When demonstrating capacity-provider work, use the current capacity/provider workflow rather than treating it as part of the root Market deployment:
+
+```bash
+npx trsd capacity status --market local --provider local
+```
+
+If the older local docs-automation workday command is available in the current branch, start with dry-run automation for a reliable rehearsal:
 
 ```bash
 npx trsd dev:manager \
@@ -92,7 +99,7 @@ npx trsd dev:manager \
 
 Use the same command with `--docs-automation on` only when the local loop is healthy and you want real generated output.
 
-The manager and worker should write real records: workdays, tasks, task events, task outputs, approvals, capacity usage, reports, and generated artifacts. The app should read those records directly.
+When optional capacity-provider automation is running, the manager and worker should write real records: workdays, tasks, task events, task outputs, approvals, capacity usage, reports, and generated artifacts. The app should read those records directly.
 
 ## 20-Minute Demo Flow
 
@@ -143,10 +150,10 @@ Open:
 Show launch status, readiness, staging and production cards, active timeline, latest monitor status, deployment history, and event inspection. The normal local demo starts everything with:
 
 ```bash
-npx trsd dev --web-runtime local --force
+npx trsd dev start --web-runtime local --json
 ```
 
-That command supervises the Market API, managed local PostgreSQL, migrations, and the deployment runner. For a focused mocked rehearsal outside the integrated supervisor, queue staging deploy or monitor, then run:
+That command supervises the API, managed local PostgreSQL, migrations, and the deployment runner. For a focused mocked rehearsal outside the integrated supervisor, queue staging deploy or monitor, then run:
 
 ```bash
 npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external
@@ -212,7 +219,7 @@ A healthy local demo should show:
 * deployment readiness, staging/prod environment cards, and at least one mocked deployment or monitor record;
 * local capacity provider, lanes, grants, and work policy;
 * one active or recent workday;
-* task events and outputs from the manager or worker;
+* task events and outputs from the manager or worker when optional capacity-provider automation is part of the demo;
 * at least one approval request or governance event;
 * generated artifacts, reports, or knowledge drafts;
 * capacity ledger, reservation, or routing records;
@@ -235,7 +242,13 @@ Confirm the logged-in local user is a member or owner of the seeded team.
 
 ### Workday Is Missing
 
-Run:
+Capacity-provider workdays are optional for the Market deployment demo. First confirm the local API and runner are healthy:
+
+```bash
+npx trsd dev status --json
+```
+
+If you are intentionally demonstrating the capacity-provider workday loop, run:
 
 ```bash
 npx trsd dev:manager --plan --json
@@ -253,7 +266,7 @@ Inspect capacity readiness, worker runner logs, task state, and queue polling. T
 
 ### Deployment Does Not Progress
 
-Confirm the project has repository and web host readiness. In normal local development, the deployment runner is already supervised by `npx trsd dev --web-runtime local --force`. For focused mocked debugging outside the integrated supervisor, run:
+Confirm the project has repository and web host readiness. In normal local development, the deployment runner is already supervised by `npx trsd dev start --web-runtime local --json`. For focused mocked debugging outside the integrated supervisor, run:
 
 ```bash
 npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external

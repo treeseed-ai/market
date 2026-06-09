@@ -2,19 +2,47 @@
 
 This repository is the unified development workspace for the Treeseed system and the canonical integration environment for the package repositories in `packages/`.
 
+## Canonical Reconciliation Rules
+
+Treeseed infrastructure is reconciled from exact desired state. The SDK-owned reconciliation platform documented in `docs/reconciliation-platform.md` is the only orchestration model for hosting, config sync, local development infrastructure, package workflows, capacity providers, TreeDX hosting/image consumption, staging, and release.
+
+- Never mutate provider infrastructure outside `trsd` reconciliation. Direct Railway, Wrangler, Docker, GitHub CLI, or provider API calls are diagnostic only unless they are low-level private adapter primitives invoked by the reconciler.
+- Never trust provider mutation success without a fresh live observation and postcondition verification. `ok: true` is valid only after selected live postconditions pass.
+- Never add one-off provider orchestration to CLI handlers, package scripts, release flows, config flows, dev flows, TreeDX flows, capacity flows, or hosting adapters. New mutation paths must compile desired resources and route through the canonical SDK reconciliation engine.
+- Every new host, service type, package workflow, secret store, provider resource, or local runtime capability must implement the canonical adapter lifecycle: refresh, diff, plan, validate, apply, refresh, verify, persist, plus destroy and import/adopt where applicable.
+- Reconciliation is exact-state infrastructure management. Missing, duplicate, stale, offline, detached, misnamed, wrong-domain, wrong-image, missing-secret, or provider-limited resources are drift and must be planned as create, update, replace, delete, adopt, rename, reattach, retain, taint, or blocked.
+- Undeclared Treeseed-owned provider resources are not ignored. They must be deleted, retained with an explicit reason, adopted, renamed, tainted, or reported as blocked drift.
+- Cached state may locate resources and preserve lineage, but live provider observation is authoritative for readiness.
+- Live tests are part of the platform contract. `trsd reconcile test-live --provider railway|cloudflare|github|local|all --environment staging --json` is the fast read-only smoke test. `trsd reconcile test-live --mode acceptance --provider <provider|all> --environment staging --yes --json` is the full periodic acceptance suite that creates, updates, verifies, and destroys isolated resources. `--mode cleanup --yes` removes leftover isolated live-test resources.
+- Providers with project/container creation limits must test project-scoped resources inside one live-test container. Railway acceptance creates at most one test project per provider run, tests all Railway resources inside it, and cleanup scans the stable `trsd-live-<environment>-railway-` prefix for leftovers.
+
 ## Package Roles
 
 - `@treeseed/sdk`: platform, config, plugin, data, and shared non-UI runtime substrate
 - `@treeseed/core`: integrated Treeseed platform starter for Astro/Starlight web runtime, Hono API integration surfaces, integrated local orchestration, content model, and forms
 - `@treeseed/agent`: processing runtime, Agent API server, manager, worker, role dispatcher, built-in handlers, agent testing harnesses, and runtime support modules
+- `@treeseed/api`: Treeseed backend API, Treeseed PostgreSQL adapter, migrations, operation lifecycle, route descriptors, and Treeseed operations runner
 - `@treeseed/cli`: operator and developer CLI workflows
+- `packages/treedx`: TreeDX implementation and Docker Hub release image used by Treeseed-hosted TreeDX bootstrap and related platform workflows
+
+## Package Integration Manifests
+
+- Checked-out package repositories should declare package-local Treeseed metadata in `treeseed.package.yaml`.
+- `treeseed.package.yaml` is the preferred extension point for package repository slug, workflow names, image targets, development-image tags, hosting override variables, and package credential needs.
+- `trsd config` discovers checked-out package manifests and merges their environment registry entries into the central workspace `.treeseed/config` state.
+- Repository-scoped GitHub tokens use `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>` with uppercase names and single underscores, for example `TREESEED_GITHUB_TOKEN_TREESEED_AI_TREEDX`; `GH_TOKEN` is only a fallback for root/top-level workflows.
+- Use `treeseed.site.yaml` for hostable application manifests and hosting ownership. Add package-local app manifests only when the package itself owns deployable app surfaces.
+- If a package needs local development topology beyond package scripts, prefer a future package-local `treeseed.dev.yaml` style manifest over bespoke CLI logic; the CLI/SDK should discover and merge these manifests instead of hard-coding package names.
+- TreeDX development images are published through the manifest-driven package image flow. Prefer `npx trsd package image --package treedx --branch staging --plan --json`, `--sync-config`, and `--execute`; `npx trsd db image` remains a TreeDX-domain wrapper.
+- TreeDX tagged release images are cut only from merges to `main`. Staging may publish consistently named development images, such as `treeseed/treedx:dev-staging-<sha>` and `treeseed/treedx:dev-staging`, so Docker Hub cleanup can be automated.
 
 ## Boundary Rules
 
 - `sdk` must not import from `core`.
 - `core` may depend on `sdk`, not `cli`.
 - `cli` may depend on `sdk` and `core`.
-- `agent` owns runtime processing code and may depend on `sdk`; tenant-specific Market content remains in the top-level app.
+- `api` may depend on `sdk`; the root web app must talk to it through HTTP/proxy/client surfaces, not package internals.
+- `agent` owns runtime processing code and may depend on `sdk`; tenant-specific Treeseed content remains in the top-level app.
 - Shared fixture references do not imply package ownership.
 - Prefer canonical SDK import paths. Do not reintroduce alias exports or compatibility paths in unreleased packages.
 
@@ -95,10 +123,21 @@ Managed executables:
 - Use the Treeseed provider wrappers when a tool needs decrypted machine configuration values. `npx trsd gh`, `npx trsd railway`, and `npx trsd wrangler` load the selected Treeseed environment scope, inject unencrypted provider credentials into the child process environment, resolve the managed executable, and then forward arguments to the real CLI.
 - Provider wrappers default to `--environment staging`. Pass `--environment local`, `--environment staging`, or `--environment prod` before the forwarded command when you need a specific scope. The Railway wrapper also selects the matching Railway environment (`staging` or `production`) before forwarding the command, so `--environment prod` does not accidentally inspect the locally linked staging environment. Put target CLI flags after `--`, for example `npx trsd railway --environment staging -- status`, `npx trsd railway --environment prod -- status`, `npx trsd railway --environment staging -- whoami`, `npx trsd gh --environment staging -- run view <run-id> --repo <owner/repo> --log-failed`, and `npx trsd wrangler --environment staging -- whoami`.
 - Do not print or echo wrapper environments. The wrappers intentionally pass decrypted values such as `GH_TOKEN`, `RAILWAY_API_TOKEN`, and `CLOUDFLARE_API_TOKEN` only to the child process so provider CLIs can authenticate without exposing secrets in shell history or logs.
+- Cloudflare tokens should use the dashboard permission names, not only the API-doc names. Account-wide permissions for live Treeseed web reconciliation are Pages Write, Workers Scripts Write, Workers KV Storage Write, Workers R2 Storage Write, D1 Write, Queues Write, Turnstile Sites Write, Account Rulesets Write, and Account Rule Lists Write. The target zone needs Zone Read, DNS Write, Cache Settings Write, and SSL and Certificates Write. Cloudflare API docs may call Cache Settings the Cache Rules permission, and Account Rule Lists the Account Filter Lists permission.
 
-Capacity provider runtime:
+Hosting and capacity-provider runtime:
 
-- Root Market deploys only the Market web/API plane. Capacity-provider runtime, container assets, templates, and lifecycle behavior are owned by `@treeseed/agent`.
+- Treat hosted infrastructure as desired-state reconciliation, not a sequential provider-command flow. The source of truth is the discovered Treeseed manifests, package/application environment registries, and central machine config; `trsd` commands should derive, reconcile, verify, and report provider state from that ideal model.
+- Do not manually repair Railway or Cloudflare resources with provider CLIs as a substitute for fixing Treeseed reconciliation. Direct provider wrapper usage is acceptable for read-only inventory/debugging, but mutating hosted resources should flow through `trsd` reconcile/bootstrap/hosting/destroy workflows so the result is reproducible.
+- The root app deploys only the web UI, knowledge hub, management UI, Treeseed UI, auth UI, and `/v1/*` proxy/client surfaces.
+- `packages/api` deploys the API, Treeseed operations runner, Treeseed PostgreSQL service, and public TreeDX federation on Railway in the `treeseed-api` project. The canonical services are `treeseed-api`, `treeseed-api-operations-runner-01`, `treeseed-api-postgres`, and indexed `public-treedx-node-01` services. Stateful volumes must match the service name with a `-volume` suffix so scale-down and scale-up can reclaim storage.
+- TreeDX container images are produced by tagged releases in `packages/treedx` and pushed to Docker Hub as `treeseed/treedx:<tag>`. Hosted TreeDX reconciliation should deploy an explicit tagged image when proving staging or production, not an unverified moving image.
+- TreeDX semantic release tags must only be cut from merges to `main`, matching the release discipline used by the other packages and projects. Do not create release tags from staging, feature, or repair branches.
+- TreeDX staging/development images may be published for hosted staging validation without the extended release profiling gates. Use consistent, pruneable Docker Hub tags such as `dev-<branch-slug>-<short-sha>` for immutable proof images and optionally `dev-<branch-slug>` as a moving convenience tag. Staging reconciliation should point at the immutable dev image tag when proving a fix.
+- Non-Node package projects such as TreeDX should declare Treeseed development/release metadata in a package-local `treeseed.package.yaml`. The SDK package adapter reads this file to discover the package id, repository, image target, verify commands, development-image workflow, tag policy, and hosting environment override. Prefer extending this declarative manifest pattern for new package projects instead of adding package-specific CLI logic.
+- Package repositories may require repository-scoped GitHub credentials when they live outside the root repository owner. The canonical key format is `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>`, uppercased with single underscores; for TreeDX this is `TREESEED_GITHUB_TOKEN_TREESEED_AI_TREEDX`. `GH_TOKEN` is only the fallback for repositories without a scoped token.
+- Use `npx trsd db image --branch staging --plan --json` to derive the immutable TreeDX staging image tag, `npx trsd db image --branch staging --sync-config --json` to sync package image credentials from central config into the package GitHub environment, and then the reported `TREESEED_PUBLIC_TREEDX_IMAGE_REF=... npx trsd hosting apply --environment staging --app api --execute --json` command to reconcile API hosting against that image.
+- Capacity-provider runtime, container assets, templates, and lifecycle behavior are owned by `@treeseed/agent`.
 - Use `trsd capacity build`, `trsd capacity up`, `trsd capacity status`, `trsd capacity logs`, `trsd capacity down`, and `trsd capacity test-local` for provider lifecycle work.
 - Provider secrets must be stored through `trsd config` or host secret managers. Do not create plaintext provider env files or render provider API keys into Compose.
 - The package-owned provider image starts `node ./dist/provider/entrypoint.js` with `api`, `manager`, and `runner` roles.
@@ -106,16 +145,21 @@ Capacity provider runtime:
 For agents and automation:
 
 - Start with `npx trsd status --json` to inspect branch role, dirty state, locks, package state, and next safe actions.
+- Use `npx trsd ready local --json` before local save/stage work. Use `npx trsd ready staging --json` or `npx trsd ready prod --json` before expensive hosted deploys when provider credentials are configured.
+- Use targeted hosting plans before repairs: `npx trsd hosting plan --environment staging --service api --json` and `npx trsd hosting plan --environment staging --service operationsRunner --json`.
+- Use targeted live verification when debugging hosted drift: `npx trsd hosting verify --environment staging --service api --live --json` and `npx trsd hosting verify --environment staging --service operationsRunner --live --json`.
+- Use `npx trsd operations smoke --environment staging --service operationsRunner --json` before TreeDX bootstrap or whenever a platform operation remains queued. It proves the Treeseed runner can claim and complete a diagnostic operation.
 - For provider runtime work, use `npm -w packages/agent run test:capacity-provider-runtime`, `npm -w packages/agent run capacity-provider:test-local`, and the package-local `npm -w packages/agent run verify:local` closure smoke.
 - For local UI iteration, prefer the managed worktree dev instance: `npx trsd dev start --web-runtime local --json`. `--web-runtime local` uses the Astro dev server for hot reload instead of rebuilding the Cloudflare/Wrangler runtime, while still sharing the local API/control-plane state.
+- The managed local dev plan should start web from the root repo and start API plus runner from `packages/api`. If `npx trsd dev start --web-runtime local --plan --json` shows root backend paths, treat that as a regression.
 - `npx trsd dev` without a subcommand still runs the foreground supervisor in the current shell. Use it when you intentionally want terminal-owned process lifecycle and Ctrl-C shutdown.
 - Managed dev instances are worktree-scoped and discoverable. Use `npx trsd dev status --json` for the current worktree, `npx trsd dev status --all --json` for sibling worktrees in the same repository family, `npx trsd dev logs --follow` for logs, and `npx trsd dev stop --json` to stop only the current worktree instance.
 - Treeseed dev supervisors mirror output into stable log files under `.treeseed/logs/dev-<surfaces>.jsonl`, for example `.treeseed/logs/dev-web-api.jsonl`. Managed instances also write `.treeseed/dev/instances/<scope>.json` and `.treeseed/dev/pids/<scope>.pid` in the current worktree, plus a non-authoritative repository-family discovery index under the git common dir.
 - `--force` on managed dev replaces only the current worktree instance. Use `--force-conflicts` only when you intentionally want to stop a sibling worktree's process that owns an explicitly requested conflicting port.
 - See `docs/local-dev-instances.md` for the worktree-scoped dev instance architecture, port allocation, state files, and AI-agent workflow.
 - Use `npx trsd switch <task-branch> --json`; when the result includes `payload.worktreePath`, run all future commands from that worktree path.
-- Use `npx trsd save --json` for checkpoints. Save is optimized for fast local iteration by default. Add `--verify-deployed-resources` on staging or production branches when the checkpoint should wait for hosted deploy checks that verify provider resources.
-- Use `npx trsd stage "message" --json` when the task is ready for staging. Stage waits for required hosted CI/CD gates before cleanup; add `--verify-deployed-resources` when the staging promotion must force deployed resource verification even if another option would skip waiting.
+- Use `npx trsd save --verify local --json "message"` for checkpoints. Save is optimized for fast local iteration by default and can reuse successful verification cache entries when package HEADs and lockfiles are unchanged. Add `--verify-deployed-resources` only when the checkpoint should wait for hosted resource checks.
+- Use `npx trsd stage --plan --json "message"` before staging. Execute with `npx trsd stage --verify-deployed-resources --json "message"` when the staging promotion must force live Railway, Cloudflare, HTTP, database, and runner verification.
 - Use `npx trsd close "reason" --json` when abandoning a task. Close archives the branch and cleans up managed worktrees.
 - Use `npx trsd recover --json`, `npx trsd recover --prune-stale --json`, and `npx trsd resume <run-id> --json` after interrupted workflow commands.
 
@@ -128,8 +172,10 @@ For humans:
 For releases:
 
 - Release only after staging is green.
-- Release waits for production CI/CD and the deployment monitor must verify managed provider resources and settled Railway deployment status before returning success.
-- Use `npx trsd release --patch --json`, `npx trsd release --minor --json`, or `npx trsd release --major --json`.
+- Run `npx trsd release --patch --verify-deployed-resources --plan --json` before a production promotion. Execute with `--verify-deployed-resources` when production live resource checks are required.
+- Release waits for production CI/CD and, when requested, strict live hosted-service verification before returning success.
+- Use `npx trsd release --patch --verify-deployed-resources --json`, `npx trsd release --minor --verify-deployed-resources --json`, or `npx trsd release --major --verify-deployed-resources --json`.
+- If a `--minor` release attempt has already created version bumps or tags and then fails, do not run a second `--minor`. Resume the recorded workflow or use `--patch` after repairing the failure.
 - Release waits required hosted package and market workflows and reports active GitHub jobs/steps plus run metadata.
 
 Workflow guidance:

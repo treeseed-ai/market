@@ -84,9 +84,9 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.TREESEED_HOSTED_HUBS_GITHUB_TOKEN }}
       TREESEED_SITE_URL: ${{ vars.TREESEED_SITE_URL || (inputs.environment == 'prod' && 'https://treeseed.ai' || 'https://treeseed-market-staging-479e4625.treeseed.ai') }}
       BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL || vars.TREESEED_SITE_URL || (inputs.environment == 'prod' && 'https://treeseed.ai' || 'https://treeseed-market-staging-479e4625.treeseed.ai') }}
-      TREESEED_CENTRAL_MARKET_API_BASE_URL: ${{ inputs.environment == 'prod' && (vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-market-staging-ca844c56.treeseed.ai') }}
-      TREESEED_MARKET_API_BASE_URL: ${{ inputs.environment == 'prod' && (vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-market-staging-ca844c56.treeseed.ai') }}
-      TREESEED_CATALOG_MARKET_API_BASE_URLS: ${{ inputs.environment == 'prod' && (vars.TREESEED_CATALOG_MARKET_API_BASE_URLS || vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-market-staging-ca844c56.treeseed.ai') }}
+      TREESEED_CENTRAL_MARKET_API_BASE_URL: ${{ inputs.environment == 'prod' && (vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-staging.treeseed.ai') }}
+      TREESEED_MARKET_API_BASE_URL: ${{ inputs.environment == 'prod' && (vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-staging.treeseed.ai') }}
+      TREESEED_CATALOG_MARKET_API_BASE_URLS: ${{ inputs.environment == 'prod' && (vars.TREESEED_CATALOG_MARKET_API_BASE_URLS || vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-staging.treeseed.ai') }}
       TREESEED_HOSTING_KIND: ${{ vars.TREESEED_HOSTING_KIND }}
       TREESEED_HOSTING_REGISTRATION: ${{ vars.TREESEED_HOSTING_REGISTRATION }}
       TREESEED_HOSTING_TEAM_ID: ${{ vars.TREESEED_HOSTING_TEAM_ID }}
@@ -114,12 +114,38 @@ jobs:
           node -e "const fs = require('fs'); for (const file of ['packages/sdk/package.json', 'packages/agent/package.json', 'packages/core/package.json', 'packages/cli/package.json']) { if (!fs.existsSync(file)) continue; const p = JSON.parse(fs.readFileSync(file, 'utf8')); if (p.scripts) delete p.scripts.prepare; fs.writeFileSync(file, JSON.stringify(p, null, '\t') + '\n'); }"
           npm ci --ignore-scripts
 
+      - name: Restore package dist cache
+        id: package-dist-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/sdk/dist
+            packages/core/dist
+            packages/cli/dist
+            packages/agent/dist
+          key: ${{ runner.os }}-treeseed-dist-${{ hashFiles('package-lock.json', 'packages/*/package.json', 'packages/*/src/**', 'packages/*/scripts/build-dist.ts') }}
+
       - name: Build package artifacts
         shell: bash
         run: |
           set -euo pipefail
           TIMING_SUMMARY="${RUNNER_TEMP:-/tmp}/treeseed-provider-timing.md"
           : > "${TIMING_SUMMARY}"
+          cache_hit="${{ steps.package-dist-cache.outputs.cache-hit }}"
+          if [[ "${cache_hit}" == "true" ]] \
+            && test -f packages/sdk/dist/workflow-support.js \
+            && test -f packages/core/dist/index.js \
+            && test -f packages/cli/dist/cli/main.js \
+            && test -f packages/agent/dist/index.js; then
+            {
+              echo "### Market deploy CI timing"
+              echo
+              echo "| Step | Duration | Status |"
+              echo "| --- | ---: | --- |"
+              echo "| build:package-cache | 0s | reused |"
+            } >> "${TIMING_SUMMARY}"
+            exit 0
+          fi
           started_at="$(date +%s)"
           npm --prefix packages/sdk run build:dist
           sdk_finished_at="$(date +%s)"

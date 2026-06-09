@@ -9,18 +9,36 @@ function workflow(path: string) {
 describe('CI/CD parallelism workflows', () => {
 	it('prepares acceptance in parallel with web deploy and runs live acceptance after both finish', () => {
 		const deploy = workflow('.github/workflows/deploy.yml');
+		const deployWeb = workflow('.github/workflows/deploy-web.yml');
+		expect(deploy.jobs).toHaveProperty('preflight');
+		expect(deploy.jobs).toHaveProperty('runner-smoke');
+		expect(deploy.jobs['deploy-web'].needs).toEqual(['classify', 'preflight']);
+		expect(deployWeb.jobs.web.steps).toEqual(expect.arrayContaining([
+			expect.objectContaining({ name: 'Restore package dist cache' }),
+			expect.objectContaining({ name: 'Build package artifacts' }),
+		]));
+		expect(deployWeb.jobs.web.steps.find((step: any) => step.name === 'Build package artifacts')?.run).toContain('build:package-cache');
 		expect(deploy.jobs).toHaveProperty('acceptance-prepare');
-		expect(deploy.jobs['acceptance-prepare'].needs).toBe('classify');
+		expect(deploy.jobs['acceptance-prepare'].needs).toEqual(['classify', 'preflight']);
 		expect(deploy.jobs['acceptance-prepare'].steps).toEqual(expect.arrayContaining([
 			expect.objectContaining({ name: 'Install dependencies' }),
 			expect.objectContaining({ name: 'Build SDK client for acceptance' }),
 			expect.objectContaining({
 				with: expect.objectContaining({
-					name: 'market-acceptance-sdk-${{ github.sha }}',
+					name: 'api-acceptance-sdk-${{ github.sha }}',
 					path: 'packages/sdk/dist/',
 				}),
 			}),
 		]));
+		expect(deploy.jobs['runner-smoke'].needs).toEqual([
+			'classify',
+			'deploy-web',
+		]);
+		expect(deploy.jobs['bootstrap-public-treedx'].needs).toEqual([
+			'classify',
+			'deploy-web',
+			'runner-smoke',
+		]);
 		expect(deploy.jobs.acceptance.needs).toEqual([
 			'classify',
 			'deploy-web',
@@ -30,11 +48,11 @@ describe('CI/CD parallelism workflows', () => {
 		expect(deploy.jobs.acceptance.steps).toEqual(expect.arrayContaining([
 			expect.objectContaining({
 				with: expect.objectContaining({
-					name: 'market-acceptance-sdk-${{ github.sha }}',
+					name: 'api-acceptance-sdk-${{ github.sha }}',
 					path: 'packages/sdk/dist/',
 				}),
 			}),
-			expect.objectContaining({ name: 'Run live Market API acceptance' }),
+			expect.objectContaining({ name: 'Run live API acceptance' }),
 		]));
 	});
 

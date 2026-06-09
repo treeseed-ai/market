@@ -133,11 +133,11 @@ function formatDuration(durationMs) {
 function assertBackendMovedToApiPackage() {
 	const forbidden = [
 		'src/api',
-		'src/market-operations-runner',
+		'src/operations-runner',
 		'scripts/build-api.mjs',
-		'scripts/build-market-operations-runner.mjs',
-		'scripts/migrate-market-db.mjs',
-		'scripts/market-acceptance.mjs',
+		'scripts/build-operations-runner.mjs',
+		'scripts/migrate-db.mjs',
+		'scripts/api-acceptance.mjs',
 	];
 	const present = forbidden.filter((entry) => existsSync(resolve(root, entry)));
 	if (present.length > 0) {
@@ -145,7 +145,7 @@ function assertBackendMovedToApiPackage() {
 		process.exit(1);
 	}
 	const packageJson = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
-	const forbiddenScripts = ['build:api', 'build:market-operations-runner', 'db:migrate:market', 'test:acceptance', 'market:operations-runner'];
+	const forbiddenScripts = ['build:api', 'build:operations-runner', 'db:migrate', 'test:acceptance', 'market:operations-runner'];
 	const configuredScripts = forbiddenScripts.filter((name) => Object.prototype.hasOwnProperty.call(packageJson.scripts ?? {}, name));
 	if (configuredScripts.length > 0) {
 		process.stderr.write(`Root Market package.json must not expose backend API scripts: ${configuredScripts.join(', ')}\n`);
@@ -162,7 +162,7 @@ function assertBackendMovedToApiPackage() {
 	const sourceOffenders = executableSourceFiles(['src'])
 		.filter((path) => {
 			const source = readFileSync(resolve(root, path), 'utf8');
-			return /@treeseed\/api|packages\/api\/src|MarketControlPlaneStore|createMarketPostgresDatabase|TREESEED_MARKET_DATABASE_URL/u.test(source);
+			return /@treeseed\/api|packages\/api\/src|MarketControlPlaneStore|createMarketPostgresDatabase|TREESEED_DATABASE_URL/u.test(source);
 		});
 	if (sourceOffenders.length > 0) {
 		process.stderr.write(`Root Market executable source/tests must not import or inspect backend API implementation:\n${sourceOffenders.join('\n')}\n`);

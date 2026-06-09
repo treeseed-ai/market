@@ -77,7 +77,7 @@ const mockStore: any = {
 };
 
 vi.mock('../../src/lib/market/store.js', () => ({
-	resolveMarketApi: () => mockStore,
+	resolveApiStore: () => mockStore,
 	resolveMarketPrincipal: () => ({ id: 'user-1' }),
 	loadAccessibleTeams: async () => [{ id: 'team-1', name: 'treeseed', displayName: 'TreeSeed' }],
 }));

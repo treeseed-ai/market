@@ -108,6 +108,8 @@ Treeseed manages cache behavior in two layers:
    - Treeseed manages request-phase Cache Rules for the canonical public web host and the public R2 host when it can resolve their Cloudflare zones
    - preview and dynamic routes are bypassed
    - public HTML and public R2 object routes are marked eligible for long-lived cache
+   - the Cloudflare token needs the dashboard permissions `Cache Settings Write` and `Zone Read` on the target zone, plus account-level `Account Rulesets Write` and `Account Rule Lists Write`
+   - Cloudflare API docs may describe those same dashboard permissions as Cache Rules, Account Rulesets, and Account Filter Lists
 
 3. Targeted purge
    - deploy purges source-page URLs like `/` and `/contact`

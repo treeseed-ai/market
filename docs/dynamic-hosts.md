@@ -54,6 +54,12 @@ Completed behavior:
 * A hidden draft `market-control-plane` catalog template models Market control
   plane host/resource/secret requirements, including Railway/Postgres resources,
   but is not exposed as a standard product launch card.
+* Current Market control-plane hosting uses `packages/api` for the Railway API
+  and `operationsRunner` services. Use `npx trsd ready <environment>
+  --json`, `npx trsd hosting plan/apply/verify --environment <environment>
+  --service <api|operationsRunner> --json`, and `npx trsd operations
+  smoke --environment <environment> --service operationsRunner --json`
+  for current hosted readiness and repair flows.
 
 Current boundaries:
 
@@ -357,7 +363,7 @@ Optional Market-only metadata may remain in the control-plane database:
 }
 ```
 
-The repository may include stable host binding keys, but it should not require Market database IDs to deploy.
+The repository may include stable host binding keys, but it should not require Treeseed database IDs to deploy.
 
 ---
 
@@ -426,7 +432,7 @@ export interface HostSecretDeploymentPlan {
 }
 ```
 
-The Market API can execute this immediately during managed launch or queue it as a platform operation. The CLI should be able to recompute the same plan from `treeseed.site.yaml`, `src/env.yaml`, and machine config.
+The API can execute this immediately during managed launch or queue it as a platform operation. The CLI should be able to recompute the same plan from `treeseed.site.yaml`, `src/env.yaml`, and machine config.
 
 ---
 
@@ -822,20 +828,20 @@ launchRequirements:
       required: true
 
   resources:
-    - key: marketDatabase
+    - key: apiDatabase
       kind: resource
       type: database
       compatibleProviders: [railway-postgres]
       required: true
       configWrites:
         - target: treeseed.site.yaml
-          path: services.marketDatabase.provider
+          path: services.apiDatabase.provider
           valueFrom: literal.railway
         - target: treeseed.site.yaml
-          path: services.marketDatabase.railway.resourceType
+          path: services.apiDatabase.railway.resourceType
           valueFrom: literal.postgres
 
-    - key: marketApi
+    - key: api
       kind: resource
       type: service
       compatibleProviders: [railway]
@@ -845,14 +851,14 @@ launchRequirements:
           path: services.api.provider
           valueFrom: literal.railway
 
-    - key: marketOperationsRunner
+    - key: operationsRunner
       kind: resource
       type: service
       compatibleProviders: [railway]
       required: true
       configWrites:
         - target: treeseed.site.yaml
-          path: services.marketOperationsRunner.provider
+          path: services.operationsRunner.provider
           valueFrom: literal.railway
 ```
 
@@ -976,9 +982,9 @@ Acceptance:
 Deliverables:
 
 * Add a first draft of a Market-control-plane template requirements file.
-* Model `marketDatabase`, `api`, and `marketOperationsRunner` as resource requirements.
-* Write `services.marketDatabase`, `services.api`, and `services.marketOperationsRunner` into `treeseed.site.yaml`.
-* Ensure `TREESEED_MARKET_DATABASE_URL` and platform runner secrets are represented as environment entries, not committed secrets.
+* Model `apiDatabase`, `api`, and `operationsRunner` as resource requirements.
+* Write `services.apiDatabase`, `services.api`, and `services.operationsRunner` into `treeseed.site.yaml`.
+* Ensure `TREESEED_DATABASE_URL` and platform runner secrets are represented as environment entries, not committed secrets.
 
 Acceptance:
 

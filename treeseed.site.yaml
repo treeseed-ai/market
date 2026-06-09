@@ -3,7 +3,7 @@ slug: treeseed-market
 siteUrl: https://treeseed.ai
 contactEmail: hello@treeseed.email
 hosting:
-  kind: market_control_plane
+  kind: self_hosted_project
   registration: none
   teamId: treeseed
   projectId: market
@@ -60,74 +60,15 @@ surfaces:
         edgeTtlSeconds: 31536000
         staleWhileRevalidateSeconds: 86400
         staleIfErrorSeconds: 86400
+connections:
   api:
-    enabled: true
-    provider: railway
-    rootDir: packages/api
+    proxyPrefix: /v1
     localBaseUrl: http://127.0.0.1:3000
     environments:
       staging:
-        domain: api-treeseed-market-staging-ca844c56.treeseed.ai
+        baseUrl: https://api-treeseed-staging.treeseed.ai
       prod:
-        domain: api.treeseed.ai
-services:
-  marketDatabase:
-    enabled: true
-    provider: railway
-    railway:
-      resourceType: postgres
-      serviceName: treeseed-market-postgres
-      environmentVariable: TREESEED_MARKET_DATABASE_URL
-      serviceTargets:
-        - api
-        - marketOperationsRunner
-  api:
-    enabled: true
-    provider: railway
-    rootDir: packages/api
-    railway:
-      projectName: treeseed-market
-      serviceName: treeseed-market-api
-      rootDir: packages/api
-      buildCommand: npm run build
-      startCommand: npm run start:api
-      healthcheckPath: /healthz
-      healthcheckTimeoutSeconds: 120
-      runtimeMode: serverless
-    environments:
-      local:
-        baseUrl: http://127.0.0.1:3000
-        railwayEnvironment: local
-      staging:
-        railwayEnvironment: staging
-      prod:
-        railwayEnvironment: prod
-  marketOperationsRunner:
-    enabled: true
-    provider: railway
-    rootDir: packages/api
-    railway:
-      projectName: treeseed-market
-      serviceName: treeseed-market-operations-runner
-      rootDir: packages/api
-      buildCommand: npm run build
-      startCommand: npm run start:runner
-      healthcheckPath: /healthz
-      healthcheckTimeoutSeconds: 120
-      runtimeMode: service
-      volumeMountPath: /data
-      runnerPool:
-        bootstrapCount: 1
-        maxRunners: 4
-        volumeMountPath: /data
-    environments:
-      local:
-        baseUrl: http://127.0.0.1:3001
-        railwayEnvironment: local
-      staging:
-        railwayEnvironment: staging
-      prod:
-        railwayEnvironment: prod
+        baseUrl: https://api.treeseed.ai
 plugins:
   - package: "@treeseed/core/plugin-default"
 providers:

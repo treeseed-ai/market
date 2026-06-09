@@ -20,8 +20,8 @@ if (!Astro.locals.auth?.principal) {
 }
 
 const context = await loadAppContext(Astro);
-const marketApi = context.store;
-const requestAccountList = async (path: string) => marketApi ? await marketApi.request('GET', path).catch(() => []) : [];
+const api = context.store;
+const requestAccountList = async (path: string) => api ? await api.request('GET', path).catch(() => []) : [];
 const [emailAddresses, webSessions] = await Promise.all([
 	requestAccountList('/v1/auth/web/emails'),
 	requestAccountList('/v1/auth/web/sessions'),

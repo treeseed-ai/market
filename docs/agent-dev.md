@@ -134,7 +134,7 @@ TreeSeed should run the agent research/knowledge system through these layers:
 
 ```text
 TreeSeed operational app
-  -> Market API / v1 routes
+  -> API / v1 routes
   -> @treeseed/agent API routes
   -> manager/workday control plane
   -> task queue/state stores
@@ -2290,7 +2290,7 @@ No code mutation in dogfood test.
 | Manager task seeding               | manager tests plus local workday smoke                                                    |
 | Codex provider skeleton            | mocked SDK unit tests                                                                     |
 | Codex provider execution           | mocked SDK tests plus manual local readiness test                                         |
-| API surface                        | market API tests                                                                          |
+| API surface                        | API tests                                                                          |
 | Work/Knowledge/Capacity app surfaces | UI/render tests and local manual inspection                                             |
 | End-to-end local runtime           | `npm run dev -- --reset`, `npm run dev -- --surface services`, launch workday, inspect UI |
 
@@ -2540,7 +2540,7 @@ Implemented coverage includes:
   package-closure smoke tests.
 * Capacity scheduling runtime from `docs/agent-budget.md`: classify, estimate, route, reserve, execute, reconcile, learn, checkpoint or continue, and preserve idle capacity when no useful admitted work remains.
 * Core integrated dev surface support for `--surface all`.
-* Market API delegation, Work/Knowledge supervision UI for runtime/artifacts/approvals, and Capacity UI for provider readiness, grants, lane pressure, routing decisions, reservations, learned estimates, usage actuals, checkpointed interruptions, approval-required work, and manual budgeted task submission through admission.
+* API delegation, Work/Knowledge supervision UI for runtime/artifacts/approvals, and Capacity UI for provider readiness, grants, lane pressure, routing decisions, reservations, learned estimates, usage actuals, checkpointed interruptions, approval-required work, and manual budgeted task submission through admission.
 
 The intended completion gate is now verification and review organization: package-local `verify:local` checks, targeted Market Agents tests, the capacity scheduling E2E harness, `git diff --check`, review of tracked files, and human approval before any production release.
 
@@ -2597,7 +2597,7 @@ The implementation target is complete. Use this checklist before staging or rele
   * `npm run test:agent-message-chains`
   * `npm run test:manager-worker`
   * `npm -w packages/agent run test:capacity-provider-runtime`
-  * `npx vitest run test/api/market-api.test.ts -t "agents"`
+  * `npx vitest run test/api/api.test.ts -t "agents"`
   * `npx vitest run test/lib/operational-ia.test.ts`
   * `git diff --check`
 * Run root `npm run verify:local` when package verifies pass and the local runtime cost is acceptable.

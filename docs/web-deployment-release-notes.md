@@ -4,11 +4,17 @@
 
 TreeSeed Market now exposes a governed web deployment path for hosted projects. Operators can inspect deployment readiness, queue staging and production web actions, publish content, run monitors, watch progress, inspect history/events, and use matching CLI commands. The feature reuses existing project, host, repository, environment, platform operation, deployment, runner, monitor, and audit records.
 
+Current hosting ownership:
+
+* Root Market deploys the Cloudflare web UI and `/v1/*` proxy only.
+* `packages/api` deploys the Railway API and Treeseed operations runner.
+* `trsd ready`, `trsd hosting verify --live`, and `trsd operations smoke` are the required fail-fast diagnostics before expensive hosted deploys or TreeDX bootstrap.
+
 ## Included
 
 * Deploy page under `/app/projects/:projectId/deploy`.
 * Deployment API/read model routes under `/v1/projects/:projectId`.
-* `project:web_deployment` execution through the existing Market operations runner.
+* `project:web_deployment` execution through the existing Treeseed operations runner.
 * `trsd projects deploy`, `publish`, `monitor`, list, inspect, retry, resume, and cancel parity.
 * Launch-to-Deploy redirect and launch recovery display.
 * Normalized monitor results visible in UI, API, and CLI.
@@ -22,6 +28,15 @@ npm -w packages/api run dev:runner -- --market local --once --operation project:
 ## Deferred External Proof
 
 Automated release readiness uses mocked external execution. One real external staging deploy remains deferred unless safe disposable GitHub and Cloudflare credentials and targets are available. The actionable blocker is to provision a disposable repository and web target, then run staging deploy and monitor without `--mock-external`.
+
+Before attempting hosted proof, run:
+
+```bash
+npx trsd ready staging --json
+npx trsd hosting verify --environment staging --service api --live --json
+npx trsd hosting verify --environment staging --service operationsRunner --live --json
+npx trsd operations smoke --environment staging --service operationsRunner --json
+```
 
 ## Not Included
 

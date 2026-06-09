@@ -1,5 +1,5 @@
 import type { APIContext } from 'astro';
-import { createMarketApiFacade } from './api-client.js';
+import { createApiFacade } from './api-client.js';
 
 type MarketContext = Pick<APIContext, 'locals' | 'cookies' | 'url' | 'request'>;
 
@@ -23,8 +23,8 @@ function toMarketContext(contextOrLocals: MarketContext | App.Locals | Record<st
 	};
 }
 
-export function resolveMarketApi(contextOrLocals: MarketContext | App.Locals | Record<string, unknown> | null | undefined) {
-	return createMarketApiFacade(toMarketContext(contextOrLocals));
+export function resolveApiStore(contextOrLocals: MarketContext | App.Locals | Record<string, unknown> | null | undefined) {
+	return createApiFacade(toMarketContext(contextOrLocals));
 }
 
 export function resolveMarketPrincipal(contextOrLocals: MarketContext | App.Locals | Record<string, unknown> | null | undefined) {
@@ -33,6 +33,6 @@ export function resolveMarketPrincipal(contextOrLocals: MarketContext | App.Loca
 }
 
 export async function loadAccessibleTeams(contextOrLocals: MarketContext | App.Locals | Record<string, unknown> | null | undefined) {
-	const store = resolveMarketApi(contextOrLocals);
+	const store = resolveApiStore(contextOrLocals);
 	return store.listTeamsForPrincipal().catch(() => []);
 }

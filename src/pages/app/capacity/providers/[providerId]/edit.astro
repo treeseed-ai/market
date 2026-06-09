@@ -9,26 +9,26 @@ import Panel from '../../../../../../packages/core/src/components/ui/surface/Pan
 import PlainTable from '../../../../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../../lib/market/control-ui.js';
-import { createMarketApiFacade } from '../../../../../lib/market/api-client';
+import { createApiFacade } from '../../../../../lib/market/api-client';
 import { loadAppContext, persistActiveTeamSelection, resolveAppCapacityProvider } from '../../../../../view-models/app-access.js';
 
 const providerId = String(Astro.params.providerId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 const context = await loadAppContext(Astro);
-const marketApi = createMarketApiFacade(Astro);
+const api = createApiFacade(Astro);
 const providerResolution = await resolveAppCapacityProvider(context, providerId);
 const team = providerResolution.team ?? context.activeTeam;
 const provider = providerResolution.resource;
 if (providerResolution.team?.id && providerResolution.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, providerResolution.team);
 if (!provider) Astro.response.status = providerResolution.status === 'forbidden' ? 403 : 404;
 const deployments = provider && team
-	? await marketApi.listCapacityProviderDeployments(team.id, provider.id).catch(() => [])
+	? await api.listCapacityProviderDeployments(team.id, provider.id).catch(() => [])
 	: [];
 const executionProviders = provider && team
-	? await marketApi.listExecutionProviders(team.id, provider.id).catch(() => [])
+	? await api.listExecutionProviders(team.id, provider.id).catch(() => [])
 	: [];
 const capacityGrants = provider && team
-	? await marketApi.listCapacityGrants(team.id, { providerId: provider.id }).catch(() => [])
+	? await api.listCapacityGrants(team.id, { providerId: provider.id }).catch(() => [])
 	: [];
 const latestDeployment = deployments[0] ?? null;
 const capabilities = provider?.capabilities ?? {};
@@ -37,7 +37,7 @@ const deployment = latestDeployment ?? provider?.deployment ?? (Array.isArray(pr
 const registration = Array.isArray(provider?.registrations) ? provider.registrations[0] : null;
 const latestWorkday = provider?.metadata?.latestProviderWorkday ?? null;
 const latestReport = provider?.metadata?.latestProviderReport ?? null;
-const teamProjects = team ? await marketApi.listTeamProjects(team.id).catch(() => []) : [];
+const teamProjects = team ? await api.listTeamProjects(team.id).catch(() => []) : [];
 
 function formatLimit(limit: any) {
 	if (!limit) return 'No native limit reported';

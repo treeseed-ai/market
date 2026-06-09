@@ -1,7 +1,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import { resolveEditorialPreview } from '@treeseed/core/middleware/editorial-preview';
 import { getSiteAuthConfig, localAuthCanonicalRedirectUrl } from './lib/auth/config';
-import { apiAccessTokenFromCookies, clearApiAccessTokenCookie, resolveMarketApiBaseUrl } from './lib/market/api-client';
+import { apiAccessTokenFromCookies, clearApiAccessTokenCookie, resolveApiBaseUrl } from './lib/market/api-client';
 import { ensureLocalCloudflareRuntime } from './lib/runtime/local-cloudflare';
 
 const DEV_RESET_COOKIE = 'ts_market_dev_reset';
@@ -35,7 +35,7 @@ function applyLocalDevResetCookieBoundary(context: any) {
 async function loadApiBackedWebSession(context: any) {
 	const token = apiAccessTokenFromCookies(context);
 	if (!token) return null;
-	const response = await fetch(`${resolveMarketApiBaseUrl(context.locals)}/v1/me`, {
+	const response = await fetch(`${resolveApiBaseUrl(context.locals)}/v1/me`, {
 		headers: {
 			accept: 'application/json',
 			authorization: `Bearer ${token}`,

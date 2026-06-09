@@ -8,19 +8,19 @@ import ProjectControlNav from '../../../../../components/app/controls/ProjectCon
 import TreeseedAppLayout from '../../../../../layouts/TreeseedAppLayout.astro';
 import { buildWorkdayProjection } from '../../../../../lib/market/workday-projection.js';
 import { escapeHtml as esc } from '../../../../../lib/market/control-ui.js';
-import { createMarketApiFacade } from '../../../../../lib/market/api-client';
+import { createApiFacade } from '../../../../../lib/market/api-client';
 import { loadAppContext, persistActiveTeamSelection, resolveAppProject } from '../../../../../view-models/app-access.js';
 
 const projectParam = String(Astro.params.projectId ?? '');
 const workdayId = String(Astro.params.workdayId ?? '');
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`);
 const context = await loadAppContext(Astro);
-const marketApi = createMarketApiFacade(Astro);
+const api = createApiFacade(Astro);
 const resolvedProject = await resolveAppProject(context, projectParam);
 const project = resolvedProject.resource;
 const layoutActiveTeam = resolvedProject.team ?? context.activeTeam;
 if (resolvedProject.team?.id && resolvedProject.team.id !== context.activeTeam?.id) persistActiveTeamSelection(Astro, resolvedProject.team);
-const projection = project ? await buildWorkdayProjection({ store: marketApi, principal: context.principal, projects: [project], workdayId }).catch(() => null) : null;
+const projection = project ? await buildWorkdayProjection({ store: api, principal: context.principal, projects: [project], workdayId }).catch(() => null) : null;
 if (!project || !projection) Astro.response.status = resolvedProject.status === 'forbidden' ? 403 : 404;
 const workday = projection?.workday ?? null;
 const agentRows = (projection?.agentActivity ?? []).map((agent: any) => ({
@@ -94,7 +94,7 @@ const routingRows = (capacity?.routingDecisions ?? []).map((decision: any) => ({
 				]} />
 			</Panel>
 			<Panel eyebrow="Capacity" title="Native and derived capacity" description="Native usage, derived balances, and reservation pressure for this workday.">
-				<PlainTable columns={[{ key: 'name', label: 'Provider' }, { key: 'availableNative', label: 'Available native' }, { key: 'reservedNative', label: 'Reserved native' }, { key: 'derivedCredits', label: 'Derived credits' }, { key: 'confidence', label: 'Confidence' }, { key: 'reasons', label: 'Reasons' }]} rows={derivedRows} emptyTitle="No derived capacity" emptyDescription="Derived balances appear after the Market API records native provider capacity and conversion profiles." />
+				<PlainTable columns={[{ key: 'name', label: 'Provider' }, { key: 'availableNative', label: 'Available native' }, { key: 'reservedNative', label: 'Reserved native' }, { key: 'derivedCredits', label: 'Derived credits' }, { key: 'confidence', label: 'Confidence' }, { key: 'reasons', label: 'Reasons' }]} rows={derivedRows} emptyTitle="No derived capacity" emptyDescription="Derived balances appear after the API records native provider capacity and conversion profiles." />
 				<PlainTable columns={[{ key: 'name', label: 'Task' }, { key: 'nativeUsage', label: 'Native usage' }, { key: 'actualCredits', label: 'Actual credits' }]} rows={nativeUsageRows} emptyTitle="No native usage actuals" emptyDescription="Native usage appears after completed tasks report wall minutes, USD, or tokens." />
 				<PlainTable columns={[{ key: 'name', label: 'Reservation' }, { key: 'credits', label: 'Credits' }, { key: 'nativePressure', label: 'Native pressure' }, { key: 'provider', label: 'Provider' }]} rows={reservationRows} emptyTitle="No reservations" emptyDescription="Reservations appear after task admission." />
 				<PlainTable columns={[{ key: 'name', label: 'Decision' }, { key: 'capacity', label: 'Derived capacity' }, { key: 'nativePressure', label: 'Native pressure' }, { key: 'created', label: 'Created' }]} rows={routingRows} emptyTitle="No routing decisions" emptyDescription="Routing explanations appear after task admission or capacity blocks." />

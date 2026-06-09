@@ -6,7 +6,7 @@ import TextInput from '../../../../packages/core/src/components/ui/forms/TextInp
 import Textarea from '../../../../packages/core/src/components/ui/forms/Textarea.astro';
 import Panel from '../../../../packages/core/src/components/ui/surface/Panel.astro';
 import TreeseedAppLayout from '../../../layouts/TreeseedAppLayout.astro';
-import { MarketApiClientFacade } from '../../../lib/market/api-client';
+import { ApiClientFacade } from '../../../lib/market/api-client';
 import { loadAppContext } from '../../../view-models/app-access.js';
 
 if (!Astro.locals.auth?.principal) {
@@ -34,7 +34,7 @@ if (Astro.request.method === 'POST') {
 		formError = 'Name is required.';
 	} else {
 		try {
-			const team = await new MarketApiClientFacade(Astro).request<any>('POST', '/v1/teams', {
+			const team = await new ApiClientFacade(Astro).request<any>('POST', '/v1/teams', {
 				body: formValues,
 			});
 			Astro.cookies.set('treeseed_active_team', team.id, {

@@ -5,25 +5,25 @@ import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.
 import PlainTable from '../../../../components/app/controls/PlainTable.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
-import { createMarketApiFacade } from '../../../../lib/market/api-client';
+import { createApiFacade } from '../../../../lib/market/api-client';
 import { loadAppContext } from '../../../../view-models/app-access.js';
 
 if (!Astro.locals.auth?.principal) return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent('/app/capacity/providers')}`);
 const context = await loadAppContext(Astro);
 const team = context.activeTeam;
-const marketApi = createMarketApiFacade(Astro);
-const providers = team ? await marketApi.listTeamCapacityProviders(team.id).catch(() => []) : [];
+const api = createApiFacade(Astro);
+const providers = team ? await api.listTeamCapacityProviders(team.id).catch(() => []) : [];
 const nativeCapacityEntries = team
 	? await Promise.all(providers.map(async (provider: any) => [
 			provider.id,
-			await marketApi.listExecutionProviders(team.id, provider.id).catch(() => []),
+			await api.listExecutionProviders(team.id, provider.id).catch(() => []),
 		]))
 	: [];
 const nativeCapacityByProvider = new Map(nativeCapacityEntries as Array<[string, any[]]>);
 const grantEntries = team
 	? await Promise.all(providers.map(async (provider: any) => [
 			provider.id,
-			await marketApi.listCapacityGrants(team.id, { providerId: provider.id }).catch(() => []),
+			await api.listCapacityGrants(team.id, { providerId: provider.id }).catch(() => []),
 		]))
 	: [];
 const grantsByProvider = new Map(grantEntries as Array<[string, any[]]>);

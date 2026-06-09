@@ -1,6 +1,6 @@
 ---
 import TreeseedPublicLayout from '../../../layouts/TreeseedPublicLayout.astro';
-import { resolveMarketApi } from '../../../lib/market/store.js';
+import { resolveApiStore } from '../../../lib/market/store.js';
 
 export const prerender = false;
 
@@ -9,7 +9,7 @@ if (!Astro.locals.auth?.principal) {
 	return Astro.redirect(`/auth/sign-in?returnTo=${encodeURIComponent(Astro.url.pathname)}`, 302);
 }
 
-const store = resolveMarketApi(Astro);
+const store = resolveApiStore(Astro);
 const result: any = store
 	? await store.acceptTeamInvite(token, Astro.locals.auth.principal.id)
 	: { ok: false, message: 'Market storage is unavailable.' };

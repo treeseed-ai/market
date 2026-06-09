@@ -1,6 +1,6 @@
 # Dynamic Centralized Capacity Credits Completion Record
 
-Status: Complete. Phases 1 through 9 are implemented in the Market PostgreSQL control plane, SDK capacity model, agent provider runtime, UI, seed flow, CLI migration surface, and default-mode hardening.
+Status: Complete. Phases 1 through 9 are implemented in the Treeseed PostgreSQL control plane, SDK capacity model, agent provider runtime, UI, seed flow, CLI migration surface, and default-mode hardening.
 Date: 2026-05-20
 Scope: `treeseed/market`, `packages/sdk`, `packages/agent`, `packages/cli`, `packages/core`
 
@@ -659,15 +659,15 @@ manual approval for borrowing from reserve
 
 ## Drizzle Schema Plan
 
-Market control-plane capacity budgeting tables are PostgreSQL tables owned by `packages/sdk/src/db/market-schema.ts`. Do not add hand-authored top-level SQL migrations for this work. Generate the checked-in Market PostgreSQL artifact with `npm run db:generate:market`.
+Market control-plane capacity budgeting tables are PostgreSQL tables owned by `packages/sdk/src/db/market-schema.ts`. Do not add hand-authored top-level SQL migrations for this work. Generate the checked-in Treeseed PostgreSQL artifact with `npm run db:generate:market`.
 
-SDK/Core D1 storage is separate and intentionally small. It is only for unauthenticated static knowledge-hub form storage (`runtime_records`, `subscribers`, and `contact_submissions`). D1 migration artifacts are generated with `npm -w packages/sdk run db:generate:d1` and are not used by the Market API.
+SDK/Core D1 storage is separate and intentionally small. It is only for unauthenticated static knowledge-hub form storage (`runtime_records`, `subscribers`, and `contact_submissions`). D1 migration artifacts are generated with `npm -w packages/sdk run db:generate:d1` and are not used by the API.
 
 The table summaries below are logical review notes only. The implementation source of truth is Drizzle.
 
 ### Execution Providers
 
-Implemented in the Market PostgreSQL Drizzle schema as `execution_providers`.
+Implemented in the Treeseed PostgreSQL Drizzle schema as `execution_providers`.
 The table stores the execution provider's team, optional capacity provider owner, name,
 kind, status, native unit, quota visibility, worker concurrency, reset cadence,
 configuration, metadata, and timestamps.
@@ -679,7 +679,7 @@ Generated artifact: packages/sdk/drizzle/market/0000_market_control_plane.sql
 
 ### Native Capacity Envelopes
 
-Implemented in the Market PostgreSQL Drizzle schema as `execution_provider_native_limits`.
+Implemented in the Treeseed PostgreSQL Drizzle schema as `execution_provider_native_limits`.
 The table stores human-entered native facts: scope, native unit, limit amount, reserve
 buffer, reset cadence, reset time, confidence, source, metadata, and timestamps.
 
@@ -690,7 +690,7 @@ Generated artifact: packages/sdk/drizzle/market/0000_market_control_plane.sql
 
 ### Provider Observations
 
-Implemented in the Market PostgreSQL Drizzle schema as `execution_provider_observations`.
+Implemented in the Treeseed PostgreSQL Drizzle schema as `execution_provider_observations`.
 The table stores observed health, active workers, queued tasks, throttle state, native
 remaining facts, reset time, confidence, and metadata.
 
@@ -701,7 +701,7 @@ Generated artifact: packages/sdk/drizzle/market/0000_market_control_plane.sql
 
 ### Native Usage Observations
 
-Implemented in the Market PostgreSQL Drizzle schema as `native_usage_observations`.
+Implemented in the Treeseed PostgreSQL Drizzle schema as `native_usage_observations`.
 The table stores raw native usage JSON, effort signals, outcome metadata, formula version,
 execution provider, execution profile, task signature, and creation time. It is indexed by
 task/profile and provider so learning can aggregate completed work without scanning all
@@ -714,7 +714,7 @@ Generated artifact: packages/sdk/drizzle/market/0000_market_control_plane.sql
 
 ### Credit Conversion Profiles
 
-Implemented in the Market PostgreSQL Drizzle schema as `credit_conversion_profiles`.
+Implemented in the Treeseed PostgreSQL Drizzle schema as `credit_conversion_profiles`.
 Rows are keyed by the learned conversion dimensions:
 
 ```text
@@ -737,7 +737,7 @@ Generated artifact: packages/sdk/drizzle/market/0000_market_control_plane.sql
 ### Link Reservations To Execution Provider
 
 Optional execution-provider columns are present on reservations, ledger entries, routing decisions, and usage actuals.
-These columns are Drizzle-owned Market PostgreSQL schema fields, not hand-authored root SQL migrations.
+These columns are Drizzle-owned Treeseed PostgreSQL schema fields, not hand-authored root SQL migrations.
 
 ```text
 Source of truth: packages/sdk/src/db/market-schema.ts
@@ -750,7 +750,7 @@ Credit budget columns remain on `capacity_providers` as explicit compatibility f
 
 ```text
 capacity_providers.credit_budget_mode defaults to derived.
-The column is owned by the Market PostgreSQL Drizzle schema.
+The column is owned by the Treeseed PostgreSQL Drizzle schema.
 ```
 
 Allowed values:
@@ -1162,7 +1162,7 @@ Implementation status:
 
 ```text
 Implemented in packages/sdk/src/capacity.ts as calculateActualCredits.
-Native usage facts are stored in native_usage_observations through the Market API store.
+Native usage facts are stored in native_usage_observations through the API store.
 task_usage_actuals records credit_formula_version, actual_credit_source, and native_usage_json.
 Provider usage and runner capacity settlement calculate actual credits centrally.
 Legacy actualCredits remains available only as an explicit override or fallback compatibility path.
@@ -1193,7 +1193,7 @@ Existing settlement logic receives centrally calculated actual credits.
 Implementation status:
 
 ```text
-Implemented as Market PostgreSQL credit_conversion_profiles plus SDK conversion helpers.
+Implemented as Treeseed PostgreSQL credit_conversion_profiles plus SDK conversion helpers.
 Profiles learn native-units-per-credit by taskSignature, executionProfileId, executionProviderKind, and nativeUnit.
 Completed samples update conversion p50/p90; interrupted samples remain separate pressure/partial metadata.
 High-confidence profiles can influence calculateActualCredits; low-confidence profiles keep Phase 2 bootstrap behavior.
@@ -1224,7 +1224,7 @@ Low-sample profiles remain low confidence.
 Implementation status:
 
 ```text
-Implemented as SDK deriveAvailableCredits plus Market API capacity summary integration.
+Implemented as SDK deriveAvailableCredits plus API capacity summary integration.
 Derived availability uses execution providers, native limits, latest observations, active native reservations, reserve buffers, and credit conversion profiles.
 Market reservations store execution_provider_id, native_unit, reserved_native_amount, and consumed_native_amount for durable native pressure tracking.
 Existing routing and task admission behavior remains unchanged until Phase 5.
@@ -1256,7 +1256,7 @@ No human-entered provider credit budget is required in derived mode.
 Implementation status:
 
 ```text
-Implemented as derived-capacity-aware SDK routing plus Market API plan integration.
+Implemented as derived-capacity-aware SDK routing plus API plan integration.
 Project capacity plans include derivedCapacity so task admission can route against the same native availability shown in summaries.
 Derived providers route on medium/high-confidence native-derived availability and create native reservations.
 Hybrid providers use derived availability when confidence is sufficient while preserving existing grant/static caps as governance limits.
@@ -1320,11 +1320,11 @@ Emergency override can borrow from reserve only when enabled on the grant and re
 Implementation status:
 
 ```text
-Implemented as a UI-only migration over the Phase 1-6 Market API and SDK behavior.
+Implemented as a UI-only migration over the Phase 1-6 API and SDK behavior.
 Provider setup and edit screens prioritize native provider facts: provider kind, native unit, reset window, quota visibility, concurrency, and reserve buffers.
 Capacity provider pages explain native limits, active native reservations, learned conversion confidence, derived credits, and portfolio allocation.
 Allocation controls live inside the provider workflow instead of restoring standalone grant pages.
-Project workday views expose native usage, derived balances, native reservation pressure, and routing explanations through the Market API facade.
+Project workday views expose native usage, derived balances, native reservation pressure, and routing explanations through the API facade.
 Legacy static credit values remain compatibility data and are not required for derived providers.
 Market control-plane data remains PostgreSQL/Drizzle-owned; D1 is unrelated to this work.
 ```
@@ -1379,7 +1379,7 @@ Migration command preserves old static budgets as fallback caps.
 
 ### Phase 9: Hardening and Removal of Default Static Mode
 
-Implemented as default-mode hardening across Market PostgreSQL, the SDK router, the Market API/store boundary, UI copy, CLI migration behavior, and tests.
+Implemented as default-mode hardening across Treeseed PostgreSQL, the SDK router, the API/store boundary, UI copy, CLI migration behavior, and tests.
 
 Deliverables:
 
@@ -1390,7 +1390,7 @@ Missing persisted credit_budget_mode values migrate to derived.
 SDK routing no longer infers static mode from daily/monthly credit budgets or metadata.
 Operator surfaces warn about low-confidence or missing conversion as learning.
 Property tests cover native-to-credit availability invariants.
-Codex, Copilot, and OpenRouter-style provider flows remain covered through native seed, CLI, and Market API tests.
+Codex, Copilot, and OpenRouter-style provider flows remain covered through native seed, CLI, and API tests.
 ```
 
 Acceptance criteria:
@@ -1607,7 +1607,7 @@ Mitigation:
 ```text
 static mode remains available only as explicit legacy compatibility
 hybrid mode uses manual credit cap as an explicit upper bound
-Market PostgreSQL migrations normalize missing modes to derived
+Treeseed PostgreSQL migrations normalize missing modes to derived
 seed data changes are reversible
 ```
 
@@ -1631,14 +1631,14 @@ This work is complete. The implemented system satisfies:
 
 | Capability | Implementation Areas | Verification |
 | --- | --- | --- |
-| Native execution-provider facts | Market PostgreSQL Drizzle schema, Market API execution-provider routes, seed apply/export, provider setup UI | Drizzle schema tests, Market API capacity tests, seed tests, operational IA tests |
-| Central actual-credit calculation | `packages/sdk/src/capacity.ts`, task completion/usage actual paths, agent telemetry | SDK capacity tests, Market API usage tests, agent provider tests |
-| Conversion learning | `credit_conversion_profiles`, usage actual learning path, SDK profile helpers | Drizzle migration tests, SDK conversion tests, Market API learning tests |
-| Derived availability projection | SDK `deriveAvailableCredits`, Market project/team/provider summaries | SDK availability tests, Market API summary tests |
+| Native execution-provider facts | Treeseed PostgreSQL Drizzle schema, API execution-provider routes, seed apply/export, provider setup UI | Drizzle schema tests, API capacity tests, seed tests, operational IA tests |
+| Central actual-credit calculation | `packages/sdk/src/capacity.ts`, task completion/usage actual paths, agent telemetry | SDK capacity tests, API usage tests, agent provider tests |
+| Conversion learning | `credit_conversion_profiles`, usage actual learning path, SDK profile helpers | Drizzle migration tests, SDK conversion tests, API learning tests |
+| Derived availability projection | SDK `deriveAvailableCredits`, Market project/team/provider summaries | SDK availability tests, API summary tests |
 | Native reservations and derived routing | SDK `routeAndReserveCapacity`, Market reservation fields/store serialization | SDK router tests, Market task creation/reservation tests |
 | Portfolio allocation | Capacity grant metadata, SDK grant caps, embedded provider allocation UI | SDK portfolio tests, Market grant tests, operational IA tests |
-| Native-first UI, seeds, and CLI | Market API facade, provider pages, seed `executionProviders`, `trsd capacity plan`, `trsd capacity migrate --to-derived` | UI boundary tests, seed apply/export tests, CLI capacity tests |
-| Migration ownership | Market PostgreSQL Drizzle artifacts, SDK/core static-hub D1 Drizzle artifacts, architecture guardrails | Drizzle tests and no-root-SQL architecture tests |
+| Native-first UI, seeds, and CLI | API facade, provider pages, seed `executionProviders`, `trsd capacity plan`, `trsd capacity migrate --to-derived` | UI boundary tests, seed apply/export tests, CLI capacity tests |
+| Migration ownership | Treeseed PostgreSQL Drizzle artifacts, SDK/core static-hub D1 Drizzle artifacts, architecture guardrails | Drizzle tests and no-root-SQL architecture tests |
 | Default-mode hardening | `credit_budget_mode` default `derived`, no static inference, explicit static/hybrid compatibility | Drizzle tests, SDK mode tests, API/UI/CLI tests |
 
 ## Implementation History
@@ -1689,7 +1689,7 @@ Switch local capacity seed to derived mode, add Codex/OpenRouter/Copilot scenari
 
 Implemented.
 
-Make `derived` the Market PostgreSQL default, migrate missing provider modes to `derived`, remove metadata/static-budget inference, preserve static/hybrid only as explicit compatibility modes, and add native-to-credit invariant coverage.
+Make `derived` the Treeseed PostgreSQL default, migrate missing provider modes to `derived`, remove metadata/static-budget inference, preserve static/hybrid only as explicit compatibility modes, and add native-to-credit invariant coverage.
 
 ## Final Architectural Shape
 

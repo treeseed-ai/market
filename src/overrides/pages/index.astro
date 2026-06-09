@@ -3,13 +3,13 @@ import { listSiteTemplates } from '@treeseed/core/templates';
 import TreeseedPublicLayout from '../../layouts/TreeseedPublicLayout.astro';
 import MarketProductCard from '../../components/market/MarketProductCard.astro';
 import { createMarketTemplateCatalogProvider } from '../../lib/market/catalog.js';
-import { resolveMarketApi } from '../../lib/market/store.js';
+import { resolveApiStore } from '../../lib/market/store.js';
 
 const templateListing = await listSiteTemplates({
 	locals: Astro.locals,
 	catalogProvider: createMarketTemplateCatalogProvider(Astro.locals),
 });
-const store = resolveMarketApi(Astro.locals);
+const store = resolveApiStore(Astro.locals);
 const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
 const featuredTemplates = templateListing.items.slice(0, 3);
 const featuredPacks = knowledgePacks.slice(0, 3);

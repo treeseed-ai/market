@@ -174,7 +174,7 @@ describe('market auth password policy', () => {
 		)).toBeNull();
 	});
 
-	it('keeps email sign-up routed to the Market API instead of a local auth handler', async () => {
+	it('keeps email sign-up routed to the API instead of a local auth handler', async () => {
 		await withEnv({
 			BETTER_AUTH_URL: 'http://127.0.0.1:4321',
 			TREESEED_SITE_URL: undefined,
@@ -196,7 +196,7 @@ describe('market auth password policy', () => {
 		});
 	}, 20_000);
 
-	it('uses request-origin fallback config for Market API-owned auth pages', async () => {
+	it('uses request-origin fallback config for API-owned auth pages', async () => {
 		await withEnv({
 			BETTER_AUTH_URL: undefined,
 			TREESEED_SITE_URL: undefined,

@@ -116,7 +116,7 @@ describe('one-purpose control app information architecture', () => {
 		for (const path of filesUnder('src/pages/app').filter((entry) => entry.endsWith('.astro'))) {
 			const contents = source(path);
 			expect(contents, path).not.toContain('loadOperationalContext');
-			expect(contents, path).not.toContain('resolveMarketApi(Astro)');
+			expect(contents, path).not.toContain('resolveApiStore(Astro)');
 			expect(contents, path).not.toContain('loadAccessibleTeams(Astro');
 			expect(contents, path).not.toMatch(/load[A-Za-z]+ViewModel\(Astro\.locals/u);
 		}
@@ -173,14 +173,14 @@ describe('one-purpose control app information architecture', () => {
 		expect(styles).toContain('white-space: nowrap;');
 	});
 
-	it('keeps team mutations behind the server-side Market API facade', () => {
+	it('keeps team mutations behind the server-side API facade', () => {
 		for (const path of [
 			'src/pages/app/teams/new.astro',
 			'src/pages/app/teams/[teamId]/edit.astro',
 			'src/pages/app/teams/[teamId]/delete.astro',
 		]) {
 			const page = source(path);
-			expect(page).toContain('MarketApiClientFacade');
+			expect(page).toContain('ApiClientFacade');
 			expect(page).toContain('method="POST"');
 			expect(page).not.toContain("fetch('/v1/teams");
 			expect(page).not.toContain('fetch("/v1/teams');
@@ -343,13 +343,13 @@ describe('one-purpose control app information architecture', () => {
 
 	it('documents Phase 8 web deployment release readiness without legacy runner commands', () => {
 		const packageJson = JSON.parse(source('package.json'));
-		const deploymentDocs = source('docs/market-web-deployment.md');
+		const deploymentDocs = source('docs/project-web-deployment.md');
 		const demo = source('docs/demo.md');
 		const uiSpec = source('docs/market_ui_spec.md');
 		const purpose = source('docs/purpose.md');
 		const plan = source('docs/web-ui-deployment.md');
 		const releaseNotes = source('docs/web-deployment-release-notes.md');
-		const acceptanceSpec = source('test/acceptance/market-api.base.yaml');
+		const acceptanceSpec = source('test/acceptance/api.base.yaml');
 		const stableRunnerCommand = 'npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external';
 
 		expect(packageJson.scripts['market:operations-runner']).toBeUndefined();
@@ -412,7 +412,7 @@ describe('one-purpose control app information architecture', () => {
 		expect(dashboard).toContain('Capacity');
 		expect(dashboard).toContain('Portfolio allocation');
 		expect(dashboard).toContain('Compatibility credits');
-		expect(dashboard).toContain('createMarketApiFacade');
+		expect(dashboard).toContain('createApiFacade');
 		expect(dashboard).not.toContain('context.store.listTeamCapacityProviders');
 		expect(dashboard).not.toContain('/app/capacity/grants');
 		expect(dashboard).not.toContain('Lanes');
@@ -439,7 +439,7 @@ describe('one-purpose control app information architecture', () => {
 		expect(edit).toContain('portfolioAllocationPercent');
 		expect(edit).toContain('reservePoolPercent');
 		expect(edit).toContain('emergencyOverride');
-		expect(edit).toContain('createMarketApiFacade');
+		expect(edit).toContain('createApiFacade');
 		expect(edit).toContain('resolveAppCapacityProvider');
 		expect(edit).not.toContain('context.store.listTeamCapacityProviders');
 		expect(edit).not.toContain('/app/capacity/grants');
@@ -448,10 +448,10 @@ describe('one-purpose control app information architecture', () => {
 		expect(edit).toContain('capacityProviderHost');
 		expect(edit).toContain('self-hosting');
 		expect(edit).not.toContain('Select name="provider"');
-		expect(workdays).toContain('createMarketApiFacade');
+		expect(workdays).toContain('createApiFacade');
 		expect(workdays).toContain('Native usage');
 		expect(workdays).not.toContain('context.store');
-		expect(workdayDetail).toContain('createMarketApiFacade');
+		expect(workdayDetail).toContain('createApiFacade');
 		expect(workdayDetail).toContain('Native and derived capacity');
 		expect(workdayDetail).toContain('Native pressure');
 		expect(workdayDetail).not.toContain('context.store');

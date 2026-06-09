@@ -1656,7 +1656,7 @@ Create:
 docs/demo.md
 ```
 
-The runbook demonstrates TreeSeed through the real seeded TreeSeed portfolio, local Market API, workday manager, worker runner, capacity system, governance records, and existing app surfaces.
+The runbook demonstrates TreeSeed through the real seeded TreeSeed portfolio, local API, workday manager, worker runner, capacity system, governance records, and existing app surfaces.
 
 Do not add demo-specific app functionality.
 

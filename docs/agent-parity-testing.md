@@ -15,7 +15,7 @@ npm -w packages/cli run test
 Run the integrated Market checks:
 
 ```sh
-npm run test:unit -- test/api/market-api.test.ts test/lib/web-runtime-boundaries.test.ts
+npm run test:unit -- test/api/api.test.ts test/lib/web-runtime-boundaries.test.ts
 npm run build
 npm run verify:local
 ```

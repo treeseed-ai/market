@@ -110,7 +110,9 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
   deploy-web:
-    needs: classify
+    needs:
+      - classify
+      - preflight
     if: |
       needs.classify.outputs.workflow_action == 'deploy_web' ||
       needs.classify.outputs.workflow_action == 'publish_content' ||
@@ -126,8 +128,34 @@ jobs:
       preview_id: ${{ inputs.preview_id || needs.classify.outputs.preview_id }}
     secrets: inherit
 
-  acceptance-prepare:
+  preflight:
     needs: classify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Build SDK for readiness checks
+        run: npm -w packages/sdk run build:dist
+      - name: Validate deployment readiness
+        run: |
+          node ./packages/sdk/scripts/run-ts.mjs ./packages/sdk/scripts/deployment-readiness.ts \
+            --environment "${{ needs.classify.outputs.scope }}" \
+            --strict
+
+  acceptance-prepare:
+    needs:
+      - classify
+      - preflight
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -146,11 +174,11 @@ jobs:
         run: npm -w packages/sdk run build:dist
       - uses: actions/upload-artifact@v4
         with:
-          name: market-acceptance-sdk-${{ github.sha }}
+          name: api-acceptance-sdk-${{ github.sha }}
           path: packages/sdk/dist/
           if-no-files-found: error
 
-  bootstrap-public-treedx:
+  runner-smoke:
     needs:
       - classify
       - deploy-web
@@ -159,8 +187,37 @@ jobs:
       contents: read
     environment: ${{ needs.classify.outputs.scope == 'prod' && 'production' || 'staging' }}
     env:
+      TREESEED_MARKET_API_BASE_URL: ${{ needs.classify.outputs.scope == 'prod' && (vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-staging.treeseed.ai') }}
+      TREESEED_ACCEPTANCE_SERVICE_ID: ${{ secrets.TREESEED_ACCEPTANCE_SERVICE_ID || vars.TREESEED_API_WEB_SERVICE_ID || vars.TREESEED_WEB_SERVICE_ID || 'web' }}
+      TREESEED_ACCEPTANCE_SERVICE_SECRET: ${{ secrets.TREESEED_ACCEPTANCE_SERVICE_SECRET || secrets.TREESEED_API_WEB_SERVICE_SECRET || secrets.TREESEED_WEB_SERVICE_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Run Market operations runner smoke
+        run: |
+          node ./packages/sdk/scripts/run-ts.mjs ./packages/sdk/scripts/market-runner-smoke.ts \
+            --environment "${{ needs.classify.outputs.scope }}"
+
+  bootstrap-public-treedx:
+    needs:
+      - classify
+      - deploy-web
+      - runner-smoke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment: ${{ needs.classify.outputs.scope == 'prod' && 'production' || 'staging' }}
+    env:
       TREESEED_WORKFLOW_ENVIRONMENT: ${{ needs.classify.outputs.scope }}
-      TREESEED_MARKET_API_BASE_URL: ${{ needs.classify.outputs.scope == 'prod' && (vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-market-staging-ca844c56.treeseed.ai') }}
+      TREESEED_MARKET_API_BASE_URL: ${{ needs.classify.outputs.scope == 'prod' && (vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-staging.treeseed.ai') }}
       TREESEED_API_WEB_SERVICE_ID: ${{ vars.TREESEED_API_WEB_SERVICE_ID || vars.TREESEED_WEB_SERVICE_ID || 'web' }}
       TREESEED_API_WEB_SERVICE_SECRET: ${{ secrets.TREESEED_API_WEB_SERVICE_SECRET || secrets.TREESEED_WEB_SERVICE_SECRET }}
       TREESEED_PUBLIC_TREEDX_TEAM_ID: ${{ vars.TREESEED_PUBLIC_TREEDX_TEAM_ID || vars.TREESEED_HOSTING_TEAM_ID }}
@@ -192,7 +249,7 @@ jobs:
       TREESEED_ACCEPTANCE_PROVIDER_TOKEN: ${{ secrets.TREESEED_ACCEPTANCE_PROVIDER_TOKEN }}
       TREESEED_ACCEPTANCE_SERVICE_ID: ${{ secrets.TREESEED_ACCEPTANCE_SERVICE_ID || vars.TREESEED_API_WEB_SERVICE_ID || vars.TREESEED_WEB_SERVICE_ID || 'web' }}
       TREESEED_ACCEPTANCE_SERVICE_SECRET: ${{ secrets.TREESEED_ACCEPTANCE_SERVICE_SECRET || secrets.TREESEED_API_WEB_SERVICE_SECRET || secrets.TREESEED_WEB_SERVICE_SECRET }}
-      TREESEED_MARKET_API_BASE_URL: ${{ needs.classify.outputs.scope == 'prod' && (vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-market-staging-ca844c56.treeseed.ai') }}
+      TREESEED_MARKET_API_BASE_URL: ${{ needs.classify.outputs.scope == 'prod' && (vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-staging.treeseed.ai') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -206,17 +263,17 @@ jobs:
         run: npm ci --ignore-scripts
       - uses: actions/download-artifact@v4
         with:
-          name: market-acceptance-sdk-${{ github.sha }}
+          name: api-acceptance-sdk-${{ github.sha }}
           path: packages/sdk/dist/
-      - name: Run live Market API acceptance
+      - name: Run live API acceptance
         run: |
           npm run test:acceptance -- \
             --environment "${{ needs.classify.outputs.scope }}" \
             --base-url "${TREESEED_MARKET_API_BASE_URL}" \
-            --report-json reports/market-acceptance.json \
-            --report-junit reports/market-acceptance.xml
+            --report-json reports/api-acceptance.json \
+            --report-junit reports/api-acceptance.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: market-acceptance-${{ needs.classify.outputs.scope }}
+          name: api-acceptance-${{ needs.classify.outputs.scope }}
           path: reports/

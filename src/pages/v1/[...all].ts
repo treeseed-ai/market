@@ -2,8 +2,8 @@ import type { APIRoute } from 'astro';
 import {
 	apiAccessTokenFromCookies,
 	clearApiAccessTokenCookie,
-	marketApiServiceHeaders,
-	resolveMarketApiBaseUrl,
+	apiServiceHeaders,
+	resolveApiBaseUrl,
 	setApiAccessTokenCookie,
 } from '../../lib/market/api-client';
 
@@ -73,12 +73,12 @@ export const ALL: APIRoute = async (context) => {
 	const upstreamPath = path === 'healthz' || path.startsWith('healthz/')
 		? `/${path}`
 		: `/v1/${path}`;
-	const upstream = new URL(upstreamPath, resolveMarketApiBaseUrl(context.locals));
+	const upstream = new URL(upstreamPath, resolveApiBaseUrl(context.locals));
 	upstream.search = context.url.search;
 
 	const headers = copyClientHeaders(context.request);
 	const token = apiAccessTokenFromCookies(context);
-	for (const [name, value] of marketApiServiceHeaders(context, { skipUserAssertion: Boolean(token) })) {
+	for (const [name, value] of apiServiceHeaders(context, { skipUserAssertion: Boolean(token) })) {
 		headers.set(name, value);
 	}
 	if (token) headers.set('authorization', `Bearer ${token}`);

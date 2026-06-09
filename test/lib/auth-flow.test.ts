@@ -35,7 +35,7 @@ describe('market auth page flow', () => {
 		expect(response?.headers.get('location')).toBe('/app/');
 	});
 
-	it('submits hosted email registration through the Market API route', async () => {
+	it('submits hosted email registration through the API route', async () => {
 		const fetchMock = vi.fn(async () => new Response(JSON.stringify({
 			ok: true,
 			payload: {

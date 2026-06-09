@@ -5,7 +5,7 @@ Workday execution now flows through the package-owned capacity provider runtime.
 Local parity check:
 
 ```sh
-npm run test:unit -- test/api/market-api.test.ts test/lib/seed-apply.test.ts
+npm run test:unit -- test/api/api.test.ts test/lib/seed-apply.test.ts
 npm -w packages/agent run test:capacity-provider-runtime
 trsd capacity doctor --market local --provider local
 trsd capacity plan --market local --provider local --json

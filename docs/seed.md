@@ -96,6 +96,8 @@ Checks manifest shape, environment filters, resource references, duplicate keys,
 
 ## Proposed Directory Structure
 
+Current backend seed application belongs in `packages/api`. The root Market app may keep UI-safe seed previews or projections, but it must not import the API package or write directly to Treeseed PostgreSQL.
+
 ```text
 seeds/
   README.md
@@ -103,7 +105,7 @@ seeds/
   local-dev.yaml
   demo-coop.yaml
 
-src/lib/market/seeds/
+packages/api/src/market/seeds/
   index.ts
   schema.ts
   loader.ts
@@ -115,8 +117,8 @@ src/lib/market/seeds/
   errors.ts
   types.ts
 
-src/api/
-  seed-routes.ts             # optional market API extension routes
+packages/api/src/api/
+  seed-routes.ts             # optional API extension routes
 
 packages/cli/src/cli/handlers/
   seed.ts                    # if command lives in CLI package
@@ -581,7 +583,7 @@ Recommended files:
 packages/sdk/src/seeds/schema.ts
 packages/sdk/src/seeds/types.ts
 packages/sdk/src/seeds/errors.ts
-src/lib/market/seeds/apply.js
+packages/api/src/market/seeds/apply.js
 ```
 
 Validation should catch:

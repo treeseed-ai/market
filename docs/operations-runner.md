@@ -1,17 +1,59 @@
-# Market Operations Runner Plan
+# Treeseed Operations Runner
+
+## Current Status
+
+The Treeseed operations runner now lives in `packages/api` and deploys separately from the root Market web app.
+
+Current ownership:
+
+- `packages/api/src/api/**`: API routes, operation lifecycle, runner health surfaces, route descriptors, and Treeseed PostgreSQL adapter
+- `packages/api/src/operations-runner/**`: runner entrypoint, executor registry, operation claim/checkpoint/complete loop, project web deployment executor, and diagnostics
+- root Market app: web UI plus `/v1/*` proxy/client only
+
+Current Railway deployment:
+
+```text
+api
+  rootDir: packages/api
+  buildCommand: npm run build
+  startCommand: npm run start:api
+  healthcheckPath: /healthz
+
+operationsRunner
+  rootDir: packages/api
+  buildCommand: npm run build
+  startCommand: npm run start:runner
+  healthcheckPath: /healthz
+  runtimeMode: service
+  volumeMountPath: /data
+```
+
+Operational commands:
+
+```bash
+npm -w packages/api run dev:runner -- --market local --watch --operation project:web_deployment --mock-external
+npx trsd operations smoke --environment staging --service operationsRunner --json
+npx trsd hosting verify --environment staging --service operationsRunner --live --json
+```
+
+`operations smoke` is the first diagnostic to run when a platform operation stays queued. It verifies API health, deep DB health, diagnostic operation creation, runner claim/checkpoint/completion, and event visibility. TreeDX bootstrap should not start until runner smoke passes.
+
+The design notes below describe the architecture intent that led to the current implementation.
+
+# Treeseed Operations Runner Plan
 
 ## Purpose
 
-Create a TreeSeed-owned `market-operations-runner` so the Market API can expose complete Market operations without writing local repository files, embedding agent worker runners, or depending on team capacity providers for platform maintenance.
+Create a TreeSeed-owned `operations-runner` so the API can expose complete Market operations without writing local repository files, embedding agent worker runners, or depending on team capacity providers for platform maintenance.
 
 This plan keeps the capacity-provider agent architecture reserved for team-owned project work. Capacity providers continue to belong to teams and process team/project portfolios. The Market control plane gets its own deterministic operations executor for TreeSeed platform work.
 
 ## Decision Summary
 
-TreeSeed should introduce a separate **Market operations runner**:
+TreeSeed should introduce a separate **Treeseed operations runner**:
 
 ```text
-Market API
+API
   validates intent, permissions, approvals, and state
   creates deterministic operation jobs
   stores progress, events, outputs, errors, and audit records
@@ -26,13 +68,13 @@ SDK operations
   provides job claiming, leasing, event, and idempotency helpers
   provides typed clients used by API, CLI, and runners
 
-market-operations-runner
+operations-runner
   TreeSeed-owned execution process
   claims platform jobs
   invokes SDK operations
   owns platform credentials
   may maintain a persistent /data checkout cache
-  reports progress/results back to Market API or DB
+  reports progress/results back to API or DB
 
 team capacity providers
   team-owned or team-attached execution capacity
@@ -44,7 +86,7 @@ team capacity providers
 
 ## Non-Goals
 
-Do not reintroduce any of the following into the Market API process:
+Do not reintroduce any of the following into the API process:
 
 * agent manager loop
 * agent worker runner
@@ -55,13 +97,13 @@ Do not reintroduce any of the following into the Market API process:
 * direct Git branch/commit/push from request handlers
 * customer/team capacity-provider execution paths
 
-Do not make Market deployment, Market database migration, or Market repository repair depend on a team capacity provider. That creates a circular dependency: the control plane would depend on team execution capacity to fix itself.
+Do not make Market deployment, Treeseed database migration, or Market repository repair depend on a team capacity provider. That creates a circular dependency: the control plane would depend on team execution capacity to fix itself.
 
 ## Architecture Roles
 
-### Market API
+### API
 
-The Market API owns browser/API-facing control-plane behavior:
+The API owns browser/API-facing control-plane behavior:
 
 * auth and account/session flows
 * teams, members, roles, invites, permissions
@@ -91,7 +133,7 @@ Non-repository SDK operations:
 * deployment intent clients
 * catalog/template/knowledge-pack clients
 * seed planning/apply contracts
-* Drizzle migration helpers for Market PostgreSQL and the static-hub D1 form storage
+* Drizzle migration helpers for Treeseed PostgreSQL and the static-hub D1 form storage
 * Cloudflare resource reconciliation
 * Railway service/deployment reconciliation
 * GitHub workflow dispatch and monitoring
@@ -117,11 +159,11 @@ Repository-bound SDK operations:
 * rollback/partial failure semantics
 * release/save/stage orchestration
 
-The SDK should be complete enough that `trsd`, GitHub Actions, the Market operations runner, and future platform automation can call the same implementation without duplicating Git or deployment logic.
+The SDK should be complete enough that `trsd`, GitHub Actions, the Treeseed operations runner, and future platform automation can call the same implementation without duplicating Git or deployment logic.
 
-### Market operations runner
+### Treeseed operations runner
 
-The `market-operations-runner` is a TreeSeed platform service, not a team capacity provider.
+The `operations-runner` is a TreeSeed platform service, not a team capacity provider.
 
 It should:
 
@@ -153,7 +195,7 @@ Use a name that avoids collision with agent worker runners.
 Preferred:
 
 ```text
-market-operations-runner
+operations-runner
 ```
 
 Acceptable alternatives:
@@ -411,7 +453,7 @@ Create an operation registry for platform jobs.
 ```ts
 export function createMarketPlatformOperationRegistry() {
   return createOperationRegistry([
-    createDeployMarketApiOperation(),
+    createDeployApiOperation(),
     createDeployMarketWebOperation(),
     createPublishMarketContentOperation(),
     createProvisionEnvironmentOperation(),
@@ -427,7 +469,7 @@ export function createMarketPlatformOperationRegistry() {
 
 ### SDK repository workflow requirements
 
-The SDK must be able to perform repository-bound operations without relying on the Market API filesystem.
+The SDK must be able to perform repository-bound operations without relying on the API filesystem.
 
 Minimum requirements:
 
@@ -459,7 +501,7 @@ export interface PlatformRepositoryDescriptor {
 }
 ```
 
-## Market API Changes
+## API Changes
 
 ### Remove direct local file writing
 
@@ -527,7 +569,7 @@ These should use platform service credentials, not team capacity-provider API ke
 
 ### Add operation creation helpers
 
-Market API should create jobs through SDK contracts, not hand-built JSON.
+API should create jobs through SDK contracts, not hand-built JSON.
 
 Example:
 
@@ -550,7 +592,7 @@ await platformOperations.create({
 
 ### Permission model
 
-Market API validates human/team permissions before creating jobs.
+API validates human/team permissions before creating jobs.
 
 Runner validates platform service auth before claiming jobs.
 
@@ -590,18 +632,18 @@ submit action
   -> UI shows result: created record, branch, commit, PR/workflow link, changed paths
 ```
 
-For local development, keep the same job path. Do not preserve a special API direct-write mode unless absolutely necessary for tests. If a local fast path is required, implement it in the local market operations runner, not in the API request handler.
+For local development, keep the same job path. Do not preserve a special API direct-write mode unless absolutely necessary for tests. If a local fast path is required, implement it in the local Treeseed operations runner, not in the API request handler.
 
-## Market Operations Runner Package
+## Treeseed Operations Runner Package
 
 ### Location
 
-Recommended location:
+Current location:
 
 ```text
 packages/sdk/src/operations/runner-core.ts
-src/api/platform-operation-routes.ts
-src/market-operations-runner/
+packages/api/src/api/platform-operation-routes.ts
+packages/api/src/operations-runner/
   entrypoint.js
   config.js
   registry.js
@@ -609,10 +651,10 @@ src/market-operations-runner/
   health.js
 ```
 
-If TypeScript source is preferred:
+TypeScript source uses the same package-local shape:
 
 ```text
-src/market-operations-runner/
+packages/api/src/operations-runner/
   entrypoint.ts
   config.ts
   registry.ts
@@ -620,23 +662,23 @@ src/market-operations-runner/
   health.ts
 ```
 
-The runner is part of the top-level Market project deployment, but not part of the Market API process.
+The runner is part of the `packages/api` deployment, but not part of the API process.
 
 ### Runtime modes
 
 ```bash
-node ./dist/market-operations-runner/entrypoint.js run
-node ./dist/market-operations-runner/entrypoint.js once --operation-id op_...
-node ./dist/market-operations-runner/entrypoint.js healthcheck
-node ./dist/market-operations-runner/entrypoint.js version
+npm -w packages/api run start:runner
+npm -w packages/api run dev:runner -- --market local --once --operation-id op_...
+npm -w packages/api run dev:runner -- healthcheck
+npm -w packages/api run dev:runner -- version
 ```
 
 ### Required environment
 
 ```bash
-TREESEED_MARKET_API_BASE_URL=https://api.treeseed.ai
-TREESEED_MARKET_ID=prod
-TREESEED_PLATFORM_RUNNER_ID=market-ops-prod-1
+TREESEED_API_BASE_URL=https://api.treeseed.ai
+TREESEED_MANAGER_ID=prod
+TREESEED_PLATFORM_RUNNER_ID=treeseed-ops-prod-1
 TREESEED_PLATFORM_RUNNER_SECRET=...
 TREESEED_PLATFORM_RUNNER_DATA_DIR=/data
 TREESEED_PLATFORM_RUNNER_ENVIRONMENT=production
@@ -651,10 +693,12 @@ CLOUDFLARE_API_TOKEN=...
 CLOUDFLARE_ACCOUNT_ID=...
 ```
 
-Database credentials target the Market PostgreSQL control-plane database:
+For Cloudflare, use the dashboard permission names when creating the token. The account-wide set is Pages Write, Workers Scripts Write, Workers KV Storage Write, Workers R2 Storage Write, D1 Write, Queues Write, Turnstile Sites Write, Account Rulesets Write, and Account Rule Lists Write. The target zone needs Zone Read, DNS Write, Cache Settings Write, and SSL and Certificates Write. Cloudflare API docs may call Cache Settings the Cache Rules permission, and Account Rule Lists the Account Filter Lists permission.
+
+Database credentials target the Treeseed PostgreSQL control-plane database:
 
 ```bash
-TREESEED_MARKET_DATABASE_URL=postgres://...
+TREESEED_DATABASE_URL=postgres://...
 ```
 
 ### Runner loop
@@ -690,20 +734,25 @@ services:
   api:
     enabled: true
     provider: railway
+    rootDir: packages/api
     railway:
-      serviceName: treeseed-market-api
+      serviceName: treeseed-api
+      rootDir: packages/api
       buildCommand: npm run build
-      startCommand: node ./dist/market-api/server.js
+      startCommand: npm run start:api
       healthcheckPath: /healthz
 
-  marketOperationsRunner:
+  operationsRunner:
     enabled: true
     provider: railway
+    rootDir: packages/api
     railway:
-      serviceName: treeseed-market-operations-runner
+      serviceName: treeseed-api-operations-runner-01
+      rootDir: packages/api
       buildCommand: npm run build
-      startCommand: node ./dist/market-operations-runner/entrypoint.js run
+      startCommand: npm run start:runner
       healthcheckPath: /healthz
+      runtimeMode: service
       volumeMountPath: /data
 ```
 
@@ -716,8 +765,8 @@ This is not a processing/agent service. It is a platform operations service.
 Staging should have its own runner identity and workspace.
 
 ```text
-TREESEED_MARKET_ID=staging
-TREESEED_PLATFORM_RUNNER_ID=market-ops-staging-1
+TREESEED_MANAGER_ID=staging
+TREESEED_PLATFORM_RUNNER_ID=treeseed-ops-staging-1
 TREESEED_PLATFORM_RUNNER_ENVIRONMENT=staging
 ```
 
@@ -728,8 +777,8 @@ Staging operations may write to the `staging` branch or staging-specific release
 Production should use stricter approval and release policy.
 
 ```text
-TREESEED_MARKET_ID=prod
-TREESEED_PLATFORM_RUNNER_ID=market-ops-prod-1
+TREESEED_MANAGER_ID=prod
+TREESEED_PLATFORM_RUNNER_ID=treeseed-ops-prod-1
 TREESEED_PLATFORM_RUNNER_ENVIRONMENT=production
 ```
 
@@ -737,7 +786,7 @@ Production operations that mutate the Market repo or database should support app
 
 Examples requiring approval:
 
-* production Market PostgreSQL migration
+* production Treeseed PostgreSQL migration
 * production release
 * production infrastructure reconciliation that destroys/replaces resources
 * direct push to protected branch
@@ -746,7 +795,7 @@ Examples requiring approval:
 
 Some platform operations may be better delegated to GitHub Actions.
 
-The Market operations runner can either:
+The Treeseed operations runner can either:
 
 * execute the full operation itself, or
 * dispatch a GitHub workflow and monitor it, recording progress in Market.
@@ -767,8 +816,8 @@ The Market control plane is PostgreSQL-only. It includes users, sessions, teams,
 Schema ownership is split by runtime:
 
 * Market control-plane schema lives in `packages/sdk/src/db/market-schema.ts`.
-* Market PostgreSQL migration SQL is generated into `packages/sdk/drizzle/market` with `npm run db:generate:market`.
-* Market startup and deploy workflows apply generated Drizzle SQL with `npm -w packages/api run db:migrate:market` against `TREESEED_MARKET_DATABASE_URL`.
+* Treeseed PostgreSQL migration SQL is generated into `packages/sdk/drizzle/market` with `npm run db:generate:market`.
+* Market startup and deploy workflows apply generated Drizzle SQL with `npm -w packages/api run db:migrate` against `TREESEED_DATABASE_URL`.
 * SDK/Core D1 schema remains only for unauthenticated static knowledge-hub form storage: `runtime_records`, `subscribers`, and `contact_submissions`. It is generated into `packages/sdk/drizzle/d1` with `npm -w packages/sdk run db:generate:d1`.
 
 The top-level `migrations/` directory and hand-authored Market SQL migrations are retired. Market runtime code must fail clearly when PostgreSQL migrations cannot be applied; it must not create or repair Market tables ad hoc.
@@ -784,8 +833,8 @@ The top-level `migrations/` directory and hand-authored Market SQL migrations ar
 
 Acceptance:
 
-* Market API request handlers do not call `fs.writeFile` for repository content.
-* Market API request handlers do not write under `process.cwd()/src/content`.
+* API request handlers do not call `fs.writeFile` for repository content.
+* API request handlers do not write under `process.cwd()/src/content`.
 * UI can submit content mutations and receive an operation id.
 
 ### Phase 2 — Add SDK platform operation contracts
@@ -813,7 +862,7 @@ Acceptance:
 
 * Unit tests cover claim, lease renewal, completion, failure, retry, cancellation, and idempotency.
 
-### Phase 4 — Implement market-operations-runner
+### Phase 4 — Implement operations-runner
 
 * Add runner entrypoint.
 * Add config schema.
@@ -825,10 +874,10 @@ Acceptance:
 Acceptance:
 
 ```bash
-node ./dist/market-operations-runner/entrypoint.js version
-node ./dist/market-operations-runner/entrypoint.js healthcheck
-node ./dist/market-operations-runner/entrypoint.js once --operation-id op_test
-node ./dist/market-operations-runner/entrypoint.js run
+node ./dist/operations-runner/entrypoint.js version
+node ./dist/operations-runner/entrypoint.js healthcheck
+node ./dist/operations-runner/entrypoint.js once --operation-id op_test
+node ./dist/operations-runner/entrypoint.js run
 ```
 
 ### Phase 5 — Move repository operations to SDK execution
@@ -847,7 +896,7 @@ Acceptance:
 
 ### Phase 6 — Add Railway deployment service
 
-* Add `marketOperationsRunner` service to topology.
+* Add `operationsRunner` service to topology.
 * Add build script.
 * Add Railway env sync for runner secrets.
 * Add volume for `/data`.
@@ -868,7 +917,7 @@ Acceptance:
 
 Acceptance:
 
-* Market API and operations runner run against PostgreSQL in staging and production.
+* API and operations runner run against PostgreSQL in staging and production.
 * D1 references are limited to SDK/Core static-hub form storage.
 
 ## Boundary Tests
@@ -877,7 +926,7 @@ Add or update tests:
 
 ```text
 test/lib/web-runtime-boundaries.test.ts
-test/api/market-api-platform-operations.test.ts
+test/api/api-platform-operations.test.ts
 test/lib/platform-operation-runner.test.ts
 packages/sdk/test/utils/platform-operations.test.ts
 packages/sdk/test/utils/repository-save-orchestrator.test.ts
@@ -885,10 +934,10 @@ packages/sdk/test/utils/repository-save-orchestrator.test.ts
 
 Assertions:
 
-* Market API does not import `@treeseed/agent` runtime modules.
-* Market API does not start manager/worker/runner loops.
-* Market API does not call content filesystem write helpers in request handlers.
-* Market API creates platform operation jobs for repo mutations.
+* API does not import `@treeseed/agent` runtime modules.
+* API does not start manager/worker/runner loops.
+* API does not call content filesystem write helpers in request handlers.
+* API creates platform operation jobs for repo mutations.
 * Platform runner can claim, lease, execute, complete, fail, and retry jobs.
 * Platform runner uses platform service auth, not provider API keys.
 * Capacity-provider API keys cannot claim platform operations.
@@ -900,10 +949,10 @@ Assertions:
 
 This change is done when:
 
-1. Market API exposes complete Market operations through DB/job-backed contracts.
-2. Market API no longer writes local repository files.
-3. Market API does not embed the old worker runner or capacity-provider runtime.
-4. A TreeSeed-owned `market-operations-runner` exists outside the API process.
+1. API exposes complete Market operations through DB/job-backed contracts.
+2. API no longer writes local repository files.
+3. API does not embed the old worker runner or capacity-provider runtime.
+4. A TreeSeed-owned `operations-runner` exists outside the API process.
 5. The runner claims deterministic platform jobs and invokes SDK operations.
 6. SDK operations include complete non-repo Market operations.
 7. SDK operations include complete repo-bound Market operations.

@@ -147,7 +147,7 @@ function readinessHelp(code: unknown, label: unknown): string {
 	const value = text(code);
 	const fallback = `${titleCase(label, 'This check')} helps TreeSeed decide whether deployment can safely continue.`;
 	const descriptions: Record<string, string> = {
-		project_exists: 'Confirms the project record exists in the Market API. Deployment cannot run without the project identity and ownership information.',
+		project_exists: 'Confirms the project record exists in the API. Deployment cannot run without the project identity and ownership information.',
 		repository_configured: 'Confirms TreeSeed knows which GitHub repository should receive workflows, environment variables, and deployment commits.',
 		workflow_installable: 'Confirms the selected repository can accept the deployment workflow that TreeSeed dispatches for staging and production work.',
 		web_host_configured: 'Confirms a web hosting target exists, such as the Cloudflare host and deployment destination used to publish the site.',

@@ -174,7 +174,7 @@ export function resolveLocalSeedEnv(projectRoot, env = process.env) {
 
 function requireSeedStore(input) {
 	if (input?.store) return input.store;
-	throw new Error('A Market API store facade is required for root seed planning. DB-backed seed apply/export is owned by packages/api.');
+	throw new Error('A API store facade is required for root seed planning. DB-backed seed apply/export is owned by packages/api.');
 }
 
 function manifestHashFor(path) {

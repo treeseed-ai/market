@@ -63,15 +63,20 @@ describe('web runtime boundaries', () => {
 		expect(siteConfig).not.toMatch(/\bworkdayManager:|\bworkerRunner:|treeseed-processing/u);
 	});
 
-	it('declares the market operations runner as a separate platform service', () => {
-		const site = parse(readFileSync('treeseed.site.yaml', 'utf8')) as any;
+	it('declares the Treeseed operations runner from the API application manifest', () => {
+		const rootSite = parse(readFileSync('treeseed.site.yaml', 'utf8')) as any;
+		expect(rootSite.services?.marketOperationsRunner).toBeUndefined();
+		expect(rootSite.services?.api).toBeUndefined();
+		expect(rootSite.services?.marketDatabase).toBeUndefined();
+
+		const site = parse(readFileSync('packages/api/treeseed.site.yaml', 'utf8')) as any;
 		expect(site.services?.marketOperationsRunner).toMatchObject({
 			enabled: true,
 			provider: 'railway',
-			rootDir: 'packages/api',
+			rootDir: '.',
 			railway: {
-				serviceName: 'treeseed-market-operations-runner',
-				rootDir: 'packages/api',
+				serviceName: 'treeseed-api-operations-runner-01',
+				rootDir: '.',
 				buildCommand: 'npm run build',
 				startCommand: 'npm run start:runner',
 				volumeMountPath: '/data',
@@ -96,10 +101,10 @@ describe('web runtime boundaries', () => {
 		expect(offenders).toEqual([]);
 	});
 
-	it('routes app, market, and auth session state through the backend Market API facade', () => {
+	it('routes app, market, and auth session state through the backend API facade', () => {
 		const proxy = readFileSync('src/pages/v1/[...all].ts', 'utf8');
-		expect(proxy).toContain('resolveMarketApiBaseUrl');
-		expect(proxy).toContain('marketApiServiceHeaders');
+		expect(proxy).toContain('resolveApiBaseUrl');
+		expect(proxy).toContain('apiServiceHeaders');
 		expect(proxy).toContain('skipUserAssertion: Boolean(token)');
 		expect(proxy).toContain('setApiAccessTokenCookie');
 		expect(proxy).toContain('redactAuthTokens');
@@ -128,7 +133,7 @@ describe('web runtime boundaries', () => {
 		expect(proxy).not.toContain('if (logoutRedirect && response.ok)');
 	});
 
-	it('keeps the Astro endpoint surface thin and routes Market APIs through v1', () => {
+	it('keeps the Astro endpoint surface thin and routes APIs through v1', () => {
 		expect(existsSync('src/api')).toBe(false);
 		expect(existsSync('src/market-operations-runner')).toBe(false);
 		const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {

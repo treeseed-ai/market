@@ -1,9 +1,20 @@
 # TreeSeed Web UI Deployment and Monitoring Completion Plan
 
-**Status:** Expanded implementation plan with implementation gates
-**Scope:** `treeseed/market`, `packages/sdk`, `packages/cli`, `packages/core`
-**Primary goal:** Reach 100% working completion for project web deployment and monitoring through the Market web UI, Market API, Market operations runner, SDK operations, and CLI.
+**Status:** Historical completion plan plus current operational notes
+**Scope:** `treeseed/market`, `packages/api`, `packages/sdk`, `packages/cli`, `packages/core`
+**Primary goal:** Reach 100% working completion for project web deployment and monitoring through the Market web UI, API, Treeseed operations runner, SDK operations, and CLI.
 **Explicit non-goal:** Do not implement or require capacity providers, provider lanes, worker grants, provider budgets, or hosted processing/runtime deployment for this milestone.
+
+Current architecture note:
+
+- the root Market repo is UI-only plus `/v1/*` proxy/client surfaces
+- the API and Treeseed operations runner live in `packages/api`
+- Railway builds API and runner from `packages/api`
+- hosted readiness is checked through `npx trsd ready <environment> --json`
+- targeted hosting repair uses `npx trsd hosting plan/apply/verify --environment <environment> --service <api|operationsRunner> --json`
+- runner readiness is checked through `npx trsd operations smoke --environment <environment> --service operationsRunner --json`
+
+For the current deploy/release runbook, prefer [API Deploy Runbook](./api-deploy.md) and [Project Web Deployment](./project-web-deployment.md). The implementation checklist below remains useful for understanding feature intent, but command references should follow the current runbooks.
 
 ---
 
@@ -87,7 +98,7 @@ and calls `runProjectPlatformAction`.
 
 ### 2.6 Platform runner APIs exist
 
-The Market API already has platform-runner endpoints for:
+The API already has platform-runner endpoints for:
 
 ```text
 POST /v1/platform/runners/jobs/claim
@@ -144,8 +155,8 @@ This work is complete only when all of the following are true.
 
 ### 3.2 API completion
 
-* Market API exposes project deployment read routes.
-* Market API exposes project deployment action routes.
+* API exposes project deployment read routes.
+* API exposes project deployment action routes.
 * API validates team/project access and host readiness.
 * API creates platform operations with idempotency keys.
 * API records deployment intent, events, output, failures, external workflow IDs, URLs, and environment state.
@@ -154,7 +165,7 @@ This work is complete only when all of the following are true.
 
 ### 3.3 Runner completion
 
-* Market operations runner can claim project web deployment operations.
+* Treeseed operations runner can claim project web deployment operations.
 * Runner can either:
 
   * execute a direct SDK operation for local/dev mode, or
@@ -189,7 +200,7 @@ Equivalent aliases are acceptable, but the command family must be documented and
 
 ### 3.6 Verification completion
 
-* Unit tests pass for Market API, store, view models, SDK operations, workflow rendering, and CLI handlers.
+* Unit tests pass for API, store, view models, SDK operations, workflow rendering, and CLI handlers.
 * Acceptance tests exercise the web/API deployment flow.
 * At least one local mocked end-to-end flow proves that a UI-triggered deploy creates an operation, a runner claims it, progress events appear, and project deployment state updates.
 * Hosted workflow templates remain web-only and do not include capacity-provider/runtime deployment secrets.
@@ -202,13 +213,13 @@ Use the existing platform operation model as the durable execution contract.
 
 ```text
 Market UI
-  -> Market API deployment action route
+  -> API deployment action route
   -> platform_operation queued
-  -> market-operations-runner claims operation
+  -> operations-runner claims operation
   -> SDK executor dispatches or runs web action
   -> GitHub Actions / Cloudflare / content publish
   -> runner records events/checkpoints/result
-  -> Market API read model updates
+  -> API read model updates
   -> UI / CLI display the same state
 ```
 
@@ -217,8 +228,8 @@ Market UI
 | Layer                    | Responsibility                                                                     |
 | ------------------------ | ---------------------------------------------------------------------------------- |
 | Market UI                | Operator controls, status, timeline, safe retry/cancel actions                     |
-| Market API               | Auth, validation, operation creation, read models, idempotency, state mutation     |
-| Market operations runner | Claims operations, dispatches/executes, monitors, records progress                 |
+| API               | Auth, validation, operation creation, read models, idempotency, state mutation     |
+| Treeseed operations runner | Claims operations, dispatches/executes, monitors, records progress                 |
 | SDK operations           | Deterministic deployment, GitHub workflow dispatch, Cloudflare/web/content actions |
 | GitHub Actions           | Tenant workflow execution target for hosted web actions                            |
 | CLI                      | Operator parity with UI/API actions                                                |
@@ -404,9 +415,9 @@ Event data should be presentation-safe and never include secrets.
 Implement deployment routes in a dedicated module and mount it from the main API app:
 
 ```text
-src/api/project-deployment-routes.js
-src/api/app.js
-src/api/route-descriptors.js
+packages/api/src/api/project-deployment-routes.js
+packages/api/src/api/app.js
+packages/api/src/api/route-descriptors.js
 ```
 
 Route handlers should be thin. Validation, read-model assembly, operation creation, and store writes should live in helpers so UI/API parity tests can call them without HTTP when useful.
@@ -414,10 +425,10 @@ Route handlers should be thin. Validation, read-model assembly, operation creati
 Required helper modules:
 
 ```text
-src/lib/market/deployment-actions.ts
-src/lib/market/deployment-readiness.ts
-src/lib/market/deployment-projection.ts
-src/lib/market/deployment-errors.ts
+packages/api/src/market/deployment-actions.ts
+packages/api/src/market/deployment-readiness.ts
+packages/api/src/market/deployment-projection.ts
+packages/api/src/market/deployment-errors.ts
 ```
 
 If the project keeps these helpers in JavaScript rather than TypeScript, keep the same module boundaries and document the runtime shapes with JSDoc typedefs.
@@ -813,7 +824,7 @@ Every store write should update `updated_at`. Terminal writes should set `comple
 Add:
 
 ```text
-src/lib/market/deployment-projection.ts
+packages/api/src/market/deployment-projection.ts
 src/view-models/deployment.vm.ts
 ```
 
@@ -853,7 +864,7 @@ The projection should produce calm empty states:
 * No web host yet: “Configure a web host before deployment.”
 * No workflow yet: “The deploy workflow will be installed during launch or the next repair step.”
 * No deployment yet: “Deploy staging to create the first deployment record.”
-* Active operation missing runner: “Queued. Waiting for the Market operations runner.”
+* Active operation missing runner: “Queued. Waiting for the Treeseed operations runner.”
 * GitHub workflow not found yet: “Dispatched. Waiting for GitHub to report the run.”
 * Production blocked: “Deploy staging first, then confirm production deploy.”
 
@@ -928,7 +939,7 @@ Required flags:
 
 Default strategy for first completion:
 
-1. Use `runner_direct_github_dispatch` when the Market operations runner has a GitHub credential that can dispatch the tenant repository workflow.
+1. Use `runner_direct_github_dispatch` when the Treeseed operations runner has a GitHub credential that can dispatch the tenant repository workflow.
 2. Fall back to `market_hosted_project_workflow` only when central orchestration is explicitly configured.
 3. Both strategies must produce the same deployment record, event timeline, and failure shape.
 
@@ -1014,7 +1025,7 @@ Failure output must include:
 Expose runner readiness on the deploy page:
 
 ```text
-Market operations runner: online/offline/stale/unknown
+Treeseed operations runner: online/offline/stale/unknown
 Last heartbeat
 Environment
 Capabilities
@@ -1222,7 +1233,7 @@ Checklist items:
 * Cloudflare credentials/session available or managed host ready.
 * Staging environment exists.
 * Production environment exists or can be created.
-* Market operations runner online or queued operations can wait safely.
+* Treeseed operations runner online or queued operations can wait safely.
 * No conflicting active deployment operation exists.
 
 ### 10.7 Environment cards
@@ -1774,8 +1785,8 @@ Security/governance completion requires tests proving:
 Add or extend:
 
 ```text
-test/api/market-api.test.ts
-test/lib/market-api-route-descriptors.test.ts
+test/api/api.test.ts
+test/lib/api-route-descriptors.test.ts
 test/lib/processing-runtime-config.test.ts
 ```
 
@@ -1887,8 +1898,8 @@ Extend existing workflow tests:
 Add scenario to:
 
 ```text
-scripts/market-acceptance.mjs
-test/acceptance/market-api.base.yaml
+scripts/api-acceptance.mjs
+test/acceptance/api.base.yaml
 ```
 
 Acceptance flow:
@@ -1897,7 +1908,7 @@ Acceptance flow:
 2. Create hosted project or use seeded project.
 3. Call deployment state route.
 4. Queue staging deploy.
-5. Run market operations runner in once mode with mocked GitHub/Cloudflare.
+5. Run Treeseed operations runner in once mode with mocked GitHub/Cloudflare.
 6. Confirm operation succeeded.
 7. Confirm deployment record updated.
 8. Confirm UI-facing state shows latest staging deployment.
@@ -1913,7 +1924,7 @@ Acceptance flow:
 Create:
 
 ```text
-docs/market-web-deployment.md
+docs/project-web-deployment.md
 ```
 
 Include:
@@ -2001,7 +2012,7 @@ Acceptance:
 
 Deliverables:
 
-* project web deployment executor registered with market operations runner
+* project web deployment executor registered with Treeseed operations runner
 * preflight events
 * GitHub workflow dispatch helper
 * GitHub workflow monitor helper
@@ -2127,7 +2138,7 @@ npx trsd dev status --json
 npx trsd dev start --web-runtime local --json
 ```
 
-The root Market dev command starts the web UI, Market API, managed local Market PostgreSQL, Market migrations, and the `project:web_deployment` operations runner. `trsd dev start` runs that surface as a managed worktree-scoped background instance with stable PID, port, URL, and log metadata under `.treeseed/dev` and `.treeseed/logs`; `trsd dev` without a subcommand remains the foreground supervisor. Non-provider local values have defaults through the local launch environment; configure provider credentials through `trsd config` when you want real GitHub/Cloudflare side effects.
+The root Market dev command starts the web UI, API, managed local Treeseed PostgreSQL, API migrations, and the `project:web_deployment` operations runner. `trsd dev start` runs that surface as a managed worktree-scoped background instance with stable PID, port, URL, and log metadata under `.treeseed/dev` and `.treeseed/logs`; `trsd dev` without a subcommand remains the foreground supervisor. Non-provider local values have defaults through the local launch environment; configure provider credentials through `trsd config` when you want real GitHub/Cloudflare side effects.
 
 ### 18.2 Authenticate and seed local data
 

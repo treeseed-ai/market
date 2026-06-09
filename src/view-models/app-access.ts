@@ -1,5 +1,5 @@
 import { hostTypeFor } from '../lib/market/control-ui.js';
-import { loadAccessibleTeams, resolveMarketApi, resolveMarketPrincipal } from '../lib/market/store.js';
+import { loadAccessibleTeams, resolveApiStore, resolveMarketPrincipal } from '../lib/market/store.js';
 import { compact, safeArray, type OperationalContext } from './shared.js';
 
 export type AppAccessStatus = 'found' | 'not_found' | 'forbidden';
@@ -41,7 +41,7 @@ export async function loadAppContext(input: any, fallbackAstro?: any): Promise<O
 	const astro = astroFrom(input, fallbackAstro);
 	const locals = localsFrom(input);
 	const marketContext = astro ?? locals;
-	const store = resolveMarketApi(marketContext);
+	const store = resolveApiStore(marketContext);
 	const principal = resolveMarketPrincipal(locals);
 	const teams = safeArray(await loadAccessibleTeams(marketContext).catch(() => []));
 	const cookieTeamId = compact(astro?.cookies?.get?.('treeseed_active_team')?.value, '');

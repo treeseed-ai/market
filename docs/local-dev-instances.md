@@ -32,7 +32,21 @@ Each physical worktree owns its authoritative runtime files:
 .treeseed/logs/dev-<scope>.jsonl
 ```
 
-For the Market root, the normal scope is `web-api`, which includes the web UI, Market API, managed local PostgreSQL setup, Market migrations, and the Market operations runner. Other scopes are possible for package-local or focused development surfaces.
+For the Market root, the normal scope is `web-api`, which includes the web UI, API, managed local PostgreSQL setup, API migrations, and the Treeseed operations runner. The web process runs from the root repo; the API and runner processes run from `packages/api`. Other scopes are possible for package-local or focused development surfaces.
+
+Validate the plan without starting processes:
+
+```bash
+npx trsd dev start --web-runtime local --plan --json
+```
+
+Expected Market process ownership:
+
+```text
+web cwd: .
+api cwd: packages/api
+operations-runner cwd: packages/api
+```
 
 The instance JSON is safe for tools to read. It includes:
 
@@ -61,7 +75,7 @@ The default worktree keeps the familiar ports when they are free:
 
 - web: `4321`
 - API: `3000`
-- Market PostgreSQL: `55432`
+- Treeseed PostgreSQL: `55432`
 - Mailpit SMTP: `1025`
 - Mailpit UI: `8025`
 
@@ -87,6 +101,7 @@ Use `--force-conflicts` only when you intentionally want to stop a sibling proce
 Agents should start by checking status:
 
 ```bash
+npx trsd ready local --json
 npx trsd dev status --json
 npx trsd dev status --all --json
 ```
