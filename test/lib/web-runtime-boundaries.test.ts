@@ -255,6 +255,8 @@ describe('web runtime boundaries', () => {
 		}
 		const intentionallyShared = new Set([
 			'TREESEED_API_BASE_URL',
+			'TREESEED_RAILWAY_PROJECT_ID',
+			'TREESEED_RAILWAY_WORKSPACE',
 		]);
 		const duplicateOwners = [...owners.entries()]
 			.filter(([, paths]) => paths.length > 1)
