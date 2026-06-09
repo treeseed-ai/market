@@ -267,7 +267,7 @@ jobs:
           path: packages/sdk/dist/
       - name: Run live API acceptance
         run: |
-          npm run test:acceptance -- \
+          node ./packages/api/scripts/api-acceptance.mjs \
             --environment "${{ needs.classify.outputs.scope }}" \
             --base-url "${TREESEED_MARKET_API_BASE_URL}" \
             --report-json reports/api-acceptance.json \
