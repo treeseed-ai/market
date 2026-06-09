@@ -70,7 +70,7 @@ describe('web runtime boundaries', () => {
 		expect(rootSite.services?.marketDatabase).toBeUndefined();
 
 		const site = parse(readFileSync('packages/api/treeseed.site.yaml', 'utf8')) as any;
-		expect(site.services?.marketOperationsRunner).toMatchObject({
+		expect(site.services?.operationsRunner).toMatchObject({
 			enabled: true,
 			provider: 'railway',
 			rootDir: '.',
@@ -87,7 +87,7 @@ describe('web runtime boundaries', () => {
 				},
 			},
 		});
-		const serialized = JSON.stringify(site.services?.marketOperationsRunner ?? {});
+		const serialized = JSON.stringify(site.services?.operationsRunner ?? {});
 		expect(serialized).not.toMatch(/provider:|capacity|TREESEED_CAPACITY_PROVIDER_API_KEY|provider:tasks|provider:heartbeat/u);
 	});
 
@@ -253,8 +253,12 @@ describe('web runtime boundaries', () => {
 				owners.set(id, [...(owners.get(id) ?? []), path]);
 			}
 		}
+		const intentionallyShared = new Set([
+			'TREESEED_API_BASE_URL',
+		]);
 		const duplicateOwners = [...owners.entries()]
 			.filter(([, paths]) => paths.length > 1)
+			.filter(([id]) => !intentionallyShared.has(id))
 			.map(([id, paths]) => ({ id, paths }));
 		expect(duplicateOwners).toEqual([]);
 	});
