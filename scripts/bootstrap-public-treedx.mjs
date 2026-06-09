@@ -13,6 +13,14 @@ function required(name) {
 	return value;
 }
 
+function requiredAny(...names) {
+	for (const name of names) {
+		const value = env(name);
+		if (value) return value;
+	}
+	throw new Error(`Missing required environment variable: ${names.join(' or ')}`);
+}
+
 async function requestJson(url, options = {}) {
 	const response = await fetch(url, {
 		...options,
@@ -47,7 +55,7 @@ function latestDeployment(payload) {
 }
 
 async function main() {
-	const baseUrl = required('TREESEED_API_BASE_URL').replace(/\/+$/u, '');
+	const baseUrl = requiredAny('TREESEED_API_BASE_URL', 'TREESEED_MARKET_API_BASE_URL').replace(/\/+$/u, '');
 	const serviceId = required('TREESEED_API_WEB_SERVICE_ID');
 	const serviceSecret = required('TREESEED_API_WEB_SERVICE_SECRET');
 	const teamId = env('TREESEED_PUBLIC_TREEDX_TEAM_ID');
