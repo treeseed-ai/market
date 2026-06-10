@@ -150,8 +150,10 @@ jobs:
         run: |
           node ./.github/scripts/prepare-workspace-install.mjs
           npm ci --ignore-scripts
-      - name: Build SDK for readiness checks
-        run: npm -w packages/sdk run build:dist
+      - name: Build packages for readiness checks
+        run: |
+          npm -w packages/sdk run build:dist
+          npm -w packages/core run build:dist
       - name: Validate deployment readiness
         run: |
           node ./packages/sdk/scripts/run-ts.mjs ./packages/sdk/scripts/deployment-readiness.ts \
