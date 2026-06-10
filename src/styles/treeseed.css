@@ -1,4 +1,4 @@
-@import "../../packages/core/src/styles/tokens.css";
+@import "@treeseed/ui/styles/tokens.css";
 
 /* Phase 7 operational identity: app-scoped industrial control plane tokens. */
 .ts-app-shell {

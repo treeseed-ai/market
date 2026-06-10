@@ -1,11 +1,11 @@
 ---
-import Button from '../../../../../packages/core/src/components/ui/forms/Button.astro';
-import Field from '../../../../../packages/core/src/components/ui/forms/Field.astro';
-import FormActions from '../../../../../packages/core/src/components/ui/forms/FormActions.astro';
-import TextInput from '../../../../../packages/core/src/components/ui/forms/TextInput.astro';
-import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
-import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
-import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
+import Button from '@treeseed/ui/components/astro/forms/Button.astro';
+import Field from '@treeseed/ui/components/astro/forms/Field.astro';
+import FormActions from '@treeseed/ui/components/astro/forms/FormActions.astro';
+import TextInput from '@treeseed/ui/components/astro/forms/TextInput.astro';
+import EmptyState from '@treeseed/ui/components/astro/surface/EmptyState.astro';
+import Panel from '@treeseed/ui/components/astro/surface/Panel.astro';
+import ProjectControlNav from '@treeseed/ui/components/astro/app/controls/ProjectControlNav.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { TREESEED_DEFAULT_STARTER_TEMPLATE_ID, normalizeTreeseedTemplateId } from '../../../../../packages/sdk/src/sdk-types.ts';
 import { loadAppContext, persistActiveTeamSelection, resolveAppProject } from '../../../../view-models/app-access.js';
@@ -126,7 +126,7 @@ const launchContextRows = [
 </TreeseedAppLayout>
 
 <script>
-	import { initializeCoreObjectiveEditors } from '../../../../components/app/controls/core-objective-mdx-editor.tsx';
+	import { initializeCoreObjectiveEditors } from '../../../../lib/market/core-objective-mdx-editor.tsx';
 
 	type ProjectSettingsOperation = {
 		id: string;

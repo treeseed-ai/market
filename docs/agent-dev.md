@@ -2110,7 +2110,7 @@ Tasks:
 Deliverables:
 
 ```text
-src/components/app/operations updates
+@treeseed/ui/components/astro/app/operations updates
 src/view-models/workday.vm.ts updates
 ```
 

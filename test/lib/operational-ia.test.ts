@@ -3,7 +3,13 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 function source(path: string) {
-	return readFileSync(resolve(process.cwd(), path), 'utf8');
+	let sourcePath = path
+		.replace(/^@treeseed\/ui\/components\/astro\//u, 'packages/ui/src/astro/')
+		.replace(/^@treeseed\/ui\/lib\/app\//u, 'packages/ui/src/lib/app/');
+	if (sourcePath.startsWith('packages/ui/src/lib/app/') && !/\.[cm]?[tj]sx?$/u.test(sourcePath)) {
+		sourcePath = `${sourcePath}.ts`;
+	}
+	return readFileSync(resolve(process.cwd(), sourcePath), 'utf8');
 }
 
 function filesUnder(path: string): string[] {
@@ -190,11 +196,11 @@ describe('one-purpose control app information architecture', () => {
 	});
 
 	it('adds deployment as a first-class project control surface', () => {
-		const nav = source('src/components/app/controls/ProjectControlNav.astro');
+		const nav = source('@treeseed/ui/components/astro/app/controls/ProjectControlNav.astro');
 		const page = source('src/pages/app/projects/[projectId]/deploy.astro');
 		const newProject = source('src/pages/app/projects/new.astro');
-		const timeline = source('src/components/app/operations/DeploymentTimeline.astro');
-		const helper = source('src/components/app/controls/deployment-action-status.ts');
+		const timeline = source('@treeseed/ui/components/astro/app/operations/DeploymentTimeline.astro');
+		const helper = source('@treeseed/ui/lib/app/deployment-action-status');
 		const deploymentStatusPage = source('src/pages/app/projects/deployment/[id].astro');
 		const deploymentVm = source('src/view-models/deployment.vm.ts');
 		const apiClient = source('src/lib/market/api-client.ts');
@@ -480,17 +486,17 @@ describe('one-purpose control app information architecture', () => {
 		const hostCreate = source('src/pages/app/hosts/[hostType]/new.astro');
 		const hostEdit = source('src/pages/app/hosts/[hostType]/[hostId]/edit.astro');
 		const adminFormClient = source('src/lib/market/admin-form-client.ts');
-		const deleteModal = source('src/components/app/controls/DeleteConfirmationModal.astro');
+		const deleteModal = source('@treeseed/ui/components/astro/app/controls/DeleteConfirmationModal.astro');
 		const appLayout = source('src/layouts/TreeseedAppLayout.astro');
-		const coreButton = source('packages/core/src/components/ui/forms/Button.astro');
-		const coreSelect = source('packages/core/src/components/ui/forms/Select.astro');
+		const coreButton = source('@treeseed/ui/components/astro/forms/Button.astro');
+		const coreSelect = source('@treeseed/ui/components/astro/forms/Select.astro');
 		const styles = source('src/styles/treeseed.css');
 		const projectCreate = source('src/pages/app/projects/new.astro');
 		const projectSettings = source('src/pages/app/projects/[projectId]/settings.astro');
 		const projectHosts = source('src/pages/app/projects/[projectId]/hosts.astro');
 		const helper = source('src/lib/market/control-ui.ts');
 		const hostCredentialClient = source('src/lib/market/host-credential-form-client.ts');
-		const hostPermissionNote = source('src/components/app/controls/HostCredentialPermissionNote.astro');
+		const hostPermissionNote = source('@treeseed/ui/components/astro/app/controls/HostCredentialPermissionNote.astro');
 		const providerLaunch = source('packages/sdk/src/operations/services/hub-provider-launch.ts');
 
 		expect(hosts).toContain('Operational host inventory');
@@ -614,7 +620,7 @@ describe('one-purpose control app information architecture', () => {
 		expect(projectCreate).not.toContain('label="Handle"');
 		expect(projectCreate).not.toContain('label="Purpose"');
 		expect(projectCreate).not.toContain('name="summary" rows={4}');
-		const coreObjectiveEditor = source('src/components/app/controls/core-objective-mdx-editor.tsx');
+		const coreObjectiveEditor = source('src/lib/market/core-objective-mdx-editor.tsx');
 		for (const plugin of [
 			'diffSourcePlugin',
 			'DiffSourceToggleWrapper',
@@ -696,7 +702,7 @@ describe('one-purpose control app information architecture', () => {
 	});
 
 	it('represents every work content model in the management interface', () => {
-		const nav = source('src/components/app/controls/WorkContentNav.astro');
+		const nav = source('@treeseed/ui/components/astro/app/controls/WorkContentNav.astro');
 		for (const [model, route] of [
 			['objectives', '/app/work/objectives'],
 			['questions', '/app/work/questions'],
@@ -723,8 +729,8 @@ describe('one-purpose control app information architecture', () => {
 			expect(contents, path).not.toContain('HostControlsPanel');
 			expect(contents, path).not.toContain('OrganizationContextPanel');
 		}
-		expect(existsSync(resolve(process.cwd(), 'src/components/app/controls/HostControlsPanel.astro'))).toBe(false);
-		expect(existsSync(resolve(process.cwd(), 'src/components/app/operations/OrganizationContextPanel.astro'))).toBe(false);
+		expect(existsSync(resolve(process.cwd(), 'packages/ui/src/astro/app/controls/HostControlsPanel.astro'))).toBe(false);
+		expect(existsSync(resolve(process.cwd(), 'packages/ui/src/astro/app/operations/OrganizationContextPanel.astro'))).toBe(false);
 	});
 
 	it('keeps credential forms field-based rather than JSON envelope based', () => {
@@ -785,7 +791,7 @@ describe('one-purpose control app information architecture', () => {
 	});
 
 	it('uses responsive app cards for shared app lists', () => {
-		const plainTable = source('src/components/app/controls/PlainTable.astro');
+		const plainTable = source('@treeseed/ui/components/astro/app/controls/PlainTable.astro');
 		expect(plainTable).toContain('ts-record-card');
 		expect(plainTable).toContain('data-sort-values');
 		expect(plainTable).toContain('data-filter-text');
@@ -807,7 +813,7 @@ describe('one-purpose control app information architecture', () => {
 	});
 
 	it('makes local content mutation flows platform-operation aware', () => {
-		const helper = source('src/components/app/controls/platform-operation-status.ts');
+		const helper = source('@treeseed/ui/lib/app/platform-operation-status');
 		expect(helper).toContain('submitPlatformOperationForm');
 		expect(helper).toContain('/v1/platform/operations/');
 		expect(helper).toContain('TERMINAL_STATUSES');
@@ -818,7 +824,7 @@ describe('one-purpose control app information architecture', () => {
 			'src/pages/app/projects/[projectId]/agents/new.astro',
 			'src/pages/app/projects/[projectId]/agents/[agentSlug].astro',
 			'src/pages/app/projects/[projectId]/decisions.astro',
-			'src/components/app/controls/related-content-creator.ts',
+			'@treeseed/ui/lib/app/related-content-creator',
 		]) {
 			const contents = source(path);
 			expect(contents, path).toContain('submitPlatformOperationForm');

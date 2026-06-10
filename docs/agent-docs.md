@@ -1874,7 +1874,7 @@ packages/agent/src/api/**
 packages/sdk/src/**
 packages/cli/src/cli/**
 packages/core/src/**
-src/components/app/operations/**
+@treeseed/ui/components/astro/app/operations/**
 src/pages/app/**
 src/pages/v1/**
 src/content/**

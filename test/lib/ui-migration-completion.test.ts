@@ -31,8 +31,8 @@ describe('UI migration completion', () => {
 		expect(source('src/pages/market/knowledge-packs/[slug].astro')).toContain('ActionList');
 	});
 
-	it('keeps MarketProductCard as a thin composition over core primitives', () => {
-		const contents = source('src/components/market/MarketProductCard.astro');
+	it('uses @treeseed/ui for the market product card', () => {
+		const contents = source('packages/ui/src/astro/market/ProductCard.astro');
 
 		expect(contents).toContain('Card');
 		expect(contents).toContain('Badge');
@@ -67,31 +67,31 @@ describe('UI migration completion', () => {
 		const docsPath = 'docs/ui-components.md';
 		expect(existsSync(resolve(process.cwd(), docsPath))).toBe(true);
 		const docs = source(docsPath);
-		for (const marker of ['--ts-*', 'ThemeScript', 'ThemeSelector', 'AppShell', 'PublicShell', 'npm run audit:ui', 'Book and docs pages are protected']) {
+		for (const marker of ['--ts-*', 'ThemeScript', 'ThemeSelector', '@treeseed/ui/components/astro', 'npm run audit:ui', 'Book and docs pages are protected']) {
 			expect(docs).toContain(marker);
 		}
 	});
 
 	it('routes standalone and docs chrome through shared shell components', () => {
-		const mainLayout = source('packages/core/src/layouts/MainLayout.astro');
+		const mainLayout = source('packages/ui/src/astro/layouts/MainLayout.astro');
 		expect(mainLayout).toContain('PublicShell');
-		expect(source('packages/core/src/components/ui/shell/PublicShell.astro')).toContain('PublicFooter');
+		expect(source('packages/ui/src/astro/shell/PublicShell.astro')).toContain('PublicFooter');
 		expect(mainLayout).not.toContain('<header');
 		expect(mainLayout).not.toContain('<footer');
 
-		const docsHeader = source('packages/core/src/components/docs/Header.astro');
+		const docsHeader = source('packages/ui/src/astro/docs/Header.astro');
 		expect(docsHeader).toContain('ts-shell-brand');
 		expect(docsHeader).toContain('BookFontControls');
 		expect(docsHeader).toContain('DownloadBook');
 
-		const docsFooter = source('packages/core/src/components/docs/Footer.astro');
+		const docsFooter = source('packages/ui/src/astro/docs/Footer.astro');
 		expect(docsFooter).toContain('PublicFooter');
-		expect(docsFooter).toContain('EditLink');
-		expect(docsFooter).toContain('Pagination');
+		expect(docsFooter).toContain('editHref');
+		expect(docsFooter).toContain('pagination-links');
 	});
 
 	it('keeps browser appearance cookies as the universal static-page theme source', () => {
-		const themeScript = source('packages/core/src/components/ui/theme/ThemeScript.astro');
+		const themeScript = source('packages/ui/src/astro/theme/ThemeScript.astro');
 		expect(themeScript.indexOf('readCookie(schemeKey)')).toBeLessThan(themeScript.indexOf('readStored(schemeKey)'));
 		expect(themeScript.indexOf('readCookie(modeKey)')).toBeLessThan(themeScript.indexOf('readStored(modeKey)'));
 		expect(themeScript).toContain('window.sessionStorage.setItem(name, value)');

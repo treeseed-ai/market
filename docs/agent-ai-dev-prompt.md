@@ -25,7 +25,7 @@ Only work in these TreeSeed project areas unless I explicitly approve broader sc
 - `seeds`
 - `docs`
 - `src/content`
-- `src/components/app/operations`
+- `@treeseed/ui/components/astro/app/operations`
 - `src/pages/app`
 - `src/pages/v1`
 - tests directly related to this loop
@@ -280,7 +280,7 @@ Research and knowledge outputs should be code-aware across:
 * `packages/sdk/src/**`
 * `packages/cli/src/cli/**`
 * `packages/core/src/**`
-* `src/components/app/operations/**`
+* `@treeseed/ui/components/astro/app/operations/**`
 * `src/pages/app/**`
 * `src/pages/v1/**`
 * `src/content/**`

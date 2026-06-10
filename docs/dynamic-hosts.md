@@ -458,10 +458,10 @@ The page should render:
 Introduce reusable host picker components:
 
 ```text
-src/components/app/controls/TemplateHostRequirementPicker.astro
-src/components/app/controls/TemplateResourceRequirementPicker.astro
-src/components/app/controls/TemplateSecretRequirementPanel.astro
-src/components/app/controls/LaunchRequirementSummary.astro
+@treeseed/ui/components/astro/app/controls/TemplateHostRequirementPicker.astro
+@treeseed/ui/components/astro/app/controls/TemplateResourceRequirementPicker.astro
+@treeseed/ui/components/astro/app/controls/TemplateSecretRequirementPanel.astro
+@treeseed/ui/components/astro/app/controls/LaunchRequirementSummary.astro
 ```
 
 Each requirement card should show:

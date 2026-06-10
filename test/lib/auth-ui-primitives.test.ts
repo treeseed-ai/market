@@ -25,7 +25,7 @@ describe('auth and account UI primitive conversion', () => {
 			expect(contents, path).toContain('AuthCard');
 		}
 
-		const shell = source('src/components/app/auth/AuthShell.astro');
+		const shell = source('packages/ui/src/astro/auth/AuthShell.astro');
 		expect(shell).toContain('ClientRouter');
 		expect(shell).toContain('ThemeMenu');
 		expect(shell).toContain('auth-shell__appearance');
@@ -35,8 +35,8 @@ describe('auth and account UI primitive conversion', () => {
 	});
 
 	it('shows the app header brand on primary auth forms', () => {
-		const card = source('src/components/app/auth/AuthCard.astro');
-		const css = source('src/styles/auth.css');
+		const card = source('packages/ui/src/astro/auth/AuthCard.astro');
+		const css = source('packages/ui/src/styles/auth.css');
 		expect(card).toContain('class="auth-card__brand"');
 		expect(card).toContain('class="auth-brand"');
 		expect(card).toContain('slot name="sidebarLinks"');
@@ -107,7 +107,7 @@ describe('auth and account UI primitive conversion', () => {
 	});
 
 	it('keeps auth composition CSS on TreeSeed tokens', () => {
-		const css = source('src/styles/auth.css');
+		const css = source('packages/ui/src/styles/auth.css');
 		expect(css).not.toMatch(/--(?:site|kc)-/u);
 		expect(css).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/iu);
 	});

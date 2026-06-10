@@ -149,7 +149,7 @@ describe('anonymous auth appearance', () => {
 	});
 
 	it('only persists explicit theme changes to the authenticated appearance API', () => {
-		const selector = readFileSync(resolve(process.cwd(), 'packages/core/src/components/ui/theme/ThemeSelector.astro'), 'utf8');
+		const selector = readFileSync(resolve(process.cwd(), 'packages/ui/src/astro/theme/ThemeSelector.astro'), 'utf8');
 		expect(selector).toContain('persist }');
 
 		const layout = readFileSync(resolve(process.cwd(), 'src/layouts/TreeseedAppLayout.astro'), 'utf8');

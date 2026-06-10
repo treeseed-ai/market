@@ -3,7 +3,8 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 function source(path: string) {
-	return readFileSync(resolve(process.cwd(), path), 'utf8');
+	const sourcePath = path.replace(/^@treeseed\/ui\/components\/astro\//u, 'packages/ui/src/astro/');
+	return readFileSync(resolve(process.cwd(), sourcePath), 'utf8');
 }
 
 describe('app and public shell conversion', () => {
@@ -47,20 +48,21 @@ describe('app and public shell conversion', () => {
 
 	it('installs the dev reload client through shared core shells', () => {
 		for (const path of [
-			'packages/core/src/components/ui/shell/AppShell.astro',
-			'packages/core/src/components/ui/shell/PublicShell.astro',
+			'@treeseed/ui/components/astro/shell/AppShell.astro',
+			'@treeseed/ui/components/astro/shell/PublicShell.astro',
 		]) {
 			const contents = source(path);
 			expect(contents, path).toContain('ClientRouter');
-			expect(contents, path).toContain('DevWatchReload');
 		}
 
-		const mainLayout = source('packages/core/src/layouts/MainLayout.astro');
+		const mainLayout = source('@treeseed/ui/components/astro/layouts/MainLayout.astro');
 		expect(mainLayout).not.toContain('DevWatchReload');
+		expect(source('@treeseed/ui/components/astro/auth/AuthShell.astro')).toContain('DevWatchReload');
+		expect(source('@treeseed/ui/components/astro/docs/Footer.astro')).toContain('DevWatchReload');
 	});
 
 	it('keeps sensitive unlock behavior in the market component', () => {
-		const contents = source('src/components/app/sensitive/SensitiveDataUnlock.astro');
+		const contents = source('@treeseed/ui/components/astro/app/sensitive/SensitiveDataUnlock.astro');
 
 		expect(contents).toContain('window.treeseedSensitiveUnlock');
 		expect(contents).toContain('data-sensitive-unlock-button');

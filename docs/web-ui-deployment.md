@@ -94,7 +94,7 @@ and calls `runProjectPlatformAction`.
 
 ### 2.5 Platform operation polling exists
 
-`src/components/app/controls/platform-operation-status.ts` already queues operations, polls operation status, polls operation events, renders progress messages, handles terminal states, and redirects after success.
+`@treeseed/ui/lib/app/platform-operation-status` already queues operations, polls operation status, polls operation events, renders progress messages, handles terminal states, and redirects after success.
 
 ### 2.6 Platform runner APIs exist
 
@@ -110,7 +110,7 @@ POST /v1/platform/runners/jobs/:operationId/complete
 
 ### 2.7 Existing project controls lack Deploy
 
-`src/components/app/controls/ProjectControlNav.astro` currently includes:
+`@treeseed/ui/components/astro/app/controls/ProjectControlNav.astro` currently includes:
 
 ```text
 Settings
@@ -1121,7 +1121,7 @@ Tests must assert:
 Update:
 
 ```text
-src/components/app/controls/ProjectControlNav.astro
+@treeseed/ui/components/astro/app/controls/ProjectControlNav.astro
 ```
 
 Change type:
@@ -1297,7 +1297,7 @@ The API should still enforce `confirmProduction: true`; the UI confirmation alon
 Reuse or create:
 
 ```text
-src/components/app/operations/DeploymentTimeline.astro
+@treeseed/ui/components/astro/app/operations/DeploymentTimeline.astro
 ```
 
 Event display groups:

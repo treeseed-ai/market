@@ -1,8 +1,8 @@
 ---
 import '../styles/treeseed.css';
-import AppShell from '../../packages/core/src/components/ui/shell/AppShell.astro';
-import DeleteConfirmationModal from '../components/app/controls/DeleteConfirmationModal.astro';
-import SensitiveDataUnlock from '../components/app/sensitive/SensitiveDataUnlock.astro';
+import AppShell from '@treeseed/ui/components/astro/shell/AppShell.astro';
+import DeleteConfirmationModal from '@treeseed/ui/components/astro/app/controls/DeleteConfirmationModal.astro';
+import SensitiveDataUnlock from '@treeseed/ui/components/astro/app/sensitive/SensitiveDataUnlock.astro';
 import { resolveAuthenticatedThemePreference } from '../lib/auth/appearance';
 
 interface TeamEntry {

@@ -1,11 +1,11 @@
 ---
-import Button from '../../../../../packages/core/src/components/ui/forms/Button.astro';
-import EmptyState from '../../../../../packages/core/src/components/ui/surface/EmptyState.astro';
-import Panel from '../../../../../packages/core/src/components/ui/surface/Panel.astro';
-import StatusPill from '../../../../../packages/core/src/components/ui/data/StatusPill.astro';
-import PlainTable from '../../../../components/app/controls/PlainTable.astro';
-import ProjectControlNav from '../../../../components/app/controls/ProjectControlNav.astro';
-import DeploymentTimeline from '../../../../components/app/operations/DeploymentTimeline.astro';
+import Button from '@treeseed/ui/components/astro/forms/Button.astro';
+import EmptyState from '@treeseed/ui/components/astro/surface/EmptyState.astro';
+import Panel from '@treeseed/ui/components/astro/surface/Panel.astro';
+import StatusPill from '@treeseed/ui/components/astro/data/StatusPill.astro';
+import PlainTable from '@treeseed/ui/components/astro/app/controls/PlainTable.astro';
+import ProjectControlNav from '@treeseed/ui/components/astro/app/controls/ProjectControlNav.astro';
+import DeploymentTimeline from '@treeseed/ui/components/astro/app/operations/DeploymentTimeline.astro';
 import TreeseedAppLayout from '../../../../layouts/TreeseedAppLayout.astro';
 import { escapeHtml as esc } from '../../../../lib/market/control-ui.js';
 import { buildProjectDeploymentState } from '../../../../lib/market/deployment-projection.ts';
@@ -417,7 +417,7 @@ const historyRows = vm?.historyRows.map((row) => ({
 </TreeseedAppLayout>
 
 <script>
-	import { submitDeploymentActionForm, submitLaunchRecoveryForm, watchDeploymentState } from '../../../../components/app/controls/deployment-action-status.ts';
+	import { submitDeploymentActionForm, submitLaunchRecoveryForm, watchDeploymentState } from '@treeseed/ui/lib/app/deployment-action-status';
 
 	function initializeProjectDeployPage() {
 	const page = document.querySelector('[data-deploy-page]') as HTMLElement | null;

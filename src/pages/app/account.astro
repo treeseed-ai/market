@@ -1,17 +1,17 @@
 ---
 import TreeseedAppLayout from '../../layouts/TreeseedAppLayout.astro';
-import '../../../packages/core/src/styles/ui.css';
-import '../../../packages/core/src/styles/forms.css';
-import '../../styles/auth.css';
-import Panel from '../../../packages/core/src/components/ui/surface/Panel.astro';
-import Field from '../../../packages/core/src/components/ui/forms/Field.astro';
-import TextInput from '../../../packages/core/src/components/ui/forms/TextInput.astro';
-import Button from '../../../packages/core/src/components/ui/forms/Button.astro';
-import FormActions from '../../../packages/core/src/components/ui/forms/FormActions.astro';
-import PasswordMeter from '../../../packages/core/src/components/ui/forms/PasswordMeter.astro';
-import Badge from '../../../packages/core/src/components/ui/data/Badge.astro';
-import StatusPill from '../../../packages/core/src/components/ui/data/StatusPill.astro';
-import KeyValueList from '../../../packages/core/src/components/ui/data/KeyValueList.astro';
+import '@treeseed/ui/styles/ui.css';
+import '@treeseed/ui/styles/forms.css';
+import '@treeseed/ui/styles/auth.css';
+import Panel from '@treeseed/ui/components/astro/surface/Panel.astro';
+import Field from '@treeseed/ui/components/astro/forms/Field.astro';
+import TextInput from '@treeseed/ui/components/astro/forms/TextInput.astro';
+import Button from '@treeseed/ui/components/astro/forms/Button.astro';
+import FormActions from '@treeseed/ui/components/astro/forms/FormActions.astro';
+import PasswordMeter from '@treeseed/ui/components/astro/forms/PasswordMeter.astro';
+import Badge from '@treeseed/ui/components/astro/data/Badge.astro';
+import StatusPill from '@treeseed/ui/components/astro/data/StatusPill.astro';
+import KeyValueList from '@treeseed/ui/components/astro/data/KeyValueList.astro';
 import { DELETE_ACCOUNT_CONFIRMATION } from '../../lib/auth/delete-confirmation';
 import { loadAppContext } from '../../view-models/app-access.js';
 

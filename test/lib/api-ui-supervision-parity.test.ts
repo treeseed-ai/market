@@ -11,7 +11,7 @@ describe('API/UI workday supervision parity coverage', () => {
 			'src/pages/app/projects/[projectId]/workdays.astro',
 			'src/pages/app/projects/[projectId]/workdays/[workdayId].astro',
 			'src/pages/app/work/decisions/[approvalId].astro',
-			'src/components/app/operations/GovernanceDecisionPanel.astro',
+			'packages/ui/src/astro/app/operations/GovernanceDecisionPanel.astro',
 		];
 		for (const surface of requiredSurfaces) {
 			expect(existsSync(resolve(surface)), surface).toBe(true);
