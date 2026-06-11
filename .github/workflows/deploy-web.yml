@@ -115,6 +115,7 @@ jobs:
         with:
           path: |
             packages/sdk/dist
+            packages/ui/dist
             packages/core/dist
             packages/cli/dist
             packages/agent/dist
@@ -129,6 +130,7 @@ jobs:
           cache_hit="${{ steps.package-dist-cache.outputs.cache-hit }}"
           if [[ "${cache_hit}" == "true" ]] \
             && test -f packages/sdk/dist/workflow-support.js \
+            && test -f packages/ui/dist/astro/layouts/MainLayout.astro \
             && test -f packages/core/dist/index.js \
             && test -f packages/cli/dist/cli/main.js \
             && test -f packages/agent/dist/index.js; then
@@ -145,7 +147,7 @@ jobs:
           npm --prefix packages/sdk run build:dist
           sdk_finished_at="$(date +%s)"
           declare -A pids
-          for dir in packages/core packages/cli packages/agent; do
+          for dir in packages/ui packages/core packages/cli packages/agent; do
             if test -f "${dir}/package.json"; then
               (
                 set -euo pipefail
