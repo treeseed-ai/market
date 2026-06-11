@@ -28,3 +28,6 @@
 [submodule "packages/ui"]
 	path = packages/ui
 	url = git@github.com:treeseed-ai/ui.git
+[submodule "packages/admin"]
+	path = packages/admin
+	url = git@github.com:treeseed-ai/admin.git
