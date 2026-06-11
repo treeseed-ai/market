@@ -19,6 +19,7 @@ cloudflare:
   d1Binding: SITE_DATA_DB
   queueBinding: AGENT_WORK_QUEUE
   pages:
+    projectName: treeseed-market
     productionBranch: main
     stagingBranch: staging
     buildOutputDir: dist
