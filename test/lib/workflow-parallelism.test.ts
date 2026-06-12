@@ -33,7 +33,8 @@ describe('CI/CD parallelism workflows', () => {
 		const source = readFileSync('.github/workflows/deploy-web.yml', 'utf8');
 		expect(source).toContain('npm --prefix packages/sdk run build:dist');
 		expect(source).toContain('packages/ui/dist/astro/layouts/MainLayout.astro');
-		expect(source).toContain('for dir in packages/ui packages/core packages/cli packages/agent');
+		expect(source).toContain('packages/admin/dist/plugin.js');
+		expect(source).toContain('for dir in packages/ui packages/core packages/admin packages/cli packages/agent');
 		expect(source).toContain('pids["${dir}"]="$!"');
 		expect(source).toContain('wait "${pids[${dir}]}"');
 		expect(source).toContain('build:packages/core-cli-agent');

@@ -4,7 +4,7 @@ import {
 	accountDeletionConfirmationMatches,
 	isValidProfileImageUrl,
 	normalizeAccountProfileInput,
-} from '../../src/lib/auth/account';
+} from '../../packages/admin/src/lib/auth/account';
 
 describe('market account validation helpers', () => {
 	it('validates profile image URLs without local auth persistence', () => {

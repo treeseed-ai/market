@@ -2079,7 +2079,7 @@ Deliverables:
 
 ```text
 packages/agent/src/api/agent-routes.ts updates
-src/pages/v1/[...all].ts integration updates if needed
+packages/admin/src/pages/v1/[...all].ts integration updates if needed
 ```
 
 Acceptance:
@@ -2111,7 +2111,7 @@ Deliverables:
 
 ```text
 @treeseed/ui/components/astro/app/operations updates
-src/view-models/workday.vm.ts updates
+packages/admin/src/view-models/workday.vm.ts updates
 ```
 
 Acceptance:

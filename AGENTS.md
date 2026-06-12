@@ -2,6 +2,8 @@
 
 This repository is the unified development workspace for the Treeseed system and the canonical integration environment for the package repositories in `packages/`.
 
+For the canonical current-state package map, see `docs/package-ownership.md`.
+
 ## Canonical Reconciliation Rules
 
 Treeseed infrastructure is reconciled from exact desired state. The SDK-owned reconciliation platform documented in `docs/reconciliation-platform.md` is the only orchestration model for hosting, config sync, local development infrastructure, package workflows, capacity providers, TreeDX hosting/image consumption, staging, and release.
@@ -19,7 +21,10 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 ## Package Roles
 
 - `@treeseed/sdk`: platform, config, plugin, data, and shared non-UI runtime substrate
-- `@treeseed/core`: integrated Treeseed platform starter for Astro/Starlight web runtime, Hono API integration surfaces, integrated local orchestration, content model, and forms
+- `@treeseed/ui`: reusable layout-down Astro/React components, app shells, forms, cards, controls, dashboards, theme tokens, and CSS primitives
+- `@treeseed/core`: integrated Treeseed platform starter for Astro/Starlight web runtime, site layering, tenant config, plugin loading, integrated local orchestration, content model, and forms
+- `@treeseed/admin`: distributable AGPLv3 administration portal layered on core/ui; owns admin routes, middleware, auth/session glue, API client facades, admin view models, catalog display, and secret-manager UI/contracts
+- `@treeseed/market`: root hosted Treeseed tenant; owns public site, content, docs, page overrides, the real `treeseed.site.yaml`, Treeseed branding, and future ecommerce/business policy
 - `@treeseed/agent`: processing runtime, Agent API server, manager, worker, role dispatcher, built-in handlers, agent testing harnesses, and runtime support modules
 - `@treeseed/api`: Treeseed backend API, Treeseed PostgreSQL adapter, migrations, operation lifecycle, route descriptors, and Treeseed operations runner
 - `@treeseed/cli`: operator and developer CLI workflows
@@ -30,26 +35,32 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 - Checked-out package repositories should declare package-local Treeseed metadata in `treeseed.package.yaml`.
 - `treeseed.package.yaml` is the preferred extension point for package repository slug, workflow names, image targets, development-image tags, hosting override variables, and package credential needs.
 - `trsd config` discovers checked-out package manifests and merges their environment registry entries into the central workspace `.treeseed/config` state.
-- Repository-scoped GitHub tokens use `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>` with uppercase names and single underscores, for example `TREESEED_GITHUB_TOKEN_TREESEED_AI_TREEDX`; `GH_TOKEN` is only a fallback for root/top-level workflows.
+- Repository-scoped GitHub tokens use `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>` with uppercase names and single underscores, for example `TREESEED_GITHUB_TOKEN_TREESEED_AI_ADMIN` and `TREESEED_GITHUB_TOKEN_TREESEED_AI_TREEDX`; `GH_TOKEN` is only a fallback for root/top-level workflows.
+- `packages/admin` is an npm package with release gate `packages/admin/.github/workflows/deploy.yml`; publishing expects the package repository GitHub `production` environment secret `NPM_TOKEN`.
 - Use `treeseed.site.yaml` for hostable application manifests and hosting ownership. Add package-local app manifests only when the package itself owns deployable app surfaces.
 - If a package needs local development topology beyond package scripts, prefer a future package-local `treeseed.dev.yaml` style manifest over bespoke CLI logic; the CLI/SDK should discover and merge these manifests instead of hard-coding package names.
 - TreeDX development images are published through the manifest-driven package image flow. Prefer `npx trsd package image --package treedx --branch staging --plan --json`, `--sync-config`, and `--execute`; `npx trsd db image` remains a TreeDX-domain wrapper.
 - TreeDX tagged release images are cut only from merges to `main`. Staging may publish consistently named development images, such as `treeseed/treedx:dev-staging-<sha>` and `treeseed/treedx:dev-staging`, so Docker Hub cleanup can be automated.
+- Node package prebuild and public release order is `@treeseed/sdk`, `@treeseed/ui`, `@treeseed/core`, `@treeseed/admin`, `@treeseed/cli`, `@treeseed/agent`. `@treeseed/api` is deploy-only/private for now, and `packages/treedx` follows the image/service workflow declared in its package manifest.
 
 ## Boundary Rules
 
-- `sdk` must not import from `core`.
-- `core` may depend on `sdk`, not `cli`.
-- `cli` may depend on `sdk` and `core`.
-- `api` may depend on `sdk`; the root web app must talk to it through HTTP/proxy/client surfaces, not package internals.
-- `agent` owns runtime processing code and may depend on `sdk`; tenant-specific Treeseed content remains in the top-level app.
+- `sdk` must not import from `core`, `admin`, `api`, `agent`, `ui`, `cli`, TreeDX source, or root market source.
+- `ui` must not import from root, `admin`, `core`, `api`, `agent`, or `cli`; it may depend on UI/runtime libraries only.
+- `core` may depend on `sdk` and `ui`; it must not depend on `admin`, `api`, `cli`, or `agent`.
+- `admin` may depend on `sdk`, `core`, and `ui`; it must not import root `src/**`; `api` is allowed only as optional/dev/test-local support when no runtime package boundary is crossed.
+- `market` may consume public exports from `admin`, `core`, `ui`, and `sdk`, and may call API behavior through HTTP/proxy/client surfaces; it must not import backend implementation from `api`.
+- `api` may depend on `sdk`; it must not import root/admin/core UI implementation.
+- `cli` may depend on `sdk`, `core`, and narrow public surfaces from `agent` when command execution requires them.
+- `agent` may depend on `sdk`; it must not depend on `core`, `admin`, root market, or `api` implementation.
+- `treedx` remains product-neutral and must not encode Treeseed product semantics.
 - Shared fixture references do not imply package ownership.
 - Prefer canonical SDK import paths. Do not reintroduce alias exports or compatibility paths in unreleased packages.
 
 ## Shared Fixture Model
 
 - `.fixtures/treeseed-fixtures` is the canonical integrated Treeseed project.
-- The fixture is intentionally shared across `sdk`, `core`, and `cli`.
+- The fixture is intentionally shared by package verification wherever an integrated Treeseed project shape is required. It commonly exercises `sdk`, `core`, and `cli`, and may reference `ui`, `admin`, `api`, or `agent` contracts when the canonical project genuinely uses those surfaces.
 - Package-local verification must adapt to the fixture. Do not rewrite the fixture to satisfy one package.
 - Fixture shims and package injection exist only to make isolated package verification behave like the canonical integrated project.
 - SDK owns the shared fixture support model and the narrow contracts-only Core agent shim used when package-only verification only needs the agent contract subpaths.
@@ -59,7 +70,10 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 The shared fixture exists to validate the full Treeseed project shape in one canonical place:
 
 - content and platform configuration from `sdk`
-- Astro/Starlight site runtime, integrated API starter surfaces, and agent/worker runtime surfaces from `core`
+- Astro/Starlight site runtime and plugin layering from `core`
+- reusable component/style surfaces from `ui`
+- admin routes and view-model contracts from `admin` when the integrated project uses them
+- backend/API and agent contract surfaces where the integrated project needs them for typechecking or runtime smoke coverage
 - package and deployment workflows exercised by `cli`
 
 The fixture is not package-specific. It is the integrated reference project for the system.
@@ -90,7 +104,10 @@ The canonical `contracts-only` shim currently exists for the `@treeseed/core` ag
 The shared fixture may import:
 
 - `@treeseed/sdk` surfaces used by content, runtime, and platform config
-- `@treeseed/core` site, API, and runtime surfaces
+- `@treeseed/core` site and runtime surfaces
+- `@treeseed/ui` components/styles used by the integrated site
+- `@treeseed/admin` public exports when the integrated site layers admin behavior
+- API or agent contract/public surfaces only when the fixture genuinely models those workflows
 - `@treeseed/cli` surfaces only where the canonical fixture genuinely models those workflows
 
 What matters is that package-local verification adapts correctly, not that the fixture stays artificially minimal.
@@ -129,7 +146,7 @@ Hosting and capacity-provider runtime:
 
 - Treat hosted infrastructure as desired-state reconciliation, not a sequential provider-command flow. The source of truth is the discovered Treeseed manifests, package/application environment registries, and central machine config; `trsd` commands should derive, reconcile, verify, and report provider state from that ideal model.
 - Do not manually repair Railway or Cloudflare resources with provider CLIs as a substitute for fixing Treeseed reconciliation. Direct provider wrapper usage is acceptable for read-only inventory/debugging, but mutating hosted resources should flow through `trsd` reconcile/bootstrap/hosting/destroy workflows so the result is reproducible.
-- The root app deploys only the web UI, knowledge hub, management UI, Treeseed UI, auth UI, and `/v1/*` proxy/client surfaces.
+- The root app deploys only the hosted web tenant: public site, knowledge hub, admin UI surfaces contributed by `@treeseed/admin`, reusable UI from `@treeseed/ui`, and `/v1/*` proxy/client surfaces.
 - `packages/api` deploys the API, Treeseed operations runner, Treeseed PostgreSQL service, and public TreeDX federation on Railway in the `treeseed-api` project. The canonical services are `treeseed-api`, `treeseed-api-operations-runner-01`, `treeseed-api-postgres`, and indexed `public-treedx-node-01` services. Stateful volumes must match the service name with a `-volume` suffix so scale-down and scale-up can reclaim storage.
 - TreeDX container images are produced by tagged releases in `packages/treedx` and pushed to Docker Hub as `treeseed/treedx:<tag>`. Hosted TreeDX reconciliation should deploy an explicit tagged image when proving staging or production, not an unverified moving image.
 - TreeDX semantic release tags must only be cut from merges to `main`, matching the release discipline used by the other packages and projects. Do not create release tags from staging, feature, or repair branches.

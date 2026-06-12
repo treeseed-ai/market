@@ -22,50 +22,50 @@ function filesUnder(path: string): string[] {
 }
 
 const primaryRoutes = [
-	'src/pages/app/index.astro',
-	'src/pages/app/hosts/index.astro',
-	'src/pages/app/projects/index.astro',
-	'src/pages/app/capacity/index.astro',
-	'src/pages/app/capacity/providers/index.astro',
-	'src/pages/app/work/objectives.astro',
-	'src/pages/app/knowledge/artifacts.astro',
+	'packages/admin/src/pages/app/index.astro',
+	'packages/admin/src/pages/app/hosts/index.astro',
+	'packages/admin/src/pages/app/projects/index.astro',
+	'packages/admin/src/pages/app/capacity/index.astro',
+	'packages/admin/src/pages/app/capacity/providers/index.astro',
+	'packages/admin/src/pages/app/work/objectives.astro',
+	'packages/admin/src/pages/app/knowledge/artifacts.astro',
 ];
 
 const onePurposeRoutes = [
-	'src/pages/app/teams/index.astro',
-	'src/pages/app/teams/new.astro',
-	'src/pages/app/teams/[teamId]/edit.astro',
-	'src/pages/app/teams/[teamId]/members.astro',
-	'src/pages/app/teams/[teamId]/delete.astro',
-	'src/pages/app/hosts/new.astro',
-	'src/pages/app/hosts/[hostType]/new.astro',
-	'src/pages/app/hosts/[hostType]/[hostId]/edit.astro',
-	'src/pages/app/projects/new.astro',
-	'src/pages/app/projects/[projectId]/settings.astro',
-	'src/pages/app/projects/[projectId]/hosts.astro',
-	'src/pages/app/projects/[projectId]/deploy.astro',
-	'src/pages/app/projects/[projectId]/guidance.astro',
-	'src/pages/app/projects/[projectId]/decisions.astro',
-	'src/pages/app/projects/[projectId]/artifacts.astro',
-	'src/pages/app/projects/[projectId]/delete.astro',
-	'src/pages/app/capacity/providers/new.astro',
-	'src/pages/app/capacity/providers/[providerId]/edit.astro',
-	'src/pages/app/capacity/providers/[providerId]/keys.astro',
-	'src/pages/app/work/objectives/new.astro',
-	'src/pages/app/work/decisions.astro',
-	'src/pages/app/work/decisions/[approvalId].astro',
-	'src/pages/app/work/questions.astro',
-	'src/pages/app/work/notes.astro',
-	'src/pages/app/work/proposals.astro',
-	'src/pages/app/knowledge/templates.astro',
-	'src/pages/app/knowledge/packs.astro',
-	'src/pages/app/knowledge/releases.astro',
-	'src/pages/app/knowledge/publish.astro',
+	'packages/admin/src/pages/app/teams/index.astro',
+	'packages/admin/src/pages/app/teams/new.astro',
+	'packages/admin/src/pages/app/teams/[teamId]/edit.astro',
+	'packages/admin/src/pages/app/teams/[teamId]/members.astro',
+	'packages/admin/src/pages/app/teams/[teamId]/delete.astro',
+	'packages/admin/src/pages/app/hosts/new.astro',
+	'packages/admin/src/pages/app/hosts/[hostType]/new.astro',
+	'packages/admin/src/pages/app/hosts/[hostType]/[hostId]/edit.astro',
+	'packages/admin/src/pages/app/projects/new.astro',
+	'packages/admin/src/pages/app/projects/[projectId]/settings.astro',
+	'packages/admin/src/pages/app/projects/[projectId]/hosts.astro',
+	'packages/admin/src/pages/app/projects/[projectId]/deploy.astro',
+	'packages/admin/src/pages/app/projects/[projectId]/guidance.astro',
+	'packages/admin/src/pages/app/projects/[projectId]/decisions.astro',
+	'packages/admin/src/pages/app/projects/[projectId]/artifacts.astro',
+	'packages/admin/src/pages/app/projects/[projectId]/delete.astro',
+	'packages/admin/src/pages/app/capacity/providers/new.astro',
+	'packages/admin/src/pages/app/capacity/providers/[providerId]/edit.astro',
+	'packages/admin/src/pages/app/capacity/providers/[providerId]/keys.astro',
+	'packages/admin/src/pages/app/work/objectives/new.astro',
+	'packages/admin/src/pages/app/work/decisions.astro',
+	'packages/admin/src/pages/app/work/decisions/[approvalId].astro',
+	'packages/admin/src/pages/app/work/questions.astro',
+	'packages/admin/src/pages/app/work/notes.astro',
+	'packages/admin/src/pages/app/work/proposals.astro',
+	'packages/admin/src/pages/app/knowledge/templates.astro',
+	'packages/admin/src/pages/app/knowledge/packs.astro',
+	'packages/admin/src/pages/app/knowledge/releases.astro',
+	'packages/admin/src/pages/app/knowledge/publish.astro',
 ];
 
 describe('one-purpose control app information architecture', () => {
 	it('uses the guided control navigation labels', () => {
-		const layout = source('src/layouts/TreeseedAppLayout.astro');
+		const layout = source('packages/admin/src/layouts/TreeseedAppLayout.astro');
 		for (const label of ['Start', 'Hosts', 'Projects', 'Capacity', 'Work', 'Knowledge']) {
 			expect(layout).toContain(`label: '${label}'`);
 		}
@@ -81,35 +81,35 @@ describe('one-purpose control app information architecture', () => {
 	});
 
 	it('centralizes app and marketplace resource access', () => {
-		const appAccess = source('src/view-models/app-access.ts');
-		const publicAccess = source('src/lib/market/public-access.ts');
-		const layout = source('src/layouts/TreeseedAppLayout.astro');
-		const sharedViewModel = source('src/view-models/shared.ts');
-		const deploymentStatusPage = source('src/pages/app/projects/deployment/[id].astro');
+		const appAccess = source('packages/admin/src/view-models/app-access.ts');
+		const publicAccess = source('packages/admin/src/lib/market/public-access.ts');
+		const layout = source('packages/admin/src/layouts/TreeseedAppLayout.astro');
+		const sharedViewModel = source('packages/admin/src/view-models/shared.ts');
+		const deploymentStatusPage = source('packages/admin/src/pages/app/projects/deployment/[id].astro');
 		const projectPages = [
-			'src/pages/app/projects/[projectId]/deploy.astro',
-			'src/pages/app/projects/[projectId]/hosts.astro',
-			'src/pages/app/projects/[projectId]/settings.astro',
-			'src/pages/app/projects/[projectId]/guidance.astro',
-			'src/pages/app/projects/[projectId]/decisions.astro',
-			'src/pages/app/projects/[projectId]/artifacts.astro',
-			'src/pages/app/projects/[projectId]/delete.astro',
-			'src/pages/app/projects/[projectId]/workdays.astro',
-			'src/pages/app/projects/[projectId]/agents.astro',
-			'src/pages/app/projects/[projectId]/agents/new.astro',
-			'src/pages/app/projects/[projectId]/agents/[agentSlug].astro',
-			'src/pages/app/projects/[projectId]/workdays/[workdayId].astro',
+			'packages/admin/src/pages/app/projects/[projectId]/deploy.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/hosts.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/settings.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/guidance.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/decisions.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/artifacts.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/delete.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/workdays.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/agents.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/agents/new.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/agents/[agentSlug].astro',
+			'packages/admin/src/pages/app/projects/[projectId]/workdays/[workdayId].astro',
 		];
 
 		for (const symbol of ['loadAppContext', 'resolveAppProject', 'resolveAppDeployment', 'resolveAppHost', 'resolveAppCapacityProvider', 'resolveAppTeam']) {
 			expect(appAccess).toContain(`function ${symbol}`);
 		}
 		expect(sharedViewModel).not.toContain('loadOperationalContext');
-		expect(existsSync(resolve(process.cwd(), 'src/lib/market/app-data.ts'))).toBe(false);
+		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/lib/market/app-data.ts'))).toBe(false);
 		expect(appAccess).not.toContain("searchParams?.get('teamId')");
 		expect(layout).not.toContain("searchParams.set('teamId'");
-		expect(source('src/pages/app/account.astro')).toContain('loadAppContext');
-		expect(source('src/pages/app/projects/new.astro')).toContain('listMarketplaceSiteTemplates');
+		expect(source('packages/admin/src/pages/app/account.astro')).toContain('loadAppContext');
+		expect(source('packages/admin/src/pages/app/projects/new.astro')).toContain('listMarketplaceSiteTemplates');
 		expect(deploymentStatusPage).toContain('const deploymentAccessible');
 		expect(deploymentStatusPage).toContain("Astro.response.status = deploymentResolution?.status === 'forbidden' ? 403 : 404");
 		for (const path of projectPages) {
@@ -119,20 +119,20 @@ describe('one-purpose control app information architecture', () => {
 		}
 		expect(deploymentStatusPage).toContain('resolveAppDeployment');
 		expect(deploymentStatusPage).not.toContain('?teamId=');
-		for (const path of filesUnder('src/pages/app').filter((entry) => entry.endsWith('.astro'))) {
+		for (const path of filesUnder('packages/admin/src/pages/app').filter((entry) => entry.endsWith('.astro'))) {
 			const contents = source(path);
 			expect(contents, path).not.toContain('loadOperationalContext');
 			expect(contents, path).not.toContain('resolveApiStore(Astro)');
 			expect(contents, path).not.toContain('loadAccessibleTeams(Astro');
 			expect(contents, path).not.toMatch(/load[A-Za-z]+ViewModel\(Astro\.locals/u);
 		}
-		expect(source('src/pages/app/hosts/[hostType]/[hostId]/edit.astro')).toContain('resolveAppHost');
-		expect(source('src/pages/app/capacity/providers/[providerId]/edit.astro')).toContain('resolveAppCapacityProvider');
-		expect(source('src/pages/app/capacity/providers/[providerId]/keys.astro')).toContain('resolveAppCapacityProvider');
+		expect(source('packages/admin/src/pages/app/hosts/[hostType]/[hostId]/edit.astro')).toContain('resolveAppHost');
+		expect(source('packages/admin/src/pages/app/capacity/providers/[providerId]/edit.astro')).toContain('resolveAppCapacityProvider');
+		expect(source('packages/admin/src/pages/app/capacity/providers/[providerId]/keys.astro')).toContain('resolveAppCapacityProvider');
 		for (const path of [
-			'src/pages/app/teams/[teamId]/edit.astro',
-			'src/pages/app/teams/[teamId]/members.astro',
-			'src/pages/app/teams/[teamId]/delete.astro',
+			'packages/admin/src/pages/app/teams/[teamId]/edit.astro',
+			'packages/admin/src/pages/app/teams/[teamId]/members.astro',
+			'packages/admin/src/pages/app/teams/[teamId]/delete.astro',
 		]) {
 			expect(source(path), path).toContain('resolveAppTeam');
 		}
@@ -140,13 +140,13 @@ describe('one-purpose control app information architecture', () => {
 			expect(publicAccess).toContain(`function ${symbol}`);
 		}
 		for (const path of [
-			'src/pages/market/index.astro',
-			'src/pages/market/templates/index.astro',
-			'src/pages/market/templates/[slug].astro',
-			'src/pages/market/knowledge-packs/index.astro',
-			'src/pages/market/knowledge-packs/[slug].astro',
-			'src/pages/t/[name].astro',
-			'src/pages/u/[username].astro',
+			'packages/admin/src/pages/market/index.astro',
+			'packages/admin/src/pages/market/templates/index.astro',
+			'packages/admin/src/pages/market/templates/[slug].astro',
+			'packages/admin/src/pages/market/knowledge-packs/index.astro',
+			'packages/admin/src/pages/market/knowledge-packs/[slug].astro',
+			'packages/admin/src/pages/t/[name].astro',
+			'packages/admin/src/pages/u/[username].astro',
 		]) {
 			expect(source(path), path).toContain('public-access');
 			expect(source(path), path).not.toContain('treeseed_active_team');
@@ -157,7 +157,7 @@ describe('one-purpose control app information architecture', () => {
 		for (const path of [...primaryRoutes, ...onePurposeRoutes]) {
 			expect(existsSync(resolve(process.cwd(), path)), path).toBe(true);
 		}
-		expect(readdirSync(resolve(process.cwd(), 'src/pages/app')).sort()).toEqual([
+		expect(readdirSync(resolve(process.cwd(), 'packages/admin/src/pages/app')).sort()).toEqual([
 			'account.astro',
 			'capacity',
 			'hosts',
@@ -181,9 +181,9 @@ describe('one-purpose control app information architecture', () => {
 
 	it('keeps team mutations behind the server-side API facade', () => {
 		for (const path of [
-			'src/pages/app/teams/new.astro',
-			'src/pages/app/teams/[teamId]/edit.astro',
-			'src/pages/app/teams/[teamId]/delete.astro',
+			'packages/admin/src/pages/app/teams/new.astro',
+			'packages/admin/src/pages/app/teams/[teamId]/edit.astro',
+			'packages/admin/src/pages/app/teams/[teamId]/delete.astro',
 		]) {
 			const page = source(path);
 			expect(page).toContain('ApiClientFacade');
@@ -197,13 +197,13 @@ describe('one-purpose control app information architecture', () => {
 
 	it('adds deployment as a first-class project control surface', () => {
 		const nav = source('@treeseed/ui/components/astro/app/controls/ProjectControlNav.astro');
-		const page = source('src/pages/app/projects/[projectId]/deploy.astro');
-		const newProject = source('src/pages/app/projects/new.astro');
+		const page = source('packages/admin/src/pages/app/projects/[projectId]/deploy.astro');
+		const newProject = source('packages/admin/src/pages/app/projects/new.astro');
 		const timeline = source('@treeseed/ui/components/astro/app/operations/DeploymentTimeline.astro');
 		const helper = source('@treeseed/ui/lib/app/deployment-action-status');
-		const deploymentStatusPage = source('src/pages/app/projects/deployment/[id].astro');
-		const deploymentVm = source('src/view-models/deployment.vm.ts');
-		const apiClient = source('src/lib/market/api-client.ts');
+		const deploymentStatusPage = source('packages/admin/src/pages/app/projects/deployment/[id].astro');
+		const deploymentVm = source('packages/admin/src/view-models/deployment.vm.ts');
+		const apiClient = source('packages/admin/src/lib/market/api-client.ts');
 		const styles = source('src/styles/treeseed.css');
 		const deployIndex = nav.indexOf("label: 'Deploy'");
 		expect(nav).not.toContain("label: 'Hosts'");
@@ -268,7 +268,7 @@ describe('one-purpose control app information architecture', () => {
 		expect(helper).toContain("source: 'market_ui'");
 		expect(helper).toContain('sensitivePassphrase');
 		expect(helper).toContain('intervalMs?: number');
-		const projectsIndex = source('src/pages/app/projects/index.astro');
+		const projectsIndex = source('packages/admin/src/pages/app/projects/index.astro');
 		expect(projectsIndex).toContain('/deploy">Deploy</a>');
 		expect(projectsIndex).not.toContain('/app/projects/deployment/${encodeURIComponent(latestDeployment.id)}');
 		expect(apiClient).toContain('listProjectDeployments');
@@ -305,9 +305,9 @@ describe('one-purpose control app information architecture', () => {
 		expect(styles).not.toContain('linear-gradient(135deg, color-mix(in srgb, var(--ts-deploy-accent-soft)');
 		expect(styles).not.toContain('font-size: clamp(2rem, 3vw, 3.1rem);');
 		for (const path of [
-			'src/pages/app/projects/[projectId]/deploy.astro',
-			'src/pages/app/projects/[projectId]/hosts.astro',
-			'src/pages/app/projects/[projectId]/settings.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/deploy.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/hosts.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/settings.astro',
 		]) {
 			const contents = source(path);
 			expect(contents).toContain('resolveAppProject');
@@ -383,23 +383,23 @@ describe('one-purpose control app information architecture', () => {
 	});
 
 	it('uses the Phase 7 native capacity provider lifecycle UI', () => {
-		const start = source('src/pages/app/index.astro');
-		const redirect = source('src/pages/app/capacity/index.astro');
-		const dashboard = source('src/pages/app/capacity/providers/index.astro');
-		const create = source('src/pages/app/capacity/providers/new.astro');
-		const edit = source('src/pages/app/capacity/providers/[providerId]/edit.astro');
-		const keys = source('src/pages/app/capacity/providers/[providerId]/keys.astro');
-		const workdays = source('src/pages/app/projects/[projectId]/workdays.astro');
-		const workdayDetail = source('src/pages/app/projects/[projectId]/workdays/[workdayId].astro');
-		const apiClient = source('src/lib/market/api-client.ts');
-		const hostPicker = source('src/pages/app/hosts/new.astro');
-		const hostCreate = source('src/pages/app/hosts/[hostType]/new.astro');
-		const infrastructureProjection = source('src/lib/market/infrastructure-projection.ts');
+		const start = source('packages/admin/src/pages/app/index.astro');
+		const redirect = source('packages/admin/src/pages/app/capacity/index.astro');
+		const dashboard = source('packages/admin/src/pages/app/capacity/providers/index.astro');
+		const create = source('packages/admin/src/pages/app/capacity/providers/new.astro');
+		const edit = source('packages/admin/src/pages/app/capacity/providers/[providerId]/edit.astro');
+		const keys = source('packages/admin/src/pages/app/capacity/providers/[providerId]/keys.astro');
+		const workdays = source('packages/admin/src/pages/app/projects/[projectId]/workdays.astro');
+		const workdayDetail = source('packages/admin/src/pages/app/projects/[projectId]/workdays/[workdayId].astro');
+		const apiClient = source('packages/admin/src/lib/market/api-client.ts');
+		const hostPicker = source('packages/admin/src/pages/app/hosts/new.astro');
+		const hostCreate = source('packages/admin/src/pages/app/hosts/[hostType]/new.astro');
+		const infrastructureProjection = source('packages/admin/src/lib/market/infrastructure-projection.ts');
 		const deletedRoutes = [
-			'src/pages/app/capacity/providers/[providerId]/lanes.astro',
-			'src/pages/app/capacity/grants/index.astro',
-			'src/pages/app/capacity/grants/new.astro',
-			'src/pages/app/capacity/grants/[grantId]/edit.astro',
+			'packages/admin/src/pages/app/capacity/providers/[providerId]/lanes.astro',
+			'packages/admin/src/pages/app/capacity/grants/index.astro',
+			'packages/admin/src/pages/app/capacity/grants/new.astro',
+			'packages/admin/src/pages/app/capacity/grants/[grantId]/edit.astro',
 		];
 
 		expect(redirect).toContain("Astro.redirect('/app/capacity/providers')");
@@ -481,21 +481,21 @@ describe('one-purpose control app information architecture', () => {
 	});
 
 	it('uses project-first host setup and operational host inventory', () => {
-		const hosts = source('src/pages/app/hosts/index.astro');
-		const hostPicker = source('src/pages/app/hosts/new.astro');
-		const hostCreate = source('src/pages/app/hosts/[hostType]/new.astro');
-		const hostEdit = source('src/pages/app/hosts/[hostType]/[hostId]/edit.astro');
-		const adminFormClient = source('src/lib/market/admin-form-client.ts');
+		const hosts = source('packages/admin/src/pages/app/hosts/index.astro');
+		const hostPicker = source('packages/admin/src/pages/app/hosts/new.astro');
+		const hostCreate = source('packages/admin/src/pages/app/hosts/[hostType]/new.astro');
+		const hostEdit = source('packages/admin/src/pages/app/hosts/[hostType]/[hostId]/edit.astro');
+		const adminFormClient = source('packages/admin/src/lib/market/admin-form-client.ts');
 		const deleteModal = source('@treeseed/ui/components/astro/app/controls/DeleteConfirmationModal.astro');
-		const appLayout = source('src/layouts/TreeseedAppLayout.astro');
+		const appLayout = source('packages/admin/src/layouts/TreeseedAppLayout.astro');
 		const coreButton = source('@treeseed/ui/components/astro/forms/Button.astro');
 		const coreSelect = source('@treeseed/ui/components/astro/forms/Select.astro');
 		const styles = source('src/styles/treeseed.css');
-		const projectCreate = source('src/pages/app/projects/new.astro');
-		const projectSettings = source('src/pages/app/projects/[projectId]/settings.astro');
-		const projectHosts = source('src/pages/app/projects/[projectId]/hosts.astro');
-		const helper = source('src/lib/market/control-ui.ts');
-		const hostCredentialClient = source('src/lib/market/host-credential-form-client.ts');
+		const projectCreate = source('packages/admin/src/pages/app/projects/new.astro');
+		const projectSettings = source('packages/admin/src/pages/app/projects/[projectId]/settings.astro');
+		const projectHosts = source('packages/admin/src/pages/app/projects/[projectId]/hosts.astro');
+		const helper = source('packages/admin/src/lib/market/control-ui.ts');
+		const hostCredentialClient = source('packages/admin/src/lib/market/host-credential-form-client.ts');
 		const hostPermissionNote = source('@treeseed/ui/components/astro/app/controls/HostCredentialPermissionNote.astro');
 		const providerLaunch = source('packages/sdk/src/operations/services/hub-provider-launch.ts');
 
@@ -620,7 +620,7 @@ describe('one-purpose control app information architecture', () => {
 		expect(projectCreate).not.toContain('label="Handle"');
 		expect(projectCreate).not.toContain('label="Purpose"');
 		expect(projectCreate).not.toContain('name="summary" rows={4}');
-		const coreObjectiveEditor = source('src/lib/market/core-objective-mdx-editor.tsx');
+		const coreObjectiveEditor = source('packages/admin/src/lib/market/core-objective-mdx-editor.tsx');
 		for (const plugin of [
 			'diffSourcePlugin',
 			'DiffSourceToggleWrapper',
@@ -712,11 +712,11 @@ describe('one-purpose control app information architecture', () => {
 		]) {
 			expect(nav).toContain(`key: '${model}'`);
 			expect(nav).toContain(`href: '${route}'`);
-			const routePath = `src/pages${route}.astro`;
+			const routePath = `packages/admin/src/pages${route}.astro`;
 			expect(source(routePath), routePath).toContain('loadWorkContentEntries');
 		}
-		expect(source('src/view-models/work-content.ts')).toContain("['questions', 'objectives', 'notes', 'proposals', 'decisions']");
-		expect(source('src/view-models/work-content.ts')).toContain("'objectives'");
+		expect(source('packages/admin/src/view-models/work-content.ts')).toContain("['questions', 'objectives', 'notes', 'proposals', 'decisions']");
+		expect(source('packages/admin/src/view-models/work-content.ts')).toContain("'objectives'");
 	});
 
 	it('removes dashboard and bundled setup surfaces from primary app code', () => {
@@ -734,18 +734,18 @@ describe('one-purpose control app information architecture', () => {
 	});
 
 	it('keeps credential forms field-based rather than JSON envelope based', () => {
-		const hostCredentialClient = source('src/lib/market/host-credential-form-client.ts');
+		const hostCredentialClient = source('packages/admin/src/lib/market/host-credential-form-client.ts');
 		for (const path of [
-			'src/pages/app/hosts/[hostType]/new.astro',
-			'src/pages/app/hosts/[hostType]/[hostId]/edit.astro',
+			'packages/admin/src/pages/app/hosts/[hostType]/new.astro',
+			'packages/admin/src/pages/app/hosts/[hostType]/[hostId]/edit.astro',
 		]) {
 			const contents = source(path);
 			expect(contents, path).toContain('host-credential-form-client');
 			expect(contents, path).not.toContain('Encrypted provider envelope');
 			expect(contents, path).not.toMatch(/placeholder=['"]\{/u);
 		}
-		const hostCreate = source('src/pages/app/hosts/[hostType]/new.astro');
-		const hostEdit = source('src/pages/app/hosts/[hostType]/[hostId]/edit.astro');
+		const hostCreate = source('packages/admin/src/pages/app/hosts/[hostType]/new.astro');
+		const hostEdit = source('packages/admin/src/pages/app/hosts/[hostType]/[hostId]/edit.astro');
 		expect(hostCredentialClient).toContain('encryptHostConfig');
 		expect(hostCredentialClient).toContain('treeseedSensitiveUnlock');
 		expect(hostCredentialClient).toContain('currentSensitivePassphrase');
@@ -801,7 +801,7 @@ describe('one-purpose control app information architecture', () => {
 	});
 
 	it('splits project decisions into proposal, decision, and review tabs with verdict actions', () => {
-		const decisions = source('src/pages/app/projects/[projectId]/decisions.astro');
+		const decisions = source('packages/admin/src/pages/app/projects/[projectId]/decisions.astro');
 		for (const tab of ['proposals', 'decisions', 'review']) {
 			expect(decisions).toContain(`key: '${tab}'`);
 			expect(decisions).toContain(`?tab=${tab}`);
@@ -818,12 +818,12 @@ describe('one-purpose control app information architecture', () => {
 		expect(helper).toContain('/v1/platform/operations/');
 		expect(helper).toContain('TERMINAL_STATUSES');
 		for (const path of [
-			'src/pages/app/work/[collection]/new.astro',
-			'src/pages/app/work/objectives/new.astro',
-			'src/pages/app/work/[collection]/[slug].astro',
-			'src/pages/app/projects/[projectId]/agents/new.astro',
-			'src/pages/app/projects/[projectId]/agents/[agentSlug].astro',
-			'src/pages/app/projects/[projectId]/decisions.astro',
+			'packages/admin/src/pages/app/work/[collection]/new.astro',
+			'packages/admin/src/pages/app/work/objectives/new.astro',
+			'packages/admin/src/pages/app/work/[collection]/[slug].astro',
+			'packages/admin/src/pages/app/projects/[projectId]/agents/new.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/agents/[agentSlug].astro',
+			'packages/admin/src/pages/app/projects/[projectId]/decisions.astro',
 			'@treeseed/ui/lib/app/related-content-creator',
 		]) {
 			const contents = source(path);

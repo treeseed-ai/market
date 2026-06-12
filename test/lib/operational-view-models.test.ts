@@ -76,7 +76,7 @@ const mockStore: any = {
 	listTeamProducts: vi.fn(async () => [{ id: 'resource-1', title: 'Deployment workflow', kind: 'template', visibility: 'private' }]),
 };
 
-vi.mock('../../src/lib/market/store.js', () => ({
+vi.mock('../../packages/admin/src/lib/market/store.js', () => ({
 	resolveApiStore: () => mockStore,
 	resolveMarketPrincipal: () => ({ id: 'user-1' }),
 	loadAccessibleTeams: async () => [{ id: 'team-1', name: 'treeseed', displayName: 'TreeSeed' }],
@@ -88,7 +88,7 @@ describe('operational view models', () => {
 	});
 
 	it('loads Mission Control from existing operational data', async () => {
-		const { loadMissionControlViewModel } = await import('../../src/view-models/mission-control.vm.js');
+		const { loadMissionControlViewModel } = await import('../../packages/admin/src/view-models/mission-control.vm.js');
 		const vm = await loadMissionControlViewModel({} as App.Locals);
 
 		expect(vm.metrics.map((metric) => metric.label)).toContain('Active workdays');
@@ -97,7 +97,7 @@ describe('operational view models', () => {
 	});
 
 	it('loads Workday list and detail projections', async () => {
-		const { loadWorkdayListViewModel, loadWorkdayDetailViewModel } = await import('../../src/view-models/workday.vm.js');
+		const { loadWorkdayListViewModel, loadWorkdayDetailViewModel } = await import('../../packages/admin/src/view-models/workday.vm.js');
 		const list = await loadWorkdayListViewModel({} as App.Locals);
 		const detail = await loadWorkdayDetailViewModel({} as App.Locals, 'workday-1');
 
@@ -111,9 +111,9 @@ describe('operational view models', () => {
 	});
 
 	it('loads Governance, Knowledge, and Infrastructure projections', async () => {
-		const { loadGovernanceViewModel } = await import('../../src/view-models/governance.vm.js');
-		const { loadKnowledgeViewModel } = await import('../../src/view-models/knowledge.vm.js');
-		const { loadInfrastructureViewModel } = await import('../../src/view-models/infrastructure.vm.js');
+		const { loadGovernanceViewModel } = await import('../../packages/admin/src/view-models/governance.vm.js');
+		const { loadKnowledgeViewModel } = await import('../../packages/admin/src/view-models/knowledge.vm.js');
+		const { loadInfrastructureViewModel } = await import('../../packages/admin/src/view-models/infrastructure.vm.js');
 
 		const governance = await loadGovernanceViewModel({} as App.Locals);
 		const knowledge = await loadKnowledgeViewModel({} as App.Locals);

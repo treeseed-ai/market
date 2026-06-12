@@ -6,8 +6,8 @@ import {
 	resolveAppProject,
 	resolveAppTeam,
 	type AppResolution,
-} from '../../src/view-models/app-access';
-import type { OperationalContext } from '../../src/view-models/shared';
+} from '../../packages/admin/src/view-models/app-access';
+import type { OperationalContext } from '../../packages/admin/src/view-models/shared';
 
 function errorWithStatus(status: number) {
 	const error = new Error(`status ${status}`);

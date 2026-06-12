@@ -6,11 +6,11 @@ import { describe, expect, it } from 'vitest';
 describe('API/UI workday supervision parity coverage', () => {
 	it('records explicit supervision coverage for workday and governance surfaces', async () => {
 		const requiredSurfaces = [
-			'src/pages/v1/[...all].ts',
-			'src/lib/market/api-client.ts',
-			'src/pages/app/projects/[projectId]/workdays.astro',
-			'src/pages/app/projects/[projectId]/workdays/[workdayId].astro',
-			'src/pages/app/work/decisions/[approvalId].astro',
+			'packages/admin/src/pages/v1/[...all].ts',
+			'packages/admin/src/lib/market/api-client.ts',
+			'packages/admin/src/pages/app/projects/[projectId]/workdays.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/workdays/[workdayId].astro',
+			'packages/admin/src/pages/app/work/decisions/[approvalId].astro',
 			'packages/ui/src/astro/app/operations/GovernanceDecisionPanel.astro',
 		];
 		for (const surface of requiredSurfaces) {

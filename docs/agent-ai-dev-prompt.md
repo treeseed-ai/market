@@ -26,8 +26,8 @@ Only work in these TreeSeed project areas unless I explicitly approve broader sc
 - `docs`
 - `src/content`
 - `@treeseed/ui/components/astro/app/operations`
-- `src/pages/app`
-- `src/pages/v1`
+- `packages/admin/src/pages/app`
+- `packages/admin/src/pages/v1`
 - tests directly related to this loop
 
 Do not edit unrelated application features. Do not touch production source paths just to make documentation automation pass unless the issue genuinely belongs there and you explain the reason first.
@@ -281,8 +281,8 @@ Research and knowledge outputs should be code-aware across:
 * `packages/cli/src/cli/**`
 * `packages/core/src/**`
 * `@treeseed/ui/components/astro/app/operations/**`
-* `src/pages/app/**`
-* `src/pages/v1/**`
+* `packages/admin/src/pages/app/**`
+* `packages/admin/src/pages/v1/**`
 * `src/content/**`
 * `docs/**`
 * `packages/sdk/drizzle/**`

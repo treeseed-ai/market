@@ -1,9 +1,9 @@
 ---
 import { listSiteTemplates } from '@treeseed/core/templates';
-import TreeseedPublicLayout from '../../layouts/TreeseedPublicLayout.astro';
+import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
 import MarketProductCard from '@treeseed/ui/components/astro/market/ProductCard.astro';
-import { createMarketTemplateCatalogProvider } from '../../lib/market/catalog.js';
-import { resolveApiStore } from '../../lib/market/store.js';
+import { createMarketTemplateCatalogProvider } from '@treeseed/admin/lib/market/catalog';
+import { resolveApiStore } from '@treeseed/admin/lib/market/store';
 
 const templateListing = await listSiteTemplates({
 	locals: Astro.locals,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contentRelationPolicy, allowedRelatedCollections, canCreateRelatedContent } from '../../src/lib/market/content-relations.js';
+import { contentRelationPolicy, allowedRelatedCollections, canCreateRelatedContent } from '../../packages/admin/src/lib/market/content-relations.js';
 
 describe('content relation policy', () => {
 	it('matches the v1 allowed relation matrix', () => {

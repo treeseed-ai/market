@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildWorkdayProjection } from '../../src/lib/market/workday-projection.js';
+import { buildWorkdayProjection } from '../../packages/admin/src/lib/market/workday-projection.js';
 
 describe('workday projection', () => {
 	it('builds a sanitized operational projection from runtime and store data', async () => {

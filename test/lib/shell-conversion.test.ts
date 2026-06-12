@@ -9,7 +9,7 @@ function source(path: string) {
 
 describe('app and public shell conversion', () => {
 	it('adapts market app layout through core shell primitives', () => {
-		const contents = source('src/layouts/TreeseedAppLayout.astro');
+		const contents = source('packages/admin/src/layouts/TreeseedAppLayout.astro');
 
 		expect(contents).toContain('AppShell');
 		expect(contents).toContain('SensitiveDataUnlock');
@@ -38,7 +38,7 @@ describe('app and public shell conversion', () => {
 	});
 
 	it('adapts market public layout through the core public shell', () => {
-		const contents = source('src/layouts/TreeseedPublicLayout.astro');
+		const contents = source('packages/admin/src/layouts/TreeseedPublicLayout.astro');
 
 		expect(contents).toContain('PublicShell');
 		expect(contents).toContain('resolveAnonymousThemePreference');
@@ -87,7 +87,7 @@ describe('app and public shell conversion', () => {
 	});
 
 	it('removes inline styling and retired tokens from converted layouts', () => {
-		for (const path of ['src/layouts/TreeseedAppLayout.astro', 'src/layouts/TreeseedPublicLayout.astro']) {
+		for (const path of ['packages/admin/src/layouts/TreeseedAppLayout.astro', 'packages/admin/src/layouts/TreeseedPublicLayout.astro']) {
 			const contents = source(path);
 			expect(contents, path).not.toContain('<style');
 			expect(contents, path).not.toMatch(/\sstyle=/u);

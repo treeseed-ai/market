@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildKnowledgeArtifactProjection, buildKnowledgeProjection } from '../../src/lib/market/knowledge-projection.js';
+import { buildKnowledgeArtifactProjection, buildKnowledgeProjection } from '../../packages/admin/src/lib/market/knowledge-projection.js';
 
 describe('knowledge projection', () => {
 	it('unifies operational artifacts, imports, reports, releases, and content relationships', async () => {

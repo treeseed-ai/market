@@ -13,6 +13,16 @@ This runbook describes how to demonstrate TreeSeed through the real local operat
 
 The demo is not a special app mode. It is a rehearsed walkthrough of the same surfaces operators use.
 
+## Current Demo Runtime Ownership
+
+- market/admin web runs from the root app, with admin routes supplied by `@treeseed/admin`
+- reusable UI comes from `@treeseed/ui`
+- API and operations runner run from `packages/api`
+- capacity-provider runtime comes from `packages/agent` only when explicitly demoed
+- TreeDX is optional repository intelligence/federation infrastructure consumed through SDK/API
+
+See [Package Ownership](./package-ownership.md) for the current package map.
+
 ## Demo Principle
 
 The core message is:
@@ -28,7 +38,7 @@ Do not lead with prompting, code generation, autonomous agent behavior, or imple
 Run from the market workspace root:
 
 ```bash
-cd /home/adrian/Projects/treeseed/market
+cd <market-workspace>
 npx trsd status --json
 npx trsd install --json
 ```

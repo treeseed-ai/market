@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildInfrastructureProjection } from '../../src/lib/market/infrastructure-projection.js';
+import { buildInfrastructureProjection } from '../../packages/admin/src/lib/market/infrastructure-projection.js';
 
 describe('infrastructure projection', () => {
 	it('builds a sanitized operator projection from existing infrastructure data', async () => {

@@ -63,6 +63,81 @@ describe('web runtime boundaries', () => {
 		expect(siteConfig).not.toMatch(/\bworkdayManager:|\bworkerRunner:|treeseed-processing/u);
 	});
 
+	it('keeps root Market as the only hosted site manifest layered on admin', () => {
+		const rootSite = parse(readFileSync('treeseed.site.yaml', 'utf8')) as any;
+		const siteManifests = files('.')
+			.filter((path) => path.endsWith('treeseed.site.yaml'))
+			.filter((path) => !path.includes('/node_modules/'))
+			.filter((path) => !path.includes('/dist/'));
+
+		expect(siteManifests).toContain('treeseed.site.yaml');
+		expect(siteManifests).not.toContain('packages/admin/treeseed.site.yaml');
+		expect(rootSite.plugins?.map((plugin: any) => plugin.package)).toContain('@treeseed/admin/plugin');
+		const forbiddenRootAdminPaths = [
+			'src/pages/app',
+			'src/pages/auth',
+			'src/pages/v1',
+			'src/pages/team-invites',
+			'src/pages/market',
+			'src/pages/templates',
+			'src/pages/u',
+			'src/pages/t',
+			'src/lib/auth',
+			'src/lib/market',
+			'src/lib/runtime',
+			'src/lib/host-crypto.ts',
+			'src/view-models',
+			'src/layouts/TreeseedAppLayout.astro',
+			'src/layouts/TreeseedPublicLayout.astro',
+		];
+		const existingAdminPaths = forbiddenRootAdminPaths.filter((path) => existsSync(path));
+		expect(existingAdminPaths).toEqual([]);
+
+		for (const allowedRootPath of [
+			'src/content',
+			'src/overrides/pages',
+			'src/pages/api/form/submit.ts',
+			'src/styles/treeseed.css',
+			'src/config.yaml',
+			'src/env.yaml',
+			'src/manifest.yaml',
+			'src/content.config.ts',
+			'src/middleware.ts',
+		]) {
+			expect(existsSync(allowedRootPath), allowedRootPath).toBe(true);
+		}
+	});
+
+	it('keeps root overrides on public admin and UI package exports', () => {
+		const overrideFiles = files('src/overrides')
+			.filter((path) => /\.(astro|ts|js)$/u.test(path));
+		expect(overrideFiles.length).toBeGreaterThan(0);
+
+		const offenders = overrideFiles.filter((path) => {
+			const source = readFileSync(path, 'utf8');
+			return /packages\/(?:admin|ui)\/src|(?:from|import)\s*['"](?:\.\.\/)+packages\/(?:admin|ui)\//u.test(source);
+		});
+		expect(offenders).toEqual([]);
+
+		const overrideSource = overrideFiles.map((path) => readFileSync(path, 'utf8')).join('\n');
+		expect(overrideSource).toContain('@treeseed/admin/');
+		expect(overrideSource).toContain('@treeseed/ui/');
+	});
+
+	it('reserves ecommerce implementation for the hosted market layer', () => {
+		const adminSources = files('packages/admin/src')
+			.filter((path) => /\.(astro|ts|tsx|js|jsx|mjs)$/u.test(path))
+			.filter((path) => path !== 'packages/admin/src/commerce.ts');
+		const adminPaymentOffenders = adminSources.filter((path) => {
+			const source = readFileSync(path, 'utf8');
+			return /\b(stripe|checkout session|payment intent|seller payout|coupon)\b/iu.test(source);
+		});
+
+		expect(adminPaymentOffenders).toEqual([]);
+		expect(existsSync('src/pages/checkout')).toBe(false);
+		expect(existsSync('src/pages/billing')).toBe(false);
+	});
+
 	it('declares the Treeseed operations runner from the API application manifest', () => {
 		const rootSite = parse(readFileSync('treeseed.site.yaml', 'utf8')) as any;
 		expect(rootSite.services?.marketOperationsRunner).toBeUndefined();
@@ -102,7 +177,7 @@ describe('web runtime boundaries', () => {
 	});
 
 	it('routes app, market, and auth session state through the backend API facade', () => {
-		const proxy = readFileSync('src/pages/v1/[...all].ts', 'utf8');
+		const proxy = readFileSync('packages/admin/src/pages/v1/[...all].ts', 'utf8');
 		expect(proxy).toContain('resolveApiBaseUrl');
 		expect(proxy).toContain('apiServiceHeaders');
 		expect(proxy).toContain('skipUserAssertion: Boolean(token)');
@@ -111,10 +186,10 @@ describe('web runtime boundaries', () => {
 		expect(proxy).toContain("path === 'healthz' || path.startsWith('healthz/')");
 		expect(proxy).not.toMatch(/resolveMarketStore|loadSiteWebSession|AGENT_WORK_QUEUE|SITE_DATA_DB/u);
 
-		const apiClient = readFileSync('src/lib/market/api-client.ts', 'utf8');
+		const apiClient = readFileSync('packages/admin/src/lib/market/api-client.ts', 'utf8');
 		expect(apiClient).toContain('skipUserAssertion: Boolean(token)');
 
-		const middleware = readFileSync('src/middleware.ts', 'utf8');
+		const middleware = readFileSync('packages/admin/src/middleware.ts', 'utf8');
 		expect(middleware).toContain('/v1/me');
 		expect(middleware).toContain('apiAccessTokenFromCookies');
 		expect(middleware).toContain('clearApiAccessTokenCookie');
@@ -123,7 +198,7 @@ describe('web runtime boundaries', () => {
 	});
 
 	it('keeps browser logout redirecting even when upstream session revocation fails', () => {
-		const proxy = readFileSync('src/pages/v1/[...all].ts', 'utf8');
+		const proxy = readFileSync('packages/admin/src/pages/v1/[...all].ts', 'utf8');
 		expect(proxy).toContain("const logoutRedirect = path === 'auth/logout' && method === 'GET'");
 		expect(proxy).toContain('if (logoutRedirect) {');
 		expect(proxy).toContain('clearApiAccessTokenCookie(context)');
@@ -147,20 +222,21 @@ describe('web runtime boundaries', () => {
 			expect(packageJson.scripts).not.toHaveProperty(forbidden);
 		}
 		expect(packageJson.scripts?.build).toBe('npm run build:web');
-		const endpointFiles = files('src/pages')
+		const endpointFiles = [...files('src/pages'), ...files('packages/admin/src/pages')]
 			.filter((path) => /\.(ts|js)$/u.test(path))
 			.filter((path) => path.startsWith('src/pages/api/')
-				|| path.startsWith('src/pages/auth/')
-				|| path.startsWith('src/pages/v1/'))
+				|| path.startsWith('packages/admin/src/pages/api/')
+				|| path.startsWith('packages/admin/src/pages/auth/')
+				|| path.startsWith('packages/admin/src/pages/v1/'))
 			.sort();
 		expect(endpointFiles).toEqual([
+			'packages/admin/src/pages/api/markdown/preview.ts',
+			'packages/admin/src/pages/auth/callback/[provider].ts',
+			'packages/admin/src/pages/v1/[...all].ts',
 			'src/pages/api/form/submit.ts',
-			'src/pages/api/markdown/preview.ts',
-			'src/pages/auth/callback/[provider].ts',
-			'src/pages/v1/[...all].ts',
 		]);
 
-		const runtimeFiles = files('src')
+		const runtimeFiles = [...files('src'), ...files('packages/admin/src')]
 			.filter((path) => /\.(astro|ts|js)$/u.test(path))
 			.filter((path) => !path.startsWith('src/content/'));
 		const offenders = runtimeFiles.filter((path) => {
@@ -171,21 +247,21 @@ describe('web runtime boundaries', () => {
 	});
 
 	it('keeps Market database credentials out of browser and Astro UI code', () => {
-		const sourceFiles = files('src')
+		const sourceFiles = [...files('src'), ...files('packages/admin/src')]
 			.filter((path) => /\.(astro|ts|js)$/u.test(path))
-			.filter((path) => path.startsWith('src/pages/app/')
+			.filter((path) => path.startsWith('packages/admin/src/pages/app/')
 				|| path.startsWith('src/pages/market/')
-				|| path.startsWith('src/pages/auth/')
+				|| path.startsWith('packages/admin/src/pages/auth/')
 				|| path.startsWith('src/pages/u/')
 				|| path.startsWith('src/pages/t/')
 				|| path.startsWith('src/pages/team-invites/')
 				|| path.startsWith('src/pages/api/')
 				|| path.startsWith('src/components/')
-				|| path.startsWith('src/view-models/')
+				|| path.startsWith('packages/admin/src/view-models/')
 				|| path === 'src/middleware.ts'
-				|| path === 'src/lib/market/store.ts'
-				|| path === 'src/lib/market/catalog.ts')
-			.filter((path) => !path.startsWith('src/lib/market/seeds/'));
+				|| path === 'packages/admin/src/lib/market/store.ts'
+				|| path === 'packages/admin/src/lib/market/catalog.ts')
+			.filter((path) => !path.startsWith('packages/admin/src/lib/market/seeds/'));
 		const offenders = sourceFiles.filter((path) => {
 			const source = readFileSync(path, 'utf8');
 			return /TREESEED_MARKET_DATABASE_URL|SITE_DATA_DB|platform-operation-store|RelationalDatabaseAdapter|MarketControlPlaneStore|from ['"].*api\/store|from ['"].*auth\/account|from ['"].*auth\/better-auth|from ['"].*auth\/session-store|resolveMarketStore|loadSiteWebSession|createSiteWebSession|createSiteBetterAuth|ensureBetterAuthD1Schema|createCoreAuthProvider/u.test(source);
@@ -204,7 +280,7 @@ describe('web runtime boundaries', () => {
 	});
 
 	it('keeps device login approval same-origin outside local development', () => {
-		const source = readFileSync('src/pages/auth/device/approve.astro', 'utf8');
+		const source = readFileSync('packages/admin/src/pages/auth/device/approve.astro', 'utf8');
 		expect(source).toContain('formAction: `${Astro.url.pathname}${Astro.url.search}`');
 		expect(source).toContain('serverUrls: [`${Astro.url.origin}/v1/auth/device/approve`]');
 		expect(source).toContain("return 'http://127.0.0.1:3000';");
@@ -213,7 +289,7 @@ describe('web runtime boundaries', () => {
 	});
 
 	it('redirects legacy v1 device approval browser links before auth checks', () => {
-		const source = readFileSync('src/pages/v1/[...all].ts', 'utf8');
+		const source = readFileSync('packages/admin/src/pages/v1/[...all].ts', 'utf8');
 		expect(source).toContain('isRedirectedDeviceApproval');
 		expect(source).toContain("new URL('/auth/device/approve', context.url.origin)");
 	});

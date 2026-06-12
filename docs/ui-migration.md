@@ -1,5 +1,17 @@
 # TreeSeed UX Migration Implementation Plan
 
+## Current Package Ownership Note
+
+This document includes historical migration context. The current split is:
+
+- reusable layout-down UI lives in `@treeseed/ui`
+- admin pages, middleware, view models, and route behavior live in `packages/admin`
+- root market keeps content, public messaging, page overrides, Treeseed branding, and future ecommerce
+- backend API and operations runner behavior live in `packages/api`
+- old root implementation paths should be read as pre-admin/UI split history unless they already point to `packages/admin/...`
+
+See [Package Ownership](./package-ownership.md) for the current map.
+
 ## Current Implementation Status
 
 The authenticated app has been simplified again after the operational-dashboard migration. The current product UI is now a controls-first flow:
@@ -1959,7 +1971,7 @@ UI Components
 Introduce:
 
 ```text
-src/view-models/
+packages/admin/src/view-models/
 ```
 
 Examples:

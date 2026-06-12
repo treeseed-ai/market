@@ -16,6 +16,16 @@ scope:
 
 # Dynamic Host Selection Implementation Record
 
+## Current Package Ownership
+
+- `@treeseed/admin` owns host credential forms, linked secret-manager UX, unlock/passphrase flows, and admin-facing diagnostics.
+- `@treeseed/ui` owns reusable form and status primitives.
+- `@treeseed/sdk` and `@treeseed/api` own provider mutation/reconciliation primitives, secure read/write adapters, import/adopt behavior, and backend state.
+- root `@treeseed/market` owns Treeseed-specific managed-host offerings, public messaging, and future commerce policy.
+- `@treeseed/cli` owns equivalent operator commands.
+
+See [Package Ownership](./package-ownership.md) for the full package map.
+
 ## Implementation Status
 
 Dynamic host selection is implemented across the shared SDK, Market launch/API/UI,
@@ -554,7 +564,7 @@ emailHostMode / emailHostId -> hostBindings.transactionalEmail
 Add a server-side resolver:
 
 ```text
-src/lib/market/launch-requirements.ts
+packages/admin/src/lib/market/launch-requirements.ts
 packages/sdk/src/operations/services/template-launch-requirements.ts
 ```
 

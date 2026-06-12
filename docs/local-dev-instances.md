@@ -7,6 +7,16 @@ Treeseed has two local development modes:
 
 Use the foreground form when you want terminal-owned logs and Ctrl-C lifecycle. Use the managed form when humans or AI agents need a discoverable server that survives shell changes and can be inspected or stopped later.
 
+## Current Runtime Ownership
+
+- The web process runs from the root market app and layers `@treeseed/core`, `@treeseed/admin`, and `@treeseed/ui`.
+- API and operations-runner processes run from `packages/api`.
+- Reusable components/styles are consumed from `@treeseed/ui`.
+- Capacity providers are not started by default; use `trsd capacity ...` for `@treeseed/agent` runtime work.
+- TreeDX is not an ordinary web dev process; it is consumed by SDK/API when configured.
+
+See [Package Ownership](./package-ownership.md) for the full package map.
+
 ## Commands
 
 ```bash

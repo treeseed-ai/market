@@ -117,6 +117,7 @@ jobs:
             packages/sdk/dist
             packages/ui/dist
             packages/core/dist
+            packages/admin/dist
             packages/cli/dist
             packages/agent/dist
           key: ${{ runner.os }}-treeseed-dist-${{ hashFiles('package-lock.json', 'packages/*/package.json', 'packages/*/src/**', 'packages/*/scripts/build-dist.ts') }}
@@ -132,6 +133,7 @@ jobs:
             && test -f packages/sdk/dist/workflow-support.js \
             && test -f packages/ui/dist/astro/layouts/MainLayout.astro \
             && test -f packages/core/dist/index.js \
+            && test -f packages/admin/dist/plugin.js \
             && test -f packages/cli/dist/cli/main.js \
             && test -f packages/agent/dist/index.js; then
             {
@@ -147,7 +149,7 @@ jobs:
           npm --prefix packages/sdk run build:dist
           sdk_finished_at="$(date +%s)"
           declare -A pids
-          for dir in packages/ui packages/core packages/cli packages/agent; do
+          for dir in packages/ui packages/core packages/admin packages/cli packages/agent; do
             if test -f "${dir}/package.json"; then
               (
                 set -euo pipefail

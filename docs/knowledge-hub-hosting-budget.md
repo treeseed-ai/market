@@ -18,13 +18,13 @@ Today, the Cloudflare-hosted Knowledge Hub is effectively SSR when deployed thro
 
 Relevant implementation points:
 
-- [packages/core/src/site.ts](/home/adrian/Projects/treeseed/market/packages/core/src/site.ts:280)
+- [packages/core/src/site.ts](../packages/core/src/site.ts)
   - switches Astro to `output: 'server'` and the Cloudflare adapter when web/deploy provider is Cloudflare
-- [packages/core/src/pages/[slug].astro](/home/adrian/Projects/treeseed/market/packages/core/src/pages/[slug].astro:6)
+- [packages/core/src/pages/[slug].astro](../packages/core/src/pages/%5Bslug%5D.astro)
   - public page route is `prerender = false`
-- [packages/core/src/worker/forms-worker.ts](/home/adrian/Projects/treeseed/market/packages/core/src/worker/forms-worker.ts:181)
+- [packages/core/src/worker/forms-worker.ts](../packages/core/src/worker/forms-worker.ts)
   - tiny Worker only intercepts `/api/form/submit`, everything else falls through to static assets via `env.ASSETS.fetch(request)`
-- [packages/core/src/utils/published-content.ts](/home/adrian/Projects/treeseed/market/packages/core/src/utils/published-content.ts:31)
+- [packages/core/src/utils/published-content.ts](../packages/core/src/utils/published-content.ts)
   - R2 is used as a runtime content overlay/published-content source
 
 So the current practical model is:
@@ -262,7 +262,7 @@ Short version:
 - Free tier still makes sense.
 - Free tier should not stay on the current full SSR-by-default public delivery model for the long term.
 
-Implementation details for the current Treeseed cache strategy live in [knowledge-hub-caching.md](/home/adrian/Projects/treeseed/market/docs/knowledge-hub-caching.md).
+Implementation details for the current Treeseed cache strategy live in [knowledge-hub-caching.md](./knowledge-hub-caching.md).
 
 Recommended product/budget direction:
 

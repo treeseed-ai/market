@@ -1875,8 +1875,8 @@ packages/sdk/src/**
 packages/cli/src/cli/**
 packages/core/src/**
 @treeseed/ui/components/astro/app/operations/**
-src/pages/app/**
-src/pages/v1/**
+packages/admin/src/pages/app/**
+packages/admin/src/pages/v1/**
 src/content/**
 docs/**
 packages/sdk/drizzle/**

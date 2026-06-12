@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apiServiceHeaders } from '../../src/lib/market/api-client';
+import { apiServiceHeaders } from '../../packages/admin/src/lib/market/api-client';
 
 function context() {
 	return {

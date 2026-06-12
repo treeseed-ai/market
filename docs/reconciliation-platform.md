@@ -4,6 +4,20 @@ Treeseed infrastructure is reconciled from exact desired state. A command may in
 
 This document is the canonical contract for hosting, configuration, local development, capacity providers, package workflows, TreeDX image publication, staging, and release.
 
+See [Package Ownership](./package-ownership.md) for the current package map.
+
+## Package Ownership In Reconciliation
+
+- `@treeseed/sdk` owns the reconciliation engine, desired-state graph, provider adapters, package workflow discovery, config runtime, and live verification contracts.
+- `@treeseed/cli` exposes the command surface that invokes SDK reconciliation.
+- `@treeseed/core` contributes web runtime and web-only desired state.
+- `@treeseed/admin` contributes site/plugin/runtime/admin surfaces, routes, middleware, and env schema; it does not own hosted infrastructure and has no package-local `treeseed.site.yaml`.
+- root `@treeseed/market` owns the real hostable `treeseed.site.yaml`, public content, page overrides, and future ecommerce/business policy.
+- `@treeseed/api` owns API, operations runner, PostgreSQL, backend route descriptors, and public TreeDX federation app desired state.
+- `@treeseed/agent` owns capacity-provider runtime artifacts and provider desired state.
+- `packages/treedx` owns the TreeDX image/service artifact; API hosting consumes selected TreeDX images.
+- `@treeseed/ui` owns no infrastructure; it contributes components and styles only.
+
 ## Non-Negotiable Rules
 
 1. Desired state is compiled first. `treeseed.site.yaml`, `treeseed.package.yaml`, package environment registries, app `src/env.yaml`, provider overlays, config state, and CLI filters become typed desired resource nodes before provider mutation begins.

@@ -8,6 +8,21 @@
 
 TreeSeed helps organizations turn objectives into supervised workdays, reviewed outputs, and durable operational memory.
 
+## What Organizations Use TreeSeed For
+
+Organizations use TreeSeed to coordinate AI-assisted operational work without losing governance, context, or continuity. The product gives teams a place to define objectives, connect hosts and repositories, supervise work, review decisions, publish knowledge, and retain institutional memory.
+
+TreeSeed is delivered as a hosted market/admin platform and as a package-based system:
+
+- Market is the Treeseed-operated public site, marketplace, content surface, and future ecommerce layer.
+- Admin is the distributable organization portal for teams, projects, hosts, work, knowledge, and operations.
+- API is the backend control plane and operations runner.
+- Agent runs external capacity providers.
+- TreeDX supplies product-neutral repository intelligence, graph/query, snapshots, artifacts, and federation.
+- SDK, Core, UI, and CLI provide the platform substrate, web runtime, visual system, and operator command surface.
+
+See [Package Ownership](./package-ownership.md) for the implementation map.
+
 ## Executive framing
 
 TreeSeed should not be positioned as a content management system, project tracker, chatbot, autonomous agent playground, or resource-discovery-first product.

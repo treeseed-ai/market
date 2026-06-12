@@ -3,7 +3,7 @@ import {
 	hostingPlacementLabel,
 	hostingPlacementPurpose,
 	hostingProfileLabel,
-} from '../../src/lib/market/control-ui.ts';
+} from '../../packages/admin/src/lib/market/control-ui.ts';
 
 describe('hosting placement UI helpers', () => {
 	it('labels placement outcomes instead of raw adapter internals', () => {

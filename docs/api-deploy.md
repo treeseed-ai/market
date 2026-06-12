@@ -6,13 +6,17 @@ This runbook is the operator path for deploying the current Treeseed Market arch
 
 The current deployment shape is:
 
-- root Market repo: Cloudflare web UI, knowledge hub, auth/management/market UI, and `/v1/*` proxy/client only
+- root Market repo: Cloudflare web UI, knowledge hub, public content, Treeseed messaging, page overrides, future ecommerce, and `/v1/*` proxy/client only
+- `packages/admin`: admin routes, middleware, auth/session UI, API client facades, and admin view models layered into the root web app
+- `packages/ui`: reusable components and styles consumed by Market/Admin/Core
 - `packages/api`: Railway API plus Treeseed operations runner
 - Railway PostgreSQL: Market control-plane database shared by API and runner
 - `packages/treedx`: TreeDX implementation, bootstrapped only after the Market runner smoke check passes
 - `packages/agent`: capacity-provider runtime, managed separately through `trsd capacity ...`
 
-Do not reintroduce root-owned backend API source or root API build scripts. The root app should remain UI-only.
+Do not reintroduce root-owned backend API source or root API build scripts. The root app should remain web/admin host plus proxy/client surfaces. Admin reaches backend behavior through API client/proxy surfaces; API owns backend control-plane state and operations runner implementation.
+
+See [Package Ownership](./package-ownership.md) for the current package map.
 
 ## Source Of Truth
 
@@ -61,7 +65,7 @@ Expected web surface:
 web
   provider: cloudflare
   rootDir: .
-  owns Astro UI, knowledge hub, auth UI, management UI, Market UI, and /v1/* proxy
+  hosts public content, knowledge hub, admin/auth UI contributed by @treeseed/admin, reusable UI from @treeseed/ui, and /v1/* proxy
 ```
 
 Do not rename existing Railway services during repair. Reconfigure them in place.

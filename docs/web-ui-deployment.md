@@ -1,20 +1,28 @@
 # TreeSeed Web UI Deployment and Monitoring Completion Plan
 
 **Status:** Historical completion plan plus current operational notes
-**Scope:** `treeseed/market`, `packages/api`, `packages/sdk`, `packages/cli`, `packages/core`
+**Scope:** root market, `packages/admin`, `packages/ui`, `packages/api`, `packages/sdk`, `packages/cli`, `packages/core`
 **Primary goal:** Reach 100% working completion for project web deployment and monitoring through the Market web UI, API, Treeseed operations runner, SDK operations, and CLI.
 **Explicit non-goal:** Do not implement or require capacity providers, provider lanes, worker grants, provider budgets, or hosted processing/runtime deployment for this milestone.
 
 Current architecture note:
 
 - the root Market repo is UI-only plus `/v1/*` proxy/client surfaces
+- admin pages and deployment UI live in `packages/admin/src/pages/...`
+- reusable controls live in `@treeseed/ui`
 - the API and Treeseed operations runner live in `packages/api`
+- backend deployment state lives in `@treeseed/api`
+- CLI parity lives in `@treeseed/cli`
+- reconciliation logic lives in `@treeseed/sdk`
+- root market owns future ecommerce/business overlays, not generic admin deployment UI
 - Railway builds API and runner from `packages/api`
 - hosted readiness is checked through `npx trsd ready <environment> --json`
 - targeted hosting repair uses `npx trsd hosting plan/apply/verify --environment <environment> --service <api|operationsRunner> --json`
 - runner readiness is checked through `npx trsd operations smoke --environment <environment> --service operationsRunner --json`
 
 For the current deploy/release runbook, prefer [API Deploy Runbook](./api-deploy.md) and [Project Web Deployment](./project-web-deployment.md). The implementation checklist below remains useful for understanding feature intent, but command references should follow the current runbooks.
+
+See [Package Ownership](./package-ownership.md) for the current package map.
 
 ---
 
@@ -62,7 +70,7 @@ The current repo already has the major lower-level pieces:
 
 ### 2.1 Project launch UI exists
 
-`src/pages/app/projects/new.astro` already collects project name, slug, source kind, managed hosting mode, repository host, web host, email host, credential sessions, and public site intent.
+`packages/admin/src/pages/app/projects/new.astro` already collects project name, slug, source kind, managed hosting mode, repository host, web host, email host, credential sessions, and public site intent.
 
 ### 2.2 Project launch API exists
 
@@ -127,7 +135,7 @@ It should gain a first-class `Deploy` tab.
 
 ### 2.8 Project host view is read-only
 
-`src/pages/app/projects/[projectId]/hosts.astro` currently displays repository records and host records, but does not expose deployment action, launch status, workflow state, deployment history, or monitoring.
+`packages/admin/src/pages/app/projects/[projectId]/hosts.astro` currently displays repository records and host records, but does not expose deployment action, launch status, workflow state, deployment history, or monitoring.
 
 ---
 
@@ -825,7 +833,7 @@ Add:
 
 ```text
 packages/api/src/market/deployment-projection.ts
-src/view-models/deployment.vm.ts
+packages/admin/src/view-models/deployment.vm.ts
 ```
 
 Projection responsibilities:
@@ -1164,7 +1172,7 @@ Delete
 Create:
 
 ```text
-src/pages/app/projects/[projectId]/deploy.astro
+packages/admin/src/pages/app/projects/[projectId]/deploy.astro
 ```
 
 Page sections:
@@ -2131,7 +2139,7 @@ Use local Market surfaces first.
 ### 18.1 Start local Market development
 
 ```bash
-cd /home/adrian/Projects/treeseed/market
+cd <market-workspace>
 npx trsd status --json
 npx trsd install --json
 npx trsd dev status --json

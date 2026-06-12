@@ -12,6 +12,16 @@ trsd seed <seed-name> --environments <env[,env...]>
 
 The initial goal is to add a `treeseed` seed that provisions the TreeSeed team, the market project, bundled package projects, repository/submodule relationships, development capacity providers, production capacity providers, grants, lanes, and work policies.
 
+## Current Package Ownership
+
+- `@treeseed/sdk` owns seed schema, validation, normalization, and shared contracts.
+- `@treeseed/api` owns backend seed application into Treeseed PostgreSQL/control-plane state.
+- `@treeseed/admin` may expose seed, catalog, and portfolio management surfaces.
+- root `@treeseed/market` owns tenant content, public catalog messaging, and future marketplace policy.
+- TreeDX may store and index repository-backed content, but it does not interpret Treeseed product semantics.
+
+See [Package Ownership](./package-ownership.md) for the current package map.
+
 ---
 
 ## Goals

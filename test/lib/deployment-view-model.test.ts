@@ -4,7 +4,7 @@ import {
 	buildDeploymentViewModel,
 	isDeploymentActive,
 	isDeploymentTerminal,
-} from '../../src/view-models/deployment.vm.ts';
+} from '../../packages/admin/src/view-models/deployment.vm.ts';
 
 const baseState = {
 	ok: true,

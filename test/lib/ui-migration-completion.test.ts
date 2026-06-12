@@ -8,11 +8,11 @@ function source(path: string) {
 }
 
 const convertedMarketPages = [
-	'src/pages/market/index.astro',
-	'src/pages/market/templates/index.astro',
-	'src/pages/market/templates/[slug].astro',
-	'src/pages/market/knowledge-packs/index.astro',
-	'src/pages/market/knowledge-packs/[slug].astro',
+	'packages/admin/src/pages/market/index.astro',
+	'packages/admin/src/pages/market/templates/index.astro',
+	'packages/admin/src/pages/market/templates/[slug].astro',
+	'packages/admin/src/pages/market/knowledge-packs/index.astro',
+	'packages/admin/src/pages/market/knowledge-packs/[slug].astro',
 ];
 
 describe('UI migration completion', () => {
@@ -27,8 +27,8 @@ describe('UI migration completion', () => {
 			expect(contents, path).not.toContain('class="ts-panel"');
 		}
 
-		expect(source('src/pages/market/templates/[slug].astro')).toContain('KeyValueList');
-		expect(source('src/pages/market/knowledge-packs/[slug].astro')).toContain('ActionList');
+		expect(source('packages/admin/src/pages/market/templates/[slug].astro')).toContain('KeyValueList');
+		expect(source('packages/admin/src/pages/market/knowledge-packs/[slug].astro')).toContain('ActionList');
 	});
 
 	it('uses @treeseed/ui for the market product card', () => {
@@ -43,7 +43,7 @@ describe('UI migration completion', () => {
 	});
 
 	it('splits launch and team controls into one-purpose app routes', () => {
-		const projects = source('src/pages/app/projects/new.astro');
+		const projects = source('packages/admin/src/pages/app/projects/new.astro');
 		expect(projects).toContain('id="project-launch-form"');
 		expect(projects).toContain('id="project-launch-data"');
 		expect(projects).toContain('/projects/launch');
@@ -52,10 +52,10 @@ describe('UI migration completion', () => {
 		expect(projects).toContain('Select');
 		expect(projects).not.toMatch(/\sstyle=/u);
 
-		expect(existsSync(resolve(process.cwd(), 'src/pages/app/teams/new.astro'))).toBe(true);
-		expect(existsSync(resolve(process.cwd(), 'src/pages/app/teams/[teamId]/edit.astro'))).toBe(true);
-		expect(existsSync(resolve(process.cwd(), 'src/pages/app/teams/name-check.ts'))).toBe(false);
-		expect(existsSync(resolve(process.cwd(), 'src/pages/app/launch.astro'))).toBe(false);
+		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/pages/app/teams/new.astro'))).toBe(true);
+		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/pages/app/teams/[teamId]/edit.astro'))).toBe(true);
+		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/pages/app/teams/name-check.ts'))).toBe(false);
+		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/pages/app/launch.astro'))).toBe(false);
 	});
 
 	it('keeps completion CSS and docs on TreeSeed UI rules', () => {
@@ -100,21 +100,21 @@ describe('UI migration completion', () => {
 		expect(themeScript).toContain('data-astro-rerun');
 
 		for (const path of [
-			'src/pages/auth/register.astro',
+			'packages/admin/src/pages/auth/register.astro',
 		]) {
 			expect(source(path), path).toMatch(/set(?:User|CurrentUser|Anonymous)ThemeCookies/u);
 		}
 		for (const path of [
-			'src/pages/auth/sign-in.astro',
-			'src/pages/auth/callback/[provider].ts',
-			'src/pages/auth/username.astro',
-			'src/pages/app/account.astro',
+			'packages/admin/src/pages/auth/sign-in.astro',
+			'packages/admin/src/pages/auth/callback/[provider].ts',
+			'packages/admin/src/pages/auth/username.astro',
+			'packages/admin/src/pages/app/account.astro',
 		]) {
 			expect(source(path), path).not.toMatch(/SITE_DATA_DB|BetterAuth|session-store/u);
 		}
 		for (const path of [
-			'src/layouts/TreeseedAppLayout.astro',
-			'src/layouts/TreeseedPublicLayout.astro',
+			'packages/admin/src/layouts/TreeseedAppLayout.astro',
+			'packages/admin/src/layouts/TreeseedPublicLayout.astro',
 		]) {
 			expect(source(path), path).not.toMatch(/set(?:User|CurrentUser|Anonymous)ThemeCookies/u);
 		}
@@ -139,8 +139,8 @@ describe('UI migration completion', () => {
 	});
 
 	it('uses TreeSeed and descriptive SDK names instead of old product naming', () => {
-		expect(existsSync(resolve(process.cwd(), 'src/layouts/TreeseedAppLayout.astro'))).toBe(true);
-		expect(existsSync(resolve(process.cwd(), 'src/layouts/TreeseedPublicLayout.astro'))).toBe(true);
+		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/layouts/TreeseedAppLayout.astro'))).toBe(true);
+		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/layouts/TreeseedPublicLayout.astro'))).toBe(true);
 		expect(existsSync(resolve(process.cwd(), 'src/styles/treeseed.css'))).toBe(true);
 		expect(existsSync(resolve(process.cwd(), 'packages/sdk/src/project-workflow.ts'))).toBe(true);
 		expect(existsSync(resolve(process.cwd(), 'packages/sdk/src/operations/services/market-packaging.ts'))).toBe(true);

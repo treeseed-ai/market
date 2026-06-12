@@ -9,7 +9,7 @@ import {
 	setUserThemeCookies,
 	TREESEED_COLOR_SCHEME_COOKIE,
 	TREESEED_THEME_MODE_COOKIE,
-} from '../../src/lib/auth/appearance';
+} from '../../packages/admin/src/lib/auth/appearance';
 
 function createContext(url = 'https://example.com/auth/register') {
 	const values = new Map<string, string>();
@@ -97,7 +97,7 @@ describe('anonymous auth appearance', () => {
 	});
 
 	it('locks the selected auth appearance into registration payload fields', () => {
-		const source = readFileSync(resolve(process.cwd(), 'src/pages/auth/register.astro'), 'utf8');
+		const source = readFileSync(resolve(process.cwd(), 'packages/admin/src/pages/auth/register.astro'), 'utf8');
 		expect(source).not.toContain('Default appearance');
 		expect(source).toContain('name="colorScheme"');
 		expect(source).toContain('name="themeMode"');
@@ -138,12 +138,12 @@ describe('anonymous auth appearance', () => {
 	});
 
 	it('keeps authenticated appearance changes on the shell control instead of an account tab', () => {
-		const source = readFileSync(resolve(process.cwd(), 'src/pages/app/account.astro'), 'utf8');
+		const source = readFileSync(resolve(process.cwd(), 'packages/admin/src/pages/app/account.astro'), 'utf8');
 		expect(source).not.toContain('account-panel-appearance');
 		expect(source).not.toContain('data-account-api-form="appearance"');
 		expect(source).not.toContain('Choose the color scheme and light/dark behavior used across TreeSeed.');
 
-		const layout = readFileSync(resolve(process.cwd(), 'src/layouts/TreeseedAppLayout.astro'), 'utf8');
+		const layout = readFileSync(resolve(process.cwd(), 'packages/admin/src/layouts/TreeseedAppLayout.astro'), 'utf8');
 		expect(layout).toContain('treeseed:theme-change');
 		expect(layout).toContain('/v1/auth/web/appearance');
 	});
@@ -152,7 +152,7 @@ describe('anonymous auth appearance', () => {
 		const selector = readFileSync(resolve(process.cwd(), 'packages/ui/src/astro/theme/ThemeSelector.astro'), 'utf8');
 		expect(selector).toContain('persist }');
 
-		const layout = readFileSync(resolve(process.cwd(), 'src/layouts/TreeseedAppLayout.astro'), 'utf8');
+		const layout = readFileSync(resolve(process.cwd(), 'packages/admin/src/layouts/TreeseedAppLayout.astro'), 'utf8');
 		expect(layout).toContain('detail.persist !== true');
 		expect(layout).toContain('colorScheme: detail.scheme');
 		expect(layout).toContain('themeMode: detail.mode');

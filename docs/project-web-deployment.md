@@ -16,7 +16,9 @@ Deploy page / CLI
 
 The API owns validation, readiness, idempotency, production confirmation, authorization, and audit request records. The Treeseed operations runner owns execution, checkpoints, deployment progress events, mocked or real workflow interaction, monitor checks, terminal deployment state, and terminal audit records.
 
-The deployed API and runner live in `packages/api`, not in the root Market app. The root web app owns UI and proxy/client behavior only.
+The deployed API and runner live in `packages/api`, not in the root Market app. Admin deployment pages and view models live in `packages/admin`; reusable controls live in `@treeseed/ui`; CLI parity lives in `@treeseed/cli`; reconciliation logic lives in `@treeseed/sdk`. The root web app hosts the tenant, content, page overrides, and future ecommerce/business overlays.
+
+See [Package Ownership](./package-ownership.md) for the current package map.
 
 Hosted service shape:
 

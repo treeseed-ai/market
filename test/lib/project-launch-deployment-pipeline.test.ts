@@ -20,7 +20,7 @@ describe('project launch deployment pipeline contracts', () => {
 	});
 
 	it('lets inline Cloudflare hosts define the root domain used by project domain defaults', () => {
-		const projectCreate = source('src/pages/app/projects/new.astro');
+		const projectCreate = source('packages/admin/src/pages/app/projects/new.astro');
 		expect(projectCreate).toContain('name="webNewRootDomain"');
 		expect(projectCreate).toContain("return normalizeDomain(webNewRootDomainInput?.value ?? '')");
 		expect(projectCreate).toContain("zoneName: rootDomain");
@@ -28,7 +28,7 @@ describe('project launch deployment pipeline contracts', () => {
 	});
 
 	it('waits for sensitive data unlock before submitting launch passphrase', () => {
-		const projectCreate = source('src/pages/app/projects/new.astro');
+		const projectCreate = source('packages/admin/src/pages/app/projects/new.astro');
 		const unlockRequest = projectCreate.indexOf('await unlock?.promptPassphrase?.()');
 		expect(unlockRequest).toBeGreaterThan(-1);
 		expect(projectCreate).toContain('validateSelectedCredentialPassphrase');
@@ -41,7 +41,7 @@ describe('project launch deployment pipeline contracts', () => {
 	});
 
 	it('creates a durable launch record before opening the deployment status page', () => {
-		const projectCreate = source('src/pages/app/projects/new.astro');
+		const projectCreate = source('packages/admin/src/pages/app/projects/new.astro');
 		expect(projectCreate).toContain('Creating durable deployment record...');
 		expect(projectCreate).toContain('async function submitLaunchRequest');
 		expect(projectCreate).toContain('const launchResponse = await submitLaunchRequest(launchRequest)');
@@ -54,7 +54,7 @@ describe('project launch deployment pipeline contracts', () => {
 	});
 
 	it('shows hosting readiness audit details on the deployment status page', () => {
-		const statusPage = source('src/pages/app/projects/deployment/[id].astro');
+		const statusPage = source('packages/admin/src/pages/app/projects/deployment/[id].astro');
 		expect(statusPage).toContain('Project deployment status');
 		expect(statusPage).toContain('data-deployment-progress-bar');
 		expect(statusPage).toContain('data-report-buffer');
@@ -104,8 +104,8 @@ describe('project launch deployment pipeline contracts', () => {
 	});
 
 	it('routes launch status and deployment recovery through UI client paths', () => {
-		const apiClient = source('src/lib/market/api-client.ts');
-		const deploymentVm = source('src/view-models/deployment.vm.ts');
+		const apiClient = source('packages/admin/src/lib/market/api-client.ts');
+		const deploymentVm = source('packages/admin/src/view-models/deployment.vm.ts');
 		expect(apiClient).toContain('listProjectDeployments');
 		expect(apiClient).toContain('listProjectDeploymentEvents');
 		expect(deploymentVm).toContain('no_active_operation');

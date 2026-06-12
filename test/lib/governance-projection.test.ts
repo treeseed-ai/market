@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildGovernanceApprovalProjection, buildGovernanceProjection } from '../../src/lib/market/governance-projection.js';
+import { buildGovernanceApprovalProjection, buildGovernanceProjection } from '../../packages/admin/src/lib/market/governance-projection.js';
 
 const approval = {
 	id: 'approval-1',

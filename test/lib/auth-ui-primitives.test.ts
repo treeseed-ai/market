@@ -3,14 +3,14 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const convertedFiles = [
-	'src/pages/app/account.astro',
-	'src/pages/auth/register.astro',
-	'src/pages/auth/sign-in.astro',
-	'src/pages/auth/forgot-password.astro',
-	'src/pages/auth/reset-password.astro',
-	'src/pages/auth/check-email.astro',
-	'src/pages/auth/confirm-email.astro',
-	'src/pages/auth/username.astro',
+	'packages/admin/src/pages/app/account.astro',
+	'packages/admin/src/pages/auth/register.astro',
+	'packages/admin/src/pages/auth/sign-in.astro',
+	'packages/admin/src/pages/auth/forgot-password.astro',
+	'packages/admin/src/pages/auth/reset-password.astro',
+	'packages/admin/src/pages/auth/check-email.astro',
+	'packages/admin/src/pages/auth/confirm-email.astro',
+	'packages/admin/src/pages/auth/username.astro',
 ];
 
 function source(path: string) {
@@ -53,12 +53,12 @@ describe('auth and account UI primitive conversion', () => {
 		expect(css).toContain('.auth-card select.ts-control');
 		expect(css).toContain('padding-inline: 0.75rem 2.5rem');
 		for (const path of [
-			'src/pages/auth/register.astro',
-			'src/pages/auth/sign-in.astro',
-			'src/pages/auth/confirm-email.astro',
-			'src/pages/auth/forgot-password.astro',
-			'src/pages/auth/reset-password.astro',
-			'src/pages/auth/check-email.astro',
+			'packages/admin/src/pages/auth/register.astro',
+			'packages/admin/src/pages/auth/sign-in.astro',
+			'packages/admin/src/pages/auth/confirm-email.astro',
+			'packages/admin/src/pages/auth/forgot-password.astro',
+			'packages/admin/src/pages/auth/reset-password.astro',
+			'packages/admin/src/pages/auth/check-email.astro',
 		]) {
 			expect(source(path), path).toContain('AuthCard');
 			expect(source(path), path).toContain('slot="sidebarLinks"');
@@ -66,7 +66,7 @@ describe('auth and account UI primitive conversion', () => {
 	});
 
 	it('keeps registration appearance wiring and removes the account-local appearance tab', () => {
-		const register = source('src/pages/auth/register.astro');
+		const register = source('packages/admin/src/pages/auth/register.astro');
 		expect(register).toContain('showAppearance={false}');
 		expect(register).not.toContain('Default appearance');
 		expect(register).toContain('name="colorScheme"');
@@ -77,7 +77,7 @@ describe('auth and account UI primitive conversion', () => {
 		expect(register).toContain('payload = result?.payload || result');
 		expect(register).toContain("submitButton.disabled = status === 'taken'");
 
-		const account = source('src/pages/app/account.astro');
+		const account = source('packages/admin/src/pages/app/account.astro');
 		expect(account).not.toContain('account-tab-appearance');
 		expect(account).not.toContain('account-panel-appearance');
 		expect(account).not.toContain('data-account-api-form="appearance"');
@@ -88,7 +88,7 @@ describe('auth and account UI primitive conversion', () => {
 		expect(account).toContain('data-email-action="primary"');
 		expect(account).toContain('data-email-action="delete"');
 
-		const appLayout = source('src/layouts/TreeseedAppLayout.astro');
+		const appLayout = source('packages/admin/src/layouts/TreeseedAppLayout.astro');
 		expect(appLayout).toContain('treeseed:theme-change');
 		expect(appLayout).toContain('/v1/auth/web/appearance');
 		expect(appLayout).toContain('colorScheme: detail.scheme');

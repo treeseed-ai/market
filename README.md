@@ -1,705 +1,268 @@
-# @treeseed/market
+# Treeseed Market
 
-`@treeseed/market` is the canonical TreeSeed marketplace site and the top-level unified development workspace for the current TreeSeed system.
+Treeseed is a hosted administration and marketplace platform for teams that want governable AI work, content operations, deployment workflows, and repository intelligence in one system.
 
-This repo is not just the market site. It can also act as the integration workspace for the freestanding package repositories mounted as git submodules:
+This repository is the Treeseed-operated market site and the canonical integration workspace for the package repositories under `packages/`. Most people use it to run or operate Treeseed. Package contributors use it to prove that the independently released packages still wire together as one system.
 
-- [`packages/sdk`](/home/adrian/Projects/treeseed/market/packages/sdk)
-- [`packages/core`](/home/adrian/Projects/treeseed/market/packages/core)
-- [`packages/agent`](/home/adrian/Projects/treeseed/market/packages/agent)
-- [`packages/api`](/home/adrian/Projects/treeseed/market/packages/api)
-- [`packages/cli`](/home/adrian/Projects/treeseed/market/packages/cli)
-- [`packages/treedx`](/home/adrian/Projects/treeseed/market/packages/treedx)
+## What You Can Do
 
-The goal is simple:
+- Use Treeseed as an organization administration portal for teams, projects, hosts, knowledge, decisions, approvals, and operational work.
+- Run the Treeseed market site locally with the same admin surfaces used by hosted deployments.
+- Deploy and verify the Treeseed web app, API, operations runner, PostgreSQL, capacity providers, and TreeDX-backed repository intelligence through `trsd`.
+- Use `@treeseed/sdk` in scripts, services, and agents that need typed Treeseed content, graph, workflow, and reconciliation primitives.
+- Use TreeDX for generic repository storage, indexing, graph search, snapshots, artifacts, and federation.
+- Develop Treeseed itself across the package repositories mounted in `packages/`.
 
-- building TreeSeed sites should be easy
-- developing TreeSeed packages together should also be easy
-- package authorship must still work cleanly from each standalone package repo
+## Choose Your Path
 
-## Hosting And Runtime Architecture
+| Goal | Start Here |
+| --- | --- |
+| Use or evaluate the hosted admin/market product | Run the root app and read [Package Ownership](./docs/package-ownership.md) to understand the system shape. |
+| Build an internal admin deployment | Use `@treeseed/admin` layered on `@treeseed/core` and `@treeseed/ui`; see [Admin README](./packages/admin/README.md). |
+| Build a Treeseed-compatible web site | Use `@treeseed/core`; see [Core README](./packages/core/README.md). |
+| Compose UI surfaces | Use `@treeseed/ui`; see [UI README](./packages/ui/README.md). |
+| Write automation or integrations | Use `@treeseed/sdk`; see [SDK README](./packages/sdk/README.md). |
+| Run the backend API and operations runner | Use `@treeseed/api`; see [API README](./packages/api/README.md). |
+| Operate Treeseed from a terminal or CI | Use `treeseed` / `trsd`; see [CLI README](./packages/cli/README.md). |
+| Run capacity providers | Use `@treeseed/agent`; see [Agent README](./packages/agent/README.md). |
+| Run repository intelligence/federation | Use TreeDX; see [TreeDX README](./packages/treedx/README.md). |
 
-Treeseed uses a strict split between the root Market web app and the separately deployed API backend package:
+## System Packages
 
-- the root Market repo owns the Astro web UI, knowledge hub, auth UI, management UI, Market UI, and HTTP proxy/client surfaces
-- `packages/api` owns the API backend API, Treeseed PostgreSQL adapter, migrations, backend auth helpers, operation store, and Treeseed operations runner
-- `packages/sdk` owns shared platform/config/hosting/readiness primitives
-- `packages/core` owns integrated local dev orchestration and the Astro/Starlight starter runtime
-- `packages/agent` owns capacity-provider runtime and container lifecycle
-- `packages/treedx` owns the TreeDX implementation
+| Package | Audience-Level Purpose | Implementation Ownership |
+| --- | --- | --- |
+| `@treeseed/market` | Treeseed-operated public site, marketplace, hosted tenant, docs/content, future ecommerce | Root app, `treeseed.site.yaml`, content, public messaging, overrides, marketplace/ecommerce business logic |
+| `@treeseed/admin` | Distributable AGPLv3 administration portal for organizations | Admin routes, auth/session glue, middleware, API client facades, admin view models, catalog display, secret-manager UI/contracts |
+| `@treeseed/ui` | Reusable Treeseed UI system | Layout-down Astro/React components, shells, forms, controls, cards, dashboards, CSS/theme primitives |
+| `@treeseed/core` | Installable Astro/Starlight Treeseed web runtime | Site layering, content/runtime integration, tenant config loading, plugin hooks, web-only hosting integration, local dev supervisor |
+| `@treeseed/sdk` | Programmatic platform substrate | Config, reconciliation, workflow engine, hosting graph, package workflow discovery, shared contracts, graph/content APIs, TreeDX client integration |
+| `@treeseed/api` | Deployed backend control-plane API | Hono API, PostgreSQL adapter/migrations, backend auth, operation lifecycle, operations runner, route descriptors |
+| `@treeseed/cli` | Human/operator command surface | `treeseed`/`trsd` command parsing, help, command handlers, terminal reporting, workflow entrypoints over SDK/Core/Agent |
+| `@treeseed/agent` | Capacity-provider and agent runtime | Provider API, manager/runner/worker runtime, capacity scheduling, runtime images/templates |
+| `packages/treedx` | Generic repository data/index/query service consumed by Treeseed | TreeDX API, storage, Git/repository graph/indexing, federation, Docker image, language SDKs; no Treeseed product semantics |
 
-Hosted Market services are configured from `treeseed.site.yaml`:
-
-- Cloudflare is the web edge and static knowledge-hub plane.
-  - D1 is limited to unauthenticated static knowledge-hub form/contact storage.
-  - The root `/v1/*` route is a web proxy to the API, not the backend implementation.
-- Railway hosts the API backend package.
-  - `api`: root directory `packages/api`, build `npm run build`, start `npm run start:api`, health `/healthz`, runtime mode `serverless`.
-  - `operationsRunner`: root directory `packages/api`, build `npm run build`, start `npm run start:runner`, health `/healthz`, runtime mode `service`, volume `/data`.
-  - `treeseedDatabase`: Railway PostgreSQL, with `TREESEED_DATABASE_URL` targeted only to `api` and `operationsRunner`.
-
-The operational shape is:
-
-```text
-Cloudflare web UI / knowledge hub
-            |
-      /v1/* HTTP proxy
-            |
-Railway packages/api API service
-            |
- Railway Treeseed PostgreSQL
-            |
-Railway packages/api operations runner
-            |
-TreeDX bootstrap and provider workflows
-```
-
-Capacity-provider execution remains separate from the API split. Use the `trsd capacity ...` commands for provider lifecycle owned by `@treeseed/agent`.
-
-## Capacity Provider Operations
-
-The market UI includes two capacity operations surfaces:
-
-- Team Capacity configures provider infrastructure, security codes, lanes, pooled grants, and project grants.
-- Project Capacity is the dense project console for provider readiness, lane pressure, active reservations, routing decisions, learned estimate profiles, usage actuals, approval-required work, checkpointed interruptions, and manual budgeted work submission through the admitted `/v1/projects/:projectId/agent-tasks` path.
-
-The project UI manages work through capacity providers. Provider infrastructure remains team-scoped, and the UI does not expose force-run actions that bypass capacity admission.
-
-## Architecture
-
-This workspace has two layers:
-
-1. The market site at the repo root.
-2. The standalone package repos in `packages/`.
-
-The high-level package dependency graph is:
+The dependency direction is intentionally sharp:
 
 ```text
-sdk -> core
-sdk -> cli
-sdk -> api
-sdk -> agent
-core -> sdk
-cli -> sdk + core
+ui -> consumed by admin/core/market
+sdk -> core/admin/api/cli/agent
+core -> sdk + ui
+admin -> core + sdk + ui
+market -> admin + core + ui
 api -> sdk
+cli -> sdk + core + selected public agent surfaces
 agent -> sdk
+treedx -> consumed through sdk clients and api hosting
 ```
 
-The market site consumes the package runtime like a normal TreeSeed application. It is not an installable framework package for the CLI.
+See [Package Ownership](./docs/package-ownership.md) for where new functionality belongs.
 
-Important boundaries:
+## Hosted Runtime Shape
 
-- `sdk` owns shared data-access, typed runtime helpers, hosting graph/readiness/live-check primitives, and SDK/core static-hub D1 form-storage schema.
-- `api` owns the API backend API, Treeseed PostgreSQL store adapter, migrations, seeds that apply through the backend store, backend auth logic, operation lifecycle, route descriptors, and operations runner.
-- `core` owns the integrated Treeseed runtime for Astro/Starlight sites and integrated local dev orchestration.
-- `cli` owns the `treeseed` command, scaffold/sync behavior, and CLI-facing template integration while delegating integrated runtime startup to `core`.
-- `agent` owns capacity-provider runtime, container assets, templates, and provider lifecycle behavior.
-- the root Market site owns marketplace content, presentation, auth/management/market UI pages, and the `/v1/*` HTTP proxy only.
-
-## Shared Fixture Model
-
-The workspace uses `.fixtures/treeseed-fixtures` as the canonical integrated Treeseed project. That fixture is shared across `sdk`, `core`, and `cli`.
-
-Important consequences:
-
-- packages must adapt to the shared fixture, not rewrite it
-- package verification is still package-scoped even when the fixture is integrated
-- fixture-time shims or package injection do not imply package ownership or dependency coupling
-- `core` can validate the shared Astro site against a narrow Core agent-contract shim without reviving a separate agent runtime package
-
-SDK owns the shared fixture support utilities and the canonical package-injection model used during isolated package verification.
-
-Read [AGENTS.md](./AGENTS.md) for the current shared fixture contract and workspace development rules.
-
-## Graph-First Context Retrieval
-
-The SDK graph runtime now supports graph-first AI context retrieval over MDX content:
-
-- MDX files remain the canonical authored node
-- section nodes are indexed as first-class retrieval targets
-- frontmatter can declare stable `id` values plus typed graph relationships such as `related`, `dependsOn`, `implements`, `supersedes`, and `about`
-- search is used to find starting nodes; graph traversal is used to assemble deterministic context
-
-The preferred SDK graph workflow is:
-
-- `parseGraphDsl`
-- `queryGraph`
-- `buildContextPack`
-
-Lower-level graph primitives such as `searchFiles`, `searchSections`, `getNeighbors`, and `getSubgraph` still exist, but they are now considered advanced tools rather than the primary public graph story.
-
-The SDK surface hierarchy is:
-
-- `AgentSdk`: main public SDK
-- `ScopedAgentSdk`: operational wrapper for permission-enforced agent execution
-- `ContentGraphRuntime`: advanced graph runtime
-
-The public graph-query syntax is now the `ctx` command language. Example:
+The root market repository is the only hosted web tenant in this workspace. It owns the real `treeseed.site.yaml`.
 
 ```text
-ctx "market architecture" for plan in /knowledge via related,references depth 1 budget 600 as brief
+Cloudflare web app: root market
+  - public site, docs, content, overrides, future ecommerce
+  - admin routes contributed by @treeseed/admin
+  - reusable UI from @treeseed/ui
+  - web runtime from @treeseed/core
+  - /v1/* proxy/client surfaces
+
+Railway backend app: packages/api
+  - API service
+  - operations runner
+  - Treeseed PostgreSQL
+  - public TreeDX federation services
+
+Capacity providers: packages/agent
+  - provider API, manager, runner, worker runtime
+  - started only through trsd capacity workflows
+
+TreeDX: packages/treedx
+  - generic repository service and Docker image
+  - consumed by API/SDK, not by product UI directly
 ```
 
-Full documentation:
+The admin package does not own hosting. It contributes routes, middleware, contracts, and CSS/plugin hooks to whichever host site installs it.
 
-- [SDK Interface Reference](./src/content/knowledge/sdk/interface-reference.mdx)
-- [Graph API Guide](./src/content/knowledge/sdk/graph-api-guide.mdx)
-- [ctx Query Language](./src/content/knowledge/sdk/ctx-query-language.mdx)
-- [How ctx Works](./src/content/knowledge/sdk/ctx-query-engine.mdx)
+## Install And Run
 
-### Runtime Package Roles
+### Registry Mode
 
-- `sdk` owns typed operational models, remote clients, hosting graph compilation, deployment readiness checks, live hosted-service checks, runner smoke helpers, and static-hub D1 form-storage contracts.
-- `api` owns the deployed API and Treeseed operations runner entrypoints.
-- `core` owns the integrated local platform startup flow and web runtime integration.
-- `agent` owns capacity-provider runtime entrypoints and provider images.
-- `cli` exposes the operator workflow commands that coordinate these package-owned capabilities.
-
-### Current Template Architecture
-
-The template system is intentionally split:
-
-- remote template availability and metadata are sourced from the API endpoint, configured through the CLI machine config or `TREESEED_TEMPLATE_CATALOG_URL`
-- CLI-local template artifacts remain the runtime source for scaffold and sync behavior
-- tests in the CLI use a file fixture endpoint such as `file:./src/template-catalog/catalog.fixture.json`
-
-That means:
-
-- the API is the source of truth for what templates exist
-- the CLI package still ships the local template payloads it needs to create and reconcile tenant projects
-
-## Repo Layout
-
-Top-level workspace responsibilities:
-
-- market web source: `src/`, `public/`, `treeseed.site.yaml`
-- Drizzle migration artifacts: `packages/sdk/drizzle/market` for Treeseed PostgreSQL and `packages/sdk/drizzle/d1` for SDK/Core static-hub D1 form storage
-- unified workspace scripts: root `package.json`
-- integration lockfile: root `package-lock.json`
-- package submodules: `packages/*`
-- integrated local process orchestration: `@treeseed/core` via `npx trsd dev`
-
-Submodule responsibilities:
-
-- each package keeps its own `package.json`, `package-lock.json`, CI, release flow, and standalone README
-- package publishing and standalone verification belong to the package repos, not to the root workspace
-
-Read the package-level docs when you are working primarily inside one package:
-
-- [SDK README](/home/adrian/Projects/treeseed/market/packages/sdk/README.md)
-- [Core README](/home/adrian/Projects/treeseed/market/packages/core/README.md)
-- [Agent README](/home/adrian/Projects/treeseed/market/packages/agent/README.md)
-- [API README](/home/adrian/Projects/treeseed/market/packages/api/README.md)
-- [CLI README](/home/adrian/Projects/treeseed/market/packages/cli/README.md)
-
-## Choose Your Workflow
-
-### Registry Mode From The Root
-
-Use registry mode when:
-
-- you are developing the market site or a normal Treeseed tenant
-- you do not need to edit `sdk`, `core`, `agent`, `api`, `cli`, or `treedx`
-- you want root commands to use published `@treeseed/*` packages from npm
-
-This is the default plain-clone path. Do not initialize submodules:
+Use this path when you are running the market site or a normal Treeseed tenant and do not need to edit package source.
 
 ```bash
 git clone git@github.com:treeseed-ai/market.git
 cd market
 npm install
+npx trsd dev start --web-runtime local --json
 ```
 
-The root bootstrap will print `Treeseed bootstrap mode: registry` and skip local `packages/*` builds.
+The root bootstrap uses published `@treeseed/*` packages and skips local package builds.
 
-### Workspace Mode From The Root
+### Workspace Mode
 
-Use workspace mode when:
-
-- you are changing behavior across multiple packages
-- you are testing how the market site interacts with `core`, `cli`, `sdk`, `api`, `agent`, or `treedx`
-- you want a single checkout with all package repos mounted in place
-
-This is the integrated system path. Initialize all Treeseed package submodules before installing:
+Use this path when you are changing behavior across packages.
 
 ```bash
 git clone git@github.com:treeseed-ai/market.git
 cd market
 git submodule update --init --recursive
-npm install
-```
-
-The root bootstrap will print `Treeseed bootstrap mode: workspace`, build the local packages, and run the Starlight patch through the local CLI build.
-
-### Standalone Package Development From `packages/*`
-
-Use the package root when:
-
-- you are primarily changing one package
-- you want the package’s own install/build/test/release flow
-- you are validating what CI or npm publishing will actually do for that package
-
-This is the best path for package authorship and publish readiness.
-
-## Onboarding And Setup
-
-Requirements:
-
-- Node `>=22`
-- npm `>=11`
-- git with submodule support
-
-For normal market-site development, clone and install without submodules:
-
-```bash
-git clone git@github.com:treeseed-ai/market.git
-cd market
-npm install
-```
-
-For integrated package development, initialize submodules before installing:
-
-```bash
-git submodule update --init --recursive
-npm install
-```
-
-Recommended first commands:
-
-```bash
-npm run test:unit
-npm run check
-```
-
-If you are working on the integrated hosting stack, also verify the package-local paths you touched:
-
-```bash
-npm -w packages/sdk run verify:local
-npm -w packages/core run verify:local
-npm -w packages/api run verify:local
-npm -w packages/cli run verify:local
-```
-
-If you are contributing mainly to a package, also install in that package directly:
-
-```bash
-cd packages/cli
-npm install
-npm test
-```
-
-Use the root `npm install` as the bootstrap for whichever mode is active. Do not treat it as the authoritative package-publishing workflow for `sdk`, `core`, `agent`, `api`, `cli`, or `treedx`.
-
-## Daily Development
-
-### Unified Workspace Commands
-
-From the repo root:
-
-```bash
 npm install
 npx trsd status --json
 npx trsd ready local --json
-npx trsd config --environment staging --preflight --json
-npx trsd switch feature/my-change --plan --json
+```
+
+Workspace mode links checked-out package repositories into the root install and builds packages in dependency order.
+
+### Standalone Package Mode
+
+Use this path when validating package CI or publish behavior for one package.
+
+```bash
+cd packages/admin
+npm install
+npm run verify:local
+```
+
+Package-local installs, lockfiles, workflows, and release scripts are authoritative for package publishing.
+
+## Daily Operator Commands
+
+```bash
+npx trsd status --json
+npx trsd ready local --json
 npx trsd dev start --web-runtime local --json
-npx trsd save --verify local --json "feat: describe your change"
-npx trsd stage --plan --json "feat: describe the resolution"
-npx trsd stage --verify-deployed-resources --json "feat: describe the resolution"
+npx trsd dev status --json
+npx trsd dev logs --follow
+npx trsd save --verify local --json "describe the checkpoint"
+npx trsd stage --plan --json "describe the staging change"
 npx trsd release --patch --verify-deployed-resources --plan --json
 ```
 
-What they mean here:
-
-- `npm install`: install root deps and run the root bootstrap/postinstall chain
-- `trsd status`: show project health, current branch/task, runtime readiness, preview state, package drift, workflow locks, and next commands
-- `trsd ready`: run the fail-fast readiness report before spending time on hosted deploys
-- `trsd config`: configure and test the local/staging/production runtime foundation
-- `trsd switch`: create or resume a task branch from `staging`, mirroring checked-out package repos in the full workspace
-- `trsd dev`: run the local web/API/control-plane runtime as a foreground supervisor
-- `trsd dev start`: run the same runtime as a worktree-scoped managed background instance with stable state, ports, URLs, PIDs, and logs
-- `trsd save`: recursively verify, commit, sync, and push dirty package repos before saving the market repo; local verification can reuse the successful verification cache
-- `trsd stage`: run readiness checks, merge the task into package `staging` branches first, then market `staging`, wait for staging automation, and optionally enforce live hosted checks
-- `trsd release`: run readiness checks before version bumps, promote changed packages plus dependents, then promote market `staging` to `main`, tag the release, and optionally enforce live hosted checks
-
-To abandon a task without merging it, run:
+Hosted readiness and repair:
 
 ```bash
-npx trsd close "reason this task was closed" --json
+npx trsd ready staging --json
+npx trsd hosting plan --environment staging --service api --json
+npx trsd hosting verify --environment staging --service operationsRunner --live --json
+npx trsd operations smoke --environment staging --service operationsRunner --json
 ```
 
-`close` creates a resurrection tag at `deprecated/<slug>/<sha>` before deleting the branch. To resurrect it later:
+Capacity providers:
 
 ```bash
-git switch -c feature/my-change deprecated/<slug>/<sha>
+npx trsd capacity build
+npx trsd capacity up
+npx trsd capacity status
+npx trsd capacity logs
+npx trsd capacity down
 ```
 
-Before any multi-repo mutation, use planning mode:
+TreeDX image workflow:
 
 ```bash
-npx trsd save --plan --json "feat: describe your change"
-npx trsd stage --plan --json "feat: describe the resolution"
-npx trsd release --patch --plan --json
+npx trsd package image --package treedx --branch staging --plan --json
+npx trsd package image --package treedx --branch staging --sync-config --json
+npx trsd package image --package treedx --branch staging --execute --json
 ```
 
-If a recursive workflow is interrupted, inspect and resume it through the journaled interface instead of retrying blindly:
+## Where Functionality Belongs
+
+| If You Are Adding... | Put It In |
+| --- | --- |
+| Public marketing pages, content, docs, tenant messaging, future checkout/billing/licensing | Root market |
+| Admin pages, auth/session flow, host/project/team/work/knowledge views, admin middleware | `packages/admin` |
+| Reusable components, shells, forms, panels, charts, app controls, CSS tokens/themes | `packages/ui` |
+| Astro/Starlight runtime integration, plugin loading, site layering, web-only config | `packages/core` |
+| Shared contracts, config, reconciliation, workflow logic, graph/content APIs, TreeDX client | `packages/sdk` |
+| Backend HTTP routes, PostgreSQL storage, auth backend, operations runner, migrations | `packages/api` |
+| Terminal command parsing/help/reporting and operator workflows | `packages/cli` |
+| Capacity provider runtime, provider images, manager/runner/worker services | `packages/agent` |
+| Generic repository storage, Git inspection, graph indexing, snapshots, artifacts, federation | `packages/treedx` |
+
+Root web code may call backend APIs through HTTP/proxy/client surfaces. It must not import backend implementation from `@treeseed/api`.
+
+## Build And Verification
+
+Recommended package verification after integrated changes:
+
+```bash
+npm -w packages/sdk run verify:local
+npm -w packages/ui run verify:local
+npm -w packages/core run verify:local
+npm -w packages/admin run verify:local
+npm -w packages/api run verify:local
+npm -w packages/cli run verify:local
+npm -w packages/agent run verify:local
+npm run check
+npm run build
+npx trsd ready local --json
+```
+
+Integrated package build order is:
+
+```text
+sdk -> ui -> core -> admin -> api -> cli -> agent
+```
+
+Public npm release order excludes the private/deploy-only API package:
+
+```text
+sdk -> ui -> core -> admin -> cli -> agent
+```
+
+TreeDX is a non-Node service/image workflow and is verified through its package scripts and `trsd package image`.
+
+## Configuration And Secrets
+
+Use `trsd config` or provider secret managers for provider credentials. Do not write plaintext provider secrets into env files.
+
+Important package credential conventions:
+
+- repository-scoped GitHub tokens use `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>`
+- admin package token: `TREESEED_GITHUB_TOKEN_TREESEED_AI_ADMIN`
+- TreeDX package token: `TREESEED_GITHUB_TOKEN_TREESEED_AI_TREEDX`
+- public npm package tokens belong in each package repository's GitHub `production` environment as `NPM_TOKEN`
+
+See [Package Ownership](./docs/package-ownership.md#secret-and-config-ownership) for ownership details.
+
+## Troubleshooting
+
+Submodules missing:
+
+```bash
+git submodule update --init --recursive
+```
+
+Stale package builds:
+
+```bash
+npm -w packages/sdk run build:dist
+npm -w packages/ui run build
+npm -w packages/core run build:dist
+npm -w packages/admin run build:dist
+npm -w packages/cli run build:dist
+npm -w packages/agent run build:dist
+```
+
+Workflow interruption:
 
 ```bash
 npx trsd recover --json
 npx trsd resume <run-id> --json
 ```
 
-### Fail-Fast Hosted Verification
-
-Use these commands before expensive staging or release attempts:
-
-```bash
-npx trsd ready staging --json
-npx trsd hosting plan --environment staging --service api --json
-npx trsd hosting plan --environment staging --service operationsRunner --json
-npx trsd hosting verify --environment staging --service api --live --json
-npx trsd hosting verify --environment staging --service operationsRunner --live --json
-npx trsd operations smoke --environment staging --service operationsRunner --json
-```
-
-Rules of thumb:
-
-- `ready local` is the fastest preflight and does not require provider credentials.
-- `ready staging` and `ready prod` default to stricter live checks when provider credentials are available.
-- `stage --verify-deployed-resources` and `release --verify-deployed-resources` block on failed required Railway, Cloudflare, HTTP, database, and runner checks.
-- `hosting apply --environment <env> --service <id> --execute --json` is the targeted repair path for one service; use a plan first.
-- `operations smoke` proves the Treeseed operations runner can claim and complete a diagnostic operation before TreeDX bootstrap waits.
-- TreeDX bootstrap fails fast when a provisioning operation remains queued past the grace window, instead of waiting through a long unclaimed-operation timeout.
-- Never run a second `release --minor` after a minor release attempt has created version bumps or tags. Resume the recorded run, or use `release --patch` after repairs.
-
-### Local Dev Instances
-
-Use `npx trsd dev` when you want the existing foreground supervisor in your current shell. Use managed subcommands when a local server should be discoverable to humans and agents across terminals:
-
-```bash
-npx trsd dev start --web-runtime local --json
-npx trsd dev status --json
-npx trsd dev status --all --json
-npx trsd dev logs --follow
-npx trsd dev stop --json
-npx trsd dev restart --web-runtime local --json
-```
-
-Managed dev instances are scoped to the physical git worktree. Each worktree writes authoritative state under `.treeseed/dev/instances`, PID files under `.treeseed/dev/pids`, and logs under `.treeseed/logs`. A repository-family index under the git common dir lets agents discover sibling worktree instances without making that index authoritative.
-
-Main, staging, and feature worktrees can run at the same time. The first worktree uses the familiar local ports when free; additional worktrees receive stable alternate port blocks and worktree-specific local PostgreSQL/Mailpit service names. `--force` replaces only the current worktree instance, while `--force-conflicts` is the explicit cross-worktree escape hatch for port owners.
-
-See [Worktree-Scoped Dev Instances](./docs/local-dev-instances.md) for the full architecture and agent workflow.
-
-### Package-Local Commands
-
-Run these from the relevant package root when you are working mainly inside that package:
-
-```bash
-cd packages/sdk && npm install && npm run build && npm test
-cd packages/core && npm install && npm run verify
-cd packages/cli && npm install && npm test
-```
-
-Those package-local flows are the canonical behavior for standalone package development.
-
-## Easy Paths
-
-### I Want To Change CLI Behavior
-
-Work from:
-
-- [`packages/cli`](/home/adrian/Projects/treeseed/market/packages/cli)
-
-Recommended path:
-
-```bash
-cd packages/cli
-npm install
-npm run build
-npm test
-```
-
-Minimum verification:
-
-- rebuild CLI dist
-- run CLI tests
-- if template behavior changed, run `npm run test:templates`
-
-### I Want To Change SDK Or Core Runtime Behavior
-
-Work from:
-
-- [`packages/sdk`](/home/adrian/Projects/treeseed/market/packages/sdk)
-- [`packages/core`](/home/adrian/Projects/treeseed/market/packages/core)
-
-Recommended path:
-
-```bash
-cd packages/sdk
-npm install
-npm run build
-npm test
-
-cd ../core
-npm install
-npm run verify
-```
-
-Minimum verification:
-
-- SDK build plus SDK tests
-- Core `build:dist`
-- Core verify path when changing exported runtime behavior
-
-### I Want To Change Hosting Or Market Control Plane Behavior
-
-Work from:
-
-- [`packages/sdk`](/home/adrian/Projects/treeseed/market/packages/sdk)
-- [`packages/core`](/home/adrian/Projects/treeseed/market/packages/core)
-- [`packages/api`](/home/adrian/Projects/treeseed/market/packages/api)
-- [`packages/cli`](/home/adrian/Projects/treeseed/market/packages/cli)
-
-Recommended path:
-
-```bash
-npm -w packages/sdk run verify:local
-npm -w packages/core run verify:local
-npm -w packages/api run verify:local
-npm -w packages/cli run verify:local
-npx trsd ready local --json
-```
-
-Minimum verification:
-
-- SDK hosting/readiness tests pass
-- API package build, unit tests, and release verification pass
-- Core local dev plan starts API and runner from `packages/api`
-- CLI command/help tests cover changed operator surfaces
-- hosted changes have a `trsd hosting plan` for the affected service before staging
-
-## Operator Workflows
-
-### Local API And Runner Development
-
-Use this when you need the web UI, API, local Treeseed PostgreSQL, and Treeseed operations runner on your laptop.
-
-The integrated dev supervisor starts the API and runner from `packages/api`:
-
-```bash
-npx trsd dev start --web-runtime local --json
-npx trsd dev status --json
-npx trsd dev logs --follow
-npx trsd dev stop --json
-```
-
-For focused backend debugging:
-
-```bash
-npm -w packages/api run dev:api
-npm -w packages/api run dev:runner -- --market local --watch --operation project:web_deployment --mock-external
-```
-
-### Railway Deployment Shape
-
-The intended managed-service mapping in `treeseed.site.yaml` is:
-
-- `api`: Railway service built from `packages/api`, `npm run build`, `npm run start:api`, health `/healthz`
-- `operationsRunner`: Railway service built from `packages/api`, `npm run build`, `npm run start:runner`, health `/healthz`, volume `/data`
-- `treeseedDatabase`: Railway PostgreSQL service with `TREESEED_DATABASE_URL` targeted to `api` and `operationsRunner`
-
-### Convenient Package Commands
-
-`packages/api` exposes the API backend entrypoints directly:
-
-- `npm run dev:api`
-- `npm run dev:runner`
-- `npm run start:api`
-- `npm run start:runner`
-- `npm run db:migrate`
-- `npm run test:acceptance`
-
-### I Want To Change Market-Site Rendering Or Content
-
-Work from:
-
-- repo root
-
-Recommended path:
-
-```bash
-npm install
-npx trsd status --json
-npx trsd dev start --web-runtime local --json
-npx trsd save --verify local --json "feat: describe your change"
-```
-
-Minimum verification:
-
-- `npx trsd dev start --web-runtime local --json` starts, or `npx trsd dev --web-runtime local` starts when you need foreground supervision
-- `npx trsd save --verify local --json "..."` passes verification before pushing
-- run `npm run build` if you touched site structure or runtime integration
-
-### I Want To Change Template Catalog Or Scaffold Behavior
-
-Work from:
-
-- [`packages/cli`](/home/adrian/Projects/treeseed/market/packages/cli) for scaffold/sync/runtime
-- `packages/api` for remote catalog/API behavior
-
-Recommended path for CLI-side work:
-
-```bash
-cd packages/cli
-npm install
-TREESEED_TEMPLATE_CATALOG_URL=file:./src/template-catalog/catalog.fixture.json npm run test:templates
-TREESEED_TEMPLATE_CATALOG_URL=file:./src/template-catalog/catalog.fixture.json node ./scripts/run-ts.mjs ./scripts/template-command.ts list
-```
-
-Minimum verification:
-
-- template validation passes
-- template listing resolves through the configured endpoint
-- if scaffold assets changed, run the scaffold smoke path as appropriate
-
-## Known npm / Workspace Quirks
-
-### Root `postinstall` Selects Registry Or Workspace Mode
-
-The root `postinstall` runs the reusable workspace bootstrap shipped by `@treeseed/core` at `node_modules/@treeseed/core/dist/scripts/workspace-bootstrap.js`. The core bootstrap detects whether all Treeseed package submodules are checked out.
-
-In registry mode, the bootstrap:
-
-1. uses published `@treeseed/*` packages from `node_modules`
-2. skips local `packages/*` builds
-3. runs the Starlight patch through the installed Treeseed CLI
-
-In workspace mode, the bootstrap:
-
-1. builds `sdk`
-2. builds `core`
-3. builds `agent`
-4. builds `api`
-5. builds `cli`
-6. runs the CLI Starlight patch step for the market site
-
-If only some Treeseed package submodules are checked out, the bootstrap fails with a targeted message. Fix it by either initializing all submodules or removing the partial checkout and using registry mode.
-
-### Root `npm install` Is Mode-Aware
-
-The root install path is valid in both modes:
-
-- registry mode is best for normal market-site or tenant development
-- workspace mode is best for package/core development
-- the committed root lockfile is registry-oriented so plain clones do not depend on submodule paths
-- workspace mode links checked-out `packages/*` into `node_modules/@treeseed/*` during bootstrap
-- package-local `npm install` and build/test flows remain authoritative for package authorship
-
-If root install behaves differently from package install, trust the package-local workflow first for the package repo you are editing.
-
-If you only need to refresh the root lockfile without running the full bootstrap chain, prefer:
-
-```bash
-npm install --package-lock-only --ignore-scripts
-```
-
-### Workspace Lockfiles vs Package Lockfiles
-
-There are multiple lockfile scopes on purpose:
-
-- root `package-lock.json`: the unified workspace lockfile
-- `packages/*/package-lock.json`: standalone package lockfiles for those package repos
-
-Do not assume one lockfile replaces the others.
-
-### Submodule Boundaries Matter
-
-The directories under `packages/` are separate git repositories.
-
-Practical consequence:
-
-- editing a file under `packages/cli` changes the CLI repo
-- editing a file at the root changes the market repo
-- commits may need to happen inside the package repo and then at the root repo to update submodule pointers
-
-Always check both:
-
-```bash
-git status
-cd packages/cli && git status
-```
-
-## Troubleshooting
-
-### Submodules Are Missing Or Empty
-
-Symptom:
-
-- package dirs exist but are incomplete
-- package installs or builds fail immediately
-
-Fix:
-
-```bash
-git submodule update --init --recursive
-```
-
-### Root Install Fails But Package Install Works
-
-Interpretation:
-
-- the integrated bootstrap path is failing
-- the standalone package path may still be healthy
-
-Fix path:
-
-1. run the install and verification flow from the affected package root
-2. rebuild the needed package locally
-3. rerun only the root command you actually need
-
-### `dist/` Outputs Are Missing Or Stale
-
-Symptom:
-
-- import errors against built package paths
-- CLI or site commands failing after install or branch changes
-
-Fix:
-
-```bash
-cd packages/sdk && npm run build:dist
-cd ../core && npm run build:dist
-cd ../agent && npm run build:dist
-cd ../cli && npm run build:dist
-```
-
-### Fixture Or Submodule Expectations Fail
-
-Some package flows assume their own package fixtures or submodules are initialized. This is especially relevant in `core` and package-level smoke tests.
-
-If a package test mentions fixtures, use the package README for that repo and verify its submodules or fixture checkout state from the package root.
-
-### Template Catalog Development Behaves Differently Online vs Offline
-
-Remember the split:
-
-- remote metadata comes from the configured endpoint
-- local scaffold assets live in the CLI package
-
-Useful development override:
-
-```bash
-TREESEED_TEMPLATE_CATALOG_URL=file:./src/template-catalog/catalog.fixture.json
-```
-
-The CLI also caches successful remote catalog responses locally. If you suspect stale metadata, clear the local Treeseed cache in your test environment and rerun the command with the endpoint you expect.
-
-## Process Guidance
-
-The simplest rule is:
-
-- use the root workspace to develop the unified system
-- use the package root to develop a package as a package
-
-If a workflow feels harder than building a normal TreeSeed site, treat that as a bug in the development process and document or fix it. The system should be easy both for downstream site builders and for maintainers working across `sdk`, `core`, `cli`, `agent`, and the market site together.
+## Documentation Map
+
+- [Package Ownership](./docs/package-ownership.md)
+- [Reconciliation Platform](./docs/reconciliation-platform.md)
+- [Local Dev Instances](./docs/local-dev-instances.md)
+- [UI Components](./docs/ui-components.md)
+- [API Deploy](./docs/api-deploy.md)
+- [Project Web Deployment](./docs/project-web-deployment.md)
+- [Capacity Providers](./docs/capacity-providers.md)
+- [TreeDX README](./packages/treedx/README.md)
+
+If a workflow feels harder than using a normal Treeseed site, treat that as a product bug or documentation gap.

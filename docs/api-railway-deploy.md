@@ -4,6 +4,16 @@ This runbook documents the Railway services used by the API backend after the AP
 
 Capacity-provider deployment is separate and owned by `@treeseed/agent`; see the capacity commands at the end of this document for that path.
 
+Current package ownership:
+
+- root market hosts the web/admin tenant and `/v1/*` proxy/client surfaces.
+- `@treeseed/admin` owns admin UI/routes/view-models and reaches backend behavior through API facades.
+- `@treeseed/api` owns backend control-plane state, PostgreSQL access, route descriptors, and operations runner implementation.
+- TreeDX federation/public nodes are hosted through API app reconciliation.
+- `@treeseed/ui` owns reusable visual primitives.
+
+See [Package Ownership](./package-ownership.md) for the full system map.
+
 ## Market Railway Services
 
 `treeseed.site.yaml` should reconcile these services in place. Do not create replacement services with new names.

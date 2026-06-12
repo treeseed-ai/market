@@ -8,7 +8,12 @@ Current ownership:
 
 - `packages/api/src/api/**`: API routes, operation lifecycle, runner health surfaces, route descriptors, and Treeseed PostgreSQL adapter
 - `packages/api/src/operations-runner/**`: runner entrypoint, executor registry, operation claim/checkpoint/complete loop, project web deployment executor, and diagnostics
-- root Market app: web UI plus `/v1/*` proxy/client only
+- `@treeseed/sdk`: operation/reconciliation contracts, workflow helpers, and smoke-check primitives
+- `@treeseed/admin`: admin operation controls, status routes, and view-model integration
+- `@treeseed/ui`: reusable operation display primitives
+- root Market app: hosted web/admin tenant plus `/v1/*` proxy/client only; it does not own runner implementation
+
+See [Package Ownership](./package-ownership.md) for the current package map.
 
 Current Railway deployment:
 
