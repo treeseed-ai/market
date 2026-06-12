@@ -154,6 +154,7 @@ jobs:
         run: |
           npm -w packages/sdk run build:dist
           npm -w packages/core run build:dist
+          npm -w packages/admin run build:dist
       - name: Validate deployment readiness
         run: |
           node ./packages/sdk/scripts/run-ts.mjs ./packages/sdk/scripts/deployment-readiness.ts \
