@@ -1,5 +1,88 @@
 # Changelog
 
+## [0.6.26] - 2026-06-12
+
+### Added
+
+- feat(api): split Market backend into API package (edeeaa7652c2)
+
+### Changed
+
+- Adding an initial admin package. (5a8735bdb32c)
+- Adding the TreeSeed UI package. (a96ef0dbd3c4)
+- Updates to the TreeDX OpenAPI schema architecture. (8c1f6c10f289)
+- Updates to the destroy process. (ce53d21afa55)
+- Moving the TreeDB project to TreeDX. (ed86ba799df4)
+- Updating the SDK and TreeDB projects from remove. (61b1060f933d)
+
+### Fixed
+
+- fix: recover package release orchestration (a804f6f32baa)
+- fix: verify API release from clean checkout (7d67040cfa02)
+- fix: remove admin api peer from release install (2c31b9b66b67)
+- fix: match release dependency policy by package id (9b99d8209d51)
+- fix: keep docker packages out of release dependency rewrites (a69e403b31c8)
+- fix: require injected API Compose secrets (f87b76f83b9c)
+- fix: align API runtime and image publishing (0d0309d3e818)
+- fix: repair package release adoption (ef5a00b77521)
+- build(deps): fix package deploy gate timeout and hybrid save validation (d1b039aa4d5c)
+- ci(deps): fix workspace deployment install readiness (77d47e66543d)
+- build(deps): fix ui pages staging reconciliation (6bd57eb151d4)
+- build(deps): fix package app cloudflare auth (e7ce7ba2cdba)
+- build(deps): fix package hosted config sync and api deploy environment (aee7830afa24)
+- ci(deps): Fix operations runner smoke workflow script (98a0e7c5cf06)
+- fix(hosting): deploy Market API services from API package (f45a684bcc7a)
+- fix(web): keep deploy workflow UI-only (d9a1d898a073)
+- fix(web): proxy market health checks (9fe820bdfb1f)
+- fix(web): guard env access in Cloudflare runtime (b7d3a8ae1377)
+- fix(deploy): pass market credential secret to web workflow (f5b6b1286e3b)
+- build(deps): sync API runtime vendor fix (53795a18be1a)
+- 6 additional changes omitted from this summary.
+
+### Infrastructure
+
+- ci: repair admin and treedx release gates (003a61d9c6a8)
+- chore(api): track release workflow (001e64ff778a)
+- chore(web): use web-only deploy SDK (844d43b29f71)
+
+### Tests
+
+- test: repair sdk release workflow assertions (e504ab73d6f5)
+- test(deps): stage package submodule restructuring (493b248338db)
+- ci(deps): stage package submodule restructuring (ce256844aa18)
+- test(deps): build ui artifacts for hosted deploy (293b08023087)
+- ci(deps): migrate reusable ui components to treeseed ui (33b5b0645385)
+- build(deps): migrate reusable ui components to treeseed ui (3eb23d5ad687)
+- test(deps): allow shared railway env ids in runtime boundary check (2cacf8374c42)
+- ci(workflow): restrict root deployment to web-only (22279393110d)
+- test(deps): Update web runtime boundary tests for API app (f6cb39483463)
+- ci(deps): Save reconciliation platform and live acceptance updates (bf21884bfa2f)
+- ci(deps): sync integrated package updates (87d607482a60)
+
+### Dependencies
+
+- build(deps): stage package submodule restructuring (a39794238d21)
+- ci(deps): stage package submodule restructuring (8ab3147b8e44)
+- build(deps): stage package submodule restructuring (96d3da561f53)
+- ci(deps): stage package submodule restructuring (0794e57a8e7f)
+- build(deps): stage package submodule restructuring (06c9412d9201)
+- build(deps): document save lanes (23a90073f110)
+- build(deps): add fast and promotion save lanes (7b0faba19e0a)
+- build(deps): bound git dependency smoke checks (8ab07a890676)
+- ci(deps): build ui artifacts for hosted deploy (58a90a9fca3b)
+- build(deps): migrate reusable ui components to treeseed ui (ad74082d9935)
+- build(deps): migrate reusable ui components to treeseed ui (40dd1385ca0f)
+- build(deps): integrate treeseed ui (6430bcc95184)
+- build(deps): make cli json output robust under capture (bd2ce21629b6)
+- build(deps): stabilize agent verification under save load (cd85f5453e32)
+- build(deps): finish staging save after dependency repair (a7a5c3629640)
+- build(deps): Push clean hosted project repositories during save (5ae0a3e3b0aa)
+- build(deps): Install project dependencies before hosted project (996d59bcab3c)
+- ci(deps): Move API deployment acceptance into API package (c88aa9e71a49)
+- ci(deps): Run API package acceptance in deploy workflow (a3cd1d160bc5)
+- build(deps): Accept workflow API base URL for TreeDX bootstrap (83f534ba884b)
+- 17 additional changes omitted from this summary.
+
 ## [0.6.25] - 2026-06-05
 
 ### Added
