@@ -29,15 +29,18 @@ describe('CI/CD parallelism workflows', () => {
 		expect(deployWeb.jobs.web.env).not.toHaveProperty('TREESEED_RAILWAY_PROJECT_ID');
 	});
 
-	it('builds deploy package artifacts with SDK first and other packages concurrently', () => {
+	it('builds deploy package artifacts in package dependency order before parallel leaf builds', () => {
 		const source = readFileSync('.github/workflows/deploy-web.yml', 'utf8');
 		expect(source).toContain('npm --prefix packages/sdk run build:dist');
+		expect(source).toContain('npm --prefix packages/ui run build:dist');
+		expect(source).toContain('npm --prefix packages/core run build:dist');
+		expect(source).toContain('npm --prefix packages/admin run build:dist');
 		expect(source).toContain('packages/ui/dist/astro/layouts/MainLayout.astro');
 		expect(source).toContain('packages/admin/dist/plugin.js');
-		expect(source).toContain('for dir in packages/ui packages/core packages/admin packages/cli packages/agent');
+		expect(source).toContain('for dir in packages/cli packages/agent');
 		expect(source).toContain('pids["${dir}"]="$!"');
 		expect(source).toContain('wait "${pids[${dir}]}"');
-		expect(source).toContain('build:packages/core-cli-agent');
+		expect(source).toContain('build:packages/cli-agent');
 	});
 
 	it('splits root verification into parallel jobs', () => {
