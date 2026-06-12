@@ -17,6 +17,7 @@
 
 ### Fixed
 
+- release: patch bump (fa627518116c)
 - release: patch bump (ae6a0d20874a)
 - release: patch bump (dfffa133dc4b)
 - fix: recover package release orchestration (a804f6f32baa)
@@ -36,8 +37,7 @@
 - fix(hosting): deploy Market API services from API package (f45a684bcc7a)
 - fix(web): keep deploy workflow UI-only (d9a1d898a073)
 - fix(web): proxy market health checks (9fe820bdfb1f)
-- fix(web): guard env access in Cloudflare runtime (b7d3a8ae1377)
-- 7 additional changes omitted from this summary.
+- 8 additional changes omitted from this summary.
 
 ### Infrastructure
 
@@ -81,7 +81,7 @@
 - ci(deps): Move API deployment acceptance into API package (c88aa9e71a49)
 - ci(deps): Run API package acceptance in deploy workflow (a3cd1d160bc5)
 - build(deps): Accept workflow API base URL for TreeDX bootstrap (83f534ba884b)
-- 13 additional changes omitted from this summary.
+- 12 additional changes omitted from this summary.
 
 ## [0.6.27] - 2026-06-12
 
