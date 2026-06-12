@@ -148,8 +148,14 @@ jobs:
           started_at="$(date +%s)"
           npm --prefix packages/sdk run build:dist
           sdk_finished_at="$(date +%s)"
+          npm --prefix packages/ui run build:dist
+          ui_finished_at="$(date +%s)"
+          npm --prefix packages/core run build:dist
+          core_finished_at="$(date +%s)"
+          npm --prefix packages/admin run build:dist
+          admin_finished_at="$(date +%s)"
           declare -A pids
-          for dir in packages/ui packages/core packages/admin packages/cli packages/agent; do
+          for dir in packages/cli packages/agent; do
             if test -f "${dir}/package.json"; then
               (
                 set -euo pipefail
@@ -172,7 +178,10 @@ jobs:
             echo "| Step | Duration | Status |"
             echo "| --- | ---: | --- |"
             echo "| build:packages/sdk | $((sdk_finished_at - started_at))s | success |"
-            echo "| build:packages/core-cli-agent | $((finished_at - sdk_finished_at))s | $([[ "${failed}" == "0" ]] && echo success || echo failed) |"
+            echo "| build:packages/ui | $((ui_finished_at - sdk_finished_at))s | success |"
+            echo "| build:packages/core | $((core_finished_at - ui_finished_at))s | success |"
+            echo "| build:packages/admin | $((admin_finished_at - core_finished_at))s | success |"
+            echo "| build:packages/cli-agent | $((finished_at - admin_finished_at))s | $([[ "${failed}" == "0" ]] && echo success || echo failed) |"
           } >> "${TIMING_SUMMARY}"
           if [[ "${failed}" != "0" ]]; then exit 1; fi
 
