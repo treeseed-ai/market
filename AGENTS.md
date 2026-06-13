@@ -15,14 +15,14 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 - Reconciliation is exact-state infrastructure management. Missing, duplicate, stale, offline, detached, misnamed, wrong-domain, wrong-image, missing-secret, or provider-limited resources are drift and must be planned as create, update, replace, delete, adopt, rename, reattach, retain, taint, or blocked.
 - Undeclared Treeseed-owned provider resources are not ignored. They must be deleted, retained with an explicit reason, adopted, renamed, tainted, or reported as blocked drift.
 - Cached state may locate resources and preserve lineage, but live provider observation is authoritative for readiness.
-- Live tests are part of the platform contract. `trsd reconcile test-live --provider railway|cloudflare|github|local|all --environment staging --json` is the fast read-only smoke test. `trsd reconcile test-live --mode acceptance --provider <provider|all> --environment staging --yes --json` is the full periodic acceptance suite that creates, updates, verifies, and destroys isolated resources. `--mode cleanup --yes` removes leftover isolated live-test resources.
+- Live tests are part of the platform contract. `trsd reconcile test-live --provider railway|cloudflare|github|local|all --environment staging --json` is the fast read-only smoke test. `trsd reconcile test-live --mode acceptance --provider <provider|all> --environment staging --yes --json` is the full periodic acceptance suite that creates, updates, verifies, and destroys isolated resources. `--mode cleanup --yes` removes leftover isolated live-test resources. Run cleanup before and after full provider acceptance; hosted, release, capacity, or adapter changes are not complete until acceptance and final cleanup pass.
 - Providers with project/container creation limits must test project-scoped resources inside one live-test container. Railway acceptance creates at most one test project per provider run, tests all Railway resources inside it, and cleanup scans the stable `trsd-live-<environment>-railway-` prefix for leftovers.
 
 ## Package Roles
 
-- `@treeseed/sdk`: platform, config, plugin, data, and shared non-UI runtime substrate
+- `@treeseed/sdk`: platform, config, plugin, data, managed local dev supervision, and shared non-UI runtime substrate
 - `@treeseed/ui`: reusable layout-down Astro/React components, app shells, forms, cards, controls, dashboards, theme tokens, and CSS primitives
-- `@treeseed/core`: integrated Treeseed platform starter for Astro/Starlight web runtime, site layering, tenant config, plugin loading, integrated local orchestration, content model, and forms
+- `@treeseed/core`: integrated Treeseed platform starter for Astro/Starlight web runtime, site layering, tenant config, plugin loading, foreground web runtime composition, content model, and forms
 - `@treeseed/admin`: distributable AGPLv3 administration portal layered on core/ui; owns admin routes, middleware, auth/session glue, API client facades, admin view models, catalog display, and secret-manager UI/contracts
 - `@treeseed/market`: root hosted Treeseed tenant; owns public site, content, docs, page overrides, the real `treeseed.site.yaml`, Treeseed branding, and future ecommerce/business policy
 - `@treeseed/agent`: processing runtime, Agent API server, manager, worker, role dispatcher, built-in handlers, agent testing harnesses, and runtime support modules

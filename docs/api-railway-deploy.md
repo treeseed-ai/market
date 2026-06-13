@@ -1,6 +1,6 @@
 # Railway Market Backend Deployment
 
-This runbook documents the Railway services used by the API backend after the API package split.
+This runbook documents the Railway services used by the API backend after the API package split. It is an inventory and reconciliation runbook, not a direct Railway mutation procedure.
 
 Capacity-provider deployment is separate and owned by `@treeseed/agent`; see the capacity commands at the end of this document for that path.
 
@@ -42,6 +42,8 @@ apiDatabase
 ```
 
 The root Market app is not a Railway backend. It deploys the Cloudflare web UI and proxies `/v1/*` to the hosted API.
+
+Provider CLIs and API calls are diagnostic-only in this workflow. Mutating repairs must go through `trsd hosting apply`, `trsd reconcile apply`, or release-gate reconciliation so live observation and postcondition verification run before success is reported.
 
 ## Required Service Variables
 
@@ -135,3 +137,11 @@ npm -w packages/agent run capacity-provider:test-local
 ```
 
 Provider API keys and Codex credentials must stay in encrypted Treeseed machine config or deployment-provider secret stores. Do not write plaintext `.env` files or render secrets into Compose configuration.
+
+After changes to API hosting, Railway adapters, volume policy, or release gates, run live cleanup and acceptance before calling the repair complete:
+
+```sh
+npx trsd reconcile test-live --mode cleanup --provider railway --environment staging --yes --json
+npx trsd reconcile test-live --mode acceptance --provider railway --environment staging --yes --json
+npx trsd reconcile test-live --mode cleanup --provider railway --environment staging --yes --json
+```

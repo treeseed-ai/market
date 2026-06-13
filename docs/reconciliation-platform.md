@@ -1,6 +1,6 @@
 # Treeseed Reconciliation Platform
 
-Treeseed infrastructure is reconciled from exact desired state. A command may inspect, plan, apply, verify, or destroy infrastructure, but it must do that through the SDK-owned reconciliation platform. Provider CLIs such as Railway, Wrangler, Docker, and GitHub CLI are diagnostic or deploy-transport fallbacks only. They are not orchestration systems.
+Treeseed infrastructure is reconciled from exact desired state. A command may inspect, plan, apply, verify, or destroy infrastructure, but it must do that through the SDK-owned reconciliation platform. Provider CLIs such as Railway, Wrangler, Docker, and GitHub CLI are diagnostic only unless they are invoked as private adapter primitives by the reconciler or live acceptance harness. They are not orchestration systems.
 
 This document is the canonical contract for hosting, configuration, local development, capacity providers, package workflows, TreeDX image publication, staging, and release.
 
@@ -76,7 +76,7 @@ Examples:
 - `treedx:github-workflow:dev-staging-image`
 - `agent:capacity-provider:local-docker`
 
-The graph compiler is SDK-owned. Hosting graph APIs, config sync, dev orchestration, package image commands, capacity lifecycle commands, stage, and release can expose specialized CLI surfaces, but they must consume the same compiled graph model.
+The graph compiler is SDK-owned. Hosting graph APIs, config sync, dev orchestration, package image commands, capacity lifecycle commands, stage, and release can expose specialized CLI surfaces, but they must consume the same compiled graph model. Legacy hosting graph apply is only a deprecated facade over `reconcileTreeseedTarget`; it must not call provider deploy helpers directly.
 
 ## Adapter Contract
 
@@ -165,7 +165,7 @@ Cloudflare token setup should use the dashboard permission names when configurin
 
 GitHub adapters cover repository-scoped credentials, environments, secrets, variables, workflow dispatch, workflow observation, package release workflows, and image workflows.
 
-Local adapters cover local web, local API, local DB, local runner, Mailpit, Docker Compose, process supervisors, ports, and generated config.
+Local adapters cover local web, local API, local DB, local runner, Mailpit, Docker Compose, SDK-managed process supervisors, ports, and generated config.
 
 Capacity adapters cover provider registration, local Docker provider runtime, managed provider deployment, provider secrets, health, and lifecycle.
 
@@ -212,7 +212,7 @@ Local dev reconciles process supervisors, ports, local DB, local API, local runn
 
 `trsd reconcile test-live --mode acceptance --provider railway|cloudflare|github|local|all --environment staging --yes --json` is the full periodic acceptance suite. It exercises isolated deterministic test prefixes, creates, updates, replaces or reattaches where supported, verifies, destroys supported resource types, and fails if cleanup leaves undeclared Treeseed-owned resources.
 
-`trsd reconcile test-live --mode cleanup --provider railway|cloudflare|github|local|all --environment staging --yes --json` removes leftover isolated live-test resources by stable provider prefix and fails when cleanup drift remains.
+`trsd reconcile test-live --mode cleanup --provider railway|cloudflare|github|local|all --environment staging --yes --json` removes leftover isolated live-test resources by stable provider prefix and fails when cleanup drift remains. Run cleanup before and after every full acceptance run. A platform change that affects hosting, release, capacity, provider credentials, or adapter behavior is not complete until provider acceptance and final cleanup both pass, or the blocked provider capability is explicitly accepted as unavailable.
 
 Live scenarios include:
 
@@ -222,7 +222,7 @@ Live scenarios include:
 - Local process, port, local DB, local runner, and Docker Compose capacity provider.
 - TreeDX `dev-staging` image consumed by API-hosted public node and verified over HTTP.
 
-The live command reports capability coverage by provider and resource type. Missing adapter coverage is a failing `blocked` result, not a silent skip.
+The live command reports capability coverage by provider and resource type. Mutation-capable scenarios compile isolated desired resources and exercise the adapter lifecycle: refresh, diff, plan, validate, apply, refresh, verify, persist, destroy, refresh, verify-cleanup. Provider-private probes are allowed only for credential/API reachability checks that cannot be modeled as desired resources. Missing adapter coverage, failed cleanup drift, or an unavailable required credential is a failing `blocked` result, not a silent skip.
 
 ## Review Rounds
 

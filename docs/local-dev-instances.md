@@ -9,6 +9,8 @@ Use the foreground form when you want terminal-owned logs and Ctrl-C lifecycle. 
 
 ## Current Runtime Ownership
 
+- SDK owns managed background process supervision, instance records, Git worktree discovery, repository-family indexes, port allocation, stale PID handling, conflict handling, log reads, and restart/stop semantics.
+- Core owns foreground web runtime composition and delegates managed actions to SDK.
 - The web process runs from the root market app and layers `@treeseed/core`, `@treeseed/admin`, and `@treeseed/ui`.
 - API and operations-runner processes run from `packages/api`.
 - Reusable components/styles are consumed from `@treeseed/ui`.
@@ -141,3 +143,11 @@ Foreground `trsd dev --web-runtime local` is still appropriate when the agent is
 `trsd dev` is the Market web/API/control-plane development surface. Capacity-provider runtime is still package-owned by `@treeseed/agent` and runs through `trsd capacity ...`.
 
 Managed dev state is local operational state, not product data. Do not commit `.treeseed/dev`, PID files, logs, generated PostgreSQL data, Mailpit data, or local cache indexes.
+
+Managed dev Git discovery goes through SDK GitRunner-backed helpers. If Git lock diagnostics are needed, use:
+
+```bash
+npx trsd recover --git-locks --json
+```
+
+Recovery is safe-only. Active or recent lock files are reported with owner evidence and are not deleted automatically.

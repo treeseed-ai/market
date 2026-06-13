@@ -1,6 +1,6 @@
 # Project Web Deployment
 
-Market web deployment is the operator path for launching, deploying, publishing, and monitoring a hosted project web surface. The implementation uses the existing project, host, repository, environment, platform operation, deployment, deployment event, runner, and audit records. It does not introduce a separate deployment system.
+Market web deployment is the operator path for launching, deploying, publishing, and monitoring a hosted project web surface. The implementation uses the existing project, host, repository, environment, platform operation, deployment, deployment event, runner, and audit records. It does not introduce a separate deployment system, and any provider mutation must route through SDK reconciliation or a documented project-operation resource that applies the same refresh/verify/persist contract.
 
 ## Architecture
 
@@ -101,6 +101,8 @@ npx trsd hosting plan --environment staging --service operationsRunner --json
 npx trsd hosting apply --environment staging --service operationsRunner --execute --json
 ```
 
+Do not use Railway, Wrangler, GitHub, or Docker commands to repair hosted project state except for read-only diagnostics. If a direct provider observation reveals drift, fix the desired resource or adapter and rerun reconciliation.
+
 ## Local Development
 
 From the Market repo root, `trsd dev` is the foreground local development surface. `trsd dev start` runs the same surface as a managed, worktree-scoped background instance. Both start the web UI, the API, a Treeseed-managed local PostgreSQL control-plane database, API migrations, and the Treeseed operations runner with `project:web_deployment` capability.
@@ -163,3 +165,11 @@ npm -w packages/api run dev:runner -- --market local --once --operation project:
 ```
 
 For real external staging proof, use only disposable GitHub and Cloudflare targets. If safe credentials or disposable targets are unavailable, record the blocker and keep mocked acceptance as the automated release gate.
+
+When provider credentials and test namespaces are available, hosted project deployment changes also require live reconciliation acceptance and cleanup:
+
+```bash
+npx trsd reconcile test-live --mode cleanup --provider all --environment staging --yes --json
+npx trsd reconcile test-live --mode acceptance --provider all --environment staging --yes --json
+npx trsd reconcile test-live --mode cleanup --provider all --environment staging --yes --json
+```

@@ -25,8 +25,8 @@ The root market app owns the single real hostable `treeseed.site.yaml` in this w
 | `@treeseed/market` | Treeseed-operated public site, marketplace, hosted tenant, docs/content, future ecommerce | Root app, `treeseed.site.yaml`, content, public messaging, overrides, marketplace/ecommerce business logic |
 | `@treeseed/admin` | Distributable AGPLv3 administration portal for organizations | Admin routes, auth/session glue, middleware, API client facades, admin view models, catalog display, secret-manager UI/contracts |
 | `@treeseed/ui` | Reusable Treeseed UI system | Layout-down Astro/React components, shells, forms, controls, cards, dashboards, CSS/theme primitives |
-| `@treeseed/core` | Installable Astro/Starlight Treeseed web runtime | Site layering, content/runtime integration, tenant config loading, plugin hooks, web-only hosting integration, local dev supervisor |
-| `@treeseed/sdk` | Programmatic platform substrate | Config, reconciliation, workflow engine, hosting graph, package workflow discovery, shared contracts, graph/content APIs, TreeDX client integration |
+| `@treeseed/core` | Installable Astro/Starlight Treeseed web runtime | Site layering, content/runtime integration, tenant config loading, plugin hooks, web-only runtime composition, foreground dev entrypoint delegation |
+| `@treeseed/sdk` | Programmatic platform substrate | Config, reconciliation, workflow engine, hosting graph, package workflow discovery, SDK-managed local dev supervisor, shared contracts, graph/content APIs, TreeDX client integration |
 | `@treeseed/api` | Deployed backend control-plane API | Hono API, PostgreSQL adapter/migrations, backend auth, operation lifecycle, operations runner, route descriptors |
 | `@treeseed/cli` | Human/operator command surface | `treeseed`/`trsd` command parsing, help, command handlers, terminal reporting, workflow entrypoints over SDK/Core/Agent |
 | `@treeseed/agent` | Capacity-provider and agent runtime | Provider API, manager/runner/worker runtime, capacity scheduling, runtime images/templates |
@@ -87,13 +87,13 @@ TreeDX
 
 ## Local Development Topology
 
-`trsd dev` starts the integrated local development surface:
+`trsd dev` starts the integrated local development surface. Managed background supervision is SDK-owned; Core contributes the web runtime composition and delegates managed process state to SDK:
 
 - web from the root market repository
 - admin as package-provided routes layered into the root web app
 - UI as package-provided components/styles
 - API and operations runner from `packages/api`
-- local state and process supervision through `@treeseed/core` and `@treeseed/sdk`
+- local state, process supervision, worktree-family indexing, port allocation, stale PID detection, and log discovery through `@treeseed/sdk`
 
 Capacity providers are not started by default. Use `trsd capacity ...` when provider runtime work is needed.
 
@@ -109,7 +109,7 @@ TreeDX is not an ordinary web dev process. It is run through TreeDX service work
 | Admin reusable visual components once they are generic | `@treeseed/ui` |
 | Theme tokens, app shell controls, cards, form controls, charts, status panels | `@treeseed/ui` |
 | Site runtime, plugin loading, Astro/Starlight integration, content model wiring | `@treeseed/core` |
-| Reconciliation, package workflows, config, hosting graph, provider adapters | `@treeseed/sdk` |
+| Reconciliation, package workflows, config, hosting graph, provider adapters, managed local dev supervision | `@treeseed/sdk` |
 | Backend persistence, API routes, auth backend, operations runner, migrations | `@treeseed/api` |
 | CLI commands, help, terminal reports, workflow command entrypoints | `@treeseed/cli` |
 | Capacity provider manager/runner/worker runtime and provider images | `@treeseed/agent` |
