@@ -78,6 +78,8 @@ Examples:
 
 The graph compiler is SDK-owned. Hosting graph APIs, config sync, dev orchestration, package image commands, capacity lifecycle commands, stage, and release can expose specialized CLI surfaces, but they must consume the same compiled graph model. Legacy hosting graph apply is only a deprecated facade over `reconcileTreeseedTarget`; it must not call provider deploy helpers directly.
 
+Task-branch Git workflow commands remain SDK-owned and GitRunner-backed. `trsd update --from staging` is the canonical inverse of `stage`: it merges staging down into the current task branch across the root repo and checked-out package repos, including manifest-only packages such as TreeDX. It does not mutate providers or hosted resources; all Git reads and mutations go through GitRunner.
+
 ## Adapter Contract
 
 Every provider adapter implements the same lifecycle:
