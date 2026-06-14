@@ -190,7 +190,7 @@ For agents and automation:
 For humans:
 
 - The default in-place workflow remains valid: `switch`, edit, `save`, then `stage` or `close`.
-- Use `--worktree on` when isolating risky or parallel work. Agents use managed worktrees automatically when agent environment markers are present.
+- Use `npx trsd switch <branch> --worktree --json` when isolating risky or parallel work. After switching into a managed worktree, commands such as `save`, `update`, `stage`, and `close` auto-detect the worktree from `.treeseed/worktree.json`; do not pass a worktree mode to those commands. Agents use managed worktrees automatically when agent environment markers are present.
 - Use `--json` whenever another tool needs stable structured output.
 
 For releases:
