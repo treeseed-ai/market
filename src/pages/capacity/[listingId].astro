@@ -1,0 +1,130 @@
+---
+import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import '@treeseed/ui/styles/commerce.css';
+
+const listingId = Astro.params.listingId ?? '';
+---
+
+<TreeseedPublicLayout title="Capacity listing" description="Review capacity transparency and submit an inquiry." currentPath={Astro.url.pathname}>
+	<main class="ts-commerce-page" data-listing-id={listingId}>
+		<section class="ts-commerce-band">
+			<div class="ts-commerce-inner ts-commerce-hero">
+				<p class="ts-commerce-eyebrow">Capacity listing</p>
+				<h1 class="ts-commerce-title" id="listing-title">Review capacity readiness</h1>
+				<p class="ts-commerce-lede" id="listing-summary">Loading buyer-visible capacity metadata...</p>
+			</div>
+		</section>
+		<section class="ts-commerce-inner ts-commerce-two-column">
+			<div class="ts-commerce-panel">
+				<p class="ts-commerce-eyebrow">Transparency</p>
+				<h2>Readiness and risk posture</h2>
+				<div id="listing-details">Loading...</div>
+			</div>
+			<aside class="ts-commerce-panel">
+				<p class="ts-commerce-eyebrow">Inquiry</p>
+				<h2>Request seller review</h2>
+				<p class="ts-commerce-muted">This creates an inquiry only. It does not create checkout, billing, grants, reservations, routing, or execution work.</p>
+				<form class="ts-commerce-form" id="inquiry-form">
+					<label class="ts-commerce-field"><span>Service type</span><input name="requestedServiceType" autocomplete="off" /></label>
+					<label class="ts-commerce-field"><span>Requested scope</span><textarea name="requestedScope" required></textarea></label>
+					<label class="ts-commerce-field"><span>Data access request</span><textarea name="dataAccessRequested"></textarea></label>
+					<label class="ts-commerce-field"><span>Secret access request</span><textarea name="secretAccessRequested"></textarea></label>
+					<label class="ts-commerce-field"><span>Related project ID</span><input name="relatedProjectId" autocomplete="off" /></label>
+					<label class="ts-commerce-field"><span>Related workday ID</span><input name="relatedWorkdayId" autocomplete="off" /></label>
+					<button class="ts-commerce-button" type="submit">Submit inquiry</button>
+					<p class="ts-commerce-muted" id="inquiry-status" aria-live="polite"></p>
+				</form>
+			</aside>
+		</section>
+	</main>
+</TreeseedPublicLayout>
+
+<script>
+	// @ts-nocheck
+	const shell = document.querySelector('.ts-commerce-page');
+	const listingId = shell?.dataset.listingId;
+	const titleEl = document.querySelector('#listing-title');
+	const summaryEl = document.querySelector('#listing-summary');
+	const detailsEl = document.querySelector('#listing-details');
+	const form = document.querySelector('#inquiry-form');
+	const statusEl = document.querySelector('#inquiry-status');
+
+	async function api(path, options = {}) {
+		const response = await fetch(path, {
+			...options,
+			headers: { 'content-type': 'application/json', ...(options.headers ?? {}) },
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || !payload?.ok) throw new Error(payload?.error ?? `Request failed: ${response.status}`);
+		return payload.payload;
+	}
+
+	function parseLooseJson(value) {
+		const text = String(value || '').trim();
+		if (!text) return {};
+		try {
+			return JSON.parse(text);
+		} catch {
+			return { summary: text };
+		}
+	}
+
+	async function renderListing(listing) {
+		let product = null;
+		try {
+			product = await api(`/v1/commerce/marketplace/products/${encodeURIComponent(listing.productId)}`);
+		} catch {
+			product = null;
+		}
+		titleEl.textContent = product?.title || listing.productId;
+		summaryEl.textContent = listing.buyerVisibleRiskSummary || listing.dataHandlingSummary || product?.summary || 'This listing is approved for buyer review.';
+		detailsEl.innerHTML = `
+			<dl class="ts-commerce-kv">
+				<div><dt>Status</dt><dd>${listing.status}</dd></div>
+				<div><dt>Access</dt><dd>${listing.accessLevel}</dd></div>
+				<div><dt>Runtime isolation</dt><dd>${listing.runtimeIsolationLevel}</dd></div>
+				<div><dt>AI involvement</dt><dd>${listing.aiInvolvementLevel}</dd></div>
+				<div><dt>Human involvement</dt><dd>${listing.humanInvolvementLevel}</dd></div>
+				<div><dt>Data access</dt><dd>${listing.dataAccessLevel}</dd></div>
+				<div><dt>Secret access</dt><dd>${listing.secretAccessLevel}</dd></div>
+				<div><dt>Support</dt><dd>${listing.supportPolicy || 'seller-defined'}</dd></div>
+				<div><dt>Ownership</dt><dd>${(product?.ownershipModel || 'documented').replaceAll('_', ' ')}</dd></div>
+				<div><dt>Visible stewards</dt><dd>${product?.stewardshipSummary?.length ?? 0}</dd></div>
+			</dl>
+		`;
+	}
+
+	async function loadListing() {
+		try {
+			renderListing(await api(`/v1/commerce/capacity-listings/${encodeURIComponent(listingId)}`));
+		} catch (error) {
+			detailsEl.textContent = error instanceof Error ? error.message : 'Listing could not be loaded.';
+		}
+	}
+
+	form?.addEventListener('submit', async (event) => {
+		event.preventDefault();
+		statusEl.textContent = 'Submitting inquiry...';
+		const data = new FormData(form);
+		const body = {
+			requestedServiceType: String(data.get('requestedServiceType') ?? '').trim() || null,
+			requestedScope: String(data.get('requestedScope') ?? '').trim(),
+			dataAccessRequested: parseLooseJson(data.get('dataAccessRequested')),
+			secretAccessRequested: parseLooseJson(data.get('secretAccessRequested')),
+			relatedProjectId: String(data.get('relatedProjectId') ?? '').trim() || null,
+			relatedWorkdayId: String(data.get('relatedWorkdayId') ?? '').trim() || null,
+		};
+		try {
+			await api(`/v1/commerce/capacity-listings/${encodeURIComponent(listingId)}/inquiries`, {
+				method: 'POST',
+				body: JSON.stringify(body),
+			});
+			statusEl.textContent = 'Inquiry submitted for seller review.';
+			form.reset();
+		} catch (error) {
+			statusEl.textContent = error instanceof Error ? error.message : 'Inquiry could not be submitted.';
+		}
+	});
+
+	loadListing();
+</script>
