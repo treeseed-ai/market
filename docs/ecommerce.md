@@ -1441,6 +1441,16 @@ Vendors never provide raw Stripe secret keys. TreeSeed creates connected-account
 
 ## Testing Plan
 
+## TreeSeed Commons Governance
+
+TreeSeed Commons extends the marketplace governance thesis inward. Registered users can participate in TreeSeed questions, proposals, backing, voting, and bounded steward decisions through the same cooperative governance and ownership model that marketplace products expose to buyers.
+
+Registration creates a Commons governance identity and read-only TreeSeed team membership. It does not create legal cooperative membership, payout rights, patronage rights, equity-like claims, or unbounded roadmap authority. Binding authority is staged through proposal review, voting, steward decision records, and capacity constraints.
+
+Commons governance records are separate from ecommerce orders, entitlements, Stripe payments, refunds, services, and capacity listing workflows. They add participant signal and transparent decision evidence without adding commissions, application fees, payout ledgers, revenue splits, benefit payout allocation, capacity billing, token credits, or legal member ledgers.
+
+The Admin surface at `/app/commons` is steward operations only. Public/root Commons pages under `/commons` are participant-facing and use HTTP API surfaces only.
+
 Required test scenarios:
 
 - product draft creation

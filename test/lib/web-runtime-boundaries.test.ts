@@ -140,6 +140,10 @@ describe('web runtime boundaries', () => {
 		expect(existsSync('src/pages/services/new.astro')).toBe(true);
 		expect(existsSync('src/pages/capacity/index.astro')).toBe(true);
 		expect(existsSync('src/pages/capacity/[listingId].astro')).toBe(true);
+		expect(existsSync('src/pages/commons/index.astro')).toBe(true);
+		expect(existsSync('src/pages/commons/questions/new.astro')).toBe(true);
+		expect(existsSync('src/pages/commons/proposals/new.astro')).toBe(true);
+		expect(existsSync('src/pages/commons/proposals/[proposalId].astro')).toBe(true);
 		expect(existsSync('src/pages/billing')).toBe(false);
 	});
 
