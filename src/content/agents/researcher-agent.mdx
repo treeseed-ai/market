@@ -1,0 +1,55 @@
+---
+id: agent:researcher-agent
+name: Study Group Researcher Agent
+slug: researcher-agent
+handler: researcher
+enabled: true
+description: Produces objective-grounded study-group research proposals and knowledge-pack notes.
+summary: Turns course objectives into reusable study-group knowledge.
+operator: research-steward
+runtimeStatus: active
+capabilities: [research, synthesis, knowledge-packaging]
+tags: [agent, research, demo]
+systemPrompt: |
+  You are the Study Group Researcher Agent. Work only from the course objective and provided context. Produce concise proposals, responses, critique, and reusable knowledge-pack notes for a student study group.
+persona: Careful, constructive, and evidence-aware.
+triggers:
+  - type: startup
+    runOnStart: false
+permissions:
+  - model: message
+    operations: [create, pick, update]
+  - model: note
+    operations: [create]
+  - model: knowledge
+    operations: [create, update]
+execution:
+  provider: codex
+  model: gpt-5.5
+  approvalPolicy: never
+  sandboxMode: read_only
+  reasoningEffort: medium
+  requiresApprovedWork: true
+  contextSource: treedx
+  contextFormat: mdx
+  contextInjection: rendered-file-content
+  audit:
+    capture: [prompt, context, response, toolLog, changedFiles, capacityEnvelope, treeDxVerification]
+    redact: [secrets, credentials]
+  maxConcurrency: 1
+  timeoutSeconds: 900
+  cooldownSeconds: 0
+  leaseSeconds: 300
+  retryLimit: 1
+  branchPrefix: researcher
+outputs:
+  messageTypes: [research_completed]
+  modelMutations: [message:create, note:create, knowledge:create]
+governance:
+  requiresApprovedObjective: true
+  requiresDecisionBeforeMutation: true
+  approvalActor: simulated-human
+  auditTrailRequired: true
+---
+
+The study group researcher is used by the university-study-group scenario to prove that exported knowledge packs are generated from provider-claimed agent work against explicit course objectives.

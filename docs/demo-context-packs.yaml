@@ -1,0 +1,58 @@
+version: 1
+description: Context query task packs for the unified TreeSeed demo release.
+packs:
+  demo-backend-contract:
+    goal: Lock the local demo backend contract before implementation.
+    queries:
+      - ctx "TreeSeed strategic demo runbook" for implement in /docs depth 1 budget 3000 as brief
+      - ctx "capacity provider API routes" for implement in /packages/api depth 1 budget 5000 as full
+      - ctx "TreeDX market integration" for implement in /packages/api + /packages/sdk depth 1 budget 5000 as full
+    files:
+      - docs/demo.md
+      - packages/api/src/api/app.js
+      - packages/api/test/api/api.test.ts
+      - packages/api/test/acceptance/api.expected-statuses.json
+
+  demo-frontend-workflow:
+    goal: Build and verify the public marketplace and authenticated operator demo journey.
+    queries:
+      - ctx "homepage marketplace story" for implement in /src depth 1 budget 3000 as brief
+      - ctx "capacity provider setup UI" for implement in /packages/admin depth 1 budget 5000 as full
+      - ctx "hosts knowledge library TreeDX" for implement in /packages/admin depth 1 budget 4000 as full
+    files:
+      - src/overrides/pages/index.astro
+      - packages/admin/src/pages/app/capacity/providers/new.astro
+      - packages/admin/src/pages/app/hosts/knowledge-library.astro
+      - tests/e2e/unified-demo.spec.ts
+
+  capacity-provider-registration:
+    goal: Ensure provider creation, one-time API key reveal, runtime env, startup registration, heartbeat, and portfolio work end to end.
+    queries:
+      - ctx "capacity provider registration heartbeat native capacity" for implement in /packages/api + /packages/agent + /packages/sdk depth 1 budget 6000 as full
+    files:
+      - packages/sdk/src/capacity-provider.ts
+      - packages/agent/src/provider/config.ts
+      - packages/agent/test/provider/capacity-provider-runtime.test.ts
+      - packages/api/test/api/api.test.ts
+
+  local-treedx-defaults:
+    goal: Keep local development close to production by running TreeDX as the default content repository plane.
+    queries:
+      - ctx "local TreeDX repository topology" for implement in /packages/sdk + /packages/api depth 1 budget 6000 as full
+    files:
+      - packages/sdk/src/platform/desired-state.ts
+      - packages/sdk/src/treedx/market-integration.ts
+      - packages/api/src/api/store.js
+      - packages/sdk/test/utils/desired-resource-graph.test.ts
+
+  homepage-marketplace-story:
+    goal: Keep the homepage video and copy marketplace-first while preserving the governance cycle.
+    queries:
+      - ctx "TreeSeed purpose governance cycle marketplace homepage video" for plan in /docs + /src depth 1 budget 4000 as brief
+    files:
+      - docs/purpose.md
+      - docs/demo.md
+      - src/overrides/pages/index.astro
+      - src/content/templates/engineering.mdx
+      - src/content/templates/research.mdx
+      - src/content/templates/information-hub.mdx

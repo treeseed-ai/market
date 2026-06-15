@@ -18,26 +18,27 @@ const accountDeleted = Astro.url.searchParams.get('account') === 'deleted';
 
 <TreeseedPublicLayout
 	title="TreeSeed | Launch, guide, release, and publish knowledge work"
-	description="TreeSeed is the operating system and market for knowledge hubs, agent teams, releases, and reusable packages."
+	description="TreeSeed is the self-serve marketplace and operating system for governed knowledge work, private teams, hosted projects, workflow imports, and durable memory."
 	currentPath={Astro.url.pathname}
 >
 	<section class="ts-hero">
 		<div class="ts-hero__main">
 			{accountDeleted ? <p class="ts-badge">Account deleted</p> : null}
-			<p class="ts-hero__eyebrow">TreeSeed</p>
-			<h1 class="ts-hero-copy">Launch, guide, release, and publish knowledge hubs from one operational home.</h1>
+			<p class="ts-hero__eyebrow">TreeSeed Market</p>
+			<h1 class="ts-hero-copy">Buy, launch, and govern reusable knowledge work without booking a meeting.</h1>
 			<p class="ts-hero-copy">
-				TreeSeed combines a GitHub-inspired product shell with Treeseed runtime workflows so your team can
-				run research, development, release, and market publishing from the same app.
+				Browse workflow imports, knowledge packs, hosted project options, maintenance plans, and private
+				team capacity. TreeSeed turns each purchase into a governed workday with reviewable outputs and
+				durable operational memory.
 			</p>
 			<div class="ts-hero__actions">
-				<a class="ts-button" href="/app/">Open the app</a>
 				<a class="ts-button-secondary" href="/market/">Browse the market</a>
+				<a class="ts-button" href="/app/teams">Create private team</a>
 			</div>
 		</div>
 		<div class="ts-metric-strip">
 			<div class="ts-panel ts-metric">
-				<span class="ts-metric__label">Templates</span>
+				<span class="ts-metric__label">Workflow imports</span>
 				<span class="ts-metric__value">{templateListing.items.length}</span>
 			</div>
 			<div class="ts-panel ts-metric">
@@ -45,12 +46,12 @@ const accountDeleted = Astro.url.searchParams.get('account') === 'deleted';
 				<span class="ts-metric__value">{knowledgePacks.length}</span>
 			</div>
 			<div class="ts-panel ts-metric">
-				<span class="ts-metric__label">Workflow model</span>
-				<span class="ts-metric__value">Direct</span>
+				<span class="ts-metric__label">Content plane</span>
+				<span class="ts-metric__value">TreeDX</span>
 			</div>
 			<div class="ts-panel ts-metric">
-				<span class="ts-metric__label">Release model</span>
-				<span class="ts-metric__value">Human gated</span>
+				<span class="ts-metric__label">Work model</span>
+				<span class="ts-metric__value">Governed</span>
 			</div>
 		</div>
 	</section>
@@ -58,24 +59,56 @@ const accountDeleted = Astro.url.searchParams.get('account') === 'deleted';
 	<section class="ts-panel">
 		<div class="ts-panel__header">
 			<div>
-				<p class="ts-section__eyebrow">Product shape</p>
-				<h2>One shell for discovery and operations</h2>
+				<p class="ts-section__eyebrow">Homepage demo arc</p>
+				<h2>A 90-second path from purchase to memory</h2>
 			</div>
 		</div>
 		<div class="ts-feature-grid">
 			<article>
-				<h3>Launch and operate</h3>
-				<p>Create a knowledge hub, connect hosting, and manage releases, agent runs, and share workflows inside the same control plane.</p>
+				<h3>Find the resource</h3>
+				<p>Start with a workflow import, hosted project, private team, knowledge pack, maintenance plan, or continuous subscription.</p>
 			</article>
 			<article>
-				<h3>Direct and Workstreams</h3>
-				<p>Keep direction humane with Direct while using workstreams, checks, and release discipline that feel familiar to GitHub users.</p>
+				<h3>Allocate capacity</h3>
+				<p>Choose hosts, TreeDX knowledge libraries, and capacity providers using native provider limits such as minutes, workers, tokens, or USD.</p>
 			</article>
 			<article>
-				<h3>Packages and market trust</h3>
-				<p>Package releases as templates or knowledge packs and publish them through the same app with compatibility and trust context attached.</p>
+				<h3>Review the result</h3>
+				<p>Monitor the workday, approve decisions, inspect artifacts, and retain the output as reusable organizational memory.</p>
 			</article>
 		</div>
+	</section>
+
+	<section class="ts-panel" aria-label="Governance cycle">
+		<div class="ts-panel__header">
+			<div>
+				<p class="ts-section__eyebrow">Governance cycle</p>
+				<h2>Direction, capacity, situation, results, memory</h2>
+			</div>
+			<a href="/app/work/objectives">Open work</a>
+		</div>
+		<div class="ts-feature-grid">
+			<article><h3>Provide direction</h3><p>Define the team, project, objective, and authority for the change.</p></article>
+			<article><h3>Allocate capacity</h3><p>Bind hosts, TreeDX, providers, lanes, native limits, grants, and policies.</p></article>
+			<article><h3>Monitor situation</h3><p>Watch deployments, workdays, task events, blockers, and verification state.</p></article>
+			<article><h3>Evaluate results</h3><p>Approve, reject, revise, publish, or retain reviewed artifacts.</p></article>
+			<article><h3>Retain memory</h3><p>Keep the provenance linking objectives, repositories, decisions, releases, and knowledge.</p></article>
+		</div>
+	</section>
+
+	<section class="ts-panel" aria-label="Live proof">
+		<div class="ts-panel__header">
+			<div>
+				<p class="ts-section__eyebrow">Live proof</p>
+				<h2>Karyon as a governed knowledge project</h2>
+			</div>
+			<a href="https://github.com/karyon-life/karyon" target="_blank" rel="noreferrer">Repository</a>
+		</div>
+		<p>
+			Karyon is the case-study project for the demo release: its repository remains the live source, its
+			<code>docs/</code> content is treated as the project knowledge body, and TreeDX provides the content
+			repository plane while local project/site work remains filesystem-backed.
+		</p>
 	</section>
 
 	<section class="ts-grid-2" style="margin-top: 1rem;">

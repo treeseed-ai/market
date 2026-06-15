@@ -94,6 +94,37 @@ Non-responsibilities:
 
 The API's assignment function is request-scoped. It can run during provider check-in, next-assignment requests, or explicit user/admin actions. It should be deterministic, idempotent, bounded, and explainable.
 
+### TreeDX Access Boundary
+
+TreeSeed agents and capacity-provider runners should not receive raw TreeDX service URLs and bearer tokens as their normal content-repository interface. The TreeSeed API/control plane should expose authenticated, project-scoped DX routes, such as `/v1/dx/projects/:projectId/...`, and should perform the following responsibilities before forwarding to TreeDX:
+
+- authenticate the caller as either a TreeSeed user/service principal with project access or a same-team capacity provider with the required provider task scopes;
+- resolve the project library and repository topology to the correct private or public TreeDX node;
+- hold and rotate the TreeDX node credential or node-to-node trust token;
+- verify that repository and workspace operations are scoped to the project binding;
+- forward only allowed TreeDX operations such as file read/write, workspace search, commit, context build, and repository readback;
+- redact TreeDX credentials from provider task payloads, audit logs, reports, and UI surfaces.
+
+Local and production TreeDX authentication should use the same connected-auth process. TreeDX verifies a scoped JWT or configured trust token issued for a TreeSeed API service principal; local development must not depend on TreeDX dev-token shortcuts or hardcoded demo principals. The SDK/reconciler declares the TreeDX issuer, audience, signing secret reference, bootstrap trust actor, tenant, and capability envelope for each local or hosted TreeDX instance. TreeDX remains product-neutral: it only consumes the configured trust grant, while TreeSeed owns the mapping from authenticated TreeSeed users/capacity providers to project-scoped DX proxy calls.
+
+The provider task payload should therefore include a DX proxy handle rather than a TreeDX credential:
+
+```json
+{
+  "workspace": {
+    "treeDx": {
+      "apiBaseUrl": "http://127.0.0.1:3000",
+      "proxyBasePath": "/v1/dx/projects/project_123",
+      "projectId": "project_123",
+      "repoId": "repo_456",
+      "workspaceId": "workspace_789"
+    }
+  }
+}
+```
+
+Provider runners call this proxy using `TREESEED_CAPACITY_PROVIDER_API_KEY`. This keeps TreeDX behind TreeSeed's team/project authorization boundary while still allowing the agent to read injected markdown context, stage content changes, commit workspaces, and verify readback through the same path a production private TreeDX deployment will use.
+
 ### Project
 
 A project owns work semantics and the agents that express those semantics.

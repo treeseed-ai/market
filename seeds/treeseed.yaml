@@ -33,6 +33,43 @@ resources:
         gitUrl: https://github.com/knowledge-coop/market.git
         defaultBranch: main
         checkoutPath: .
+      metadata:
+        demoRole: market-control-plane
+        repositoryTopology:
+          contentRepository:
+            accessMode: treedx
+          siteRepository:
+            accessMode: filesystem
+          projectRepository:
+            accessMode: filesystem
+
+    - key: project:karyon/live-proof
+      team: team:treeseed
+      slug: karyon
+      name: Karyon Live Proof
+      description: Live case-study knowledge project proving TreeSeed governance against the Karyon docs corpus.
+      kind: knowledge_hub
+      repository:
+        role: primary
+        provider: github
+        owner: karyon-life
+        name: karyon
+        gitUrl: https://github.com/karyon-life/karyon.git
+        defaultBranch: main
+        checkoutPath: .treeseed/projects/karyon
+        submodulePath: docs
+      metadata:
+        demoRole: live-proof-project
+        proofProject: true
+        contentRoot: docs
+        repositoryTopology:
+          contentRepository:
+            accessMode: treedx
+            sourcePath: docs
+          siteRepository:
+            accessMode: filesystem
+          projectRepository:
+            accessMode: filesystem
 
   capacityProviders:
     - key: capacity-provider:treeseed/local-dev
@@ -65,6 +102,7 @@ resources:
         apiKey:
           createIfMissing: true
           name: TreeSeed local provider security code
+          plaintextKey: tsp_local_treeseed_demo_capacity_provider
           scopes:
             - provider:register
             - provider:heartbeat
@@ -143,7 +181,26 @@ resources:
       allowedProjectKinds: [market_app, package, knowledge_hub]
       status: active
 
-  hubRepositories: []
+  hubRepositories:
+    - key: hub-repository:karyon/content-docs
+      project: project:karyon/live-proof
+      role: content
+      provider: github
+      owner: karyon-life
+      name: karyon
+      gitUrl: https://github.com/karyon-life/karyon.git
+      defaultBranch: main
+      submodulePath: docs
+      status: active
+      accessPolicy:
+        contentAccessMode: treedx
+        sourcePath: docs
+      publishPolicy:
+        publishSource: treedx_to_r2
+      metadata:
+        contentCanonical: treedx
+        demoRole: karyon-docs-content
+
   products:
     - key: product:treeseed/market-template
       team: team:treeseed
@@ -162,6 +219,59 @@ resources:
         owner: knowledge-coop
         repository: market
         gitUrl: https://github.com/knowledge-coop/market.git
+    - key: product:treeseed/engineering-template
+      team: team:treeseed
+      kind: template
+      slug: engineering
+      title: Engineering Workflow Import
+      summary: First-party starter for governed engineering work, release checks, and operational memory.
+      visibility: public
+      listingEnabled: true
+      offerMode: free
+      manifestKey: src/content/templates/engineering.mdx
+      artifactKey: catalog/treeseed-engineering/1.0.0/template
+      searchText: TreeSeed engineering workflow import template capacity governance release checks
+      metadata:
+        provider: github
+        owner: treeseed-templates
+        repository: engineering
+        gitUrl: https://github.com/treeseed-templates/engineering.git
+
+    - key: product:treeseed/research-template
+      team: team:treeseed
+      kind: template
+      slug: research
+      title: Research Workflow Import
+      summary: First-party starter for source-backed research bodies, synthesis notes, and reusable knowledge packs.
+      visibility: public
+      listingEnabled: true
+      offerMode: free
+      manifestKey: src/content/templates/research.mdx
+      artifactKey: catalog/treeseed-research/1.0.0/template
+      searchText: TreeSeed research workflow import template knowledge pack source backed
+      metadata:
+        provider: github
+        owner: treeseed-templates
+        repository: research
+        gitUrl: https://github.com/treeseed-templates/research.git
+
+    - key: product:treeseed/information-hub-template
+      team: team:treeseed
+      kind: template
+      slug: information-hub
+      title: Information Hub Workflow Import
+      summary: First-party starter for public knowledge hubs, docs, and durable publishing workflows.
+      visibility: public
+      listingEnabled: true
+      offerMode: free
+      manifestKey: src/content/templates/information-hub.mdx
+      artifactKey: catalog/treeseed-information-hub/1.0.0/template
+      searchText: TreeSeed information hub workflow import template docs knowledge publishing
+      metadata:
+        provider: github
+        owner: treeseed-templates
+        repository: information-hub
+        gitUrl: https://github.com/treeseed-templates/information-hub.git
 
   catalogArtifacts:
     - key: catalog-artifact:treeseed/market-template/1.0.0
@@ -175,5 +285,191 @@ resources:
         owner: knowledge-coop
         repository: market
         gitUrl: https://github.com/knowledge-coop/market.git
+    - key: catalog-artifact:treeseed/engineering-template/1.0.0
+      product: product:treeseed/engineering-template
+      version: 1.0.0
+      kind: template
+      contentKey: catalog/treeseed-engineering/1.0.0/template
+      manifestKey: src/content/templates/engineering.mdx
+      metadata:
+        provider: github
+        owner: treeseed-templates
+        repository: engineering
+        gitUrl: https://github.com/treeseed-templates/engineering.git
+
+    - key: catalog-artifact:treeseed/research-template/1.0.0
+      product: product:treeseed/research-template
+      version: 1.0.0
+      kind: template
+      contentKey: catalog/treeseed-research/1.0.0/template
+      manifestKey: src/content/templates/research.mdx
+      metadata:
+        provider: github
+        owner: treeseed-templates
+        repository: research
+        gitUrl: https://github.com/treeseed-templates/research.git
+
+    - key: catalog-artifact:treeseed/information-hub-template/1.0.0
+      product: product:treeseed/information-hub-template
+      version: 1.0.0
+      kind: template
+      contentKey: catalog/treeseed-information-hub/1.0.0/template
+      manifestKey: src/content/templates/information-hub.mdx
+      metadata:
+        provider: github
+        owner: treeseed-templates
+        repository: information-hub
+        gitUrl: https://github.com/treeseed-templates/information-hub.git
 
   agentPools: []
+
+operationRecipes:
+  - id: full-private-team-demo
+    title: Full private team demo
+    environments: [local]
+    entrypoints:
+      - homepage-story
+    steps:
+      - id: homepage-story
+        title: Show marketplace-first homepage
+        actor: visitor
+        channel: ui
+        operation: navigate
+        target: /
+        assertions:
+          - text: Direction, Capacity, Situation, Results, Memory
+          - text: Karyon as a governed knowledge project
+        artifacts:
+          - screenshot: homepage-marketplace.png
+
+      - id: apply-scaffold
+        title: Reconcile canonical seed scaffold
+        actor: operator
+        channel: cli
+        operation: seed.apply
+        uses:
+          - team:treeseed
+          - project:treeseed/market
+          - project:karyon/live-proof
+          - capacity-provider:treeseed/local-dev
+        command:
+          argv: ["trsd", "seed", "treeseed", "--environments", "local", "--apply", "--json"]
+
+      - id: verify-private-treedx
+        title: Verify private TreeDX and central registry trust
+        actor: team-admin
+        channel: ui
+        operation: verify.treedx
+        dependsOn: [apply-scaffold]
+        uses:
+          - team:treeseed
+          - project:karyon/live-proof
+        target: /app/hosts/knowledge-library
+        assertions:
+          - text: TreeDX is the canonical data plane
+          - text: mirrors and shares
+        artifacts:
+          - screenshot: private-treedx.png
+
+      - id: verify-template-projects
+        title: Verify Engineering and Research starter sources
+        actor: team-admin
+        channel: ui
+        operation: project.create
+        dependsOn: [verify-private-treedx]
+        uses:
+          - product:treeseed/engineering-template
+          - product:treeseed/research-template
+        target: /app/projects/new
+        assertions:
+          - text: Engineering
+          - text: Research
+        artifacts:
+          - screenshot: starter-projects.png
+
+      - id: create-capacity-provider
+        title: Create local Codex capacity provider
+        actor: team-admin
+        channel: ui
+        operation: capacity-provider.create
+        dependsOn: [verify-template-projects]
+        uses:
+          - capacity-provider:treeseed/local-dev
+        target: /app/capacity/providers/new
+        assertions:
+          - field: dailyUsageCapPercent
+            equals: 30
+          - textAbsent: credits
+        artifacts:
+          - screenshot: capacity-provider-before-submit.png
+
+      - id: launch-provider-runtime
+        title: Launch provider runtime from generated env
+        actor: operator
+        channel: cli
+        operation: capacity.up
+        dependsOn: [create-capacity-provider]
+        uses:
+          - capacity-provider:treeseed/local-dev
+        command:
+          argv: ["trsd", "capacity", "up", "--market", "local", "--provider", "local", "--json"]
+
+      - id: verify-provider-registration
+        title: Verify provider registration health
+        actor: team-admin
+        channel: ui
+        operation: capacity.status
+        dependsOn: [launch-provider-runtime]
+        uses:
+          - capacity-provider:treeseed/local-dev
+        target: /app/capacity
+        assertions:
+          - text: registered
+          - text: healthy
+        artifacts:
+          - screenshot: capacity-provider-registered.png
+
+      - id: allocate-portfolio
+        title: Allocate provider capacity across projects
+        actor: team-admin
+        channel: ui
+        operation: capacity.allocate.portfolio
+        dependsOn: [verify-provider-registration]
+        uses:
+          - project:treeseed/market
+          - project:karyon/live-proof
+        target: /app/capacity/allocation
+        assertions:
+          - text: Project portfolio allocation
+          - text: 30% daily native usage
+        artifacts:
+          - screenshot: capacity-allocation-portfolio.png
+
+      - id: allocate-agent-classes
+        title: Allocate project capacity across agent classes
+        actor: team-admin
+        channel: ui
+        operation: capacity.allocate.project
+        dependsOn: [allocate-portfolio]
+        uses:
+          - project:treeseed/market
+        target: /app/capacity/allocation
+        assertions:
+          - text: agent classes
+          - text: Back to portfolio
+        artifacts:
+          - screenshot: capacity-allocation-agent-classes.png
+
+      - id: review-work-and-memory
+        title: Review work, decisions, artifacts, and publishable memory
+        actor: reviewer
+        channel: ui
+        operation: knowledge.inspect-artifacts
+        dependsOn: [allocate-agent-classes]
+        uses:
+          - project:treeseed/market
+        target: /app/knowledge/artifacts
+        assertions:
+          - text: Artifacts
+        artifacts:
+          - screenshot: knowledge-artifacts.png
