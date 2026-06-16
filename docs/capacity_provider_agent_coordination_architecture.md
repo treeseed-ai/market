@@ -240,7 +240,7 @@ The runner receives a scoped project agent assignment context. It should not inf
 
 ## 4. Terminology Cleanup
 
-Future docs and code should avoid using "manager" without a qualifier.
+Docs and code should avoid using "manager" without a qualifier.
 
 | Ambiguous Term | Replacement | Meaning |
 | --- | --- | --- |
@@ -617,10 +617,10 @@ Provider runners should execute the assignment's project-bundled handler/config.
 
 Provider coordination is provider-initiated. A provider manager checks in at the start of an availability period and can ask for more assignments as local runner capacity becomes free.
 
-Conceptual endpoint:
+Implemented Phase 2 endpoint:
 
 ```http
-POST /v1/capacity-providers/{providerId}/check-ins
+POST /v1/provider/check-in
 ```
 
 Provider request:
@@ -650,35 +650,31 @@ Response:
 type CapacityProviderCheckInResponse = {
   availabilitySessionId: string;
   recordedAt: string;
-  assignments: ProviderAssignment[];
-  leaseRenewalAfterSeconds: number;
   nextCheckInAfterSeconds: number;
   policyVersion: string;
 };
 ```
 
-The API records the check-in as a provider availability session. A session is soft supply until assignments are leased and claimed. If the provider disappears after check-in, leases expire and uncompleted assignments return to the assignable pool.
+The API records the check-in as a provider availability session. A session is soft supply until assignments are leased through `/v1/provider/assignments/next`. If the provider disappears after check-in, leases expire and uncompleted assignments return to the assignable pool.
 
 Provider managers may use a loop like:
 
 ```text
 check in at start of availability window
-receive initial assignments
-claim assignments
+poll next assignment when runner capacity is available
 dispatch provider-local runners
-heartbeat while running
+renew leases while running
 complete/fail/return assignments
-request next assignment when runner capacity frees
 check out at end of availability window
 ```
 
-The API can support a next-assignment route for provider-local pull:
+The implemented next-assignment route performs bounded request-scoped synthesis, then leases one eligible assignment for provider-local pull:
 
 ```http
-POST /v1/capacity-providers/{providerId}/next-assignment
+POST /v1/provider/assignments/next
 ```
 
-This route should run the same deterministic assignment selection function against the current availability session and active assignments.
+This route runs bounded deterministic selection against `ProviderAssignment` records for the authenticated provider. Before selection, the API can synthesize idempotent assignments from open planning input requests and accepted capacity-plan work units. Accepted decision execution inputs must first be aggregated into a durable capacity plan and accepted before acting synthesis. It does not synthesize assignments from legacy task queues or create a central long-running scheduler daemon.
 
 ---
 
@@ -1061,25 +1057,25 @@ PATCH /v1/projects/{projectId}/agent-classes/{classId}
 Provider check-in:
 
 ```http
-POST /v1/capacity-providers/{providerId}/check-ins
-POST /v1/capacity-providers/{providerId}/check-out
-POST /v1/capacity-providers/{providerId}/next-assignment
+POST /v1/provider/check-in
+POST /v1/provider/assignments/next
 ```
 
 Assignments:
 
 ```http
-POST /v1/provider-assignments/{assignmentId}/claim
-POST /v1/provider-assignments/{assignmentId}/heartbeat
-POST /v1/provider-assignments/{assignmentId}/complete
-POST /v1/provider-assignments/{assignmentId}/fail
-POST /v1/provider-assignments/{assignmentId}/return
+GET /v1/provider/assignments/{assignmentId}
+POST /v1/provider/assignments/{assignmentId}/renew
+POST /v1/provider/assignments/{assignmentId}/complete
+POST /v1/provider/assignments/{assignmentId}/fail
+POST /v1/provider/assignments/{assignmentId}/return
+POST /v1/provider/assignments/{assignmentId}/mode-runs
 ```
 
 Summaries:
 
 ```http
-GET /v1/workdays/{workdayId}/capacity-summary
+GET /v1/workdays/{workdayId}/summary
 GET /v1/projects/{projectId}/capacity-summary
 GET /v1/capacity-providers/{providerId}/sessions
 ```
@@ -1292,7 +1288,7 @@ The allocation hierarchy should not compete with dynamic capacity. It should sit
 
 Recommended sequence:
 
-1. Document terminology and boundaries in code comments, API descriptions, and future docs.
+1. Document terminology and boundaries in code comments, API descriptions, and follow-on docs.
 2. Add/confirm SDK types for allocation sets and project agent classes.
 3. Integrate generic pie allocation UI for portfolio and class allocations.
 4. Add provider check-in availability session records.

@@ -1,6 +1,6 @@
 # Agent Capacity Operator Surfaces
 
-**Status:** Canonical Admin and CLI surface plan  
+**Status:** Canonical Admin and CLI surface reference; read-only capacity runtime and gap-closure inspection surfaces implemented
 **Date:** 2026-06-16  
 **Audience:** Admin, CLI, SDK/API, and agent runtime implementers  
 
@@ -12,7 +12,7 @@ Every operator surface should identify which kind of state it shows:
 
 - **Configuration:** allocation sets, project agent classes, grants, schedules, provider registration.
 - **Live observation:** provider health, runner pressure, execution-provider native observations, local lifecycle status.
-- **Durable runtime records:** provider sessions, assignments, leases, mode runs, usage actuals, ledger entries.
+- **Durable runtime records:** decision readiness, planning input requests, execution inputs, accepted capacity plans, workday envelopes, provider sessions, assignments, assignment explanations, leases, mode runs, usage actuals, ledger entries.
 - **Reconciler-backed lifecycle:** provider images, local Docker runtime, hosted runtime, secrets, health checks, cleanup.
 
 Mixing these categories makes debugging difficult. Admin and CLI should label them plainly.
@@ -35,6 +35,13 @@ Admin should provide:
 
 Admin may use reusable controls from `@treeseed/ui`, but product-specific capacity policy and view models belong in `@treeseed/admin`.
 
+Implemented Phase 4 surfaces:
+
+- `/app/capacity/allocation` remains the allocation and project agent-class allocation surface.
+- `/app/capacity/providers` remains the provider registration, native capacity, grants, and lifecycle overview surface.
+- `/app/capacity/runtime` shows allocation-set versions, selected-project agent classes, provider availability sessions, provider assignments, and mode-run telemetry as separate read-only sections.
+- Admin API facades call the public API routes for those records and for focused decision-readiness, execution-input, assignment-explanation, and workday-summary drill-downs; they do not import API store code or provider runner code.
+
 ## CLI Surfaces
 
 CLI should provide JSON-first commands for:
@@ -46,10 +53,29 @@ CLI should provide JSON-first commands for:
 - assignment inspection
 - assignment return/fail diagnostics when authorized
 - mode-run inspection
+- decision planning status inspection
+- decision execution input inspection
+- workday envelope and settlement summary inspection
+- assignment explanation inspection
 - usage and ledger summaries
 - local provider proof
 
 `trsd capacity build/up/status/logs/down/test-local` remain lifecycle commands. Assignment policy and runtime records should be exposed through explicit inspection or diagnostic commands rather than hidden inside lifecycle output.
+
+Implemented Phase 4 commands:
+
+- `trsd capacity allocation-sets --team <team-id> --json`
+- `trsd capacity agent-classes --project <project-id> --json`
+- `trsd capacity provider-sessions --team <team-id> [--provider <provider-id>] [--status <status>] --json`
+- `trsd capacity assignments --team <team-id> [--project <project-id>] [--provider <provider-id>] [--status <status>] --json`
+- `trsd capacity mode-runs --project <project-id> [--mode planning|acting] [--assignment <assignment-id>] --json`
+- `trsd capacity decision-planning --decision <decision-id> --json`
+- `trsd capacity execution-inputs --decision <decision-id> [--status <status>] --json`
+- `trsd capacity workday --workday <workday-id> --json`
+- `trsd capacity workday-summary --workday <workday-id> --json`
+- `trsd capacity assignment-explanation --team <team-id> --assignment <assignment-id> --json`
+
+Phase 5 live proof is invoked through `trsd reconcile test-live`, not through hidden scheduling behavior in `trsd capacity`. The proof creates diagnostic assignments and mode runs tagged with the live-test run id, so operators can inspect them with the existing assignment and mode-run commands after local or hosted acceptance.
 
 ## Explanation Requirements
 

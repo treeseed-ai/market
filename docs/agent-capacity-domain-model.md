@@ -6,6 +6,8 @@
 
 This document defines the shared implementation vocabulary for Treeseed agent capacity. It describes the model that SDK contracts, API records, agent runtime inputs, Admin views, and CLI reports should converge on.
 
+The canonical contract surface is exported from `@treeseed/sdk/agent-capacity`. Durable coordination records are stored by `@treeseed/api` through migrations `0005_agent_capacity_coordination.sql`, `0006_provider_assignment_lifecycle.sql`, and `0007_agent_architecture_gap_closure.sql`.
+
 ## Boundary Rule
 
 Projects own work semantics. Capacity providers own execution capacity.
@@ -149,6 +151,12 @@ It includes:
 
 Planning inputs can target unresolved proposals, weak proposals, estimates, comparisons, and summaries. Acting inputs must be tied to approved work.
 
+## DecisionPlanningStatus And PlanningInputRequest
+
+`DecisionPlanningStatus` records execution readiness beside human approval state. It includes decision id, project id, human approval state when known, execution readiness, planning input status, decision scope hash, stale reason, and readiness timestamps.
+
+`PlanningInputRequest` records missing planning work required before acting. Open planning requests can be synthesized into planning-mode provider assignments. Accepted `DecisionExecutionInput` records with ready or waived planning status can be synthesized into acting-mode provider assignments.
+
 ## CapacityPlan
 
 A `CapacityPlan` is an explainable API-side routing and reservation plan.
@@ -183,6 +191,8 @@ It includes:
 
 Providers create and refresh sessions by outbound check-in. The API must not require inbound access to provider machines.
 
+Provider sessions are recorded through `/v1/provider/sessions` and `/v1/provider/check-in`. Check-in records generic supply: availability, execution providers, native limits, grants, capabilities, runner pressure, and provider-local constraints. The API also performs bounded request-scoped synthesis from existing readiness/planning records before leasing work. Providers still do not invent project work.
+
 ## ProviderAssignment
 
 A `ProviderAssignment` is a leased unit of work matched by the API and executed by a provider runner.
@@ -190,6 +200,7 @@ A `ProviderAssignment` is a leased unit of work matched by the API and executed 
 It includes:
 
 - assignment id and lease state
+- lease token, runner id, lease expiry, and lease renewal timestamp
 - provider session id
 - project id and agent class
 - selected project agent/handler
@@ -199,8 +210,28 @@ It includes:
 - TreeDX proxy handle when repository access is needed
 - allowed outputs
 - status, attempts, renewals, return reason, completion, or failure
+- lifecycle reason, code, and output summary
 
 Assignments replace ambiguous task-claim language for new coordination work. Existing task claim APIs may remain during migration, but new runtime behavior should use assignment/session semantics.
+
+Assignments can be explicit control-plane records or synthesized records. Explicit assignments remain useful for fixtures, diagnostics, and acceptance proof. Synthesized assignments are created deterministically from open planning input requests and accepted capacity-plan work units during provider check-in or next-assignment polling. Accepted decision execution inputs are planning artifacts until they are aggregated into a durable capacity plan and accepted. Synthesis is idempotent through a stable synthesis key and produces an assignment explanation record.
+
+Durable `AgentCapacityPlanRecord` entries are API-owned acceptance gates. They aggregate accepted `DecisionExecutionInput` records into work units with expected/high credits, capability needs, dependencies, blockers, assumptions, risk, and scoped capacity envelopes. Acting synthesis uses only accepted, scheduled, or active plan work units unless a future emergency policy explicitly records a bypass.
+
+The lifecycle leases assignments through `/v1/provider/assignments/next` and updates state through renew, return, complete, and fail routes. Leased assignments execute through `@treeseed/agent` `AgentKernel.runAssignment`.
+
+Lease rules:
+
+- `pending/unleased`, `returned/released`, and expired `leased` assignments are eligible for next-assignment polling.
+- A next-assignment response leases one existing assignment for the authenticated provider and returns a lease token.
+- Renew, return, complete, and fail operations require the current provider key and the active lease token.
+- Retryable failures return the assignment to the eligible pool; non-retryable failures end as failed.
+
+## ProviderAssignmentExplanation
+
+An assignment explanation records why a candidate was eligible or blocked. It includes source, source record id, eligibility result, readiness, capability, grant, allocation and policy gates, allocation policy version when known, and human-readable reasons.
+
+Providers can read their assignment explanation through provider-key routes. Operators can read the same explanation through team-scoped routes.
 
 ## AgentModeRun
 
@@ -217,6 +248,8 @@ It includes:
 - usage actuals
 - validation results
 - fallback reason when applicable
+
+Phase 1 records mode-run telemetry and can link it to usage actuals. Phase 3 emits mode-run telemetry from the AgentKernel assignment runtime: a running attempt when bounded execution begins and a terminal attempt when the handler succeeds, fails, cancels, or the kernel produces a bounded fallback.
 
 `AgentRunTrace` remains useful as lower-level handler/runtime trace detail. `AgentModeRun` is the durable control-plane record that connects mode, assignment, capacity envelope, output, and usage.
 
@@ -235,3 +268,15 @@ They include:
 - ledger entry ids
 
 The API settles usage into the capacity ledger. Providers report native observations; TreeSeed derives and records provider-neutral accounting.
+
+`WorkdayCapacityEnvelope` records can be started, paused, completed, and summarized through `/v1/workdays`. Summaries combine envelope policy, assignments, mode runs, usage actuals, ledger entries, release/refund calculations, native usage snapshots, and provider-confidence warnings. The summary is an API control-plane read model; it is not reconciled infrastructure.
+
+## TreeDX Proxy Handle
+
+Assignments may carry a project-scoped `TreeDxProxyHandle`. The handle identifies project, optional assignment, repository/workspace scope, allowed operations, and expiry. It is not a TreeDX service credential.
+
+Provider runners call `/v1/dx/projects/:projectId/...` with their provider API key. The API verifies provider/team/project/assignment scope, resolves the TreeDX node, forwards only allowed project operations, and records proxy audit evidence. Raw TreeDX credentials must not appear in assignment payloads, logs, Admin, CLI, or provider reports.
+
+## Fallback Output
+
+`AgentFallbackOutput` records bounded fallback outputs, such as planning documentation drafts or weakness proposal drafts. The record carries mode, fallback code, output payload, provenance, quota information, and duplicate/quota state. Product-specific fallback drafting remains handler/policy-owned; the capacity layer only records and gates it.

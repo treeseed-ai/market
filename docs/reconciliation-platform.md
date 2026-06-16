@@ -206,7 +206,7 @@ Mixed app release selects affected apps by dependency graph. API changes deploy 
 
 TreeDX image update reconciles package repository credentials, Docker Hub config, dev-staging image workflow, immutable image ref selection, and API-hosted public node consumption. SDK/profile publication gates run after successful TreeDX image publication.
 
-Capacity provider lifecycle reconciles provider registration, secrets, local or hosted runtime, health, and cleanup through the same run model. Provider check-ins, next-assignment polling, lease renewal, completion/failure, mode-run telemetry, and usage settlement are runtime API behavior and must not be modeled as infrastructure drift.
+Capacity provider lifecycle reconciles provider registration, secrets, local or hosted runtime, health, and cleanup through the same run model. Provider check-ins, next-assignment polling, lease renewal, completion/failure, mode-run telemetry, and usage settlement are runtime API behavior and must not be modeled as infrastructure drift. Capacity runtime acceptance may create tagged diagnostic assignments and mode runs as audit evidence, but those records remain API control-plane records rather than reconciled resources.
 
 Local dev reconciles process supervisors, ports, local DB, local API, local runner, Mailpit, and generated config. It reports whether web is using a local API or configured remote API.
 
@@ -223,10 +223,13 @@ Live scenarios include:
 - Railway project, environment, service, image service, PostgreSQL, volume attach/reattach/delete, generated domain, custom domain, variables, deployment health. Railway creates at most one test project per provider run and tests every project-scoped resource inside that single project because Railway project creation is capped.
 - Cloudflare Pages, Worker, D1, R2, KV, Queue, DNS, Turnstile, secrets, and cache rules.
 - GitHub environment, secret, variable, workflow dispatch, workflow observation, and repository-scoped token routing.
-- Local process, port, local DB, local runner, and Docker Compose capacity provider.
+- Local process, port, local DB, local runner, Docker Compose capacity provider, and `capacity-provider-assignment-proof`.
+- Railway `capacity-provider-runtime-assignment-proof`, which checks in with the provider API key, creates a tagged diagnostic assignment through the existing team API, leases the assignment through the provider protocol, emits mode-run telemetry, completes the assignment, and verifies project mode-run visibility.
 - TreeDX `dev-staging` image consumed by API-hosted public node and verified over HTTP.
 
 The live command reports capability coverage by provider and resource type. Mutation-capable scenarios compile isolated desired resources and exercise the adapter lifecycle: refresh, diff, plan, validate, apply, refresh, verify, persist, destroy, refresh, verify-cleanup. Provider-private probes are allowed only for credential/API reachability checks that cannot be modeled as desired resources. Missing adapter coverage, failed cleanup drift, or an unavailable required credential is a failing `blocked` result, not a silent skip.
+
+Capacity runtime proof requires `TREESEED_CAPACITY_ACCEPTANCE_API_URL`, `TREESEED_CAPACITY_ACCEPTANCE_ADMIN_TOKEN`, `TREESEED_CAPACITY_ACCEPTANCE_TEAM_ID`, `TREESEED_CAPACITY_ACCEPTANCE_PROJECT_ID`, `TREESEED_CAPACITY_ACCEPTANCE_PROVIDER_ID`, `TREESEED_CAPACITY_ACCEPTANCE_AGENT_CLASS_ID`, and `TREESEED_CAPACITY_PROVIDER_API_KEY`. Missing values block the proof before hosted mutation where applicable. Cleanup removes provider infrastructure only; completed diagnostic assignments and mode runs are retained with the live-test run id for operator audit.
 
 ## Review Rounds
 

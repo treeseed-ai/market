@@ -1,6 +1,6 @@
 # Agent Kernel Mode Runtime
 
-**Status:** Canonical runtime design for planning and acting modes  
+**Status:** Canonical runtime design and implemented Phase 3 runtime boundary for planning and acting modes
 **Date:** 2026-06-16  
 **Audience:** Agent runtime, SDK/API contract, provider runtime, Admin, and CLI implementers  
 
@@ -27,7 +27,7 @@ Acting mode executes approved work:
 - reports blockers
 - creates weakness proposals when assigned acting work is exhausted
 
-Handlers do not choose whether they are planning or acting. The kernel receives an assignment, selects mode-bounded work, and invokes the handler under a capacity envelope.
+Handlers do not choose whether they are planning or acting. In the implemented Phase 3 runtime, the provider runner leases an existing `ProviderAssignment`, then calls `AgentKernel.runAssignment`. The kernel validates the mode-bounded scope and invokes the project-owned handler with optional capacity context on `AgentContext`.
 
 ## Kernel Input
 
@@ -36,13 +36,15 @@ The kernel receives:
 - `ProviderAssignment`
 - `AgentCapacityEnvelope`
 - `DecisionExecutionInput`
-- `AgentKernelProfile`
-- `AgentKernelPolicy`
+- `AgentKernelProfile` when available from the project agent class
+- `AgentKernelPolicy` when available from the project agent class
 - project agent definition and handler mapping
 - provider execution context
-- TreeDX proxy handle when repository access is needed
+- TreeDX proxy handle when assignment workspace context provides one
 
 The assignment decides the outer scope. The envelope decides budget and capability bounds. The input decides the governance context. The profile and policy decide runtime behavior.
+
+The implemented `AgentContext.capacity` field is optional so existing handlers continue to run outside provider assignment execution. When present, it includes assignment id, provider id, selected mode, capacity envelope, decision input, project agent class/profile/policy metadata, source assignment, readiness metadata, and TreeDX proxy handle metadata.
 
 ## Mode Selection
 
@@ -50,10 +52,10 @@ Mode selection is API- and kernel-coordinated:
 
 - API selects eligible demand and issues an assignment with a target mode.
 - Kernel validates that the project agent profile supports the mode.
-- Kernel chooses the concrete work item from the assignment context.
+- Kernel maps assignment context into a bounded handler invocation.
 - Kernel applies fallback only within the assignment's allowed mode and output types.
 
-If the assignment is invalid, unsupported, expired, or outside provider capability, the provider runner returns it with a structured reason instead of widening scope.
+If the assignment is invalid, unsupported, expired, or outside provider capability, the kernel returns a structured bounded result instead of widening scope. Provider runner maps retryable bounded results to assignment return when the provider client supports return semantics, and maps non-retryable results to assignment failure.
 
 ## Planning Budget
 
@@ -92,6 +94,8 @@ The kernel must enforce:
 - capability grants
 - tool access
 - repository/workspace scope
+- acting readiness state when supplied by the assignment
+- TreeDX proxy handle project/assignment scope and expiry
 - maximum attempts
 - fallback limits
 
@@ -154,9 +158,11 @@ Every bounded attempt emits an `AgentModeRun` record with:
 
 `AgentRunTrace` can remain as lower-level trace detail while the system migrates. `AgentModeRun` is the durable cross-package record for assignment/mode/usage accounting.
 
+The implemented Phase 3 path emits a running mode-run event before handler execution and a terminal mode-run event after success, failure, cancellation, or bounded fallback. Terminal records include trace references to the lower-level `AgentRunTrace` when handler execution reaches the trace path.
+
 ## Verification Expectations
 
-Runtime implementation should prove:
+Runtime verification should continue to prove:
 
 - planning and acting runs are distinguishable in records and reports
 - handlers cannot silently widen assignment scope
