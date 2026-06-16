@@ -160,6 +160,7 @@ describe('one-purpose control app information architecture', () => {
 		expect(readdirSync(resolve(process.cwd(), 'packages/admin/src/pages/app')).sort()).toEqual([
 			'account.astro',
 			'capacity',
+			'commons',
 			'hosts',
 			'index.astro',
 			'knowledge',
