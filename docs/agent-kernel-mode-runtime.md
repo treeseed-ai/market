@@ -1,0 +1,166 @@
+# Agent Kernel Mode Runtime
+
+**Status:** Canonical runtime design for planning and acting modes  
+**Date:** 2026-06-16  
+**Audience:** Agent runtime, SDK/API contract, provider runtime, Admin, and CLI implementers  
+
+The AgentKernel is owned by `@treeseed/agent`. SDK owns portable contracts used by the kernel, and API owns durable assignment, mode-run, and usage records. Core remains the reusable web runtime and must not own agent scheduling or provider execution.
+
+## Runtime Goal
+
+Every bounded agent execution is either planning or acting.
+
+Planning mode prepares work:
+
+- estimates approved decisions
+- compares approaches
+- summarizes unresolved direction
+- drafts proposals
+- identifies missing inputs
+- improves agent-local documentation when primary planning work is exhausted
+
+Acting mode executes approved work:
+
+- performs decision-linked changes
+- runs verification or release work
+- updates project content or repositories through scoped tools
+- reports blockers
+- creates weakness proposals when assigned acting work is exhausted
+
+Handlers do not choose whether they are planning or acting. The kernel receives an assignment, selects mode-bounded work, and invokes the handler under a capacity envelope.
+
+## Kernel Input
+
+The kernel receives:
+
+- `ProviderAssignment`
+- `AgentCapacityEnvelope`
+- `DecisionExecutionInput`
+- `AgentKernelProfile`
+- `AgentKernelPolicy`
+- project agent definition and handler mapping
+- provider execution context
+- TreeDX proxy handle when repository access is needed
+
+The assignment decides the outer scope. The envelope decides budget and capability bounds. The input decides the governance context. The profile and policy decide runtime behavior.
+
+## Mode Selection
+
+Mode selection is API- and kernel-coordinated:
+
+- API selects eligible demand and issues an assignment with a target mode.
+- Kernel validates that the project agent profile supports the mode.
+- Kernel chooses the concrete work item from the assignment context.
+- Kernel applies fallback only within the assignment's allowed mode and output types.
+
+If the assignment is invalid, unsupported, expired, or outside provider capability, the provider runner returns it with a structured reason instead of widening scope.
+
+## Planning Budget
+
+Planning budget can be used for:
+
+- required estimates before acting capacity is committed
+- proposal comparison
+- readiness analysis
+- risk and dependency discovery
+- summarization for human decision makers
+- proposal drafting when no required planning inputs remain
+- agent-local documentation improvements when configured by policy
+
+Planning outputs do not approve work. They feed humans, decisions, allocation policy, and later capacity plans.
+
+## Acting Budget
+
+Acting budget can be used for:
+
+- approved decision execution
+- repository or content edits through scoped project tools
+- verification and release steps authorized by the assignment
+- diagnostic or repair work explicitly included in the assignment
+- producing blockers and weakness proposals when acting cannot continue
+
+Acting mode must stay tied to approved work or explicit runtime authorization. It cannot discover arbitrary project work and begin execution.
+
+## Capacity Envelope Enforcement
+
+The kernel must enforce:
+
+- mode
+- budget
+- lease window
+- output contract
+- capability grants
+- tool access
+- repository/workspace scope
+- maximum attempts
+- fallback limits
+
+The provider runner enforces provider-local runtime limits as well, such as concurrency, model availability, local queue pressure, and native subscription constraints.
+
+## Handler Contract
+
+Handlers receive a mode-bounded execution context. They should treat it as the only source of allowed work.
+
+Handlers may:
+
+- read selected context
+- execute allowed tools
+- produce allowed outputs
+- report uncertainty, blockers, estimates, usage, and validation results
+
+Handlers must not:
+
+- approve decisions
+- mutate allocation policy
+- create unscoped provider work
+- request raw TreeDX credentials
+- widen mode or capability scope
+- hide usage or retries from the mode run
+
+## Fallback Behavior
+
+Fallback is policy-driven and observable.
+
+Planning fallback examples:
+
+- required estimate missing context -> produce missing-input output
+- no required estimates -> compare weak proposals
+- no proposal work -> draft a proposal idea
+- no project planning work -> improve configured agent-local docs
+
+Acting fallback examples:
+
+- approved work blocked -> report blocker
+- verification unavailable -> produce diagnostic output
+- no acting work in assignment -> return assignment
+- repeated failure -> create weakness proposal if policy allows
+
+Every fallback emits a reason on the `AgentModeRun`.
+
+## Telemetry
+
+Every bounded attempt emits an `AgentModeRun` record with:
+
+- assignment id
+- mode
+- selected input
+- handler id
+- output references
+- trace references
+- status
+- fallback reason
+- usage actuals
+- validation result
+
+`AgentRunTrace` can remain as lower-level trace detail while the system migrates. `AgentModeRun` is the durable cross-package record for assignment/mode/usage accounting.
+
+## Verification Expectations
+
+Runtime implementation should prove:
+
+- planning and acting runs are distinguishable in records and reports
+- handlers cannot silently widen assignment scope
+- unsupported assignments are returned with reason
+- expired leases stop or renew before continuing
+- fallback paths are bounded and visible
+- usage actuals settle against the assignment and mode run

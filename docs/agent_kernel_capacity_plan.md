@@ -2,11 +2,13 @@
 
 **Working status:** Architecture implementation plan  
 **Date:** 2026-06-07  
-**Audience:** TreeSeed architecture, SDK/API/core, hosted control plane, capacity provider, and Market UI implementation teams  
-**Scope:** TreeSeed SDK, CLI, Core, hosted/API layer, capacity providers, agent runtime, and Market UI integration  
-**Important caveat:** This plan is intentionally architecture-first. It does **not** assume the latest repository shape because the latest hosting changes and API separation from the Market web UI are not available here. Treat package/module names and endpoint sketches as conceptual boundaries to reconcile with the current codebase before implementation.
+**Audience:** TreeSeed architecture, SDK/API/agent, hosted control plane, capacity provider, Admin, CLI, and Market UI implementation teams
+**Scope:** TreeSeed SDK, CLI, Agent, hosted/API layer, capacity providers, Admin, Core web runtime integration, and Market UI integration
+**Important caveat:** This plan is intentionally architecture-first. The implementation source of truth is now [agent-capacity-implementation-roadmap.md](agent-capacity-implementation-roadmap.md), with domain terms in [agent-capacity-domain-model.md](agent-capacity-domain-model.md), runtime behavior in [agent-kernel-mode-runtime.md](agent-kernel-mode-runtime.md), and operator surfaces in [agent-capacity-operator-surfaces.md](agent-capacity-operator-surfaces.md). Treat older package/module names and endpoint sketches in this document as conceptual design input when they conflict with those canonical docs.
 
-**Coordination refinement:** See [capacity_provider_agent_coordination_architecture.md](capacity_provider_agent_coordination_architecture.md) for the next-iteration refinement of provider/team coordination, provider-initiated check-in, allocation policy layers, and the boundary between project-bundled agents and capacity-provider-bundled execution providers.
+**Coordination refinement:** See [capacity_provider_agent_coordination_architecture.md](capacity_provider_agent_coordination_architecture.md) for the durable provider/team coordination model, provider-initiated check-in, allocation policy layers, and the boundary between project-bundled agents and capacity-provider-bundled execution providers.
+
+**Ownership correction:** Earlier drafts used "Core" and "manager" broadly. Current package ownership is sharper: `@treeseed/agent` owns AgentKernel execution, mode scheduling, provider manager/runner behavior, runtime images, and provider-local lifecycle; `@treeseed/sdk` owns shared contracts; `@treeseed/api` owns durable coordination records and assignment functions; `@treeseed/core` owns web runtime composition only. Read unqualified "manager" in this document as a legacy term that must be replaced during implementation with provider manager, API assignment function, or human/team capacity policy.
 
 ---
 
@@ -200,24 +202,24 @@ Responsibilities:
 - event contracts;
 - client methods used by the Market UI, CLI, and hosted/control-plane components.
 
-### 4.4 Core
+### 4.4 Agent Runtime
 
-Core should own the reusable agent runtime and policy logic.
+`@treeseed/agent` should own the reusable agent runtime and policy execution logic.
 
 Responsibilities:
 
-- AgentKernel;
+- AgentKernel execution;
 - mode scheduling;
-- queue observation;
-- policy evaluation;
+- queue observation inputs consumed through API/SDK contracts;
+- policy evaluation at runtime;
 - mode fallback behavior;
 - agent-local documentation support;
-- provider-neutral capacity contracts;
-- output validation;
+- runtime output validation;
 - telemetry event emission;
-- guardrail enforcement hooks.
+- guardrail enforcement hooks;
+- provider manager and provider runner integration.
 
-Core should not assume that Market UI is colocated with runtime/API implementation.
+`@treeseed/sdk` should own provider-neutral capacity contracts. `@treeseed/api` should own durable assignment, reservation, lease, mode-run, and ledger records. `@treeseed/core` should not assume that Market UI is colocated with runtime/API implementation and should not own agent scheduling or provider execution.
 
 ### 4.5 CLI
 

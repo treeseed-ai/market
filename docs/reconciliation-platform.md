@@ -13,8 +13,8 @@ See [Package Ownership](./package-ownership.md) for the current package map.
 - `@treeseed/core` contributes web runtime and web-only desired state.
 - `@treeseed/admin` contributes site/plugin/runtime/admin surfaces, routes, middleware, and env schema; it does not own hosted infrastructure and has no package-local `treeseed.site.yaml`.
 - root `@treeseed/market` owns the real hostable `treeseed.site.yaml`, public content, page overrides, and future ecommerce/business policy.
-- `@treeseed/api` owns API, operations runner, PostgreSQL, backend route descriptors, and public TreeDX federation app desired state.
-- `@treeseed/agent` owns capacity-provider runtime artifacts and provider desired state.
+- `@treeseed/api` owns API, operations runner, PostgreSQL, backend route descriptors, public TreeDX federation app desired state, and durable capacity coordination records such as provider sessions, assignments, mode runs, reservations, and usage settlement.
+- `@treeseed/agent` owns capacity-provider runtime artifacts, provider desired state, provider manager/runner behavior, AgentKernel execution, and provider-local lifecycle.
 - `packages/treedx` owns the TreeDX image/service artifact; API hosting consumes selected TreeDX images.
 - `@treeseed/ui` owns no infrastructure; it contributes components and styles only.
 
@@ -171,6 +171,8 @@ Local adapters cover local web, local API, local DB, local runner, Mailpit, Dock
 
 Capacity adapters cover provider registration, local Docker provider runtime, managed provider deployment, provider secrets, health, and lifecycle.
 
+Capacity adapters do not reconcile runtime coordination records such as provider availability sessions, assignment leases, mode runs, usage actuals, or ledger entries. Those are API/control-plane records owned by `@treeseed/api` and consumed by `@treeseed/agent`, Admin, CLI, and SDK clients. Reconciliation proves that the provider runtime exists, has the right image/config/secrets, and is healthy; assignment coordination proves that a live provider can check in, receive leased work, report mode runs, and settle usage.
+
 TreeDX adapters cover dev-image workflow dispatch, image reference selection, public federation services, private team instances, volumes, domains, health, SDK publishing gates, and profile image gates.
 
 ## JSON Report Contract
@@ -204,7 +206,7 @@ Mixed app release selects affected apps by dependency graph. API changes deploy 
 
 TreeDX image update reconciles package repository credentials, Docker Hub config, dev-staging image workflow, immutable image ref selection, and API-hosted public node consumption. SDK/profile publication gates run after successful TreeDX image publication.
 
-Capacity provider lifecycle reconciles provider registration, secrets, local or hosted runtime, health, and cleanup through the same run model.
+Capacity provider lifecycle reconciles provider registration, secrets, local or hosted runtime, health, and cleanup through the same run model. Provider check-ins, next-assignment polling, lease renewal, completion/failure, mode-run telemetry, and usage settlement are runtime API behavior and must not be modeled as infrastructure drift.
 
 Local dev reconciles process supervisors, ports, local DB, local API, local runner, Mailpit, and generated config. It reports whether web is using a local API or configured remote API.
 

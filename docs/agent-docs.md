@@ -21,10 +21,17 @@ The plan does not introduce a separate documentation automation system. It compl
 ## Current Processing Parity Note
 
 The hosted/local processing runtime now centers on the `@treeseed/agent`
-package. That package owns provider API, manager, runner, provider plan/doctor,
-runtime path resolver, built-in handlers, and testing harnesses. The top-level Market repo
+package. That package owns provider API, provider manager, provider runner,
+AgentKernel execution, mode scheduling, provider plan/doctor, runtime path
+resolver, built-in handlers, and testing harnesses. The top-level Market repo
 still owns tenant Markdown specs and executable test catalog entries under
 `src/content/agents` and `src/content/agent-tests`.
+
+Current capacity coordination records are API-owned: provider availability
+sessions, assignment leases, mode runs, usage actuals, and ledger settlement
+belong in `@treeseed/api` and use SDK contracts. See
+[agent-capacity-implementation-roadmap.md](agent-capacity-implementation-roadmap.md)
+for the canonical rearchitecture.
 
 Documentation automation work that runs in parity mode should use the
 containerized role commands and `/data` worker layout. `.agent-worktrees` remain

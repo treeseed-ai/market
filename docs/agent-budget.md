@@ -9,9 +9,14 @@ Last updated: 2026-05-13
 ## Processing Parity Update
 
 Capacity scheduling now sits behind the package-owned capacity provider
-contract. `@treeseed/agent` owns provider API, manager, runner, runtime paths,
-doctor, plan, and built-in handlers. Market supplies tenant specs, provider
-registry state, tasks, usage, and reports through `/v1/provider/*`.
+contract. `@treeseed/agent` owns provider API, provider manager, provider
+runner, AgentKernel execution, mode scheduling, runtime paths, doctor, plan,
+and built-in handlers. Market supplies tenant specs, while `@treeseed/api`
+owns durable provider sessions, assignment leases, mode runs, usage settlement,
+and reports through API/control-plane routes.
+
+For the canonical capacity rearchitecture, see
+[agent-capacity-implementation-roadmap.md](agent-capacity-implementation-roadmap.md).
 
 Parity-mode workers must use `/data` storage, including
 `/data/repositories/<repository-id>/bare.git`,

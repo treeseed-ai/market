@@ -2535,9 +2535,11 @@ Implemented coverage includes:
 
 * SDK declarative context query contracts, operation-as-agent-tool contracts, provider metadata, and Codex-related environment metadata.
 * Agent context processing, package-owned research/knowledge/optimizer handlers, workday orchestration, runtime readiness, operation adapters, Codex provider readiness/execution, worktree-scoped docs mutation, knowledge promotion, human-gated release approval, artifact APIs, operation observability, reports, and local E2E verification harnesses.
-* Capacity provider runtime: `@treeseed/agent` now owns provider API, manager,
-  runner, provider plan/doctor, runtime path resolver, built-in handlers, and
-  package-closure smoke tests.
+* Capacity provider runtime: `@treeseed/agent` now owns provider API, provider
+  manager, provider runner, AgentKernel execution, mode scheduling, provider
+  plan/doctor, runtime path resolver, built-in handlers, and package-closure
+  smoke tests. API-owned coordination records cover provider sessions,
+  assignment leases, mode runs, and usage settlement.
 * Capacity scheduling runtime from `docs/agent-budget.md`: classify, estimate, route, reserve, execute, reconcile, learn, checkpoint or continue, and preserve idle capacity when no useful admitted work remains.
 * Core integrated dev surface support for `--surface all`.
 * API delegation, Work/Knowledge supervision UI for runtime/artifacts/approvals, and Capacity UI for provider readiness, grants, lane pressure, routing decisions, reservations, learned estimates, usage actuals, checkpointed interruptions, approval-required work, and manual budgeted task submission through admission.

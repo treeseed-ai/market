@@ -5,13 +5,20 @@ Your mission is to develop, debug, and harden the live local TreeSeed documentat
 The current capacity provider parity contract is package-owned runtime plus
 Market-owned tenant specs:
 
-* `@treeseed/agent` owns provider API, manager, runner, handlers, provider
-  plan/doctor, runtime paths, and test harnesses.
+* `@treeseed/agent` owns provider API, provider manager, provider runner,
+  handlers, provider plan/doctor, runtime paths, and test harnesses.
 * Market owns `src/content/agents`, `src/content/agent-tests`, seeds,
   generated Drizzle migration artifacts, and deployment config.
 * Parity mode uses the package-owned provider Docker image and `/data` paths. Fast-dev
   `.agent-worktrees` behavior is non-parity unless a test explicitly exercises
   it.
+
+Current ownership language: `@treeseed/agent` also owns AgentKernel execution
+and mode scheduling. `@treeseed/api` owns provider availability sessions,
+assignment leases, mode-run records, usage settlement, and project-scoped
+TreeDX proxy authorization. See
+`docs/agent-capacity-implementation-roadmap.md` for the canonical capacity
+architecture.
 
 ## Scope
 

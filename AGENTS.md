@@ -25,7 +25,7 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 - `@treeseed/core`: integrated Treeseed platform starter for Astro/Starlight web runtime, site layering, tenant config, plugin loading, foreground web runtime composition, content model, and forms
 - `@treeseed/admin`: distributable AGPLv3 administration portal layered on core/ui; owns admin routes, middleware, auth/session glue, API client facades, admin view models, catalog display, and secret-manager UI/contracts
 - `@treeseed/market`: root hosted Treeseed tenant; owns public site, content, docs, page overrides, the real `treeseed.site.yaml`, Treeseed branding, and future ecommerce/business policy
-- `@treeseed/agent`: processing runtime, Agent API server, manager, worker, role dispatcher, built-in handlers, agent testing harnesses, and runtime support modules
+- `@treeseed/agent`: processing runtime, provider API, provider manager, provider runner, worker runtime, AgentKernel execution, mode scheduling, built-in handlers, agent testing harnesses, provider-local capacity enforcement, runtime images/templates, and runtime support modules
 - `@treeseed/api`: Treeseed backend API, Treeseed PostgreSQL adapter, migrations, operation lifecycle, route descriptors, and Treeseed operations runner
 - `@treeseed/cli`: operator and developer CLI workflows
 - `packages/treedx`: TreeDX implementation and Docker Hub release image used by Treeseed-hosted TreeDX bootstrap and related platform workflows
@@ -56,6 +56,39 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 - `treedx` remains product-neutral and must not encode Treeseed product semantics.
 - Shared fixture references do not imply package ownership.
 - Prefer canonical SDK import paths. Do not reintroduce alias exports or compatibility paths in unreleased packages.
+
+## Agent Capacity Architecture
+
+Canonical implementation docs:
+
+- `docs/agent-capacity-implementation-roadmap.md`
+- `docs/agent-capacity-domain-model.md`
+- `docs/capacity_provider_agent_coordination_architecture.md`
+- `docs/agent-kernel-mode-runtime.md`
+- `docs/agent-capacity-operator-surfaces.md`
+
+Package ownership for the capacity rearchitecture is fixed:
+
+- `@treeseed/agent` owns provider runtime, provider API, provider manager, provider runner, AgentKernel execution, mode scheduling, provider-local lifecycle, runtime images/templates, and runtime tests.
+- `@treeseed/sdk` owns portable capacity contracts, reconciliation contracts, config, and provider-neutral helper logic.
+- `@treeseed/api` owns durable provider availability sessions, assignment leases, reservations, mode-run records, usage actuals, ledger settlement, and project-scoped TreeDX proxy authorization.
+- `@treeseed/admin` and `@treeseed/cli` own operator surfaces over SDK/API/agent public contracts; they must not become schedulers.
+- `@treeseed/core` owns web runtime composition only. It does not own AgentKernel execution, provider scheduling, provider runtime, or capacity assignment.
+- `packages/treedx` remains product-neutral. Treeseed assignment semantics, agent classes, capacity policy, and provider grants belong outside TreeDX.
+
+Use precise terms:
+
+- Use `provider manager` for the provider-local supervisor that checks in, receives leases, dispatches runners, and renews/completes/returns assignments.
+- Use `assignment function` for API-side deterministic provider/project matching.
+- Use `team capacity policy` or `allocation set` for human/admin budget policy.
+- Use `operations runner` for `packages/api` platform operation execution.
+- Do not use unqualified `manager` when writing new capacity-provider or agent architecture docs.
+
+Projects own agents, agent classes, handlers, prompts, planning/acting permissions, output contracts, and project work semantics. Capacity providers supply execution providers, native budgets, runner concurrency, availability windows, capabilities, and provider-local constraints. Providers must not approve decisions, mutate allocation policy, define project agent classes, or widen assigned work.
+
+`trsd capacity build`, `trsd capacity up`, `trsd capacity status`, `trsd capacity logs`, `trsd capacity down`, and `trsd capacity test-local` manage provider runtime lifecycle and diagnostics through reconciliation. Provider check-ins, assignment leases, mode runs, usage actuals, and ledger entries are API control-plane records, not reconciled infrastructure resources.
+
+Architecture-changing capacity work must update the canonical docs above and `docs/package-ownership.md` before it is considered complete.
 
 ## Shared Fixture Model
 
@@ -154,10 +187,11 @@ Hosting and capacity-provider runtime:
 - Non-Node package projects such as TreeDX should declare Treeseed development/release metadata in a package-local `treeseed.package.yaml`. The SDK package adapter reads this file to discover the package id, repository, image target, verify commands, development-image workflow, tag policy, and hosting environment override. Prefer extending this declarative manifest pattern for new package projects instead of adding package-specific CLI logic.
 - Package repositories may require repository-scoped GitHub credentials when they live outside the root repository owner. The canonical key format is `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>`, uppercased with single underscores; for TreeDX this is `TREESEED_GITHUB_TOKEN_TREESEED_AI_TREEDX`. `GH_TOKEN` is only the fallback for repositories without a scoped token.
 - Use `npx trsd db image --branch staging --plan --json` to derive the immutable TreeDX staging image tag, `npx trsd db image --branch staging --sync-config --json` to sync package image credentials from central config into the package GitHub environment, and then the reported `TREESEED_PUBLIC_TREEDX_IMAGE_REF=... npx trsd hosting apply --environment staging --app api --execute --json` command to reconcile API hosting against that image.
-- Capacity-provider runtime, container assets, templates, and lifecycle behavior are owned by `@treeseed/agent`.
+- Capacity-provider runtime, provider API, provider manager, provider runner, AgentKernel execution, mode scheduling, container assets, templates, and lifecycle behavior are owned by `@treeseed/agent`.
 - Use `trsd capacity build`, `trsd capacity up`, `trsd capacity status`, `trsd capacity logs`, `trsd capacity down`, and `trsd capacity test-local` for provider lifecycle work.
 - Provider secrets must be stored through `trsd config` or host secret managers. Do not create plaintext provider env files or render provider API keys into Compose.
-- The package-owned provider image starts `node ./dist/provider/entrypoint.js` with `api`, `manager`, and `runner` roles.
+- The package-owned provider image starts `node ./dist/provider/entrypoint.js` with provider API (`api`), provider manager (`manager`), and provider runner (`runner`) roles.
+- Provider assignments should carry project-scoped TreeDX proxy handles rather than raw TreeDX credentials. Provider runners call the TreeSeed API with the provider API key; the API owns project authorization, TreeDX node credential handling, and forwarding allowed `/v1/dx/projects/:projectId/...` operations.
 
 For agents and automation:
 

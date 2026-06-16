@@ -7,6 +7,10 @@
 
 **Important caveat:** This document refines the architecture in [agent_kernel_capacity_plan.md](agent_kernel_capacity_plan.md). It assumes capacity providers may be unreachable by inbound network calls and therefore coordinates through provider-initiated check-in and durable API records.
 
+**Canonical implementation set:** Use this document as the durable coordination architecture together with [agent-capacity-implementation-roadmap.md](agent-capacity-implementation-roadmap.md), [agent-capacity-domain-model.md](agent-capacity-domain-model.md), [agent-kernel-mode-runtime.md](agent-kernel-mode-runtime.md), and [agent-capacity-operator-surfaces.md](agent-capacity-operator-surfaces.md).
+
+**Package ownership:** `@treeseed/agent` owns provider runtime, provider manager/runner behavior, AgentKernel execution, and mode scheduling. `@treeseed/sdk` owns shared contracts. `@treeseed/api` owns durable coordination records and assignment functions. `@treeseed/core` owns web runtime composition and does not own provider scheduling or agent execution.
+
 ---
 
 ## 1. Executive Summary

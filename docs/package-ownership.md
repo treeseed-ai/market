@@ -25,11 +25,11 @@ The root market app owns the single real hostable `treeseed.site.yaml` in this w
 | `@treeseed/market` | Treeseed-operated public site, marketplace, hosted tenant, docs/content, future ecommerce | Root app, `treeseed.site.yaml`, content, public messaging, overrides, marketplace/ecommerce business logic |
 | `@treeseed/admin` | Distributable AGPLv3 administration portal for organizations | Admin routes, auth/session glue, middleware, API client facades, admin view models, catalog display, secret-manager UI/contracts |
 | `@treeseed/ui` | Reusable Treeseed UI system | Layout-down Astro/React components, shells, forms, controls, cards, dashboards, CSS/theme primitives |
-| `@treeseed/core` | Installable Astro/Starlight Treeseed web runtime | Site layering, content/runtime integration, tenant config loading, plugin hooks, web-only runtime composition, foreground dev entrypoint delegation |
-| `@treeseed/sdk` | Programmatic platform substrate | Config, reconciliation, workflow engine, hosting graph, package workflow discovery, SDK-managed local dev supervisor, shared contracts, graph/content APIs, TreeDX client integration |
-| `@treeseed/api` | Deployed backend control-plane API | Hono API, PostgreSQL adapter/migrations, backend auth, operation lifecycle, operations runner, route descriptors |
+| `@treeseed/core` | Installable Astro/Starlight Treeseed web runtime | Site layering, content/runtime integration, tenant config loading, plugin hooks, web-only runtime composition, foreground dev entrypoint delegation; does not own agent scheduling or provider execution |
+| `@treeseed/sdk` | Programmatic platform substrate | Config, reconciliation, workflow engine, hosting graph, package workflow discovery, SDK-managed local dev supervisor, shared contracts, graph/content APIs, TreeDX client integration, portable agent-capacity contracts |
+| `@treeseed/api` | Deployed backend control-plane API | Hono API, PostgreSQL adapter/migrations, backend auth, operation lifecycle, operations runner, route descriptors, provider sessions, assignment leases, mode-run persistence, capacity ledger coordination |
 | `@treeseed/cli` | Human/operator command surface | `treeseed`/`trsd` command parsing, help, command handlers, terminal reporting, workflow entrypoints over SDK/Core/Agent |
-| `@treeseed/agent` | Capacity-provider and agent runtime | Provider API, manager/runner/worker runtime, capacity scheduling, runtime images/templates |
+| `@treeseed/agent` | Capacity-provider and agent runtime | Provider API, provider manager/runner/worker runtime, AgentKernel execution, mode scheduling, provider-local capacity enforcement, runtime images/templates |
 | `packages/treedx` | Generic repository data/index/query service consumed by Treeseed | TreeDX API, storage, Git/repository graph/indexing, federation, Docker image, language SDKs; no Treeseed product semantics |
 
 ## Dependency Direction
@@ -112,13 +112,18 @@ TreeDX is not an ordinary web dev process. It is run through TreeDX service work
 | Reconciliation, package workflows, config, hosting graph, provider adapters, managed local dev supervision | `@treeseed/sdk` |
 | Backend persistence, API routes, auth backend, operations runner, migrations | `@treeseed/api` |
 | CLI commands, help, terminal reports, workflow command entrypoints | `@treeseed/cli` |
-| Capacity provider manager/runner/worker runtime and provider images | `@treeseed/agent` |
+| Capacity provider manager/runner/worker runtime, AgentKernel execution, mode scheduling, and provider images | `@treeseed/agent` |
 | Generic repository storage, indexing, graph search, snapshots, artifacts | `packages/treedx` |
 
 ## Where New Documentation Belongs
 
 - User/adopter/operator overview: root `README.md` or package README.
 - Package ownership and cross-package boundaries: this document and `AGENTS.md`.
+- Canonical agent capacity implementation roadmap: `docs/agent-capacity-implementation-roadmap.md`.
+- Agent capacity domain terms and shared contract intent: `docs/agent-capacity-domain-model.md`.
+- Provider coordination architecture: `docs/capacity_provider_agent_coordination_architecture.md`.
+- Agent kernel planning/acting runtime behavior: `docs/agent-kernel-mode-runtime.md`.
+- Admin/CLI capacity operator surfaces: `docs/agent-capacity-operator-surfaces.md`.
 - Agent/contributor workflow rules: `AGENTS.md`.
 - Operational procedures and failure handling: runbooks under `docs/`.
 - Deep implementation plans: focused design docs under `docs/`.
@@ -127,11 +132,11 @@ TreeDX is not an ordinary web dev process. It is run through TreeDX service work
 
 ## Secret And Config Ownership
 
-- `sdk` owns config schema loading, environment registry merging, reconciliation primitives, and provider credential routing.
+- `sdk` owns config schema loading, environment registry merging, reconciliation primitives, provider credential routing, and portable capacity/assignment contracts.
 - `core` owns web runtime env schema for generic site behavior.
 - `admin` owns reusable admin env expectations, secret-manager selection UI, host credential forms, unlock/passphrase UX, and diagnostics views.
-- `api` owns backend service credentials, database configuration, operations runner secrets, backend auth, and credential-session persistence.
-- `agent` owns capacity-provider runtime env entries and provider registration/heartbeat settings.
+- `api` owns backend service credentials, database configuration, operations runner secrets, backend auth, credential-session persistence, provider sessions, assignment leases, mode-run records, and usage settlement.
+- `agent` owns capacity-provider runtime env entries, provider registration/check-in settings, provider-local lifecycle, and runtime execution settings.
 - `market` owns tenant-specific values, branding, future ecommerce secrets, and the real hosted site manifest.
 - `ui` owns no secrets.
 - TreeDX owns TreeDX service configuration, auth mode, storage paths, and image workflow credentials.
@@ -167,7 +172,11 @@ TreeDX may store and index files that contain Treeseed content, but it must not 
 
 Admin and market may display capacity provider state and expose configuration workflows.
 
-`@treeseed/agent` owns provider runtime code, provider images, manager/runner/worker services, and runtime tests. `@treeseed/sdk` owns shared contracts and reconciliation. `@treeseed/cli` owns the operator command surface. `@treeseed/api` owns backend control-plane routes and operation state.
+`@treeseed/agent` owns provider runtime code, provider images, provider manager/runner/worker services, AgentKernel execution, mode scheduling, provider-local capacity enforcement, and runtime tests. `@treeseed/sdk` owns shared contracts and reconciliation. `@treeseed/cli` owns the operator command surface. `@treeseed/api` owns backend control-plane routes, provider availability sessions, assignment leases, mode-run records, reservations, and capacity ledger settlement.
+
+Capacity providers supply execution capacity, native budget observations, local runner pressure, availability windows, and execution-provider capabilities. Projects supply agent definitions, agent classes, handlers, prompts, output contracts, and work semantics. The API coordinates the match between project demand and provider supply through durable records; the provider manager only supervises one provider's local runtime.
+
+Infrastructure lifecycle and runtime assignment are separate concerns. `trsd capacity build/up/status/logs/down/test-local` manage provider runtime lifecycle and diagnostics through reconciliation. Provider check-ins, assignments, leases, mode runs, usage actuals, and ledger entries are API control-plane records, not reconciled infrastructure resources.
 
 ## Verification Matrix
 
