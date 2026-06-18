@@ -1439,6 +1439,20 @@ The Stripe webhook endpoint should subscribe to:
 
 Vendors never provide raw Stripe secret keys. TreeSeed creates connected-account onboarding links and uses connected-account request options server-side. This preserves the cooperative governance and ownership model: TreeSeed owns marketplace identity, governance evidence, order terms, entitlement state, service/capacity records, and historical ownership snapshots; Stripe owns payment method handling and connected-account financial rails.
 
+## Current Release Closure
+
+The current release treats the 9 documented phases plus the Marketplace UI and Operations Experience, Stripe Setup Registry, and TreeSeed Commons Governance sections as the ecommerce architecture acceptance boundary.
+
+The completed platform is intentionally split by owner:
+
+- `@treeseed/api` owns persistent marketplace state, route orchestration, PostgreSQL migrations, Stripe server integration, webhooks, refunds, fulfillment, seller monitoring, scoped services, capacity listings/inquiries, and Commons governance records.
+- root `@treeseed/market` owns buyer-facing marketplace discovery, cart, checkout, service request/contract views, capacity inquiry, and Commons participant pages.
+- `@treeseed/admin` owns seller operations, readiness, governance, fulfillment, refunds, capacity trust gates, service workflows, monitoring, and Commons steward operations.
+- `@treeseed/ui` owns reusable, Stripe-free, theme-native commerce and governance components.
+- `@treeseed/core` remains web runtime composition only and does not own API, PostgreSQL, migrations, operations-runner, Stripe, or ecommerce backend behavior.
+
+Release, staging, and local-dev commands must preserve these boundaries. Documentation-only releases should still use the same branch/worktree workflow as code releases: switch into a managed worktree, save the branch, plan staging, execute staging, wait for configured gates, and remove the task branch/worktree only after success.
+
 ## Testing Plan
 
 ## TreeSeed Commons Governance
@@ -1501,4 +1515,4 @@ After implementation work begins, minimum verification should include:
 - Capacity listings are modeled only as trust-gated marketplace foundations in this phase.
 - Cooperative ownership records are foundational even before commission splitting, payout allocation, or automated voting exists.
 - Ownership, stewardship, contribution, and governance records must be modeled separately from Stripe settlement.
-- Root market or a future market-commerce plugin owns checkout and ecommerce implementation, not `@treeseed/admin`.
+- Root market owns buyer checkout and ecommerce participant pages; `@treeseed/api` owns backend ecommerce state and Stripe server behavior; `@treeseed/admin` remains seller operations and governance only.

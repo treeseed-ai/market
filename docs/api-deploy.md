@@ -6,7 +6,7 @@ This runbook is the operator path for deploying the current Treeseed Market arch
 
 The current deployment shape is:
 
-- root Market repo: Cloudflare web UI, knowledge hub, public content, Treeseed messaging, page overrides, future ecommerce, and `/v1/*` proxy/client only
+- root Market repo: Cloudflare web UI, knowledge hub, public content, Treeseed messaging, page overrides, buyer marketplace/Commons pages, and `/v1/*` proxy/client only
 - `packages/admin`: admin routes, middleware, auth/session UI, API client facades, and admin view models layered into the root web app
 - `packages/ui`: reusable components and styles consumed by Market/Admin/Core
 - `packages/api`: Railway API plus Treeseed operations runner
@@ -101,6 +101,16 @@ Required for web/API trust:
 - `TREESEED_API_BASE_URL`
 - `TREESEED_SITE_URL`
 - `BETTER_AUTH_URL`
+
+Required for ecommerce Stripe behavior when marketplace checkout, Connect onboarding, Product/Price sync, webhooks, or refunds are enabled:
+
+- `TREESEED_STRIPE_SECRET_KEY`
+- `TREESEED_STRIPE_PUBLISHABLE_KEY`
+- `TREESEED_STRIPE_WEBHOOK_SECRET`
+- `TREESEED_STRIPE_MODE`
+- `TREESEED_STRIPE_CONNECT_ACCOUNT_TYPE`
+
+The Stripe webhook endpoint is `/v1/commerce/webhooks/stripe`. Required events are `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, and `invoice.payment_failed`. Vendors never provide raw Stripe secret keys; TreeSeed manages connected-account onboarding through the API.
 
 Provider credentials required by enabled operations:
 
@@ -198,12 +208,14 @@ The deploy workflow runs `runner-smoke` before `bootstrap-public-treedx`. TreeDX
 
 ## Save And Stage
 
-Checkpoint local work:
+Checkpoint local work from the current task branch or managed task worktree:
 
 ```bash
 npx trsd status --json
 npx trsd save --verify local --json "complete API package migration"
 ```
+
+`save` records package commits first, updates root pointers, and preserves the current task branch history. It should not mutate staging.
 
 Plan staging before mutating:
 
@@ -222,6 +234,8 @@ The plan must show:
 - runner start command `npm run start:runner`
 - API database targets `api` and `operationsRunner`
 - readiness blockers before deploy work begins
+
+If the task is running in a managed worktree, the worktree path should match the branch slug under `.treeseed/worktrees/<branch-slug>`. A successful `stage` merges the task branch into `staging`, runs the selected package/root/reconcile gates, and removes the staged branch/worktree. If a package or root merge conflicts, the workflow must capture the conflict report, abort the merge where possible, and stop before deploying.
 
 Execute staging with live hosted checks:
 

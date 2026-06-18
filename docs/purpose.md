@@ -14,7 +14,7 @@ Organizations use TreeSeed to coordinate AI-assisted operational work without lo
 
 TreeSeed is delivered as a hosted market/admin platform and as a package-based system:
 
-- Market is the Treeseed-operated public site, marketplace, content surface, and future ecommerce layer.
+- Market is the Treeseed-operated public site, buyer marketplace, content surface, and Commons participant layer.
 - Admin is the distributable organization portal for teams, projects, hosts, work, knowledge, and operations.
 - API is the backend control plane and operations runner.
 - Agent runs external capacity providers.

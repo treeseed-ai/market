@@ -12,7 +12,7 @@ See [Package Ownership](./package-ownership.md) for the current package map.
 - `@treeseed/cli` exposes the command surface that invokes SDK reconciliation.
 - `@treeseed/core` contributes web runtime and web-only desired state.
 - `@treeseed/admin` contributes site/plugin/runtime/admin surfaces, routes, middleware, and env schema; it does not own hosted infrastructure and has no package-local `treeseed.site.yaml`.
-- root `@treeseed/market` owns the real hostable `treeseed.site.yaml`, public content, page overrides, and future ecommerce/business policy.
+- root `@treeseed/market` owns the real hostable `treeseed.site.yaml`, public content, page overrides, buyer marketplace pages, Commons participant pages, and business policy.
 - `@treeseed/api` owns API, operations runner, PostgreSQL, backend route descriptors, and public TreeDX federation app desired state.
 - `@treeseed/agent` owns capacity-provider runtime artifacts and provider desired state.
 - `packages/treedx` owns the TreeDX image/service artifact; API hosting consumes selected TreeDX images.
@@ -79,6 +79,10 @@ Examples:
 The graph compiler is SDK-owned. Hosting graph APIs, config sync, dev orchestration, package image commands, capacity lifecycle commands, stage, and release can expose specialized CLI surfaces, but they must consume the same compiled graph model. Legacy hosting graph apply is only a deprecated facade over `reconcileTreeseedTarget`; it must not call provider deploy helpers directly.
 
 Task-branch Git workflow commands remain SDK-owned and GitRunner-backed. `trsd update --from staging` is the canonical inverse of `stage`: it merges staging down into the current task branch across the root repo and checked-out package repos, including manifest-only packages such as TreeDX. It does not mutate providers or hosted resources; all Git reads and mutations go through GitRunner.
+
+Managed task worktrees use branch-aligned paths under `.treeseed/worktrees/<branch-slug>` and a branch may have only one active managed worktree. Stale or unregistered paths below `.treeseed/worktrees` must fail closed instead of resolving upward into the parent root repository. Save, update, stage, and close commands should therefore operate on the intended checkout or stop with a clear recovery message.
+
+Merge and rebase conflicts are expected workflow states, not partial failures to push through. `update` and `stage` must capture the conflicted files and package roots, abort the in-progress integration where possible, leave repositories clean or explicitly blocked, and report the smallest next command. They must not leave staging, task branches, or package repositories half-merged.
 
 ## Adapter Contract
 

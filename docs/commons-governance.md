@@ -46,3 +46,17 @@ The API persists Commons participants, questions, proposals, backings, votes, de
 Admin owns steward operations under `/app/commons`. Root market owns participant-facing Commons pages under `/commons`.
 
 The Commons layer reuses existing team membership, authentication, route descriptors, API acceptance metadata, and UI package components. It does not create a new ecommerce subsystem and does not change marketplace order, entitlement, Stripe, refund, service, or capacity behavior.
+
+## Release Boundary
+
+Commons is part of the current TreeSeed governance release, not a future legal membership system. It proves the same cooperative governance and ownership model used by ecommerce products can also guide TreeSeed platform priorities.
+
+Release and staging workflows should treat Commons changes like other cross-surface platform changes:
+
+- SDK owns shared contracts and route metadata.
+- API owns persistence and steward/participant route behavior.
+- UI owns reusable governance components.
+- root market owns participant pages.
+- Admin owns steward operations.
+
+No Commons release may add legal cooperative member ledgers, equity-like rights, patronage ledgers, payout allocation, revenue split behavior, token credits, or automatic roadmap authority.

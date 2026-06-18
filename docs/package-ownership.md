@@ -22,7 +22,7 @@ The root market app owns the single real hostable `treeseed.site.yaml` in this w
 
 | Package | Audience-Level Purpose | Implementation Ownership |
 | --- | --- | --- |
-| `@treeseed/market` | Treeseed-operated public site, marketplace, hosted tenant, docs/content, future ecommerce | Root app, `treeseed.site.yaml`, content, public messaging, overrides, marketplace/ecommerce business logic |
+| `@treeseed/market` | Treeseed-operated public site, buyer marketplace, hosted tenant, docs/content, and Commons participant surfaces | Root app, `treeseed.site.yaml`, content, public messaging, overrides, buyer marketplace/cart/checkout/service/capacity/Commons pages |
 | `@treeseed/admin` | Distributable AGPLv3 administration portal for organizations | Admin routes, auth/session glue, middleware, API client facades, admin view models, catalog display, secret-manager UI/contracts |
 | `@treeseed/ui` | Reusable Treeseed UI system | Layout-down Astro/React components, shells, forms, controls, cards, dashboards, CSS/theme primitives |
 | `@treeseed/core` | Installable Astro/Starlight Treeseed web runtime | Site layering, content/runtime integration, tenant config loading, plugin hooks, web-only runtime composition, foreground dev entrypoint delegation |
@@ -104,7 +104,9 @@ TreeDX is not an ordinary web dev process. It is run through TreeDX service work
 | New Functionality | Owner |
 | --- | --- |
 | Treeseed public messaging, product pages, docs content, marketplace business pages | root market |
-| Checkout, billing, coupons, invoices, subscriptions, licensing, seller payouts | root market or future market-commerce plugin |
+| Buyer marketplace, cart, grouped checkout UI, service checkout UI, capacity discovery/inquiry pages, Commons participant pages | root market |
+| Commerce backend records, route orchestration, Stripe server calls, webhooks, refunds, fulfillment, seller monitoring, Commons governance APIs | `@treeseed/api` |
+| Theme-native commerce/governance panels, cards, timelines, and status components | `@treeseed/ui` |
 | Generic admin pages, host/project/team/work/knowledge screens, admin middleware | `@treeseed/admin` |
 | Admin reusable visual components once they are generic | `@treeseed/ui` |
 | Theme tokens, app shell controls, cards, form controls, charts, status panels | `@treeseed/ui` |
@@ -132,7 +134,7 @@ TreeDX is not an ordinary web dev process. It is run through TreeDX service work
 - `admin` owns reusable admin env expectations, secret-manager selection UI, host credential forms, unlock/passphrase UX, and diagnostics views.
 - `api` owns backend service credentials, database configuration, operations runner secrets, backend auth, and credential-session persistence.
 - `agent` owns capacity-provider runtime env entries and provider registration/heartbeat settings.
-- `market` owns tenant-specific values, branding, future ecommerce secrets, and the real hosted site manifest.
+- `market` owns tenant-specific values, branding, buyer-facing marketplace copy, and the real hosted site manifest.
 - `ui` owns no secrets.
 - TreeDX owns TreeDX service configuration, auth mode, storage paths, and image workflow credentials.
 
@@ -149,13 +151,24 @@ Examples:
 
 Public npm package publish tokens belong in the package repository GitHub `production` environment as `NPM_TOKEN`. Deploy-only/private packages may still use GitHub environments for deployment secrets, but they are not part of the public npm release list.
 
-## Ecommerce Boundary
+## Ecommerce And Commons Boundary
 
-`@treeseed/admin` is not an ecommerce package.
+`@treeseed/admin` is not a buyer checkout or payment package.
 
-Admin may display catalog, free, private, contact, and externally fulfilled offer metadata. Payment processing, checkout, billing, subscriptions, coupons, license grants, seller payouts, entitlement enforcement, and commercial support packaging belong in root market or a future market-commerce plugin layered above admin.
+The completed ecommerce architecture is split by surface:
+
+- root market owns buyer-facing marketplace discovery, cart review, Stripe Elements checkout, service request views, service checkout, capacity discovery/inquiry, and Commons participant pages.
+- `@treeseed/api` owns backend ecommerce and Commons state: vendors, products, offers, prices, ownership, stewardship, contributions, governance policies, orders, payment groups, subscriptions, entitlements, refunds, fulfillment, scoped services, capacity listings/inquiries, marketplace aggregation, seller monitoring, webhooks, and governance events.
+- `@treeseed/admin` owns seller setup, seller operations, governance, readiness, monitoring, fulfillment, refunds, capacity trust gates, service operations, and Commons steward operations through HTTP/API facades.
+- `@treeseed/ui` owns reusable, Stripe-free, theme-native commerce and governance components.
+
+Admin must remain Stripe-free, checkout-free, payout-free, commission-free, and capacity-execution-free. It may link sellers or stewards to root-market buyer flows where appropriate, but it must not initialize Stripe Elements, create PaymentIntents, handle webhooks, or mutate provider execution resources.
 
 Internal deployments must be able to use admin without Treeseed checkout or billing machinery.
+
+The ecommerce model intentionally does not include commissions, application fees, seller payout ledgers, revenue splits, benefit payout allocation, generalized capacity credits, marketplace capacity reservations, marketplace grants, routing decisions, hosted third-party execution, legacy `paid` offer mode, or compatibility aliases. Contributor `benefitWeight` is attribution/governance metadata, not a payout allocation rule.
+
+TreeSeed Commons governance creates participant signal, questions, proposals, votes, delegations, and steward decisions. Registration creates a governance identity, not legal cooperative membership, patronage rights, equity-like claims, or unbounded roadmap authority.
 
 ## TreeDX Boundary
 
