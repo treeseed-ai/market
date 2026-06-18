@@ -1117,7 +1117,7 @@ Tests must assert:
 * hosted project repos get `deploy-web.yml`.
 * market control plane gets `deploy-web.yml` and `hosted-project.yml`.
 * web workflows do not include processing/capacity-provider deployment actions.
-* hosted project deploy workflow does not include `RAILWAY_API_TOKEN`.
+* hosted project deploy workflow does not include `TREESEED_RAILWAY_API_TOKEN`.
 * hosted project deploy workflow does not include capacity-provider secrets.
 
 ---

@@ -104,11 +104,11 @@ Required for web/API trust:
 
 Provider credentials required by enabled operations:
 
-- `GH_TOKEN` or `GITHUB_TOKEN`
-- `RAILWAY_API_TOKEN`
+- `TREESEED_GITHUB_TOKEN`
+- `TREESEED_RAILWAY_API_TOKEN`
 - `TREESEED_RAILWAY_WORKSPACE`
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
+- `TREESEED_CLOUDFLARE_API_TOKEN`
+- `TREESEED_CLOUDFLARE_ACCOUNT_ID`
 - SMTP/email provider credentials when email is enabled
 
 The Cloudflare token should use the dashboard permission names. Account-wide permissions for Treeseed web/live reconciliation are Pages Write, Workers Scripts Write, Workers KV Storage Write, Workers R2 Storage Write, D1 Write, Queues Write, Turnstile Sites Write, Account Rulesets Write, and Account Rule Lists Write. The target zone needs Zone Read, DNS Write, Cache Settings Write, and SSL and Certificates Write. Cloudflare API docs may call Cache Settings the Cache Rules permission, and Account Rule Lists the Account Filter Lists permission.

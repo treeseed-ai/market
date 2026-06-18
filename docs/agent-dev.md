@@ -1302,7 +1302,7 @@ TREESEED_CODEX_SANDBOX_MODE=workspace_write
 TREESEED_CODEX_TIMEOUT_MS=900000
 TREESEED_CODEX_AUTH_FILE=~/.codex/auth.json
 # Optional API-billed fallback:
-# CODEX_API_KEY=...
+# TREESEED_CODEX_API_KEY=...
 ```
 
 For subscription-backed Codex, run Codex login and make sure `~/.codex/auth.json` exists. On a service host, copy that file to a secret-managed location and set `TREESEED_CODEX_AUTH_FILE` when it is not at the default path. Treat `auth.json` like a secret: do not commit it or print it.
@@ -1316,7 +1316,7 @@ and sync it to the provider host. Do not overwrite the file on every boot; Codex
 may refresh `auth.json`, and the refreshed file on `/data` is the source of
 truth until an intentional auth rotation.
 
-Use `CODEX_API_KEY` only when API billing is intended. Create or find an API key at `https://platform.openai.com/api-keys`, store it only in the local/hosting secret environment, and never commit or print it. If this is the first API key on the account, OpenAI may require phone verification before key creation.
+Use `TREESEED_CODEX_API_KEY` only when API billing is intended. Create or find an API key at `https://platform.openai.com/api-keys`, store it only in the local/hosting secret environment, and never commit or print it. The Codex adapter translates it to `CODEX_API_KEY` only inside the Codex execution boundary. If this is the first API key on the account, OpenAI may require phone verification before key creation.
 
 Configuration object:
 

@@ -83,6 +83,8 @@ For non-git projects, Treeseed falls back to a user-cache index keyed by project
 
 Runtime ownership is worktree-scoped. Main, staging, and every feature worktree can run its own managed dev instance at the same time.
 
+Workflow checkpoint ownership follows the same worktree boundary for ordinary task saves. `trsd save` records its workflow lock and journal in the current physical worktree so a checkpoint in one feature worktree does not block unrelated work in another feature worktree, even while a sibling worktree is staging. Promotion commands remain repository-family serialized: `trsd stage` and `trsd release` use the shared primary checkout workflow lock because they mutate shared staging or production state.
+
 The default worktree keeps the familiar ports when they are free:
 
 - web: `4321`

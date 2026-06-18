@@ -96,22 +96,24 @@ Non-responsibilities:
 - running a separate scheduler daemon for cross-provider coordination;
 - directly controlling provider-local model, tool, or runner internals.
 
-The API's assignment function is request-scoped. It can run during provider check-in, next-assignment requests, or explicit user/admin actions. It should be deterministic, idempotent, bounded, and explainable.
+The API's assignment function is request-scoped. It can run during provider check-in, next-assignment requests, or explicit user/admin actions. It is deterministic, idempotent, bounded, and explainable. The implemented function rejects candidates unless the provider is active, the provider has an open availability session inside any reported availability window, required work-unit and project-agent-class capabilities are covered by provider/session capabilities, at least one active matching grant is also reported in the provider session check-in, attached workdays are active, acting work has accepted/scheduled/active capacity-plan provenance and ready or waived readiness, and runner pressure has room for another lease.
 
 ### TreeDX Access Boundary
 
 TreeSeed agents and capacity-provider runners should not receive raw TreeDX service URLs and bearer tokens as their normal content-repository interface. The TreeSeed API/control plane should expose authenticated, project-scoped DX routes, such as `/v1/dx/projects/:projectId/...`, and should perform the following responsibilities before forwarding to TreeDX:
 
 - authenticate the caller as either a TreeSeed user/service principal with project access or a same-team capacity provider with the required provider task scopes;
+- for provider callers, require `x-treeseed-assignment-id` and `x-treeseed-treedx-proxy-handle-id`, then verify the provider owns the active leased assignment and the handle matches team, project, assignment, repository, workspace, expiry, revocation state, allowed operation, and allowed path scope;
 - resolve the project library and repository topology to the correct private or public TreeDX node;
 - hold and rotate the TreeDX node credential or node-to-node trust token;
 - verify that repository and workspace operations are scoped to the project binding;
 - forward only allowed TreeDX operations such as file read/write, workspace search, commit, context build, and repository readback;
-- redact TreeDX credentials from provider task payloads, audit logs, reports, and UI surfaces.
+- record project-visible TreeDX proxy audit rows for successful and denied provider calls;
+- redact TreeDX credentials from provider assignment payloads, audit logs, reports, and UI surfaces.
 
 Local and production TreeDX authentication should use the same connected-auth process. TreeDX verifies a scoped JWT or configured trust token issued for a TreeSeed API service principal; local development must not depend on TreeDX dev-token shortcuts or hardcoded demo principals. The SDK/reconciler declares the TreeDX issuer, audience, signing secret reference, bootstrap trust actor, tenant, and capability envelope for each local or hosted TreeDX instance. TreeDX remains product-neutral: it only consumes the configured trust grant, while TreeSeed owns the mapping from authenticated TreeSeed users/capacity providers to project-scoped DX proxy calls.
 
-The provider task payload should therefore include a DX proxy handle rather than a TreeDX credential:
+The provider assignment payload should therefore include a DX proxy handle rather than a TreeDX credential:
 
 ```json
 {
@@ -127,7 +129,9 @@ The provider task payload should therefore include a DX proxy handle rather than
 }
 ```
 
-Provider runners call this proxy using `TREESEED_CAPACITY_PROVIDER_API_KEY`. This keeps TreeDX behind TreeSeed's team/project authorization boundary while still allowing the agent to read injected markdown context, stage content changes, commit workspaces, and verify readback through the same path a production private TreeDX deployment will use.
+Provider runners call this proxy using `TREESEED_CAPACITY_PROVIDER_API_KEY` plus the active assignment id and proxy handle id. The package-owned runner hydrates `AgentContext.treeDx` from the assignment handle, applies handle-bound defaults locally, and rejects out-of-scope handler requests before calling the API. Project handlers can read injected markdown context, stage content changes, commit workspaces, and verify readback through the same path a production private TreeDX deployment will use.
+
+Provider assignments also carry a redacted `capabilityHandles` bundle for repository access, TreeDX workspace access, workflow-operation dispatch, and secret-use references. The provider runner hydrates `AgentContext.capacity.capabilityHandles` and `workspaceAccessMode` from that bundle. Workflow operations use the assignment-scoped provider route and a matching handle id; providers must not receive GitHub App installation tokens, deploy keys, TreeDX node credentials, or customer project secret values.
 
 ### Project
 
@@ -674,7 +678,11 @@ The implemented next-assignment route performs bounded request-scoped synthesis,
 POST /v1/provider/assignments/next
 ```
 
-This route runs bounded deterministic selection against `ProviderAssignment` records for the authenticated provider. Before selection, the API can synthesize idempotent assignments from open planning input requests and accepted capacity-plan work units. Accepted decision execution inputs must first be aggregated into a durable capacity plan and accepted before acting synthesis. It does not synthesize assignments from legacy task queues or create a central long-running scheduler daemon.
+This route runs bounded deterministic selection against `ProviderAssignment` records for the authenticated provider. Before selection, the API can synthesize idempotent assignments from open planning input requests and accepted capacity-plan work units. Accepted decision execution inputs must first be aggregated into a durable capacity plan and accepted before acting synthesis. Acting synthesis creates a reservation, attaches allocation policy version context when known, records the checked-in grant id in reservation metadata, and requires referenced workdays to be active. It does not synthesize assignments from legacy task queues or create a central long-running scheduler daemon.
+
+Assignment responses and explanation records include selected and blocked eligibility metadata. Stable reason codes include `missing_required_capability`, `missing_checked_in_grant`, `outside_availability_window`, `runner_pressure_exhausted`, `capacity_plan_not_ready`, `decision_readiness_not_ready`, `workday_not_active`, and `allocation_exhausted`. Eligible assignments are sorted by priority descending, assigned/created time ascending, and id ascending.
+
+Legacy provider task routes are removed. Providers use check-in, next assignment, renew lease, create mode run, complete assignment, return assignment, fail assignment, and usage report endpoints as the runtime contract.
 
 ---
 
@@ -956,6 +964,8 @@ Summaries can roll up by:
 - allocation policy.
 
 Provider actuals are facts. TreeSeed settlement converts those facts into normalized credits using the SDK capacity model, learned conversion profiles, native limits, observations, reservations, and allocation policy. This preserves the dynamic capacity architecture where humans configure native/provider policy and TreeSeed derives credit availability.
+
+Assignment lifecycle settlement is automatic at the API boundary. Lease/start writes `task_started` and moves a reserved reservation into consuming state. Completion links mode-run and usage actuals, writes `task_completed_actual_settlement`, updates consumed credits/native usage/USD, and releases unused reserved capacity. Return and retryable failure write `reservation_released`; nonretryable failure writes `task_failed_refund`. Allocation/grant exhaustion blocks reservation creation with an explanation unless the active grant's overflow policy requires approval, in which case the API creates an overrun hold instead of leasing runnable work.
 
 ---
 

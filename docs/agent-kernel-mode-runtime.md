@@ -46,16 +46,19 @@ The assignment decides the outer scope. The envelope decides budget and capabili
 
 The implemented `AgentContext.capacity` field is optional so existing handlers continue to run outside provider assignment execution. When present, it includes assignment id, provider id, selected mode, capacity envelope, decision input, project agent class/profile/policy metadata, source assignment, readiness metadata, and TreeDX proxy handle metadata.
 
+The implemented `AgentContext.treeDx` field is also optional. Provider runners hydrate it only from assignment proxy handles, apply handle-bound repository/workspace/path/operation defaults locally, and call TreeSeed `/v1/dx/projects/:projectId/...` proxy routes with provider auth, assignment id, and proxy handle id. Handlers can build context, read repository files, search workspaces, write workspace files, commit workspaces, and read back results through that adapter without seeing raw TreeDX service credentials.
+
 ## Mode Selection
 
 Mode selection is API- and kernel-coordinated:
 
 - API selects eligible demand and issues an assignment with a target mode.
+- `ModeScheduler`, `QueueObserver`, and `PriorityResolver` provide the kernel-local decision point for planning, acting, fallback, or idle behavior within the assignment envelope.
 - Kernel validates that the project agent profile supports the mode.
 - Kernel maps assignment context into a bounded handler invocation.
 - Kernel applies fallback only within the assignment's allowed mode and output types.
 
-If the assignment is invalid, unsupported, expired, or outside provider capability, the kernel returns a structured bounded result instead of widening scope. Provider runner maps retryable bounded results to assignment return when the provider client supports return semantics, and maps non-retryable results to assignment failure.
+If the assignment is invalid, unsupported, expired, missing acting reservation capacity, outside provider capability, or past retry policy, the kernel returns a structured bounded result instead of widening scope. Provider runner maps retryable bounded results to assignment return when the provider client supports return semantics, and maps non-retryable results to assignment failure.
 
 ## Planning Budget
 
@@ -89,13 +92,15 @@ The kernel must enforce:
 
 - mode
 - budget
+- reserved acting capacity
 - lease window
 - output contract
-- capability grants
+- capability grants and assignment eligibility metadata
 - tool access
 - repository/workspace scope
 - acting readiness state when supplied by the assignment
 - TreeDX proxy handle project/assignment scope and expiry
+- explicit output contracts on the assignment, such as allowed statuses and output types
 - maximum attempts
 - fallback limits
 
@@ -139,7 +144,7 @@ Acting fallback examples:
 - no acting work in assignment -> return assignment
 - repeated failure -> create weakness proposal if policy allows
 
-Every fallback emits a reason on the `AgentModeRun`.
+Every fallback emits a reason on the `AgentModeRun`. When the provider runner maps a bounded fallback to assignment return or failure, the same fallback can be persisted as an `AgentFallbackOutput` for operator review.
 
 ## Telemetry
 

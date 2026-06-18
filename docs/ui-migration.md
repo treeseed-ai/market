@@ -1679,12 +1679,12 @@ Do not add demo-specific app functionality.
 Use:
 
 ```bash
-npx trsd dev --surfaces web,api --setup auto
+npx trsd dev start --web-runtime local --setup auto
 npx trsd auth:login --market local
 npx trsd seed treeseed --environments local --validate
 npx trsd seed treeseed --environments local --plan
 npx trsd seed treeseed --environments local --apply --json
-npx trsd dev:manager --with-worker --docs-automation dry-run --approval-policy manual --workday-id local-docs-1 --capacity-budget 500
+npm -w packages/agent run capacity-provider:test-local
 ```
 
 The demo environment should be real:

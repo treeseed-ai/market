@@ -29,7 +29,7 @@ The implementation boundary is:
 
 ## Phase 1: Contracts And Durable Records
 
-Status: implemented as the contracts-and-persistence foundation. The current implementation adds the SDK contract surface and durable API records while preserving the legacy provider task-claim path.
+Status: implemented as the contracts-and-persistence foundation. The current implementation adds the SDK contract surface and durable API records used by the assignment-only provider runtime.
 
 Goal: create the shared language and persistence substrate before changing runtime behavior.
 
@@ -38,7 +38,7 @@ Implemented boundaries:
 - SDK-owned contracts are exported from `@treeseed/sdk/agent-capacity` for allocation sets, project agent classes, agent kernel policy/profile, capacity envelopes, decision execution input, capacity plans, provider availability sessions, provider assignments, mode runs, and usage settlement.
 - API migration `0005_agent_capacity_coordination.sql` adds durable allocation-set, project-agent-class, provider-session, assignment, and mode-run tables plus nullable bridge columns for reservations, ledger entries, and usage actuals.
 - API route descriptors and `MarketClient` methods cover allocation sets, project agent classes, provider sessions, assignments, and mode runs.
-- Compatibility with the current task-claim provider protocol is preserved. New records exist beside existing task records; Phase 2 moves runtime coordination toward assignment/session semantics.
+- Legacy provider task-claim protocol compatibility has been removed from the provider runtime contract. Provider execution is coordinated through provider sessions and assignment lifecycle APIs only.
 - Conversion helpers define boundaries from existing `CapacityProvider`, `CapacityGrant`, current `CapacityPlan`, reservations, and usage actuals into the new domain model.
 - Fixture coverage creates one team, two projects, two project agent classes, one local provider, one OpenAI-like execution provider, one planning assignment, one acting assignment, and linked mode-run usage telemetry.
 
@@ -56,7 +56,7 @@ Completed by later phases and gap closure:
 
 ## Phase 2: Provider Check-In And Assignment Lifecycle
 
-Status: implemented as a provider check-in and assignment lease lifecycle. Provider check-in records generic supply, and provider runners poll `ProviderAssignment` records through outbound API calls. Gap closure extends check-in/next-assignment to synthesize deterministic assignments from explicit readiness and planning records.
+Status: implemented as a provider check-in and assignment lease lifecycle. Provider check-in records generic supply, and provider runners poll `ProviderAssignment` records through outbound API calls. Gap closure extends check-in/next-assignment to synthesize deterministic assignments from explicit readiness and planning records and to reject ineligible assignments at both synthesis and lease time.
 
 Goal: move coordination from task claiming toward provider-initiated availability sessions and leased assignments.
 
@@ -64,8 +64,9 @@ Implemented boundaries:
 
 - Provider check-in route records availability, grants, execution providers, native limits, runner pressure, and provider-local constraints.
 - Provider next-assignment route leases eligible `ProviderAssignment` records and first performs bounded request-scoped synthesis from open planning input requests and accepted capacity-plan work units.
-- Lease-renewal, return, complete, and fail routes update `ProviderAssignment` lifecycle state with runner id, lease token, lifecycle reason/code, and output summary.
-- The provider runner in `@treeseed/agent` is assignment-only. Legacy task-claim routes remain for compatibility, but package-owned provider polling uses assignment lifecycle routes.
+- The shared assignment eligibility function requires an active provider, an open provider session inside its availability window, matching checked-in active grants, required capabilities, active workday state when attached, accepted/scheduled/active capacity-plan provenance for acting, ready or waived readiness for acting, and available runner concurrency.
+- Lease-renewal, return, complete, and fail routes update `ProviderAssignment` lifecycle state with runner id, lease token, lifecycle reason/code, output summary, and ledger settlement.
+- The provider runner in `@treeseed/agent` is assignment-only. Legacy provider task HTTP routes and provider-client task methods have been removed.
 - Provider runners consume scoped project-agent assignment context and emit mode-run telemetry through the assignment route.
 
 Acceptance criteria:
@@ -78,7 +79,7 @@ Completed by Phase 3 and gap closure:
 
 - Phase 3 implemented AgentKernel-native planning/acting execution and fallback behavior.
 - Gap closure added deterministic synthesis from open planning input requests and accepted capacity-plan work units. Accepted decision execution inputs must first be aggregated into a durable capacity plan and accepted before acting assignments are synthesized. Synthesis from legacy task queues and long-running scheduler daemons remains out of scope.
-- Project-scoped TreeDX proxy handles can be attached to synthesized assignments and all API proxy use is audited without exposing raw TreeDX credentials.
+- Project-scoped TreeDX proxy handles can be attached to synthesized assignments and are also recorded as durable handle records when created through assignment APIs. Provider-key TreeDX proxy calls require a matching active assignment lease and proxy handle id on every request; the API enforces repository, workspace, operation, path, expiry, and revocation constraints where present. Successful and denied provider proxy calls are recorded as project-visible audit rows without exposing raw TreeDX credentials.
 
 ## Phase 3: Agent Kernel Mode Runtime
 
@@ -90,11 +91,13 @@ Implemented boundaries:
 
 - SDK exports Phase 3 kernel-mode contracts and pure helpers from `@treeseed/sdk/agent-capacity`, including assignment-to-envelope conversion, assignment-to-decision-input conversion, mode validation, and bounded fallback helpers.
 - `AgentContext` carries optional assignment capacity context for provider-assigned work: selected mode, capacity envelope, decision input, project agent class/profile/policy, assignment id, provider id, readiness, and TreeDX proxy handle metadata.
-- `AgentKernel.runAssignment` validates mode, lease, class/profile bounds, envelope scope, decision-input scope, acting readiness, and TreeDX proxy handle scope before resolving a project-owned handler.
+- `AgentContext.treeDx` exposes a first-class assignment-scoped TreeDX adapter when a provider assignment carries a valid proxy handle. The adapter applies handle defaults and rejects out-of-scope repository, workspace, operation, and path requests before calling the API. Handlers use it for context build, repository file readback, workspace search, workspace file mutation, and commit operations instead of receiving raw TreeDX credentials.
+- `AgentKernel.runAssignment` validates mode, lease, class/profile bounds, envelope scope, reserved acting capacity, decision-input scope, acting readiness, accepted capacity-plan provenance for acting, assignment capability eligibility metadata, TreeDX proxy handle scope, retry policy, and explicit output contracts before resolving or accepting a project-owned handler result.
+- `@treeseed/agent` now exposes kernel scheduling components (`ModeScheduler`, `QueueObserver`, `PriorityResolver`, `FallbackController`, and `OutputValidator`) for bounded mode decisions and fallback persistence without adding a central scheduler daemon.
 - The provider runner executes leased assignments through `AgentKernel.runAssignment` and reports mode-run telemetry through the existing provider assignment route.
 - Mode-run telemetry records running and terminal attempts with selected input, capacity envelope, validation/fallback detail, and lower-level `AgentRunTrace` references when handler execution reaches the trace path.
 - Invalid or unsupported assignments are bounded and observable. Retryable runtime gaps can be returned when the provider client supports return semantics; non-retryable mode/profile violations fail without executing handlers.
-- Existing legacy task routes remain available for compatibility, but the package-owned provider runner remains assignment-only.
+- Legacy provider task routes are intentionally absent. Provider runtime execution uses check-in, next assignment, renew, mode-run, complete, return/fail, and usage routes.
 
 Acceptance criteria:
 
@@ -107,6 +110,7 @@ Still out of scope:
 - Long-running scheduler daemons and synthesis from legacy task queues.
 - Full optimization across all queues, provider pressure, and borrowing policies.
 - Product-specific fallback proposal drafting beyond durable fallback-output records and bounded kernel outcomes.
+- Full optimization across all candidate queues, borrowing policies, and provider pressure remains incremental; the implemented scheduler surface is the local kernel decision point.
 
 ## Phase 4: Admin And CLI Operator Surfaces
 
@@ -116,15 +120,15 @@ Goal: give operators enough visibility to trust allocation, assignment, and runt
 
 Implemented boundaries:
 
-- Admin displays allocation-set versions, portfolio/project/agent-class allocation, planning/acting splits, provider sessions, assignment status, mode runs, usage, blockers, and drift between policy and actual usage.
-- CLI exposes JSON-first commands for capacity plan inspection, provider status, session/assignment diagnostics, decision readiness, execution inputs, workday summaries, assignment explanations, local runtime proof, and mode-run inspection.
+- Admin displays allocation-set versions, portfolio/project/agent-class allocation, planning/acting splits, provider sessions, assignment status, mode runs, usage, fallback outputs, TreeDX proxy audit rows, blockers, and drift between policy and actual usage.
+- CLI exposes JSON-first commands for capacity plan inspection, provider status, session/assignment diagnostics, decision readiness, execution inputs, workday summaries, assignment explanations, fallback outputs, TreeDX proxy audits, local runtime proof, and mode-run inspection.
 - UI and CLI must distinguish configuration, live observation, reconciler-backed lifecycle, and durable runtime records.
 - Avoid making Admin or CLI own scheduling logic; both consume API/SDK contracts.
 
 Acceptance criteria:
 
-- Admin exposes `/app/capacity/runtime` with allocation-set versions, project agent classes, provider sessions, provider assignments, and project mode-run telemetry.
-- CLI exposes `trsd capacity allocation-sets`, `agent-classes`, `provider-sessions`, `assignments`, `mode-runs`, `decision-planning`, `execution-inputs`, `workday`, `workday-summary`, and `assignment-explanation` as JSON-first read commands beside the existing lifecycle verbs.
+- Admin exposes `/app/capacity/runtime` with allocation-set versions, project agent classes, provider sessions, provider assignments, project mode-run telemetry, fallback outputs, and TreeDX proxy audit evidence.
+- CLI exposes `trsd capacity allocation-sets`, `agent-classes`, `provider-sessions`, `assignments`, `mode-runs`, `decision-planning`, `execution-inputs`, `workday`, `workday-summary`, `assignment-explanation`, `fallback-outputs`, and `treedx-proxy-audit` as JSON-first read commands beside the existing lifecycle verbs.
 - A developer can debug local provider lifecycle from CLI and inspect API-owned coordination records without reading provider-local files directly.
 - Allocation policy and actual usage can be compared by project, agent class, mode, provider, and execution provider as the API emits those records.
 

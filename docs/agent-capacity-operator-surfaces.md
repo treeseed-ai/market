@@ -103,6 +103,14 @@ The useful operator fields are:
 - proxy base path
 - allowed operations
 - audit references
+- provider actor and assignment id
+- result status and observed timestamp
+
+Implemented surfaces:
+
+- Admin `/app/capacity/runtime` shows TreeDX proxy audit rows for the selected project.
+- CLI `trsd capacity treedx-proxy-audit --project <project-id> [--assignment <assignment-id>] --json` reads the same audit rows.
+- CLI `trsd capacity fallback-outputs --project <project-id> [--mode <planning|acting>] [--status <status>] --json` reads bounded fallback output records.
 
 ## Package Responsibilities
 

@@ -91,7 +91,7 @@ TreeSeed operational app
 
 The seed creates control-plane records. The manager and worker are running processes. The UI reads the records those processes write.
 
-`trsd dev:manager --with-worker` must not be treated as the creator of local capacity provider state. The provider, lanes, grants, and work policy should come from the local seed.
+The local dev runtime must not be treated as the creator of local capacity provider state. The provider, lanes, grants, and work policy should come from the local seed, and provider lifecycle should run through `trsd capacity`.
 
 ## Start Web/API Supervisor
 
@@ -100,8 +100,8 @@ Start or verify the local web/API runtime. Prefer a log-captured background proc
 ```bash
 mkdir -p .treeseed/logs .treeseed/dev-pids
 
-# If no existing web/api supervisor is running, start one:
-npx trsd dev --surfaces web,api --setup auto --json \
+# If no existing web/API supervisor is running, start one:
+npx trsd dev start --web-runtime local --setup auto --json \
   > .treeseed/logs/dev-web-api.jsonl 2>&1 &
 
 echo $! > .treeseed/dev-pids/dev-web-api.pid
@@ -144,23 +144,18 @@ The local seed should create or reconcile:
 
 If the UI does not show these records after seed apply, treat that as a seed, store, auth, membership, API, or UI query bug. Do not create demo-only records or routes to fake health.
 
-## Run the Manager + Worker Workday Loop
+## Run the Provider Workday Loop
 
-Start conservatively with dry-run docs automation:
+Start conservatively by inspecting the provider lifecycle and running package-owned local provider tests:
 
 ```bash
 mkdir -p .treeseed/logs .treeseed/dev-pids
 
-npx trsd dev:manager \
-  --with-worker \
-  --docs-automation dry-run \
-  --approval-policy manual \
-  --workday-id local-docs-1 \
-  --capacity-budget 500 \
-  --json \
-  > .treeseed/logs/dev-manager-local-docs-1.jsonl 2>&1 &
+npx trsd capacity status --json
+npm -w packages/agent run capacity-provider:test-local \
+  > .treeseed/logs/capacity-provider-local-docs-1.jsonl 2>&1 &
 
-echo $! > .treeseed/dev-pids/dev-manager-local-docs-1.pid
+echo $! > .treeseed/dev-pids/capacity-provider-local-docs-1.pid
 ```
 
 Follow the manager/worker output:
@@ -313,7 +308,7 @@ How does the TreeSeed agent runtime execute a workday?
 How does the research-to-knowledge pipeline convert code evidence into docs?
 How does Codex docs mutation stay inside worktree and path boundaries?
 How does trsd dev supervise local surfaces?
-What should trsd dev:manager do in local docs automation mode?
+How should the capacity provider assignment loop handle local docs automation work?
 How does the TreeSeed app expose operational governance?
 How do approval requests move through the system?
 How does Work summarize decision needs?
@@ -633,11 +628,11 @@ Expected E2E flow:
 Use these as the main loop commands:
 
 ```bash
-# inspect selected local surfaces
-npx trsd dev --surfaces web,api,manager,worker --plan --json
+# inspect fixed local web/API/runtime surfaces
+npx trsd dev start --web-runtime local --plan --json
 
-# inspect manager/worker dry-run configuration
-npx trsd dev:manager --with-worker --docs-automation dry-run --approval-policy manual --workday-id local-docs-1 --capacity-budget 500 --plan --json
+# inspect capacity provider lifecycle separately
+npx trsd capacity status --json
 
 # validate seed
 npx trsd seed treeseed --environments local --validate
@@ -646,8 +641,8 @@ npx trsd seed treeseed --environments local --plan
 # apply seed when needed
 npx trsd seed treeseed --environments local --apply --json
 
-# run manager + worker dry-run
-npx trsd dev:manager --with-worker --docs-automation dry-run --approval-policy manual --workday-id local-docs-1 --capacity-budget 500 --json
+# run package-owned provider local tests
+npm -w packages/agent run capacity-provider:test-local
 ```
 
 Use targeted test commands based on package ownership. Prefer the smallest meaningful verification first, then the broader suite once the loop is stable.
@@ -683,23 +678,18 @@ Repeat this loop until acceptance criteria pass:
 
 Do not switch from `dry-run` to `on` until dry-run is boring and the UI/API/reporting path is understandable.
 
-When dry-run passes, ask me before running:
+When dry-run passes, ask me before starting the local capacity provider:
 
 ```bash
-npx trsd dev:manager \
-  --with-worker \
-  --docs-automation on \
-  --approval-policy manual \
-  --workday-id local-docs-1 \
-  --capacity-budget 500 \
-  --json
+npx trsd capacity up --execute --json
 ```
 
 ## Stop Conditions
 
 Do not claim success until all of these are true:
 
-* `trsd dev --surfaces web,api,manager,worker --plan --json` works or has a clearly documented blocker.
+* `trsd dev start --web-runtime local --plan --json` works or has a clearly documented blocker.
+* Capacity provider lifecycle remains separate through `trsd capacity status|up|down --json`.
 * Local seed creates/reconciles team, project, capacity provider, lanes, grant, and work policy.
 * Web/API local runtime starts and exposes the operational app.
 * Manager starts or resumes workday `local-docs-1`.

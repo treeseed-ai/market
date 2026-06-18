@@ -10,7 +10,7 @@ The system should support local development, staging, and production maintenance
 trsd seed <seed-name> --environments <env[,env...]>
 ```
 
-The initial goal is to add a `treeseed` seed that provisions the TreeSeed team, the market project, bundled package projects, repository/submodule relationships, development capacity providers, production capacity providers, grants, lanes, and work policies.
+The initial goal is to add a `treeseed` seed that provisions the TreeSeed team, the market project, proof projects, repository/submodule relationships, development capacity providers, execution-provider limits, grants, work policies, repository hosts, and catalog products.
 
 ## Current Package Ownership
 
@@ -558,8 +558,7 @@ The reconciler should rely on stable keys and natural unique constraints:
 * team slug
 * project team + slug
 * provider team + name
-* lane provider + name
-* grant provider + lane + team + project + environment
+* grant provider + team + project + environment
 * work policy project + environment
 * repository host team + provider + name
 * hub repository hub + role
@@ -849,24 +848,9 @@ Create/update fields:
 * max concurrent workers
 * capacity model metadata
 
-### Capacity Lanes
-
-Reconcile by provider + lane name.
-
-Create/update fields:
-
-* business model
-* model family
-* model class
-* region policy
-* unit
-* scarcity level
-* hard limits
-* routing policy
-
 ### Capacity Grants
 
-Reconcile by provider + lane + team + project + environment.
+Reconcile by provider + team + project + environment.
 
 Create/update fields:
 
@@ -923,21 +907,19 @@ Environments: local
 
 CREATE team treeseed
 CREATE project treeseed/market
-CREATE project treeseed/sdk
-CREATE project treeseed/core
-CREATE project treeseed/cli
-CREATE project treeseed/agent
+CREATE project karyon/live-proof
 CREATE capacity provider treeseed-local-dev
-CREATE lane local-codex
-CREATE lane local-worker
-CREATE grant treeseed-local-dev -> team treeseed
+CREATE grant treeseed/local-dev -> treeseed/market
 CREATE work policy market/local
+CREATE repository host github/knowledge-coop
+CREATE product template/treeseed-market
+CREATE catalog artifact treeseed/market-template@1.0.0
 
 Summary:
-  create: 11
+  create: 8
   update: 0
   unchanged: 0
-  skipped: 0
+  skipped: 2
   errors: 0
 ```
 
@@ -1011,7 +993,7 @@ Add tests for:
 * local apply into test database
 * repeated apply produces unchanged plan
 * update manifest produces update plan
-* project grants resolve provider/lane/team/project references
+* project grants resolve provider/team/project references
 * production apply blocked without explicit flag
 * agent actor blocked from production apply without approval
 
@@ -1036,7 +1018,7 @@ trsd seed treeseed --environments prod --plan
 * Add schema/types.
 * Add loader and validator.
 * Add normalization and environment filtering.
-* Add plan-only diff for teams, projects, capacity providers, lanes, grants, and work policies.
+* Add plan-only diff for teams, projects, capacity providers, execution-provider limits, grants, and work policies.
 * Add `trsd seed <name> --plan`.
 
 Deliverable: deterministic plans from seed manifests.
@@ -1088,7 +1070,7 @@ Deliverable: ready-made deployable market bundles.
 5. Re-running the same apply reports resources as unchanged.
 6. The UI shows the TreeSeed team and projects after local seed apply.
 7. Each seeded project shows its canonical remote Git source in project/repository details.
-8. Capacity providers, lanes, grants, and work policies are present after apply.
+8. Capacity providers, execution-provider limits, grants, and work policies are present after apply.
 9. Production apply is blocked unless explicitly requested and authorized.
 10. Agents can run validation and plan operations.
 11. Agents cannot apply production seeds without approval.
@@ -1112,7 +1094,7 @@ Deliverable: ready-made deployable market bundles.
 
 Build the smallest useful slice:
 
-1. Add `seeds/treeseed.yaml` with team, projects using canonical remote Git URLs, local capacity provider, local lanes, local grant, and local work policies.
+1. Add `seeds/treeseed.yaml` with team, projects using canonical remote Git URLs, local capacity provider, execution-provider limits, local grant, and local work policies.
 2. Add seed schema and loader.
 3. Add environment filtering.
 4. Add plan generation only.

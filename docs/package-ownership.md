@@ -174,6 +174,8 @@ Admin and market may display capacity provider state and expose configuration wo
 
 `@treeseed/agent` owns provider runtime code, provider images, provider manager/runner/worker services, AgentKernel execution, mode scheduling, provider-local capacity enforcement, and runtime tests. `@treeseed/sdk` owns shared contracts and reconciliation. `@treeseed/cli` owns the operator command surface. `@treeseed/api` owns backend control-plane routes, provider availability sessions, assignment leases, mode-run records, reservations, and capacity ledger settlement.
 
+Provider runtime execution is assignment-only. Do not add provider task claim/event/complete/fail HTTP routes or public provider-client methods; local task stores and project runner task APIs are separate non-provider-runtime surfaces.
+
 Capacity providers supply execution capacity, native budget observations, local runner pressure, availability windows, and execution-provider capabilities. Projects supply agent definitions, agent classes, handlers, prompts, output contracts, and work semantics. The API coordinates the match between project demand and provider supply through durable records; the provider manager only supervises one provider's local runtime.
 
 Infrastructure lifecycle and runtime assignment are separate concerns. `trsd capacity build/up/status/logs/down/test-local` manage provider runtime lifecycle and diagnostics through reconciliation. Provider check-ins, assignments, leases, mode runs, usage actuals, and ledger entries are API control-plane records, not reconciled infrastructure resources.

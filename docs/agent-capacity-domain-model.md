@@ -6,7 +6,7 @@
 
 This document defines the shared implementation vocabulary for Treeseed agent capacity. It describes the model that SDK contracts, API records, agent runtime inputs, Admin views, and CLI reports should converge on.
 
-The canonical contract surface is exported from `@treeseed/sdk/agent-capacity`. Durable coordination records are stored by `@treeseed/api` through migrations `0005_agent_capacity_coordination.sql`, `0006_provider_assignment_lifecycle.sql`, and `0007_agent_architecture_gap_closure.sql`.
+The canonical contract surface is exported from `@treeseed/sdk/agent-capacity`. Durable coordination records are stored by `@treeseed/api` through migrations `0005_agent_capacity_coordination.sql`, `0006_provider_assignment_lifecycle.sql`, `0007_agent_architecture_gap_closure.sql`, `0008_agent_capacity_operational_closure.sql`, and `0009_agent_capacity_runtime_hardening.sql`.
 
 ## Boundary Rule
 
@@ -50,6 +50,8 @@ It includes:
 - audit metadata
 
 Admin may edit allocation policy. API persists and applies it. SDK defines the portable contract. Providers cannot mutate it.
+
+Implemented allocation writes create a new allocation set and activate it. Activation supersedes prior active draft/active sets for the team, while existing reservations keep their original `allocationSetId` and grant metadata. Grants remain provider/project enforcement records derived from the active allocation set; they are not the canonical policy version by themselves.
 
 ## ProjectAgentClass
 
@@ -220,6 +222,8 @@ Durable `AgentCapacityPlanRecord` entries are API-owned acceptance gates. They a
 
 The lifecycle leases assignments through `/v1/provider/assignments/next` and updates state through renew, return, complete, and fail routes. Leased assignments execute through `@treeseed/agent` `AgentKernel.runAssignment`.
 
+Provider task claim/event/complete/fail routes are not part of this model. The provider runtime contract is provider check-in, next assignment, renew lease, create mode run, complete/return/fail assignment, and report usage.
+
 Lease rules:
 
 - `pending/unleased`, `returned/released`, and expired `leased` assignments are eligible for next-assignment polling.
@@ -251,6 +255,8 @@ It includes:
 
 Phase 1 records mode-run telemetry and can link it to usage actuals. Phase 3 emits mode-run telemetry from the AgentKernel assignment runtime: a running attempt when bounded execution begins and a terminal attempt when the handler succeeds, fails, cancels, or the kernel produces a bounded fallback.
 
+Assignment lifecycle settlement is API-owned. Lease/start emits `task_started`; completion emits `task_completed_actual_settlement` plus release of unused reservation credits; return and retryable fail emit `reservation_released`; nonretryable fail emits `task_failed_refund`. Reservation state, consumed credits, native usage, provider units, and USD actuals are updated from the same ledger helper.
+
 `AgentRunTrace` remains useful as lower-level handler/runtime trace detail. `AgentModeRun` is the durable control-plane record that connects mode, assignment, capacity envelope, output, and usage.
 
 ## Usage And Ledger Settlement
@@ -273,9 +279,13 @@ The API settles usage into the capacity ledger. Providers report native observat
 
 ## TreeDX Proxy Handle
 
-Assignments may carry a project-scoped `TreeDxProxyHandle`. The handle identifies project, optional assignment, repository/workspace scope, allowed operations, and expiry. It is not a TreeDX service credential.
+Assignments may carry a project-scoped `TreeDxProxyHandle`. The handle identifies project, assignment, repository/workspace scope, allowed operations, and expiry. It is not a TreeDX service credential.
 
-Provider runners call `/v1/dx/projects/:projectId/...` with their provider API key. The API verifies provider/team/project/assignment scope, resolves the TreeDX node, forwards only allowed project operations, and records proxy audit evidence. Raw TreeDX credentials must not appear in assignment payloads, logs, Admin, CLI, or provider reports.
+Provider runners call `/v1/dx/projects/:projectId/...` with their provider API key plus `x-treeseed-assignment-id` and `x-treeseed-treedx-proxy-handle-id`. The API verifies the provider, team, project, active assignment lease, handle id, handle state, expiry, repository, workspace, allowed operation, and allowed path before resolving the TreeDX node. Successful and denied calls write `TreeDxProjectProxyAuditRecord` rows that can be read by project operators. Raw TreeDX credentials must not appear in assignment payloads, logs, Admin, CLI, or provider reports.
+
+## Assignment Capability Handles
+
+Assignments may also carry a redacted `capabilityHandles` bundle. The bundle records the workspace access mode plus repository access handles, TreeDX workspace handles, workflow-operation handles, and secret-use references. These are policy handles, not credentials. Write-capable handles require acting mode with readiness and accepted/scheduled/active capacity-plan provenance. Provider runners hydrate `AgentContext.capacity.capabilityHandles` and dispatch approved workflow operations only through assignment-scoped API routes; generic workflow dispatch and raw GitHub App tokens remain outside provider payloads.
 
 ## Fallback Output
 

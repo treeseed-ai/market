@@ -6,7 +6,7 @@ This plan defines how TreeSeed should reach a fully governed, background-running
 
 The target outcome is:
 
-> Running `trsd dev:manager` starts a local governed workday that analyzes the TreeSeed codebase, builds and updates a detailed knowledge base, proposes supporting content, routes changes through review and approval, and exposes the process in the TreeSeed control app.
+> Running the fixed local dev runtime with the package-owned capacity provider starts a local governed workday that analyzes the TreeSeed codebase, builds and updates a detailed knowledge base, proposes supporting content, routes changes through review and approval, and exposes the process in the TreeSeed control app.
 
 This plan is intentionally scoped to the current TreeSeed repository shape:
 
@@ -72,7 +72,7 @@ The system should:
 6. request governance decisions for promotion, rewrite, defer, or reject;
 7. mutate documentation only in isolated worktrees and approved paths;
 8. surface every artifact and decision in the Work and Knowledge areas of the control app;
-9. run locally through `trsd dev:manager` and later remotely through the same manager/worker model;
+9. run locally through `trsd dev` plus `trsd capacity` and later remotely through the same provider assignment model;
 10. leave a durable audit trail of what agents saw, wrote, recommended, changed, and could not verify.
 
 ---
@@ -81,7 +81,7 @@ The system should:
 
 The plan is complete when all of the following are true:
 
-* `trsd dev:manager` can start a local workday for the top-level Market operational context.
+* `trsd dev` and `trsd capacity` can start a local workday for the top-level Market operational context.
 * The manager discovers enabled documentation automation agents from `src/content/agents` or a normalized agent spec source.
 * Startup tasks are seeded automatically for codebase scan, graph refresh, knowledge gap detection, research, draft generation, optimization, review, and promotion request creation.
 * Workers execute documentation tasks without ad hoc human instruction.
@@ -108,7 +108,7 @@ Top-level Market should define its own agents in `src/content/agents/*.mdx`. The
 
 ### 2. Workday Manager
 
-`trsd dev:manager` should run a local workday manager that:
+The provider assignment loop should run a local workday manager that:
 
 * loads the Market operational runtime;
 * resolves work policy;
@@ -992,14 +992,15 @@ publish_agent_activity_summary
 
 ---
 
-## `trsd dev:manager` Behavior
+## Local Provider Behavior
 
 ### Current Desired Command Contract
 
-When running:
+When running the local dev runtime and capacity provider:
 
 ```bash
-trsd dev:manager
+trsd dev start --web-runtime local
+trsd capacity up --execute --json
 ```
 
 TreeSeed should:
@@ -1036,47 +1037,24 @@ sync governance summary
 
 ### Local Development Modes
 
-Support three local modes.
-
-#### 1. Manager Only
+Use the fixed local dev runtime for Market web/API/operations-runner surfaces:
 
 ```bash
-trsd dev:manager --surface manager
+trsd dev start --web-runtime local
 ```
 
-Runs scheduling, no task execution unless workers are already active.
-
-#### 2. Manager + Worker
+Capacity provider lifecycle is intentionally separate:
 
 ```bash
-trsd dev:manager --with-worker
+trsd capacity status --json
+trsd capacity up --execute --json
 ```
 
-Runs manager and worker in the same local supervision session.
+End-to-end governance tests should start the fixed web/API runtime first, then start or inspect the capacity provider through `trsd capacity` when provider execution is part of the scenario.
 
-#### 3. Full Integrated Governance UI
+### Required Runtime Controls
 
-```bash
-trsd dev --surfaces web,api,manager,worker
-```
-
-Runs web UI, API, manager, and worker so the governance flow can be tested end-to-end.
-
-### Required Dev Flags
-
-Add or normalize:
-
-```bash
-trsd dev:manager --docs-automation on
-trsd dev:manager --docs-automation dry-run
-trsd dev:manager --docs-automation off
-trsd dev:manager --with-worker
-trsd dev:manager --workday-id <id>
-trsd dev:manager --capacity-budget <credits>
-trsd dev:manager --approval-policy manual
-trsd dev:manager --approval-policy low-risk-auto
-trsd dev:manager --json
-```
+Runtime controls should remain split across the fixed local dev command and the package-owned capacity provider lifecycle. Do not reintroduce `dev:manager`, `--with-worker`, or surface-selection flags on `trsd dev`.
 
 Default for local development should be:
 
@@ -1243,7 +1221,7 @@ SDK
 
 CLI
   dev
-  dev:manager
+  capacity
   workflow commands
   workspace commands
   release commands
@@ -1920,7 +1898,7 @@ How does the TreeSeed agent runtime execute a workday?
 How does the research-to-knowledge pipeline convert code evidence into docs?
 How does Codex docs mutation stay inside worktree and path boundaries?
 How does `trsd dev` supervise local surfaces?
-What should `trsd dev:manager` do in local docs automation mode?
+How should the capacity provider assignment loop handle local docs automation work?
 How does the TreeSeed app expose operational governance?
 How do approval requests move through the system?
 How does Work summarize decision needs?
@@ -2062,7 +2040,7 @@ Make the entire automation loop visible and testable in the web UI.
 
 ### Acceptance Criteria
 
-* User can see operational work progressing after `trsd dev:manager`.
+* User can see operational work progressing after `trsd dev` and `trsd capacity`.
 * User can open a generated draft.
 * User can inspect source map.
 * User can approve/request changes/reject/defer.
@@ -2146,7 +2124,7 @@ Move from demo loop to reliable governed background operation.
 
 ### Acceptance Criteria
 
-* Restarting `trsd dev:manager` resumes safely.
+* Restarting the local capacity provider resumes safely.
 * Duplicate startup tasks are not created.
 * Crashed tasks can be retried.
 * UI shows stuck/stale tasks.
@@ -2262,7 +2240,7 @@ Flow:
 ### PR 2: Docs Automation Workday Config
 
 * Add docs automation policy config.
-* Add `trsd dev:manager` docs automation flags.
+* Add provider-owned docs automation controls.
 * Start/resume local workday.
 * Seed startup tasks idempotently.
 
@@ -2357,8 +2335,7 @@ Verification and repair tasks
 
 ```text
 trsd dev
-trsd dev:manager
-trsd dev:watch
+trsd capacity
 workspace commands
 save/stage/close/release lifecycle
 operations parser and registry
@@ -2506,13 +2483,13 @@ docsAutomation:
 A contributor runs:
 
 ```bash
-trsd dev --surfaces web,api,manager,worker
+trsd dev start --web-runtime local
 ```
 
-or:
+Then, when provider execution is part of the scenario:
 
 ```bash
-trsd dev:manager --with-worker
+trsd capacity up --execute --json
 ```
 
 Then TreeSeed:
