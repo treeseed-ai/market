@@ -67,7 +67,7 @@ connections:
     localBaseUrl: http://127.0.0.1:3000
     environments:
       staging:
-        baseUrl: https://api-treeseed-staging.treeseed.ai
+        baseUrl: https://api-treeseed-market-staging-ca844c56.treeseed.ai
       prod:
         baseUrl: https://api.treeseed.ai
 plugins:

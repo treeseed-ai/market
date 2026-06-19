@@ -80,9 +80,9 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.TREESEED_HOSTED_HUBS_GITHUB_TOKEN }}
       TREESEED_SITE_URL: ${{ vars.TREESEED_SITE_URL || (inputs.environment == 'prod' && 'https://treeseed.ai' || 'https://treeseed-market-staging-479e4625.treeseed.ai') }}
       BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL || vars.TREESEED_SITE_URL || (inputs.environment == 'prod' && 'https://treeseed.ai' || 'https://treeseed-market-staging-479e4625.treeseed.ai') }}
-      TREESEED_CENTRAL_MARKET_API_BASE_URL: ${{ inputs.environment == 'prod' && (vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-staging.treeseed.ai') }}
-      TREESEED_MARKET_API_BASE_URL: ${{ inputs.environment == 'prod' && (vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-staging.treeseed.ai') }}
-      TREESEED_CATALOG_MARKET_API_BASE_URLS: ${{ inputs.environment == 'prod' && (vars.TREESEED_CATALOG_MARKET_API_BASE_URLS || vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-staging.treeseed.ai') }}
+      TREESEED_CENTRAL_MARKET_API_BASE_URL: ${{ inputs.environment == 'prod' && (vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-market-staging-ca844c56.treeseed.ai') }}
+      TREESEED_MARKET_API_BASE_URL: ${{ inputs.environment == 'prod' && (vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-market-staging-ca844c56.treeseed.ai') }}
+      TREESEED_CATALOG_MARKET_API_BASE_URLS: ${{ inputs.environment == 'prod' && (vars.TREESEED_CATALOG_MARKET_API_BASE_URLS || vars.TREESEED_MARKET_API_BASE_URL || vars.TREESEED_CENTRAL_MARKET_API_BASE_URL || 'https://api.treeseed.ai') || (vars.TREESEED_STAGING_MARKET_API_BASE_URL || 'https://api-treeseed-market-staging-ca844c56.treeseed.ai') }}
       TREESEED_HOSTING_KIND: ${{ vars.TREESEED_HOSTING_KIND }}
       TREESEED_HOSTING_REGISTRATION: ${{ vars.TREESEED_HOSTING_REGISTRATION }}
       TREESEED_HOSTING_TEAM_ID: ${{ vars.TREESEED_HOSTING_TEAM_ID }}
