@@ -1,0 +1,102 @@
+schemaVersion: treeseed.scene/v1
+id: university-study-group-workday
+title: University Study Group Workday Draft
+description: Future canonical training scene for a student-led study group that creates research projects, allocates Codex-capable capacity, simulates governed workdays, and publishes exportable knowledge packs.
+audience:
+  - trainee
+  - evaluator
+  - operator
+mode:
+  test: false
+  demo: true
+  training: true
+
+target:
+  app: market
+  environment: local
+  baseUrl: auto
+  viewport:
+    width: 1440
+    height: 1000
+  browser: chromium
+
+artifacts:
+  trace: true
+  video: true
+  screenshots: true
+  console: true
+  network: true
+  timeline: true
+  appLogs: true
+
+workflow:
+  - id: draft-scenario-introduction
+    title: Introduce the university study group scenario
+    action:
+      pause:
+        mode: manual
+        prompt: This draft is intentionally non-executing until seed, auth, API, capacity, and agent plugins land.
+    demoOnly: true
+
+chapters:
+  - id: scenario-design
+    title: Scenario design
+    startsAt: draft-scenario-introduction
+
+xFutureScenario:
+  status: draft
+  executableAfter:
+    - Phase 3 environment integration
+    - seed setup and auth profile orchestration
+    - API-backed team, project, objective, capacity, and workday actions
+    - agent workday simulation plugins
+    - knowledge pack export actions
+  persona:
+    role: student
+    context: university
+  team:
+    slug: comparative-inquiry-study-group
+    name: Comparative Inquiry Study Group
+    purpose: Coordinate research projects across courses and produce reusable books of knowledge.
+  projects:
+    - slug: psychology-101
+      name: Psychology 101
+      portfolioAllocationPercent: 33.34
+      coreObjective: Build a concept map connecting core theories, landmark experiments, and exam-ready examples.
+    - slug: macro-economics-301
+      name: Macro Economics 301
+      portfolioAllocationPercent: 33.33
+      coreObjective: Explain indicators, policy levers, and current-event case studies through weekly briefing notes.
+    - slug: art-history
+      name: Art History
+      portfolioAllocationPercent: 33.33
+      coreObjective: Create a visual and historical guide connecting movements, artists, works, and museum/context evidence.
+  capacityProvider:
+    kind: codex-subscription-capable
+    dailyAllocationPercent: 30
+    dailyCapacityMinutesAssumption: 432
+    workdayCapacityMinutesAssumption: 144
+    notes:
+      - 30% of a 24 hour day is 432 minutes per day.
+      - 30% of an 8 hour workday is 144 minutes per workday.
+  simulation:
+    defaultWorkdays: 10
+    humanGovernance: simulated vote and approval decisions
+    expectedAgentBehavior:
+      - read the core objective before proposing work
+      - identify that no current work exists
+      - create research proposals
+      - respond to other proposals with a communication trail
+      - update objectives when decisions approve new direction
+      - evolve course knowledge into books and exportable knowledge packs
+  futureWorkflow:
+    - create student
+    - create study group team
+    - create Psychology 101, Macro Economics 301, and Art History projects
+    - seed core objectives for every project
+    - attach the research template
+    - configure a Codex-capable capacity provider
+    - allocate portfolio capacity across the three projects
+    - simulate human votes and approval decisions
+    - run the default workday sequence
+    - produce proposals, responses, decisions, objective updates, books of knowledge, and knowledge pack exports

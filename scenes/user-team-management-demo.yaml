@@ -1,0 +1,1078 @@
+schemaVersion: treeseed.scene/v1
+id: user-team-management-demo
+title: User And Team Management Demo
+description: >-
+  Register a small business owner, review account settings, create the TreeSeed team,
+  invite project leads and contributors, accept each invitation through Mailpit, and
+  verify the full team roster. This is a polished QA/demo scene for the central
+  TreeSeed acceptance test harness and demo / educational video generator.
+audience:
+  - evaluator
+  - operator
+  - trainee
+
+mode:
+  test: true
+  demo: true
+  training: true
+
+runtime:
+  mode: training
+  timeouts:
+    sceneSeconds: 2400
+    chapterSeconds: 900
+    stepSeconds: 120
+  checkpoints:
+    enabled: true
+    defaultResumable: true
+    everyStep: true
+  progress:
+    heartbeatSeconds: 15
+  failure:
+    continueOnFailure: false
+
+target:
+  app: market
+  environment: local
+  baseUrl: auto
+  browser: chromium
+  viewport:
+    width: 1600
+    height: 900
+
+devices:
+  defaultProfile: desktop
+  profiles:
+    - id: desktop
+      title: Desktop
+      orientation: landscape
+      viewport: { width: 1600, height: 900 }
+      video: { width: 1600, height: 900 }
+      output: { width: 1920, height: 1080 }
+      deviceScaleFactor: 1
+      isMobile: false
+      hasTouch: false
+      browserFrame:
+        enabled: true
+        title: TreeSeed Team Management
+        chrome: desktop
+    - id: tablet
+      title: Tablet
+      orientation: landscape
+      viewport: { width: 1024, height: 768 }
+      video: { width: 1024, height: 768 }
+      output: { width: 1440, height: 1080 }
+      deviceScaleFactor: 1
+      isMobile: true
+      hasTouch: true
+      browserFrame:
+        enabled: true
+        title: TreeSeed Team Management
+        chrome: tablet
+    - id: mobile
+      title: Mobile
+      orientation: portrait
+      viewport: { width: 390, height: 844 }
+      video: { width: 390, height: 844 }
+      output: { width: 1080, height: 1920 }
+      deviceScaleFactor: 2
+      isMobile: true
+      hasTouch: true
+      browserFrame:
+        enabled: true
+        title: TreeSeed Team Management
+        chrome: mobile
+
+setup:
+  dev:
+    required: true
+    command: trsd dev start --web-runtime local --json
+    reuseExisting: true
+
+artifacts:
+  trace: true
+  video: true
+  screenshots: true
+  console: true
+  network: true
+  timeline: true
+  appLogs: true
+
+render:
+  remotion:
+    composition: treeseed-training-default
+    output:
+      format: mp4
+      fps: 30
+      resolution: { width: 1920, height: 1080 }
+    capture:
+      viewport: { width: 1600, height: 900 }
+      video: { width: 1600, height: 900 }
+      evidenceFit: fixed-browser
+    browserFrame:
+      enabled: true
+      title: TreeSeed Team Management
+
+chapters:
+  - id: owner-registration
+    title: Register and verify the owner
+    startsAt: owner-open-register
+  - id: account-settings
+    title: Review account settings
+    startsAt: owner-open-account
+  - id: team-setup
+    title: Create the TreeSeed team
+    startsAt: owner-open-new-team
+  - id: invitations
+    title: Invite team members
+    startsAt: owner-open-team-members
+  - id: invite-acceptance
+    title: Accept invitations
+    startsAt: avery-open-invite
+  - id: final-roster
+    title: Verify the full team
+    startsAt: owner-final-sign-in
+
+overlays:
+  - id: intro-context
+    at: owner-open-register
+    renderer: remotion
+    type: callout
+    variant: panel
+    region: top-right
+    durationSeconds: 10
+    style:
+      tone: brand
+      shadow: medium
+      radius: 8
+      background: rgba(15, 23, 42, 0.9)
+      color: "#f8fafc"
+    motion:
+      keyframes:
+        - at: 0
+          unit: progress
+          opacity: 0
+          position: { x: 92, y: 10, unit: percent }
+        - at: 0.2
+          unit: progress
+          opacity: 1
+          position: { x: 72, y: 10, unit: percent }
+        - at: 1
+          unit: progress
+          opacity: 1
+          position: { x: 72, y: 10, unit: percent }
+    text: A small business owner creates a team, invites collaborators, and verifies role-based access.
+  - id: account-tabs-context
+    at: owner-open-account
+    renderer: remotion
+    type: callout
+    variant: badge
+    region: top-right
+    durationSeconds: 8
+    style:
+      tone: info
+      shadow: soft
+    text: Account QA covers profile, security, and sessions while intentionally skipping account deletion.
+  - id: invite-flow-context
+    at: owner-invite-avery
+    renderer: remotion
+    type: callout
+    variant: panel
+    region: top-right
+    durationSeconds: 12
+    style:
+      tone: info
+      shadow: medium
+      radius: 8
+    text: Each invite goes through Mailpit so the test proves local email delivery and invite registration.
+  - id: final-team-management-summary
+    at: owner-final-roster
+    renderer: remotion
+    type: callout
+    variant: panel
+    region: right
+    durationSeconds: 16
+    style:
+      tone: brand
+      background: rgba(15, 23, 42, 0.86)
+      color: "#f8fafc"
+      shadow: strong
+      radius: 8
+    motion:
+      keyframes:
+        - at: 0
+          unit: progress
+          opacity: 0
+          position: { x: 98, y: 16, unit: percent }
+        - at: 0.22
+          unit: progress
+          opacity: 1
+          position: { x: 70, y: 16, unit: percent }
+        - at: 1
+          unit: progress
+          opacity: 1
+          position: { x: 70, y: 16, unit: percent }
+    objects:
+      - id: roster-check
+        type: badge
+        text: Verified roster
+        region: top
+        style:
+          tone: success
+          shadow: soft
+        motion:
+          keyframes:
+            - at: 0
+              unit: progress
+              scale: 0.96
+              opacity: 0
+            - at: 0.35
+              unit: progress
+              scale: 1
+              opacity: 1
+            - at: 1
+              unit: progress
+              scale: 1
+              opacity: 1
+    text: TreeSeed teams give small businesses one place to manage ownership, roles, invitations, and project access before the work starts.
+
+training:
+  enabled: true
+  captions:
+    enabled: true
+    formats: [vtt, srt]
+    maxCueSeconds: 6
+    renderInTrainingVideo: true
+  transcript:
+    enabled: true
+    formats: [json, markdown]
+  narration:
+    enabled: true
+    style: instructional
+    includeDiagnostics: true
+  glossary:
+    enabled: true
+    terms:
+      - term: team
+        definition: A shared workspace that owns members, roles, and project access.
+      - term: project lead
+        definition: A team role used as the admin-equivalent collaborator in this demo.
+      - term: contributor
+        definition: A standard team member role for participating in project work.
+      - term: invite
+        definition: A Mailpit-delivered link that lets a new user register and join the team.
+      - term: Mailpit
+        definition: The local email inbox used by TreeSeed dev scenes.
+      - term: checkpoint
+        definition: A resumable point in a scene run for debugging failures.
+  chapterClips:
+    enabled: true
+    format: manifest
+
+xScenario:
+  owner:
+    name: TreeSeed Admin
+    email: demo.admin@treeseed.io
+    username: demo-admin
+  team:
+    displayName: TreeSeed
+    slug: treeseed
+  invitedUsers:
+    - name: Avery Project Lead
+      email: avery.admin@treeseed.io
+      username: avery-admin
+      role: project_lead
+    - name: Casey Member
+      email: casey.member@treeseed.io
+      username: casey-member
+      role: contributor
+    - name: Jordan Member
+      email: jordan.member@treeseed.io
+      username: jordan-member
+      role: contributor
+    - name: Riley Member
+      email: riley.member@treeseed.io
+      username: riley-member
+      role: contributor
+  knownGaps:
+    - The local app database must be fresh or cleaned because this strict QA scene uses stable emails and a stable team slug.
+    - The invite flow depends on team invite email delivery and invite-bound registration being available.
+
+workflow:
+  - id: owner-open-register
+    title: Open owner registration
+    action:
+      goto: /auth/register?returnTo=/app
+    expect:
+      urlIncludes: /auth/register
+  - id: owner-review-register-form
+    title: Review owner registration form
+    action:
+      pause: { mode: timed, durationSeconds: 3, prompt: Review the owner registration form }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: owner-fill-first-name
+    title: Enter owner first name
+    action:
+      fill: { css: 'input[name="firstName"]', internal: true, value: TreeSeed }
+  - id: owner-fill-last-name
+    title: Enter owner last name
+    action:
+      fill: { css: 'input[name="lastName"]', internal: true, value: Admin }
+  - id: owner-fill-username
+    title: Enter owner username
+    action:
+      fill: { css: 'input[name="username"]', internal: true, value: demo-admin }
+  - id: owner-fill-email
+    title: Enter owner email
+    action:
+      fill: { css: 'input[name="email"]', internal: true, value: demo.admin@treeseed.io }
+  - id: owner-fill-password
+    title: Enter owner password
+    action:
+      fill: { css: 'input[name="password"]', internal: true, value: TreeSeedDemo!Owner2026 }
+  - id: owner-fill-confirm-password
+    title: Confirm owner password
+    action:
+      fill: { css: 'input[name="confirmPassword"]', internal: true, value: TreeSeedDemo!Owner2026 }
+  - id: owner-review-registration-details
+    title: Review owner registration details
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Review owner registration details }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: owner-submit-registration
+    title: Submit owner registration
+    action:
+      click: { role: button, name: Create account }
+    expect:
+      text: Check your email
+  - id: owner-review-check-email
+    title: Review owner email confirmation prompt
+    action:
+      pause: { mode: timed, durationSeconds: 3, prompt: Review the check email prompt }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: owner-confirm-email
+    title: Confirm owner email through Mailpit
+    action:
+      mailpitConfirmLatest:
+        mailpitUrl: __USER_TEAM_MAILPIT_URL__
+        email: demo.admin@treeseed.io
+        subjectIncludes: Confirm
+        displayInboxSeconds: 3
+        displayMessageSeconds: 4
+    expect:
+      urlIncludes: /app
+  - id: owner-review-confirmed-app
+    title: Review confirmed owner app access
+    action:
+      pause: { mode: timed, durationSeconds: 3, prompt: Owner confirmed and inside the app }
+    expect:
+      urlIncludes: /app
+  - id: owner-verify-app
+    title: Verify owner is in the app
+    action:
+      goto: /app
+    expect:
+      urlIncludes: /app
+  - id: owner-open-account
+    title: Open account settings
+    action:
+      goto: /app/account
+    expect:
+      visible:
+        - css: '[data-account-tabs-root]'
+          internal: true
+  - id: owner-review-account-home
+    title: Review account settings page
+    action:
+      pause: { mode: timed, durationSeconds: 3, prompt: Review account settings }
+    expect:
+      visible:
+        - css: '[data-account-tabs-root]'
+          internal: true
+  - id: owner-view-profile-tab
+    title: View profile account tab
+    action:
+      click: { css: '[data-account-tab="profile"]', internal: true }
+    expect:
+      text: demo.admin@treeseed.io
+  - id: owner-review-profile-tab
+    title: Review profile tab
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Review profile tab }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: owner-view-security-tab
+    title: View security account tab
+    action:
+      click: { css: '[data-account-tab="security"]', internal: true }
+    expect:
+      visible:
+        - css: '[data-account-panel="security"]'
+          internal: true
+  - id: owner-review-security-tab
+    title: Review security tab
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Review security tab }
+    expect:
+      visible:
+        - css: '[data-account-panel="security"]'
+          internal: true
+  - id: owner-view-sessions-tab
+    title: View sessions account tab
+    action:
+      click: { css: '[data-account-tab="sessions"]', internal: true }
+    expect:
+      visible:
+        - css: '[data-account-panel="sessions"]'
+          internal: true
+  - id: owner-review-sessions-tab
+    title: Review sessions tab
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Review sessions tab }
+    expect:
+      visible:
+        - css: '[data-account-panel="sessions"]'
+          internal: true
+  - id: owner-open-new-team
+    title: Open new team form
+    action:
+      goto: /app/teams/new
+    expect:
+      urlIncludes: /app/teams/new
+  - id: owner-review-new-team-form
+    title: Review new team form
+    action:
+      pause: { mode: timed, durationSeconds: 3, prompt: Review new team form }
+    expect:
+      urlIncludes: /app/teams/new
+  - id: owner-fill-team-slug
+    title: Enter TreeSeed team slug
+    action:
+      fill: { css: 'input[name="name"]', internal: true, value: treeseed }
+  - id: owner-fill-team-display-name
+    title: Enter TreeSeed team display name
+    action:
+      fill: { css: 'input[name="displayName"]', internal: true, value: TreeSeed }
+  - id: owner-fill-team-summary
+    title: Enter TreeSeed team summary
+    action:
+      fill:
+        css: 'textarea[name="profileSummary"]'
+        internal: true
+        value: A small business workspace for organizing projects, collaborators, and delivery operations.
+  - id: owner-review-team-details
+    title: Review TreeSeed team details
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Review TreeSeed team details }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: owner-submit-team
+    title: Create the TreeSeed team
+    action:
+      click: { role: button, name: Create team }
+    expect:
+      urlIncludes: /app/teams
+  - id: owner-review-created-team
+    title: Review created TreeSeed team
+    action:
+      pause: { mode: timed, durationSeconds: 3, prompt: TreeSeed team created }
+    expect:
+      urlIncludes: /app/teams
+  - id: owner-open-team-members
+    title: Open TreeSeed member management
+    action:
+      goto: /app/teams/treeseed/members
+    expect:
+      urlIncludes: /app/teams/treeseed/members
+  - id: owner-review-member-management
+    title: Review member management page
+    action:
+      pause: { mode: timed, durationSeconds: 3, prompt: Review member management page }
+    expect:
+      urlIncludes: /app/teams/treeseed/members
+  - id: owner-invite-avery
+    title: Invite Avery as project lead
+    action:
+      fill: { css: '#invite-form input[name="email"]', internal: true, value: avery.admin@treeseed.io }
+  - id: owner-select-avery-role
+    title: Select Avery role
+    action:
+      select: { css: '#invite-form select[name="roleKey"]', internal: true, value: project_lead }
+  - id: owner-submit-avery-invite
+    title: Send Avery invite
+    action:
+      click: { role: button, name: Invite member }
+    expect:
+      text: Invite sent to avery.admin@treeseed.io.
+  - id: owner-review-avery-invite
+    title: Review Avery invite confirmation
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Avery invite sent }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: owner-invite-casey
+    title: Invite Casey as contributor
+    action:
+      fill: { css: '#invite-form input[name="email"]', internal: true, value: casey.member@treeseed.io }
+  - id: owner-select-casey-role
+    title: Select Casey role
+    action:
+      select: { css: '#invite-form select[name="roleKey"]', internal: true, value: contributor }
+  - id: owner-submit-casey-invite
+    title: Send Casey invite
+    action:
+      click: { role: button, name: Invite member }
+    expect:
+      text: Invite sent to casey.member@treeseed.io.
+  - id: owner-review-casey-invite
+    title: Review Casey invite confirmation
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Casey invite sent }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: owner-invite-jordan
+    title: Invite Jordan as contributor
+    action:
+      fill: { css: '#invite-form input[name="email"]', internal: true, value: jordan.member@treeseed.io }
+  - id: owner-select-jordan-role
+    title: Select Jordan role
+    action:
+      select: { css: '#invite-form select[name="roleKey"]', internal: true, value: contributor }
+  - id: owner-submit-jordan-invite
+    title: Send Jordan invite
+    action:
+      click: { role: button, name: Invite member }
+    expect:
+      text: Invite sent to jordan.member@treeseed.io.
+  - id: owner-review-jordan-invite
+    title: Review Jordan invite confirmation
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Jordan invite sent }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: owner-invite-riley
+    title: Invite Riley as contributor
+    action:
+      fill: { css: '#invite-form input[name="email"]', internal: true, value: riley.member@treeseed.io }
+  - id: owner-select-riley-role
+    title: Select Riley role
+    action:
+      select: { css: '#invite-form select[name="roleKey"]', internal: true, value: contributor }
+  - id: owner-submit-riley-invite
+    title: Send Riley invite
+    action:
+      click: { role: button, name: Invite member }
+    expect:
+      text: Invite sent to riley.member@treeseed.io.
+  - id: owner-review-riley-invite
+    title: Review Riley invite confirmation
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Riley invite sent }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: owner-logout-after-invites
+    title: Sign out owner
+    action:
+      goto: /v1/auth/logout?returnTo=/
+    expect:
+      urlIncludes: /
+
+  - id: avery-open-invite
+    title: Open Avery invite from Mailpit
+    action:
+      mailpitConfirmLatest:
+        mailpitUrl: __USER_TEAM_MAILPIT_URL__
+        email: avery.admin@treeseed.io
+        subjectIncludes: invited
+        displayInboxSeconds: 3
+        displayMessageSeconds: 4
+    expect:
+      urlIncludes: /auth/register
+  - id: avery-review-invite-registration
+    title: Review Avery invite registration
+    action:
+      pause: { mode: timed, durationSeconds: 3, prompt: Review Avery invite registration form }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: avery-fill-first-name
+    title: Enter Avery first name
+    action:
+      fill: { css: 'input[name="firstName"]', internal: true, value: Avery }
+  - id: avery-fill-last-name
+    title: Enter Avery last name
+    action:
+      fill: { css: 'input[name="lastName"]', internal: true, value: Project Lead }
+  - id: avery-fill-username
+    title: Enter Avery username
+    action:
+      fill: { css: 'input[name="username"]', internal: true, value: avery-admin }
+  - id: avery-fill-password
+    title: Enter Avery password
+    action:
+      fill: { css: 'input[name="password"]', internal: true, value: TreeSeedDemo!Member2026 }
+  - id: avery-fill-confirm-password
+    title: Confirm Avery password
+    action:
+      fill: { css: 'input[name="confirmPassword"]', internal: true, value: TreeSeedDemo!Member2026 }
+  - id: avery-review-registration-details
+    title: Review Avery registration details
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Review Avery registration details }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: avery-submit-registration
+    title: Register Avery and accept invite
+    action:
+      click: { role: button, name: Create account }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: avery-registration-settle
+    title: Let Avery invite session settle
+    action:
+      pause: { mode: timed, durationSeconds: 4, prompt: Avery invite session ready }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: avery-verify-teams
+    title: Verify Avery sees TreeSeed teams
+    action:
+      goto: /app/teams
+    expect:
+      visible:
+        - css: '[data-scene="team.card.treeseed"]'
+          internal: true
+  - id: avery-review-teams
+    title: Review Avery team list
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Avery sees the TreeSeed team }
+    expect:
+      visible:
+        - css: '[data-scene="team.card.treeseed"]'
+          internal: true
+  - id: avery-verify-profile
+    title: Verify Avery public profile
+    action:
+      goto: /u/avery-admin
+    expect:
+      visible:
+        - css: '[data-scene="profile.display-name.avery-admin"]'
+          internal: true
+        - css: '[data-scene="profile.team.treeseed"]'
+          internal: true
+  - id: avery-review-profile
+    title: Review Avery profile membership
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Avery profile shows TreeSeed membership }
+    expect:
+      visible:
+        - css: '[data-scene="profile.team.treeseed"]'
+          internal: true
+  - id: avery-logout
+    title: Sign out Avery
+    action:
+      goto: /v1/auth/logout?returnTo=/
+    expect:
+      urlIncludes: /
+
+  - id: casey-open-invite
+    title: Open Casey invite from Mailpit
+    action:
+      mailpitConfirmLatest:
+        mailpitUrl: __USER_TEAM_MAILPIT_URL__
+        email: casey.member@treeseed.io
+        subjectIncludes: invited
+        displayInboxSeconds: 3
+        displayMessageSeconds: 4
+    expect:
+      urlIncludes: /auth/register
+  - id: casey-review-invite-registration
+    title: Review Casey invite registration
+    action:
+      pause: { mode: timed, durationSeconds: 3, prompt: Review Casey invite registration form }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: casey-fill-first-name
+    title: Enter Casey first name
+    action:
+      fill: { css: 'input[name="firstName"]', internal: true, value: Casey }
+  - id: casey-fill-last-name
+    title: Enter Casey last name
+    action:
+      fill: { css: 'input[name="lastName"]', internal: true, value: Member }
+  - id: casey-fill-username
+    title: Enter Casey username
+    action:
+      fill: { css: 'input[name="username"]', internal: true, value: casey-member }
+  - id: casey-fill-password
+    title: Enter Casey password
+    action:
+      fill: { css: 'input[name="password"]', internal: true, value: TreeSeedDemo!Member2026 }
+  - id: casey-fill-confirm-password
+    title: Confirm Casey password
+    action:
+      fill: { css: 'input[name="confirmPassword"]', internal: true, value: TreeSeedDemo!Member2026 }
+  - id: casey-review-registration-details
+    title: Review Casey registration details
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Review Casey registration details }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: casey-submit-registration
+    title: Register Casey and accept invite
+    action:
+      click: { role: button, name: Create account }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: casey-registration-settle
+    title: Let Casey invite session settle
+    action:
+      pause: { mode: timed, durationSeconds: 4, prompt: Casey invite session ready }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: casey-verify-teams
+    title: Verify Casey sees TreeSeed teams
+    action:
+      goto: /app/teams
+    expect:
+      visible:
+        - css: '[data-scene="team.card.treeseed"]'
+          internal: true
+  - id: casey-review-teams
+    title: Review Casey team list
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Casey sees the TreeSeed team }
+    expect:
+      visible:
+        - css: '[data-scene="team.card.treeseed"]'
+          internal: true
+  - id: casey-verify-profile
+    title: Verify Casey public profile
+    action:
+      goto: /u/casey-member
+    expect:
+      visible:
+        - css: '[data-scene="profile.display-name.casey-member"]'
+          internal: true
+        - css: '[data-scene="profile.team.treeseed"]'
+          internal: true
+  - id: casey-review-profile
+    title: Review Casey profile membership
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Casey profile shows TreeSeed membership }
+    expect:
+      visible:
+        - css: '[data-scene="profile.team.treeseed"]'
+          internal: true
+  - id: casey-logout
+    title: Sign out Casey
+    action:
+      goto: /v1/auth/logout?returnTo=/
+    expect:
+      urlIncludes: /
+
+  - id: jordan-open-invite
+    title: Open Jordan invite from Mailpit
+    action:
+      mailpitConfirmLatest:
+        mailpitUrl: __USER_TEAM_MAILPIT_URL__
+        email: jordan.member@treeseed.io
+        subjectIncludes: invited
+        displayInboxSeconds: 3
+        displayMessageSeconds: 4
+    expect:
+      urlIncludes: /auth/register
+  - id: jordan-review-invite-registration
+    title: Review Jordan invite registration
+    action:
+      pause: { mode: timed, durationSeconds: 3, prompt: Review Jordan invite registration form }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: jordan-fill-first-name
+    title: Enter Jordan first name
+    action:
+      fill: { css: 'input[name="firstName"]', internal: true, value: Jordan }
+  - id: jordan-fill-last-name
+    title: Enter Jordan last name
+    action:
+      fill: { css: 'input[name="lastName"]', internal: true, value: Member }
+  - id: jordan-fill-username
+    title: Enter Jordan username
+    action:
+      fill: { css: 'input[name="username"]', internal: true, value: jordan-member }
+  - id: jordan-fill-password
+    title: Enter Jordan password
+    action:
+      fill: { css: 'input[name="password"]', internal: true, value: TreeSeedDemo!Member2026 }
+  - id: jordan-fill-confirm-password
+    title: Confirm Jordan password
+    action:
+      fill: { css: 'input[name="confirmPassword"]', internal: true, value: TreeSeedDemo!Member2026 }
+  - id: jordan-review-registration-details
+    title: Review Jordan registration details
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Review Jordan registration details }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: jordan-submit-registration
+    title: Register Jordan and accept invite
+    action:
+      click: { role: button, name: Create account }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: jordan-registration-settle
+    title: Let Jordan invite session settle
+    action:
+      pause: { mode: timed, durationSeconds: 4, prompt: Jordan invite session ready }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: jordan-verify-teams
+    title: Verify Jordan sees TreeSeed teams
+    action:
+      goto: /app/teams
+    expect:
+      visible:
+        - css: '[data-scene="team.card.treeseed"]'
+          internal: true
+  - id: jordan-review-teams
+    title: Review Jordan team list
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Jordan sees the TreeSeed team }
+    expect:
+      visible:
+        - css: '[data-scene="team.card.treeseed"]'
+          internal: true
+  - id: jordan-verify-profile
+    title: Verify Jordan public profile
+    action:
+      goto: /u/jordan-member
+    expect:
+      visible:
+        - css: '[data-scene="profile.display-name.jordan-member"]'
+          internal: true
+        - css: '[data-scene="profile.team.treeseed"]'
+          internal: true
+  - id: jordan-review-profile
+    title: Review Jordan profile membership
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Jordan profile shows TreeSeed membership }
+    expect:
+      visible:
+        - css: '[data-scene="profile.team.treeseed"]'
+          internal: true
+  - id: jordan-logout
+    title: Sign out Jordan
+    action:
+      goto: /v1/auth/logout?returnTo=/
+    expect:
+      urlIncludes: /
+
+  - id: riley-open-invite
+    title: Open Riley invite from Mailpit
+    action:
+      mailpitConfirmLatest:
+        mailpitUrl: __USER_TEAM_MAILPIT_URL__
+        email: riley.member@treeseed.io
+        subjectIncludes: invited
+        displayInboxSeconds: 3
+        displayMessageSeconds: 4
+    expect:
+      urlIncludes: /auth/register
+  - id: riley-review-invite-registration
+    title: Review Riley invite registration
+    action:
+      pause: { mode: timed, durationSeconds: 3, prompt: Review Riley invite registration form }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: riley-fill-first-name
+    title: Enter Riley first name
+    action:
+      fill: { css: 'input[name="firstName"]', internal: true, value: Riley }
+  - id: riley-fill-last-name
+    title: Enter Riley last name
+    action:
+      fill: { css: 'input[name="lastName"]', internal: true, value: Member }
+  - id: riley-fill-username
+    title: Enter Riley username
+    action:
+      fill: { css: 'input[name="username"]', internal: true, value: riley-member }
+  - id: riley-fill-password
+    title: Enter Riley password
+    action:
+      fill: { css: 'input[name="password"]', internal: true, value: TreeSeedDemo!Member2026 }
+  - id: riley-fill-confirm-password
+    title: Confirm Riley password
+    action:
+      fill: { css: 'input[name="confirmPassword"]', internal: true, value: TreeSeedDemo!Member2026 }
+  - id: riley-review-registration-details
+    title: Review Riley registration details
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Review Riley registration details }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: riley-submit-registration
+    title: Register Riley and accept invite
+    action:
+      click: { role: button, name: Create account }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: riley-registration-settle
+    title: Let Riley invite session settle
+    action:
+      pause: { mode: timed, durationSeconds: 4, prompt: Riley invite session ready }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: riley-verify-teams
+    title: Verify Riley sees TreeSeed teams
+    action:
+      goto: /app/teams
+    expect:
+      visible:
+        - css: '[data-scene="team.card.treeseed"]'
+          internal: true
+  - id: riley-review-teams
+    title: Review Riley team list
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Riley sees the TreeSeed team }
+    expect:
+      visible:
+        - css: '[data-scene="team.card.treeseed"]'
+          internal: true
+  - id: riley-verify-profile
+    title: Verify Riley public profile
+    action:
+      goto: /u/riley-member
+    expect:
+      visible:
+        - css: '[data-scene="profile.display-name.riley-member"]'
+          internal: true
+        - css: '[data-scene="profile.team.treeseed"]'
+          internal: true
+  - id: riley-review-profile
+    title: Review Riley profile membership
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Riley profile shows TreeSeed membership }
+    expect:
+      visible:
+        - css: '[data-scene="profile.team.treeseed"]'
+          internal: true
+  - id: riley-logout
+    title: Sign out Riley
+    action:
+      goto: /v1/auth/logout?returnTo=/
+    expect:
+      urlIncludes: /
+
+  - id: owner-final-sign-in
+    title: Sign back in as owner
+    action:
+      goto: /auth/sign-in?returnTo=/app/teams/treeseed/members
+    expect:
+      visible:
+        - css: 'input[name="login"]'
+          internal: true
+  - id: owner-final-fill-login
+    title: Enter owner login
+    action:
+      fill: { css: 'input[name="login"]', internal: true, value: demo.admin@treeseed.io }
+  - id: owner-final-fill-password
+    title: Enter owner password
+    action:
+      fill: { css: 'input[name="password"]', internal: true, value: TreeSeedDemo!Owner2026 }
+  - id: owner-final-submit-login
+    title: Submit owner login
+    action:
+      click: { role: button, name: Sign in }
+    expect:
+      urlIncludes: /app/teams/treeseed/members
+  - id: owner-final-settle
+    title: Let the owner session settle
+    action:
+      pause: { mode: timed, durationSeconds: 2, prompt: Owner session ready }
+    expect:
+      visible:
+        - css: body
+          internal: true
+  - id: owner-final-roster
+    title: Verify the full TreeSeed team roster
+    action:
+      goto: /app/teams/treeseed/members
+    expect:
+      visible:
+        - css: '[data-scene="team.member.avery.admin@treeseed.io"]'
+          internal: true
+  - id: owner-final-verify-casey
+    title: Verify Casey in roster
+    action:
+      pause: { mode: timed, durationSeconds: 1, prompt: Roster visible }
+    expect:
+      visible:
+        - css: '[data-scene="team.member.casey.member@treeseed.io"]'
+          internal: true
+  - id: owner-final-verify-jordan
+    title: Verify Jordan in roster
+    action:
+      pause: { mode: timed, durationSeconds: 1, prompt: Roster visible }
+    expect:
+      visible:
+        - css: '[data-scene="team.member.jordan.member@treeseed.io"]'
+          internal: true
+  - id: owner-final-verify-riley
+    title: Verify Riley in roster
+    action:
+      pause: { mode: timed, durationSeconds: 1, prompt: Roster visible }
+    expect:
+      visible:
+        - css: '[data-scene="team.member.riley.member@treeseed.io"]'
+          internal: true
