@@ -152,8 +152,8 @@ source_map:
       - AGENT_MESSAGE_TYPES
       - AgentContext
       - AgentErrorCategory
-      - AgentExecutionAdapter
-      - AgentExecutionResult
+      - ExecutionProviderAdapter
+      - ExecutionRunSnapshot
       - AgentHandler
       - AgentKernel
       - AgentMessageContracts
@@ -604,7 +604,7 @@ This draft explains how does the treeseed web ui represent questions, objectives
 - Context query work-content-management-ui-post-scan:code:module-packages-agent-src-agents supports research for TreeSeed Work UI questions objectives notes proposals decisions content management interface.
   - evidence: direct
   - sources: packages/agent/src/agents/adapters/codex-readiness.ts, packages/agent/src/agents/adapters/execution-codex.ts, packages/agent/src/agents/adapters/execution.ts, packages/agent/src/agents/adapters/mutations.ts, packages/agent/src/agents/adapters/notification.ts, packages/agent/src/agents/adapters/operations.ts, packages/agent/src/agents/adapters/repository.ts, packages/agent/src/agents/adapters/research.ts, packages/agent/src/agents/adapters/verification.ts, packages/agent/src/agents/cli-tools.ts, packages/agent/src/agents/cli.ts, packages/agent/src/agents/context/code-context-packs.ts
-  - symbols/sections: AGENT\_MESSAGE\_TYPES, AgentContext, AgentErrorCategory, AgentExecutionAdapter, AgentExecutionResult, AgentHandler, AgentKernel, AgentMessageContracts, AgentMessagePayload, AgentMessageType, AgentMutationAdapter, AgentMutationResult, AgentNotificationAdapter, AgentNotificationResult, AgentOperationsAdapter, AgentRepairTaskPayload, AgentRepositoryInspectionAdapter, AgentRepositoryInspectionResult, AgentResearchAdapter, AgentResearchResult, AgentRunTrace, AgentSpecDiagnostic, AgentSpecDiagnosticSeverity, AgentSpecLoadResult
+  - symbols/sections: AGENT\_MESSAGE\_TYPES, AgentContext, AgentErrorCategory, ExecutionProviderAdapter, ExecutionRunSnapshot, AgentHandler, AgentKernel, AgentMessageContracts, AgentMessagePayload, AgentMessageType, AgentMutationAdapter, AgentMutationResult, AgentNotificationAdapter, AgentNotificationResult, AgentOperationsAdapter, AgentRepairTaskPayload, AgentRepositoryInspectionAdapter, AgentRepositoryInspectionResult, AgentResearchAdapter, AgentResearchResult, AgentRunTrace, AgentSpecDiagnostic, AgentSpecDiagnosticSeverity, AgentSpecLoadResult
   - last observed: local
   - uncertainty: Scanner evidence should still be reviewed against current source before promotion.
 - Context query work-content-management-ui-post-scan:code:module-packages-agent-src-api supports research for TreeSeed Work UI questions objectives notes proposals decisions content management interface.

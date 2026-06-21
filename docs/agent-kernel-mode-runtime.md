@@ -6,6 +6,8 @@
 
 The AgentKernel is owned by `@treeseed/agent`. SDK owns portable contracts used by the kernel, and API owns durable assignment, mode-run, and usage records. Core remains the reusable web runtime and must not own agent scheduling or provider execution.
 
+The human-machine execution provider architecture extends this runtime boundary so handlers build provider-neutral work packages and execution provider adapters perform or coordinate the work across AI, deterministic automation, and human issue queues. The kernel still validates assignment mode, readiness, capability coverage, scoped handles, and output contracts before provider-assigned work can complete. See [Human-Machine Execution Providers](./human-machine-providers.md).
+
 ## Runtime Goal
 
 Every bounded agent execution is either planning or acting.

@@ -14,10 +14,7 @@ runtime:
   registration: none
 cloudflare:
   workerName: treeseed-market
-  queueName: agent-work
-  dlqName: agent-work-dlq
   d1Binding: SITE_DATA_DB
-  queueBinding: AGENT_WORK_QUEUE
   pages:
     projectName: treeseed-market
     productionBranch: main

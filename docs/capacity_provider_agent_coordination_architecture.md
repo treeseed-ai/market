@@ -9,6 +9,8 @@
 
 **Canonical implementation set:** Use this document as the durable coordination architecture together with [agent-capacity-implementation-roadmap.md](agent-capacity-implementation-roadmap.md), [agent-capacity-domain-model.md](agent-capacity-domain-model.md), [agent-kernel-mode-runtime.md](agent-kernel-mode-runtime.md), and [agent-capacity-operator-surfaces.md](agent-capacity-operator-surfaces.md).
 
+For the execution-provider migration that unifies AI model providers, deterministic automation, and human issue queues behind the same assignment lifecycle, see [Human-Machine Execution Providers](./human-machine-providers.md).
+
 **Package ownership:** `@treeseed/agent` owns provider runtime, provider manager/runner behavior, AgentKernel execution, and mode scheduling. `@treeseed/sdk` owns shared contracts. `@treeseed/api` owns durable coordination records and assignment functions. `@treeseed/core` owns web runtime composition and does not own provider scheduling or agent execution.
 
 ---

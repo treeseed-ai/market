@@ -27,6 +27,18 @@ function listValue(value: unknown) {
 	return Array.isArray(value) ? value.map((entry) => String(entry)).filter(Boolean) : [];
 }
 
+function uniqueList(...values: unknown[]) {
+	return [...new Set(values.flatMap(listValue).map((entry) => entry.trim()).filter(Boolean))];
+}
+
+function numberValue(...values: unknown[]) {
+	for (const value of values) {
+		const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+		if (Number.isFinite(numeric)) return numeric;
+	}
+	return null;
+}
+
 function promptField(prompt: string | null, label: string) {
 	if (!prompt) return null;
 	const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -230,7 +242,7 @@ function markdownDoc(input: {
 		'agent_role: researcher',
 		`source_question: ${yamlString(`${input.course}:workday-1`)}`,
 		'source_research:',
-		`  - ${yamlString(`${input.course}:agent-workday-1`)}`,
+			`  - ${yamlString(`${input.course}:research-workday-1`)}`,
 		'review_state: pending_review',
 		`book_target: ${yamlString(input.bookSlug)}`,
 		`section_target: ${yamlString(input.section)}`,
@@ -359,6 +371,103 @@ function contentPlanFromResponse(input: {
 	};
 }
 
+function localAssignmentContext(context: any, inputs: any) {
+	const mode = stringValue(context.capacity?.mode) === 'acting' ? 'acting' : 'planning';
+	const agentSlug = stringValue(context.agent?.slug) ?? 'researcher';
+	const projectId = stringValue(context.capacity?.decisionInput?.projectId, inputs.payload?.projectId, inputs.payload?.project?.id) ?? 'local-market-project';
+	const teamId = stringValue(context.capacity?.decisionInput?.teamId, inputs.payload?.teamId) ?? 'local-team';
+	const projectAgentClassId = stringValue(
+		context.capacity?.decisionInput?.projectAgentClassId,
+		context.capacity?.assignment?.projectAgentClassId,
+		inputs.payload?.projectAgentClassId,
+		agentSlug,
+	) ?? agentSlug;
+	const capacityEnvelope = recordValue(context.capacity?.envelope);
+	const decisionInput = recordValue(context.capacity?.decisionInput);
+	const assignment = recordValue(context.capacity?.assignment);
+	const assignmentId = stringValue(context.capacity?.assignmentId, assignment.id, context.runId) ?? `local-${agentSlug}`;
+	const providerId = stringValue(context.capacity?.providerId, assignment.capacityProviderId, capacityEnvelope.capacityProviderId) ?? 'local-provider';
+	const localCapacity = {
+		teamId,
+		projectId,
+		mode,
+		projectAgentClassId,
+		capacityProviderId: providerId,
+		executionProviderId: stringValue(capacityEnvelope.executionProviderId, assignment.executionProviderId, context.agent?.execution?.provider) ?? null,
+		nativeUnit: stringValue(capacityEnvelope.nativeUnit) ?? 'assignment',
+		availableCredits: numberValue(capacityEnvelope.availableCredits, inputs.capacity?.availableCredits),
+		reservedCredits: numberValue(capacityEnvelope.reservedCredits, inputs.capacity?.reservedCredits),
+		consumedCredits: numberValue(capacityEnvelope.consumedCredits, inputs.capacity?.consumedCredits),
+		metadata: {
+			...(recordValue(capacityEnvelope.metadata)),
+			source: context.capacity ? 'capacity_assignment' : 'local_direct_agent_run',
+		},
+	};
+	const localDecision = {
+		teamId,
+		projectId,
+		projectAgentClassId,
+		mode,
+		agentId: agentSlug,
+		handlerId: stringValue(context.agent?.handler) ?? 'researcher',
+		capacity: localCapacity,
+		input: {
+			...recordValue(inputs.payload),
+			course: inputs.course,
+			question: inputs.question,
+			coreObjective: inputs.coreObjective,
+		},
+		metadata: {
+			...(recordValue(decisionInput.metadata)),
+			source: context.capacity ? 'capacity_assignment' : 'local_direct_agent_run',
+		},
+	};
+	return {
+		mode,
+		capacityEnvelope: {
+			...localCapacity,
+			...capacityEnvelope,
+			teamId: stringValue(capacityEnvelope.teamId, teamId) ?? teamId,
+			projectId: stringValue(capacityEnvelope.projectId, projectId) ?? projectId,
+			mode,
+			projectAgentClassId: stringValue(capacityEnvelope.projectAgentClassId, projectAgentClassId) ?? projectAgentClassId,
+			capacityProviderId: stringValue(capacityEnvelope.capacityProviderId, providerId) ?? providerId,
+		},
+		decisionInput: {
+			...localDecision,
+			...decisionInput,
+			teamId: stringValue(decisionInput.teamId, teamId) ?? teamId,
+			projectId: stringValue(decisionInput.projectId, projectId) ?? projectId,
+			projectAgentClassId: stringValue(decisionInput.projectAgentClassId, projectAgentClassId) ?? projectAgentClassId,
+			mode,
+			capacity: Object.keys(recordValue(decisionInput.capacity)).length ? recordValue(decisionInput.capacity) : localCapacity,
+			input: {
+				...localDecision.input,
+				...recordValue(decisionInput.input),
+			},
+		},
+		assignment: {
+			...assignment,
+			id: assignmentId,
+			teamId: stringValue(assignment.teamId, teamId) ?? teamId,
+			projectId: stringValue(assignment.projectId, projectId) ?? projectId,
+			capacityProviderId: stringValue(assignment.capacityProviderId, providerId) ?? providerId,
+			projectAgentClassId: stringValue(assignment.projectAgentClassId, projectAgentClassId) ?? projectAgentClassId,
+			mode,
+			status: stringValue(assignment.status) ?? 'leased',
+			leaseState: stringValue(assignment.leaseState) ?? 'leased',
+			leaseToken: stringValue(assignment.leaseToken, context.capacity?.assignment?.leaseToken) ?? null,
+			agentId: stringValue(assignment.agentId, agentSlug) ?? agentSlug,
+			handlerId: stringValue(assignment.handlerId, context.agent?.handler) ?? 'researcher',
+		},
+	};
+}
+
+function executionText(execution: Record<string, unknown>) {
+	const outputs = recordValue(execution.outputs);
+	return stringValue(outputs.stdout, outputs.markdown, outputs.response, execution.summary) ?? '';
+}
+
 export const researcherHandler = {
 	kind: 'researcher',
 
@@ -425,12 +534,78 @@ export const researcherHandler = {
 			'The body should be useful first-workday markdown and should explicitly connect to the core objective.',
 			'Do not invent citations. Mark evidence gaps and next research steps.',
 		].join('\n');
-		const execution = await context.execution.runTask({
+		const assignmentContext = localAssignmentContext(context, inputs);
+		const requiredCapabilities = uniqueList(
+			context.agent?.execution?.providerProfile?.requiredCapabilities,
+			'research',
+			'repo_read',
+		);
+		const allowedPaths = uniqueList(context.agent?.execution?.allowedPaths);
+		const forbiddenPaths = uniqueList(context.agent?.execution?.forbiddenPaths);
+		const execution = await context.execution.start({
+			assignment: {
+				...assignmentContext.assignment,
+				capacityEnvelope: assignmentContext.capacityEnvelope,
+				decisionInput: assignmentContext.decisionInput,
+				workspaceContext: recordValue(context.capacity?.assignment?.workspaceContext),
+				allowedOutputs: recordValue(context.capacity?.assignment?.allowedOutputs),
+			},
+			capacityEnvelope: assignmentContext.capacityEnvelope,
+			decisionInput: assignmentContext.decisionInput,
 			agent: context.agent,
-			runId: context.runId,
-			prompt,
+			workPackage: {
+				kind: 'research',
+				title: `Research structure for ${inputs.course}`,
+				summary: `Produce a first-workday research content plan for ${inputs.question}.`,
+				instructions: prompt,
+				context: {
+					course: inputs.course,
+					coreObjective: inputs.coreObjective,
+					question: inputs.question,
+					contextPackProvided: Boolean(inputs.contextPackMarkdown),
+					contentRepositoryRoot: inputs.contentRepositoryRoot,
+					auditRoot: inputs.auditRoot ?? null,
+				},
+				expectedOutputs: [
+					{
+						type: 'json_research_content_plan',
+						required: true,
+						description: 'Fenced JSON with book metadata, proposal, decision recommendation, and markdown pages.',
+					},
+				],
+				constraints: {
+					mode: assignmentContext.mode,
+					requiredCapabilities,
+					allowedPaths,
+					forbiddenPaths,
+					allowedOperations: ['read', 'research', 'write_content_plan'],
+					metadata: {
+						assignmentScoped: Boolean(context.capacity?.assignmentId),
+					},
+				},
+				metadata: {
+					source: 'market_researcher_handler',
+					runId: context.runId,
+				},
+			},
+			leaseToken: stringValue(assignmentContext.assignment.leaseToken),
+			runnerId: stringValue(context.capacity?.assignment?.runnerId) ?? `market-researcher-${process.pid}`,
+			projectAgentClass: recordValue(context.capacity?.projectAgentClass),
+			workspace: {
+				repoRoot: inputs.contentRepositoryRoot,
+				accessMode: stringValue(context.capacity?.workspaceAccessMode) ?? 'context_only',
+				allowedPaths,
+				forbiddenPaths,
+				metadata: {
+					auditRoot: inputs.auditRoot ?? null,
+				},
+			},
+			metadata: {
+				runId: context.runId,
+				handler: 'researcher',
+			},
 		});
-		const response = stringValue(execution.stdout, execution.summary) ?? '';
+		const response = executionText(execution);
 		const plan = contentPlanFromResponse({
 			course: inputs.course,
 			coreObjective: inputs.coreObjective,

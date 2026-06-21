@@ -98,7 +98,7 @@ Future provider examples:
 - project-scoped HTTPS token
 - external git host credential
 
-Repository secrets should be held by GitHub App grants and short-lived GitHub App installation tokens for the initial implementation. Future adapters may use a configured secret manager or standalone TreeDX credential store depending on deployment mode. In Treeseed connected mode, TreeDX should prefer short-lived repository credentials issued by TreeSeed at operation time through the GitHub App adapter. Capacity-provider assignment payloads should carry repository access handles or TreeDX workspace handles, not repository credentials.
+Repository secrets should be held by GitHub App grants and short-lived GitHub App installation tokens when the Treeseed GitHub App is configured. During migration and self-hosted operation, the TreeSeed API may also resolve approved environment token references such as `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>` and `TREESEED_GITHUB_TOKEN`; those durable tokens stay API-side and must not be included in capacity-provider assignment payloads, work packages, snapshots, logs, Admin, or CLI output. Future adapters may use a configured secret manager or standalone TreeDX credential store depending on deployment mode. In Treeseed connected mode, TreeDX should prefer short-lived repository credentials issued by TreeSeed at operation time through the GitHub App adapter. Capacity-provider assignment payloads should carry repository access handles or TreeDX workspace handles, not repository credentials.
 
 ### Runtime Application Secrets
 

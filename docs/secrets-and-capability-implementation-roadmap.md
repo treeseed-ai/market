@@ -195,7 +195,7 @@ Implementation scope:
 
 - Extend `@treeseed/sdk/secrets-capability` with the TreeDX credential bridge operation vocabulary and request/credential contracts for clone, fetch, save, commit, push, pull request, and repository update operations.
 - Add `packages/api/src/api/treedx-credential-bridge.ts` as the API bridge service. It validates TreeDX credential requests, rejects plaintext-looking material, maps operations to GitHub App permissions, routes issuance through the GitHub App adapter, and records `treedx_credential_issuance_records` evidence.
-- Add `POST /v1/internal/treedx/credentials/github-app` as the service-authenticated internal route. The route returns the raw short-lived token only in the immediate response and stores/audits only token prefix, hash, expiry, repository, operation, and requester metadata.
+- Add `POST /v1/internal/treedx/credentials/github` as the service-authenticated internal route. The route returns the raw token only in the immediate response and stores/audits only token prefix, hash, expiry, repository, operation, and requester metadata. The API decides whether the backing authority is a GitHub App installation token or an API-held environment token fallback; TreeDX connected mode depends only on the TreeSeed API route.
 - Add TreeDX `TREEDX_REMOTE_CREDENTIAL_PROVIDER=treeseed_bridge` support in `TreeDx.Git.Credentials`. TreeDX calls the configured TreeSeed API endpoint at credential resolution time and returns the same token-shaped credential already consumed by authenticated external Git transport.
 - Keep TreeDX product-neutral: TreeDX knows about a configured bridge endpoint, credential ids, repository operation names, and git credential shapes; Treeseed owns project, assignment, provider, workday, GitHub App, and repository grant policy.
 - Preserve standalone TreeDX `none`, `env_file`, and `external_command` credential modes.
@@ -345,7 +345,7 @@ Environment registry and service credential translation closure:
 - Client-encrypted escrow has no recovery unless a team recovery key or external vault reference is configured.
 - GitHub-only v1 limits non-GitHub repository onboarding.
 - Host env injection is still required for true runtime secrets and must remain explicit.
-- TreeDX connected mode must not silently fall back to durable repository credentials.
+- TreeDX connected mode and workflow dispatch must not silently hand durable repository credentials to providers. If GitHub App credentials are not configured, the API may explicitly resolve approved environment token references such as `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>` or `TREESEED_GITHUB_TOKEN` inside the server boundary.
 - Workflow drift can weaken the secret boundary without changing stored secret metadata.
 
 Containment defaults:

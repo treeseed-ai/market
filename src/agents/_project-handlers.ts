@@ -1,4 +1,4 @@
-import type { AgentHandler, AgentExecutionResult } from '@treeseed/agent/runtime-types';
+import type { AgentHandler, AgentHandlerOutput } from '@treeseed/agent/runtime-types';
 
 type Inputs = {
   objective: string | null;
@@ -14,7 +14,7 @@ function objectiveText(context: Parameters<AgentHandler<Inputs, Result>['resolve
   return context.coreObjective?.content ?? context.coreObjective?.message ?? null;
 }
 
-function completed(summary: string, metadata: Record<string, unknown> = {}): AgentExecutionResult {
+function completed(summary: string, metadata: Record<string, unknown> = {}): AgentHandlerOutput {
   return { status: 'completed', summary, metadata };
 }
 

@@ -15,6 +15,14 @@ Current ownership:
 
 See [Package Ownership](./package-ownership.md) for the current package map.
 
+Project architecture inputs are logical. Operations should consume repository identity plus `rootPath`, `sitePath`, `contentPath`, `contentRuntimeSource`, and `localContentMaterialization` from SDK/API contracts instead of assuming a parent workspace or submodule layout. Repository-bound operations may use a persistent checkout cache, but content access for CI/CD, hosted deploy, and capacity-provider work should default to API, TreeDX, or R2 sources rather than cloning large content repositories. This keeps imported live repositories and template-created projects usable without restructuring.
+
+Software deployment and content publishing are separate operation shapes. A `deploy_web` operation deploys the site shell/runtime to its host. A `publish_content` operation publishes TreeDX or local-content snapshot output to the configured R2 manifest/object target and records safe runtime metadata such as `contentRuntimeSource`, `effectiveContentSource`, `manifestKey`, `revision`, and `snapshotId`. TreeDX-backed content publish remains operations-runner/API driven and is reported as skipped for GitHub Actions workflow checks; it must not be modeled as a software deploy workflow dispatch.
+
+Linked repository initialization is also a platform operation. API routes such as `POST /v1/projects/:projectId/repositories/:role/initialize` create `repository:initialize_linked_repository` jobs and return operation handles; they do not clone, scaffold, commit, or push from the API process. The operations runner claims those jobs and calls the SDK repository operation implementation from its workspace. Imported repositories are adopted and validated without restructuring by default. Template-created repositories may write only explicit template scaffold files, and operation output must report safe changed paths without exposing runner workspace paths or credential values.
+
+The final project architecture completion gate depends on this runner boundary: the exact-nine TreeSeed seed must populate the catalog, project creation from templates must remain easy, and linked repositories must initialize through API-created operations runner jobs rather than one-off API, CLI, GitHub CLI, or direct filesystem mutation.
+
 Current Railway deployment:
 
 ```text
@@ -691,16 +699,16 @@ TREESEED_PLATFORM_RUNNER_ENVIRONMENT=production
 
 Repository/deploy credentials should be supplied as deployed secrets:
 
-```bash
-TREESEED_GITHUB_TOKEN=...
-TREESEED_RAILWAY_API_TOKEN=...
-TREESEED_CLOUDFLARE_API_TOKEN=...
-TREESEED_CLOUDFLARE_ACCOUNT_ID=...
-```
+| Registry name | Kind |
+| --- | --- |
+| `TREESEED_GITHUB_TOKEN` | secret |
+| `TREESEED_RAILWAY_API_TOKEN` | secret |
+| `TREESEED_CLOUDFLARE_API_TOKEN` | secret |
+| `TREESEED_CLOUDFLARE_ACCOUNT_ID` | plain config |
 
 For Cloudflare, use the dashboard permission names when creating the token. The account-wide set is Pages Write, Workers Scripts Write, Workers KV Storage Write, Workers R2 Storage Write, D1 Write, Queues Write, Turnstile Sites Write, Account Rulesets Write, and Account Rule Lists Write. The target zone needs Zone Read, DNS Write, Cache Settings Write, and SSL and Certificates Write. Cloudflare API docs may call Cache Settings the Cache Rules permission, and Account Rule Lists the Account Filter Lists permission.
 
-Database credentials target the Treeseed PostgreSQL control-plane database:
+Database credentials target the Treeseed PostgreSQL control-plane database. Local development derives `TREESEED_DATABASE_URL` from the managed local API Postgres settings; operators should not enter it manually for local seed/apply or local dev. Staging and production receive the reconciled PostgreSQL connection URL as a service secret:
 
 ```bash
 TREESEED_DATABASE_URL=postgres://...
@@ -823,7 +831,7 @@ Schema ownership is split by runtime:
 * Market control-plane schema lives in `packages/sdk/src/db/market-schema.ts`.
 * Treeseed PostgreSQL migration SQL is generated into `packages/sdk/drizzle/market` with `npm run db:generate:market`.
 * Market startup and deploy workflows apply generated Drizzle SQL with `npm -w packages/api run db:migrate` against `TREESEED_DATABASE_URL`.
-* SDK/Core D1 schema remains only for unauthenticated static knowledge-hub form storage: `runtime_records`, `subscribers`, and `contact_submissions`. It is generated into `packages/sdk/drizzle/d1` with `npm -w packages/sdk run db:generate:d1`.
+* SDK/Core D1 schema remains only for unauthenticated static knowledge-hub form storage: `subscribers` and `contact_submissions`. It is generated into `packages/sdk/drizzle/d1` with `npm -w packages/sdk run db:generate:d1`; D1 is not an agent runtime database.
 
 The top-level `migrations/` directory and hand-authored Market SQL migrations are retired. Market runtime code must fail clearly when PostgreSQL migrations cannot be applied; it must not create or repair Market tables ad hoc.
 

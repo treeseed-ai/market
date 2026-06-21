@@ -1085,7 +1085,7 @@ The capacity scheduling E2E harness proves:
 * checkpoint/continuation events prevent dirty ambiguous failure states;
 * backfill admits useful work by utility and idles when no useful work remains;
 * attention, context, utility, predictive reserve, cooperative routing, and hybrid phase metadata survive into route and usage records.
-* the project Capacity UI exposes provider/lane pressure, reservations, learned profiles, approval and continuation states, and submits manual work through `/v1/projects/:projectId/agent-tasks` without bypassing admission.
+* the project Capacity UI exposes provider/lane pressure, reservations, learned profiles, approval and continuation states, and routes manual work through accepted capacity plans and provider assignments without bypassing admission.
 
 Implemented behavior:
 

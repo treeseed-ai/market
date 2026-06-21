@@ -16,18 +16,22 @@ The root `@treeseed/market` app is the hosted Treeseed-operated site. It compose
 - `@treeseed/agent` through capacity-provider workflows, not in-process runtime imports
 - `packages/treedx` through SDK/API integration, not product-specific UI code
 
-The root market app owns the single real hostable `treeseed.site.yaml` in this workspace.
+The root market app owns the real hostable web tenant `treeseed.site.yaml` in this workspace. Deployable package apps may own package-local hostable manifests when they operate an independently released runtime surface; today `packages/api/treeseed.site.yaml` owns the API, operations runner, Treeseed PostgreSQL, capacity-provider service bindings, and public TreeDX federation topology. SDK/CLI workflows compose the root and package manifests into one integrated desired-state graph, but the web and API release pipelines remain independently deployable.
+
+Project architecture is logical, not submodule-first. A project is described by repository identity plus `rootPath`, optional `sitePath`, optional `contentPath`, `contentRuntimeSource`, and `localContentMaterialization`. The Market project uses `sitePath: "."`; first-party package projects default to `sitePath: "docs"` even when a docs site is not prepared yet. Submodules are allowed as one local materialization strategy, but projects should be easy to create from templates and easy to import from live projects without restructuring.
+
+First-party package repositories declare their future project shape in `treeseed.package.yaml` under `projectArchitecture`. That metadata prepares packages for Admin/seed integration without changing package release gates: missing `docs/` sites report `site_not_prepared`, while package CI and publishing continue to follow the manifest's existing `verify`, `releaseGate`, and artifact settings.
 
 ## Package Responsibility Table
 
 | Package | Audience-Level Purpose | Implementation Ownership |
 | --- | --- | --- |
-| `@treeseed/market` | Treeseed-operated public site, marketplace, hosted tenant, docs/content, future ecommerce | Root app, `treeseed.site.yaml`, content, public messaging, overrides, marketplace/ecommerce business logic |
+| `@treeseed/market` | Treeseed-operated public site, marketplace, hosted tenant, docs/content, future ecommerce | Root app, root web tenant `treeseed.site.yaml`, content, public messaging, overrides, marketplace/ecommerce business logic |
 | `@treeseed/admin` | Distributable AGPLv3 administration portal for organizations | Admin routes, auth/session glue, middleware, API client facades, admin view models, catalog display, secret-manager UI/contracts |
 | `@treeseed/ui` | Reusable Treeseed UI system | Layout-down Astro/React components, shells, forms, controls, cards, dashboards, CSS/theme primitives |
 | `@treeseed/core` | Installable Astro/Starlight Treeseed web runtime | Site layering, content/runtime integration, tenant config loading, plugin hooks, web-only runtime composition, foreground dev entrypoint delegation; does not own agent scheduling or provider execution |
 | `@treeseed/sdk` | Programmatic platform substrate | Config, reconciliation, workflow engine, hosting graph, package workflow discovery, SDK-managed local dev supervisor, shared contracts, graph/content APIs, TreeDX client integration, portable agent-capacity contracts |
-| `@treeseed/api` | Deployed backend control-plane API | Hono API, PostgreSQL adapter/migrations, backend auth, operation lifecycle, operations runner, route descriptors, provider sessions, assignment leases, mode-run persistence, capacity ledger coordination |
+| `@treeseed/api` | Deployed backend control-plane API | Hono API, package-local backend `treeseed.site.yaml`, PostgreSQL adapter/migrations, backend auth, operation lifecycle, operations runner, route descriptors, provider sessions, assignment leases, mode-run persistence, capacity ledger coordination |
 | `@treeseed/cli` | Human/operator command surface | `treeseed`/`trsd` command parsing, help, command handlers, terminal reporting, workflow entrypoints over SDK/Core/Agent |
 | `@treeseed/agent` | Capacity-provider and agent runtime | Provider API, provider manager/runner/worker runtime, AgentKernel execution, mode scheduling, provider-local capacity enforcement, runtime images/templates |
 | `packages/treedx` | Generic repository data/index/query service consumed by Treeseed | TreeDX API, storage, Git/repository graph/indexing, federation, Docker image, language SDKs; no Treeseed product semantics |
@@ -177,6 +181,8 @@ Admin and market may display capacity provider state and expose configuration wo
 Provider runtime execution is assignment-only. Do not add provider task claim/event/complete/fail HTTP routes or public provider-client methods; local task stores and project runner task APIs are separate non-provider-runtime surfaces.
 
 Capacity providers supply execution capacity, native budget observations, local runner pressure, availability windows, and execution-provider capabilities. Projects supply agent definitions, agent classes, handlers, prompts, output contracts, and work semantics. The API coordinates the match between project demand and provider supply through durable records; the provider manager only supervises one provider's local runtime.
+
+Human-machine execution provider adapters follow the same boundary. AI providers, deterministic workflow providers, and human issue queue providers are execution surfaces behind capacity providers. Project handlers remain semantic and provider-independent; adapters only perform or coordinate bounded assignment work. See `docs/human-machine-providers.md`.
 
 Infrastructure lifecycle and runtime assignment are separate concerns. `trsd capacity build/up/status/logs/down/test-local` manage provider runtime lifecycle and diagnostics through reconciliation. Provider check-ins, assignments, leases, mode runs, usage actuals, and ledger entries are API control-plane records, not reconciled infrastructure resources.
 

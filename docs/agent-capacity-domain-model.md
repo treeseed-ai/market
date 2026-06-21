@@ -34,6 +34,8 @@ Provider-owned examples:
 
 The API coordinates the match between project demand and provider supply. The provider manager supervises only one provider's local runtime; it is not the cross-provider planning authority.
 
+Human-machine execution providers use this same boundary: projects define work semantics, while AI providers, deterministic workflows, and human issue queues supply execution capacity. See [Human-Machine Execution Providers](./human-machine-providers.md).
+
 ## AllocationSet
 
 An `AllocationSet` is a versioned team policy for distributing capacity across a workday or accounting window.

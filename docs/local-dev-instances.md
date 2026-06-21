@@ -19,11 +19,38 @@ Use the foreground form when you want terminal-owned logs and Ctrl-C lifecycle. 
 
 See [Package Ownership](./package-ownership.md) for the full package map.
 
+## Project Architecture And Local Content
+
+`trsd dev` should plan from logical project architecture, not from a submodule-dependent layout. A project is identified by repository plus `rootPath`, optional `sitePath`, optional `contentPath`, `contentRuntimeSource`, and `localContentMaterialization`.
+
+For the root Market project, the default `sitePath` is `.`. For first-party package projects, the default `sitePath` is `docs`; a missing docs site should produce a `site_not_prepared` diagnostic instead of blocking unrelated package workflows.
+
+Local content files appear only when the selected materialization requires them:
+
+- `existing_path` uses content already present in the repository.
+- `managed_clone` is reserved for split content repositories when a human requests local editing or preview.
+- `submodule` is supported for existing workspaces, but it is not the canonical project model.
+- `none` means local dev should use TreeDX, API, or R2-backed content access instead.
+
+CI/CD, hosted deploys, and capacity-provider operations should not clone large content repositories by default. They should use API, TreeDX, or R2 content sources unless a workflow explicitly asks for local content.
+
+`trsd dev` exposes that choice through `--local-content <auto|none|preview|edit>`:
+
+- `auto` is the default. It reports project architecture and uses existing local paths when present, but it does not clone split content repositories.
+- `none` never clones or initializes local content and reports the intended TreeDX/API/R2 runtime source.
+- `preview` materializes managed local content when a human needs local read/preview files.
+- `edit` materializes managed local content for local editing. Dirty managed clones are never reset or overwritten.
+
+Managed clones live under `.treeseed/local-content/<team-slug>/<project-slug>/<role>` by default. GitHub credentials come from canonical Treeseed environment names such as `TREESEED_GITHUB_TOKEN` or `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>` and are translated only inside the immediate Git/GitHub child process environment.
+
 ## Commands
 
 ```bash
 npx trsd dev --web-runtime local
+npx trsd dev --web-runtime local --local-content none --plan --json
+npx trsd dev --web-runtime local --local-content preview --plan --json
 npx trsd dev start --web-runtime local --json
+npx trsd dev start --web-runtime local --local-content edit --json
 npx trsd dev status --json
 npx trsd dev status --all --json
 npx trsd dev logs
@@ -42,9 +69,12 @@ Each physical worktree owns its authoritative runtime files:
 .treeseed/dev/instances/<scope>.json
 .treeseed/dev/pids/<scope>.pid
 .treeseed/logs/dev-<scope>.jsonl
+.treeseed/config/machine.yaml
 ```
 
 For the Market root, the normal scope is `web-api`, which includes the web UI, API, managed local PostgreSQL setup, API migrations, and the Treeseed operations runner. The web process runs from the root repo; the API and runner processes run from `packages/api`. Other scopes are possible for package-local or focused development surfaces.
+
+Managed workflow worktrees seed `.treeseed/config/machine.yaml` from the primary checkout when the worktree is created. Once present, the worktree-local config is authoritative for `trsd config`, launch environment resolution, provider wrappers, and status checks, so changing provider variables in one feature worktree does not rewrite the credentials used by sibling worktrees.
 
 Validate the plan without starting processes:
 

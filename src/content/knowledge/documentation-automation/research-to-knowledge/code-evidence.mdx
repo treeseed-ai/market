@@ -147,8 +147,8 @@ source_map:
       - AGENT_MESSAGE_TYPES
       - AgentContext
       - AgentErrorCategory
-      - AgentExecutionAdapter
-      - AgentExecutionResult
+      - ExecutionProviderAdapter
+      - ExecutionRunSnapshot
       - AgentHandler
       - AgentKernel
       - AgentMessageContracts
@@ -522,8 +522,8 @@ source_map:
       - AgentArtifactApiState
       - AgentContext
       - AgentErrorCategory
-      - AgentExecutionAdapter
-      - AgentExecutionResult
+      - ExecutionProviderAdapter
+      - ExecutionRunSnapshot
       - AgentHandler
       - AgentKernel
       - AgentMergeToStagingResult
@@ -701,7 +701,7 @@ This draft explains how does the research-to-knowledge pipeline convert code evi
 - Context query research-to-knowledge-loop:code:module-packages-agent-src-agents supports research for research knowledge pipeline research notes knowledge drafts optimizer source maps artifacts.
   - evidence: direct
   - sources: packages/agent/src/agents/adapters/codex-readiness.ts, packages/agent/src/agents/adapters/execution-codex.ts, packages/agent/src/agents/adapters/execution.ts, packages/agent/src/agents/adapters/mutations.ts, packages/agent/src/agents/adapters/notification.ts, packages/agent/src/agents/adapters/operations.ts, packages/agent/src/agents/adapters/repository.ts, packages/agent/src/agents/adapters/research.ts, packages/agent/src/agents/adapters/verification.ts, packages/agent/src/agents/cli-tools.ts, packages/agent/src/agents/cli.ts, packages/agent/src/agents/context/code-context-packs.ts
-  - symbols/sections: AGENT\_MESSAGE\_TYPES, AgentContext, AgentErrorCategory, AgentExecutionAdapter, AgentExecutionResult, AgentHandler, AgentKernel, AgentMessageContracts, AgentMessagePayload, AgentMessageType, AgentMutationAdapter, AgentMutationResult, AgentNotificationAdapter, AgentNotificationResult, AgentOperationsAdapter, AgentRepairTaskPayload, AgentRepositoryInspectionAdapter, AgentRepositoryInspectionResult, AgentResearchAdapter, AgentResearchResult, AgentRunTrace, AgentSpecDiagnostic, AgentSpecDiagnosticSeverity, AgentSpecLoadResult
+  - symbols/sections: AGENT\_MESSAGE\_TYPES, AgentContext, AgentErrorCategory, ExecutionProviderAdapter, ExecutionRunSnapshot, AgentHandler, AgentKernel, AgentMessageContracts, AgentMessagePayload, AgentMessageType, AgentMutationAdapter, AgentMutationResult, AgentNotificationAdapter, AgentNotificationResult, AgentOperationsAdapter, AgentRepairTaskPayload, AgentRepositoryInspectionAdapter, AgentRepositoryInspectionResult, AgentResearchAdapter, AgentResearchResult, AgentRunTrace, AgentSpecDiagnostic, AgentSpecDiagnosticSeverity, AgentSpecLoadResult
   - last observed: local
   - uncertainty: Scanner evidence should still be reviewed against current source before promotion.
 - Context query research-to-knowledge-loop:code:module-packages-agent-src-api supports research for research knowledge pipeline research notes knowledge drafts optimizer source maps artifacts.
@@ -761,7 +761,7 @@ This draft explains how does the research-to-knowledge pipeline convert code evi
 - Context query research-to-knowledge-loop:code:package-agent supports research for research knowledge pipeline research notes knowledge drafts optimizer source maps artifacts.
   - evidence: direct
   - sources: packages/agent/src/agents/adapters/codex-readiness.ts, packages/agent/src/agents/adapters/execution-codex.ts, packages/agent/src/agents/adapters/execution.ts, packages/agent/src/agents/adapters/mutations.ts, packages/agent/src/agents/cli.ts, packages/agent/src/api/agent-artifacts.ts, packages/agent/src/api/agent-routes.ts, packages/agent/src/api/app.ts, packages/agent/src/api/auth/d1-database.ts, packages/agent/src/index.ts, packages/agent/src/services/.ts-run-1778724155855-8jc6bt47z4w\.mjs, packages/agent/src/services/.ts-run-1778724156124-39absm5sr7b.mjs, packages/agent/src/services/.ts-run-1778724515065-r286dezoz3i.mjs, packages/agent/src/services/.ts-run-1778724845757-8n1em4yzzzl.mjs
-  - symbols/sections: AGENT\_MESSAGE\_TYPES, AccessTokenPayload, AgentApprovalDecision, AgentApprovalDecisionError, AgentApprovalKind, AgentApprovalRequestSummary, AgentArtifactApiItem, AgentArtifactApiState, AgentContext, AgentErrorCategory, AgentExecutionAdapter, AgentExecutionResult, AgentHandler, AgentKernel, AgentMergeToStagingResult, AgentMessageContracts, AgentMessagePayload, AgentMessageType, AgentMutationAdapter, AgentMutationResult, AgentNotificationAdapter, AgentNotificationResult, AgentOperationApiState, AgentOperationEventSummary
+  - symbols/sections: AGENT\_MESSAGE\_TYPES, AccessTokenPayload, AgentApprovalDecision, AgentApprovalDecisionError, AgentApprovalKind, AgentApprovalRequestSummary, AgentArtifactApiItem, AgentArtifactApiState, AgentContext, AgentErrorCategory, ExecutionProviderAdapter, ExecutionRunSnapshot, AgentHandler, AgentKernel, AgentMergeToStagingResult, AgentMessageContracts, AgentMessagePayload, AgentMessageType, AgentMutationAdapter, AgentMutationResult, AgentNotificationAdapter, AgentNotificationResult, AgentOperationApiState, AgentOperationEventSummary
   - last observed: local
   - uncertainty: Scanner evidence should still be reviewed against current source before promotion.
 

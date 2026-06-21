@@ -12,6 +12,7 @@ Related architecture:
 - [Capacity Provider Agent Coordination Architecture](./capacity_provider_agent_coordination_architecture.md)
 - [Agent Capacity Domain Model](./agent-capacity-domain-model.md)
 - [Agent Kernel Mode Runtime](./agent-kernel-mode-runtime.md)
+- [Human-Machine Execution Providers](./human-machine-providers.md)
 - [Agent Capacity Operator Surfaces](./agent-capacity-operator-surfaces.md)
 - [Package Ownership](./package-ownership.md)
 
@@ -26,6 +27,8 @@ The implementation boundary is:
 - `@treeseed/cli` owns operator commands over SDK/API/agent public surfaces.
 - `@treeseed/core` owns web runtime composition. It does not own provider scheduling, AgentKernel execution, or capacity assignment logic.
 - `packages/treedx` remains product-neutral. Treeseed maps project and capacity semantics outside TreeDX.
+
+Human-machine execution provider work follows the same ownership model. `@treeseed/agent` owns executable adapter interfaces and provider-local runtime behavior; `@treeseed/sdk` owns portable DTOs and pure matching helpers; `@treeseed/api` owns assignment selection and durable lifecycle records. See [Human-Machine Execution Providers](./human-machine-providers.md).
 
 ## Phase 1: Contracts And Durable Records
 

@@ -16,7 +16,7 @@ See [Package Ownership](./package-ownership.md) for the full system map.
 
 ## Market Railway Services
 
-`treeseed.site.yaml` should reconcile these services in place. Do not create replacement services with new names.
+`packages/api/treeseed.site.yaml` should reconcile these services in place. Do not create replacement services with new names. The root Market `treeseed.site.yaml` owns the Cloudflare web/admin tenant and `/v1/*` proxy/client surfaces; the API package manifest owns the independently released Railway backend runtime.
 
 ```text
 api

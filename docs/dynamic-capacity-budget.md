@@ -661,7 +661,7 @@ manual approval for borrowing from reserve
 
 Market control-plane capacity budgeting tables are PostgreSQL tables owned by `packages/sdk/src/db/market-schema.ts`. Do not add hand-authored top-level SQL migrations for this work. Generate the checked-in Treeseed PostgreSQL artifact with `npm run db:generate:market`.
 
-SDK/Core D1 storage is separate and intentionally small. It is only for unauthenticated static knowledge-hub form storage (`runtime_records`, `subscribers`, and `contact_submissions`). D1 migration artifacts are generated with `npm -w packages/sdk run db:generate:d1` and are not used by the API.
+SDK/Core D1 storage is separate and intentionally small. It is only for unauthenticated static knowledge-hub form storage (`subscribers` and `contact_submissions`). D1 migration artifacts are generated with `npm -w packages/sdk run db:generate:d1` and are not used by the API or capacity-provider agent runtime.
 
 The table summaries below are logical review notes only. The implementation source of truth is Drizzle.
 

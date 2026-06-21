@@ -17,6 +17,10 @@ Every operator surface should identify which kind of state it shows:
 
 Mixing these categories makes debugging difficult. Admin and CLI should label them plainly.
 
+Human-machine execution provider surfaces should render execution provider kind, external refs, adapter status, artifacts, usage, and capability demand/supply explanations without becoming scheduling or execution surfaces. See [Human-Machine Execution Providers](./human-machine-providers.md).
+
+Phase H adds `executionVisibility` as the shared SDK-owned operator projection for those fields. Admin and CLI use it to render selected execution provider kind or id, adapter status, external refs, artifacts, usage, required/available/alias/missing capabilities, selected provider, selected execution provider, and reason codes from existing assignment, explanation, and mode-run records. Full capability drill-down remains in assignment explanation records.
+
 ## Admin Surfaces
 
 Admin should provide:
@@ -39,7 +43,7 @@ Implemented Phase 4 surfaces:
 
 - `/app/capacity/allocation` remains the allocation and project agent-class allocation surface.
 - `/app/capacity/providers` remains the provider registration, native capacity, grants, and lifecycle overview surface.
-- `/app/capacity/runtime` shows allocation-set versions, selected-project agent classes, provider availability sessions, provider assignments, and mode-run telemetry as separate read-only sections.
+- `/app/capacity/runtime` shows allocation-set versions, selected-project agent classes, provider availability sessions, provider assignments, mode-run telemetry, execution-provider refs, adapter status, artifacts, usage, and capability coverage as separate read-only sections.
 - Admin API facades call the public API routes for those records and for focused decision-readiness, execution-input, assignment-explanation, and workday-summary drill-downs; they do not import API store code or provider runner code.
 
 ## CLI Surfaces
@@ -74,6 +78,12 @@ Implemented Phase 4 commands:
 - `trsd capacity workday --workday <workday-id> --json`
 - `trsd capacity workday-summary --workday <workday-id> --json`
 - `trsd capacity assignment-explanation --team <team-id> --assignment <assignment-id> --json`
+
+Phase H extends existing inspection commands without adding scheduler commands:
+
+- `trsd capacity assignments --json` includes `executionVisibility` on each assignment record.
+- `trsd capacity mode-runs --json` includes `executionVisibility` on each mode-run record.
+- `trsd capacity assignment-explanation --json` includes an `executionCapabilityMatch` summary derived from the assignment explanation gates.
 
 Phase 5 live proof is invoked through `trsd reconcile test-live`, not through hidden scheduling behavior in `trsd capacity`. The proof creates diagnostic assignments and mode runs tagged with the live-test run id, so operators can inspect them with the existing assignment and mode-run commands after local or hosted acceptance.
 

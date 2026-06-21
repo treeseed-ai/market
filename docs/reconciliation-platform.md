@@ -6,21 +6,23 @@ This document is the canonical contract for hosting, configuration, local develo
 
 See [Package Ownership](./package-ownership.md) for the current package map.
 
+Project topology reconciliation uses the logical model in [Project Architecture Migration Roadmap](./project-architecture-migration.md): repository identity plus `rootPath`, optional `sitePath`, optional `contentPath`, `contentRuntimeSource`, and `localContentMaterialization`. Submodules are local materialization details, not a required project shape. This keeps templates and imported live repositories usable without restructuring.
+
 ## Package Ownership In Reconciliation
 
 - `@treeseed/sdk` owns the reconciliation engine, desired-state graph, provider adapters, package workflow discovery, config runtime, and live verification contracts.
 - `@treeseed/cli` exposes the command surface that invokes SDK reconciliation.
 - `@treeseed/core` contributes web runtime and web-only desired state.
 - `@treeseed/admin` contributes site/plugin/runtime/admin surfaces, routes, middleware, and env schema; it does not own hosted infrastructure and has no package-local `treeseed.site.yaml`.
-- root `@treeseed/market` owns the real hostable `treeseed.site.yaml`, public content, page overrides, and future ecommerce/business policy.
-- `@treeseed/api` owns API, operations runner, PostgreSQL, backend route descriptors, public TreeDX federation app desired state, and durable capacity coordination records such as provider sessions, assignments, mode runs, reservations, and usage settlement.
+- root `@treeseed/market` owns the real hostable web tenant `treeseed.site.yaml`, public content, page overrides, `/v1/*` API connection/proxy metadata, and future ecommerce/business policy.
+- `@treeseed/api` owns the package-local backend `treeseed.site.yaml`, API, operations runner, PostgreSQL, backend route descriptors, public TreeDX federation app desired state, capacity-provider service bindings, and durable capacity coordination records such as provider sessions, assignments, mode runs, reservations, and usage settlement.
 - `@treeseed/agent` owns capacity-provider runtime artifacts, provider desired state, provider manager/runner behavior, AgentKernel execution, and provider-local lifecycle.
 - `packages/treedx` owns the TreeDX image/service artifact; API hosting consumes selected TreeDX images.
 - `@treeseed/ui` owns no infrastructure; it contributes components and styles only.
 
 ## Non-Negotiable Rules
 
-1. Desired state is compiled first. `treeseed.site.yaml`, `treeseed.package.yaml`, package environment registries, app `src/env.yaml`, provider overlays, config state, and CLI filters become typed desired resource nodes before provider mutation begins.
+1. Desired state is compiled first. `treeseed.site.yaml`, `treeseed.package.yaml`, package environment registries, app `src/env.yaml`, provider overlays, project architecture bindings, config state, and CLI filters become typed desired resource nodes before provider mutation begins.
 2. Live observation is authoritative. Persisted state can locate resources and remember lineage, but it can never prove readiness.
 3. `ok: true` is allowed only after selected live postconditions pass.
 4. Every provider mutation is followed by refresh and verify. An accepted API mutation is not success until live state converges.
@@ -200,7 +202,7 @@ Every reconciliation-capable command that touches infrastructure or provider sta
 
 Web-only apply selects only root web resources. It must not touch Railway API services, runner services, PostgreSQL, TreeDX nodes, or API-owned secrets. It may verify the configured API connection/proxy health as a web postcondition.
 
-API-only apply selects `packages/api` resources. It must reconcile the `treeseed-api` Railway project, API service, indexed operations runner, PostgreSQL, public TreeDX federation nodes, variables, volumes, domains, deployments, and HTTP health without building or deploying the root web UI.
+API-only apply selects `packages/api` resources from `packages/api/treeseed.site.yaml` and package metadata. It must reconcile the `treeseed-api` Railway project, API service, indexed operations runner, PostgreSQL, public TreeDX federation nodes, capacity-provider service bindings when selected, variables, volumes, domains, deployments, and HTTP health without building or deploying the root web UI.
 
 Mixed app release selects affected apps by dependency graph. API changes deploy API-owned resources first when web depends on new API behavior. UI-only changes skip API verify/deploy/smoke and may run only a lightweight configured API health check.
 

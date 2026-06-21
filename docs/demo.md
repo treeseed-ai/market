@@ -20,7 +20,7 @@ The demo is not a special app mode. It is a rehearsed walkthrough of the same su
 - reusable UI comes from `@treeseed/ui`
 - API and operations runner run from `packages/api`
 - capacity-provider runtime comes from `packages/agent` and is required for workday execution
-- TreeDX is the default project content repository plane consumed through SDK/API; project sites and optional parent projects remain filesystem-backed worktrees
+- TreeDX is the default project content repository plane consumed through SDK/API; project sites are logical repository bindings with `sitePath` and optional `contentPath`, and parent workspaces/submodules are optional local materialization choices rather than required project shape
 
 See [Package Ownership](./package-ownership.md) for the current package map.
 

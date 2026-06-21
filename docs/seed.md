@@ -10,7 +10,7 @@ The system should support local development, staging, and production maintenance
 trsd seed <seed-name> --environments <env[,env...]>
 ```
 
-The initial goal is to add a `treeseed` seed that provisions the TreeSeed team, the market project, proof projects, repository/submodule relationships, development capacity providers, execution-provider limits, grants, work policies, repository hosts, and catalog products.
+The initial goal is to add a `treeseed` seed that provisions the TreeSeed team, the market project, proof projects, project architecture bindings, development capacity providers, execution-provider limits, grants, work policies, repository hosts, and catalog products.
 
 ## Current Package Ownership
 
@@ -254,6 +254,22 @@ teams:
     profileSummary: TreeSeed platform, market, SDK, CLI, core, and agent operations.
 ```
 
+### Project Architecture Bindings
+
+Seeds should describe projects with logical architecture instead of one required filesystem shape. A project source is the remote repository plus:
+
+* `topology`: `single_repository_site`, `split_site_content`, or `parent_workspace`
+* `rootPath`: repository-relative project root, defaulting to `.`
+* `sitePath`: repository-relative site implementation path; Market uses `.`, first-party package projects use `docs`
+* `contentPath`: optional repository-relative local content path
+* `contentRuntimeSource`: `local_directory`, `treedx_snapshot`, `r2_published_manifest`, or `r2_preview_overlay`
+* `localContentMaterialization`: `none`, `existing_path`, `managed_clone`, or `submodule`
+* `contentPublishTarget`: durable content publication target, currently Cloudflare R2 for hosted content
+
+Submodules are still supported, but only as one local materialization strategy. They must not be required for imported projects. Projects should be easy to create from templates and easy to import from live projects without restructuring.
+
+`checkoutPath` and `submodulePath` remain compatibility fields for local development workspaces and existing package mounts. They do not define the canonical project source, and they must not replace the remote Git URL or the architecture fields.
+
 ### Projects
 
 Projects must be seeded from remote sources with valid Git URLs. Local paths such as `.` or `packages/sdk` may be used only as local checkout or submodule mount metadata; they are not valid project source identities by themselves.
@@ -266,8 +282,9 @@ Each project repository definition should include:
 * `name`: remote repository name
 * `defaultBranch`: expected default branch
 * `checkoutPath`: local development checkout path, when applicable
-* `submodulePath`: path where the remote is mounted as a submodule, when applicable
+* `submodulePath`: compatibility path where the remote is mounted as a submodule, when applicable
 * `role`: project repository role
+* `architecture`: canonical project topology and path binding
 
 ```yaml
 projects:
@@ -285,6 +302,12 @@ projects:
       gitUrl: https://github.com/treeseed/market.git
       defaultBranch: main
       checkoutPath: .
+    architecture:
+      topology: single_repository_site
+      rootPath: .
+      sitePath: .
+      contentRuntimeSource: r2_published_manifest
+      localContentMaterialization: existing_path
 
   - key: project:treeseed/sdk
     team: team:treeseed
@@ -301,6 +324,12 @@ projects:
       defaultBranch: main
       checkoutPath: packages/sdk
       submodulePath: packages/sdk
+    architecture:
+      topology: single_repository_site
+      rootPath: .
+      sitePath: docs
+      contentRuntimeSource: r2_published_manifest
+      localContentMaterialization: none
 
   - key: project:treeseed/core
     team: team:treeseed
@@ -317,6 +346,12 @@ projects:
       defaultBranch: main
       checkoutPath: packages/core
       submodulePath: packages/core
+    architecture:
+      topology: single_repository_site
+      rootPath: .
+      sitePath: docs
+      contentRuntimeSource: r2_published_manifest
+      localContentMaterialization: none
 
   - key: project:treeseed/cli
     team: team:treeseed
@@ -333,6 +368,12 @@ projects:
       defaultBranch: main
       checkoutPath: packages/cli
       submodulePath: packages/cli
+    architecture:
+      topology: single_repository_site
+      rootPath: .
+      sitePath: docs
+      contentRuntimeSource: r2_published_manifest
+      localContentMaterialization: none
 
   - key: project:treeseed/agent
     team: team:treeseed
@@ -349,6 +390,12 @@ projects:
       defaultBranch: main
       checkoutPath: packages/agent
       submodulePath: packages/agent
+    architecture:
+      topology: single_repository_site
+      rootPath: .
+      sitePath: docs
+      contentRuntimeSource: r2_published_manifest
+      localContentMaterialization: none
 ```
 
 ### Capacity Providers
@@ -743,9 +790,9 @@ credentialRef: provider-session:github-production
 Disallowed:
 
 ```yaml
-token: ghp_...
-apiKey: sk-...
-privateKey: -----BEGIN PRIVATE KEY-----
+token: <raw provider token>
+apiKey: <raw API key>
+privateKey: <raw private key>
 ```
 
 Validation should flag likely secrets.
@@ -789,10 +836,17 @@ Create/update fields:
 * repository name
 * repository Git URL
 * default branch
+* topology
+* root path
+* site path
+* content path
+* content runtime source
+* local content materialization
+* content publish target
 * checkout path
 * submodule path
 
-Project reconciliation must treat the remote Git URL as required source metadata. The local `checkoutPath` and `submodulePath` describe where the repository is mounted for development and worktree operations; they must not replace the remote source URL.
+Project reconciliation must treat the remote Git URL as required source metadata. The canonical architecture fields describe how Treeseed should interpret the project without forcing a repository restructure. The local `checkoutPath` and `submodulePath` describe where the repository is mounted for development and worktree operations; they must not replace the remote source URL or become required for hosted deploy, seed import, content publish, or capacity-provider execution.
 
 ### Repository Hosts
 
@@ -830,8 +884,9 @@ Create/update fields:
 * access policy
 * release policy
 * publish policy
+* project architecture role when the same repository supplies software, site, and content paths
 
-For the TreeSeed seed, these should model the market repository and bundled package repositories as remote Git sources. Submodule paths should point to where those remotes are mounted inside the market checkout, but the reconciler should still preserve the canonical remote `gitUrl` for cloning, validation, runner checkout, and production automation.
+For the TreeSeed seed, these should model the market repository and package repositories as remote Git sources with logical project architecture. Submodule paths may point to where those remotes are mounted inside the market checkout today, but the reconciler should still preserve the canonical remote `gitUrl` and architecture fields for cloning, validation, runner checkout, import, production automation, and future non-submodule workspaces.
 
 ### Capacity Providers
 
@@ -907,16 +962,24 @@ Environments: local
 
 CREATE team treeseed
 CREATE project treeseed/market
-CREATE project karyon/live-proof
+CREATE project treeseed/api
+CREATE project treeseed/treedx
+CREATE project treeseed/sdk
+CREATE project treeseed/ui
+CREATE project treeseed/cli
+CREATE project treeseed/core
+CREATE project treeseed/admin
+CREATE project treeseed/agent
 CREATE capacity provider treeseed-local-dev
-CREATE grant treeseed/local-dev -> treeseed/market
-CREATE work policy market/local
+CREATE grant treeseed/local-dev -> treeseed portfolio
+CREATE work policy treeseed portfolio/local
 CREATE repository host github/knowledge-coop
+CREATE repository host github/treeseed-ai
 CREATE product template/treeseed-market
 CREATE catalog artifact treeseed/market-template@1.0.0
 
 Summary:
-  create: 8
+  create: 39
   update: 0
   unchanged: 0
   skipped: 2
@@ -924,6 +987,20 @@ Summary:
 ```
 
 JSON output should expose the same plan for tests and agent use.
+
+## Final Catalog And Repository Initialization Proof
+
+The project architecture migration is complete only when the `treeseed` seed is integrated into the local control-plane data catalog and linked repositories can be initialized through platform operations.
+
+Final proof requirements:
+
+* `npx trsd seed treeseed --environments local --apply --yes --json` creates or updates the exact-nine TreeSeed portfolio: Market plus API, TreeDX, SDK, UI, CLI, Core, Admin, and Agent.
+* The repeat seed plan is idempotent and contains no Karyon resources, stale `repositoryTopology`/`contentRoot` metadata, raw GitHub token values, or `TREESEED_GITHUB_TOKEN=` assignments.
+* Products, catalog artifacts, repository hosts, projects, work policies, capacity grants, content-source bindings, and TreeDX/project bindings are queryable from the same store surfaces used by API, Admin, CLI, and tests.
+* Project creation from templates shows the selected template, repository host requirements, and canonical architecture defaults without requiring repository restructuring.
+* Linked repository initialization is queued through the API and executed by the Treeseed operations runner as `repository:initialize_linked_repository`.
+* Imported repositories are adopted without file changes by default. Template-created repositories may write only explicit template scaffold files.
+* The seed and repository initialization proof must not expose token values, passphrases, deploy keys, runner workspace paths, or API-decryptable customer secrets.
 
 ---
 
@@ -1086,7 +1163,7 @@ Deliverable: ready-made deployable market bundles.
 4. Should destructive reconciliation ever be supported, or only create/update/disable?
 5. Should there be a `trsd seed export` command to snapshot existing state into a manifest?
 6. Should capacity provider credentials be attached during seed apply or handled as a separate host/credential setup flow?
-7. How much of repository/submodule topology should be represented in `projects` versus dedicated repository resource types?
+7. How much of canonical project architecture should be represented directly in `projects` versus dedicated repository/content-source resource types?
 
 ---
 
