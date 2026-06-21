@@ -59,10 +59,7 @@ function createProjectHandler(kind: string, messageType: string, verb: string): 
   };
 }
 
-export const plannerHandler = createProjectHandler('planner', 'objective_priority_updated', 'Prepared planning proposal');
-export const knowledgeGeneratorHandler = createProjectHandler('knowledge_generator', 'knowledge_generated', 'Prepared knowledge generation proposal');
-export const knowledgeOptimizerHandler = createProjectHandler('knowledge_optimizer', 'knowledge_optimized', 'Prepared knowledge optimization proposal');
-export const engineerHandler = createProjectHandler('engineer', 'task_waiting', 'Prepared implementation plan awaiting approval');
-export const reviewerHandler = createProjectHandler('reviewer', 'task_verified', 'Prepared review report');
-export const reporterHandler = createProjectHandler('reporter', 'report_created', 'Prepared workday report');
-export const releaserHandler = createProjectHandler('releaser', 'release_started', 'Prepared release handoff proposal');
+export const planHandler = createProjectHandler('plan', 'objective_priority_updated', 'Prepared planning proposal');
+export const actHandler = createProjectHandler('act', 'task_waiting', 'Prepared implementation plan awaiting approval');
+export const reviewHandler = createProjectHandler('review', 'task_verified', 'Prepared review report');
+export const reportHandler = createProjectHandler('report', 'report_created', 'Prepared report');

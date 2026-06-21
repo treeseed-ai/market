@@ -2,7 +2,12 @@
 id: agent:treeseed-releaser
 name: TreeSeed Releaser
 slug: treeseed-releaser
-handler: releaser
+handler: report
+projectAgentClassId: review
+projectAgentClassSlug: review
+handlerConfig:
+  workPackageKind: report
+  domain: release_readiness
 enabled: true
 description: Prepares release readiness notes for approved documentation updates while keeping production release human-approved.
 summary: Reports staged documentation release readiness and never publishes production changes automatically.
@@ -34,12 +39,34 @@ permissions:
     operations: [search, get]
   - model: message
     operations: [create, pick, update]
+context:
+  queries:
+    - id: release-readiness-context
+      purpose: release
+      query: docs mutation completed approvals release started verification summary staged documentation release readiness
+      scope: /
+      codeScopes:
+        - docs
+        - src/content
+      relations:
+        - references
+        - related
+      depth: 2
+      budget: 14
+      format: summary
 execution:
   provider: codex
   model: gpt-5.5
   approvalPolicy: never
   sandboxMode: read_only
   reasoningEffort: low
+  providerProfile:
+    requiredCapabilities:
+      - reasoning
+      - treedx_context
+      - release_readiness
+      - human_review
+    fallbackPolicy: ask_for_approval
   maxConcurrency: 1
   timeoutSeconds: 900
   cooldownSeconds: 60

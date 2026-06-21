@@ -45,11 +45,12 @@ Operational commands:
 
 ```bash
 npm -w packages/api run dev:runner -- --market local --watch --operation project:web_deployment --mock-external
+npx trsd operations smoke --environment local --service operationsRunner --json
 npx trsd operations smoke --environment staging --service operationsRunner --json
 npx trsd hosting verify --environment staging --service operationsRunner --live --json
 ```
 
-`operations smoke` is the first diagnostic to run when a platform operation stays queued. It verifies API health, deep DB health, diagnostic operation creation, runner claim/checkpoint/completion, and event visibility. TreeDX bootstrap should not start until runner smoke passes.
+`operations smoke` is the first diagnostic to run when a platform operation stays queued. With `--environment local`, it targets the managed local API and operations runner started by `trsd dev start --web-runtime local`. With hosted environments, it targets the reconciled API and Railway operations runner. In both cases it verifies API health, deep DB health, diagnostic operation creation, runner claim/checkpoint/completion, and event visibility. TreeDX bootstrap should not start until runner smoke passes.
 
 The design notes below describe the architecture intent that led to the current implementation.
 

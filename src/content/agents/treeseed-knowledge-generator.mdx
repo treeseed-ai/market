@@ -2,7 +2,12 @@
 id: agent:treeseed-knowledge-generator
 name: TreeSeed Knowledge Generator
 slug: treeseed-knowledge-generator
-handler: knowledge-generator
+handler: report
+projectAgentClassId: knowledge
+projectAgentClassSlug: knowledge
+handlerConfig:
+  workPackageKind: report
+  domain: knowledge_draft
 enabled: true
 description: Converts source-grounded research notes into structured TreeSeed knowledge drafts.
 summary: Creates reviewable draft artifacts with source maps and pending-review state, without promoting canonical knowledge.
@@ -36,12 +41,36 @@ permissions:
     operations: [search, get]
   - model: message
     operations: [create, pick, update]
+context:
+  queries:
+    - id: knowledge-generation-source-map
+      purpose: generate
+      query: research note source map related question documentation taxonomy knowledge draft uncertainty evidence
+      scope: /
+      codeScopes:
+        - src/content/notes
+        - src/content/questions
+        - src/content/knowledge
+        - docs
+      relations:
+        - references
+        - related
+      depth: 2
+      budget: 18
+      format: summary
 execution:
   provider: codex
   model: gpt-5.5
   approvalPolicy: never
   sandboxMode: read_only
   reasoningEffort: medium
+  providerProfile:
+    requiredCapabilities:
+      - reasoning
+      - treedx_context
+      - knowledge_drafting
+      - source_map
+    fallbackPolicy: require_same_model_class
   maxConcurrency: 1
   timeoutSeconds: 900
   cooldownSeconds: 60

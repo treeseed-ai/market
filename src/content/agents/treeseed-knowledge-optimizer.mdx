@@ -2,7 +2,12 @@
 id: agent:treeseed-knowledge-optimizer
 name: TreeSeed Knowledge Optimizer
 slug: treeseed-knowledge-optimizer
-handler: knowledge-optimizer
+handler: report
+projectAgentClassId: knowledge
+projectAgentClassSlug: knowledge
+handlerConfig:
+  workPackageKind: report
+  domain: knowledge_optimization
 enabled: true
 description: Scores generated knowledge drafts and prepares promotion recommendations for governance.
 summary: Improves draft usefulness, identifies weak evidence, and routes drafts toward promote, revise, defer, or reject outcomes.
@@ -33,12 +38,35 @@ permissions:
     operations: [search, get]
   - model: message
     operations: [create, pick, update]
+context:
+  queries:
+    - id: knowledge-optimization-review
+      purpose: optimize
+      query: knowledge draft source evidence review failed promotion readiness uncertainty links book fit future agent usefulness
+      scope: /
+      codeScopes:
+        - src/content/knowledge
+        - src/content/notes
+        - docs
+      relations:
+        - references
+        - related
+      depth: 2
+      budget: 18
+      format: summary
 execution:
   provider: codex
   model: gpt-5.5
   approvalPolicy: never
   sandboxMode: read_only
   reasoningEffort: medium
+  providerProfile:
+    requiredCapabilities:
+      - reasoning
+      - treedx_context
+      - knowledge_review
+      - source_map
+    fallbackPolicy: require_same_model_class
   maxConcurrency: 1
   timeoutSeconds: 900
   cooldownSeconds: 60

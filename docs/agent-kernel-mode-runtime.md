@@ -50,6 +50,10 @@ The implemented `AgentContext.capacity` field is optional so existing handlers c
 
 The implemented `AgentContext.treeDx` field is also optional. Provider runners hydrate it only from assignment proxy handles, apply handle-bound repository/workspace/path/operation defaults locally, and call TreeSeed `/v1/dx/projects/:projectId/...` proxy routes with provider auth, assignment id, and proxy handle id. Handlers can build context, read repository files, search workspaces, write workspace files, commit workspaces, and read back results through that adapter without seeing raw TreeDX service credentials.
 
+TreeDX is the default SDK content and repository backend, including local environments. Missing TreeDX configuration is a setup error for content operations; local filesystem content is available only when a caller explicitly passes `contentRepository: { adapter: 'local' }`. Provider runners may still use explicit local mode to bootstrap project-bundled agent specs and tenant handler modules from a synced checkout, but assignment content reads and writes should use TreeDX proxy handles when those handles are present.
+
+Execution provider invocations can also carry a redacted `treedx_proxy` tool descriptor derived from the same assignment handle. Codex receives TreeDX tool guidance and assignment-scoped MCP configuration metadata; GitHub Issues receives credential-free route templates and header names for human or external automation executors. The descriptor never contains raw TreeDX bearer tokens, provider API keys, GitHub tokens, repository deploy keys, or unredacted proxy payloads.
+
 ## Mode Selection
 
 Mode selection is API- and kernel-coordinated:

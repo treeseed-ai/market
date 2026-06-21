@@ -230,7 +230,7 @@ capacityProviders:
         nativeLimits:
           - scope: daily
             nativeUnit: wall_minute
-            limitAmount: 480
+            limitAmount: 600
             reserveBufferPercent: 20
             resetCadence: daily
             confidence: estimated
@@ -423,7 +423,7 @@ capacityProviders:
         nativeLimits:
           - scope: daily
             nativeUnit: wall_minute
-            limitAmount: 480
+            limitAmount: 600
             reserveBufferPercent: 20
             resetCadence: daily
             confidence: estimated
@@ -468,9 +468,20 @@ capacityGrants:
     project: project:treeseed/market
     environment: local
     grantScope: project
-    portfolioAllocationPercent: 100
+    portfolioAllocationPercent: 50
     reservePoolPercent: 10
-    maxDailyProjectCredits: 5000
+    priorityWeight: 1
+    overflowPolicy: soft_grant
+
+  - key: capacity-grant:treeseed/local/sdk
+    environments: [local]
+    provider: capacity-provider:treeseed/local-dev
+    team: team:treeseed
+    project: project:treeseed/sdk
+    environment: local
+    grantScope: project
+    portfolioAllocationPercent: 6
+    reservePoolPercent: 10
     priorityWeight: 1
     overflowPolicy: soft_grant
 

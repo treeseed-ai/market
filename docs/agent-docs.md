@@ -45,7 +45,7 @@ non-parity if detected by `parity-plan`.
 TreeSeed already has most of the lower-level ingredients needed for this system:
 
 * agent runtime exports for kernel, registry, runtime providers, handlers, workday manager, worker loop, workday start/report, runtime readiness, research-knowledge workdays, context processing, Codex docs mutation lifecycle, agent worktrees, and knowledge pipeline serialization;
-* handlers for researcher, knowledge generator, knowledge optimizer, engineer, reviewer, and releaser;
+* generic handlers for `plan`, `research`, `act`, `review`, and `report`, with project-specific behavior supplied by agent class, `handlerConfig.domain`, prompts, context queries, execution requirements, and output contracts;
 * a research-to-knowledge pipeline that can produce research notes, knowledge drafts, optimization reports, and serialized content;
 * a dogfood harness that generates platform knowledge artifacts from seeded TreeSeed questions;
 * worktree mutation infrastructure with allowed/forbidden path enforcement;
@@ -335,7 +335,7 @@ treeseed-docs-planner
 Handler:
 
 ```text
-planner
+plan
 ```
 
 Purpose:
@@ -389,7 +389,7 @@ treeseed-codebase-cartographer
 Handler:
 
 ```text
-researcher
+research
 ```
 
 Purpose:
@@ -462,7 +462,7 @@ treeseed-knowledge-generator
 Handler:
 
 ```text
-knowledge-generator
+report
 ```
 
 Purpose:
@@ -514,7 +514,7 @@ treeseed-knowledge-optimizer
 Handler:
 
 ```text
-knowledge-optimizer
+report
 ```
 
 Purpose:
@@ -557,7 +557,7 @@ Score dimensions:
 Governance:
 
 * promotion requires threshold score and source-map presence;
-* low-score drafts must route back to generator or planner.
+* low-score drafts must route back to the relevant `report` or `plan` agent configuration.
 
 ### 5. TreeSeed Documentation Engineer
 
@@ -576,7 +576,7 @@ treeseed-docs-engineer
 Handler:
 
 ```text
-engineer
+act
 ```
 
 Purpose:
@@ -656,7 +656,7 @@ treeseed-docs-reviewer
 Handler:
 
 ```text
-reviewer
+review
 ```
 
 Purpose:
@@ -712,7 +712,7 @@ treeseed-governance-steward
 Handler:
 
 ```text
-reviewer
+review
 ```
 
 Purpose:
@@ -767,7 +767,7 @@ treeseed-workday-reporter
 Handler:
 
 ```text
-reporter
+report
 ```
 
 Purpose:
@@ -820,7 +820,7 @@ treeseed-releaser
 Handler:
 
 ```text
-releaser
+report
 ```
 
 Purpose:
@@ -862,7 +862,11 @@ Use a shared shape like this for each top-level Market agent:
 ---
 name: TreeSeed Documentation Planner
 slug: treeseed-docs-planner
-handler: planner
+handler: plan
+projectAgentClassId: planning
+projectAgentClassSlug: planning
+handlerConfig:
+  domain: documentation_planning
 enabled: true
 description: Plans TreeSeed documentation work from codebase evidence, objectives, and knowledge gaps.
 summary: Maintains the documentation backlog and seeds research tasks without directly mutating canonical knowledge.
@@ -927,7 +931,7 @@ governance:
   approvalRequiredForCode: true
 ---
 
-The planner keeps background documentation automation focused on the highest-value, evidence-backed work.
+The planning agent keeps background documentation automation focused on the highest-value, evidence-backed work.
 ```
 
 ---
@@ -1499,7 +1503,7 @@ Add a project workday timeline:
 workday opened
 manager lease acquired
 graph refreshed
-planner seeded tasks
+planning agent seeded tasks
 research task started/completed
 knowledge draft generated
 optimization completed
@@ -1886,7 +1890,7 @@ Research tasks should retrieve code context, existing docs, and prior generated 
 
 1. Extend context query contracts to support code scopes.
 2. Add package/module/flow context pack builders.
-3. Add source-map generation to researcher outputs.
+3. Add source-map generation to `research` outputs.
 4. Seed initial TreeSeed platform documentation questions.
 5. Add top-level Market questions for each major package and flow.
 6. Ensure research notes include implementation evidence and uncertainty.
@@ -1910,7 +1914,7 @@ How does the Core Knowledge Hub render and publish content?
 
 * Research notes include source maps.
 * Research notes can cite code and existing knowledge.
-* Research tasks are seeded from planner/gap outputs.
+* Research tasks are seeded from `plan`/gap outputs.
 * Research output is visible in UI artifact list.
 
 ---
@@ -1923,10 +1927,10 @@ Turn research notes into reviewable, structured knowledge drafts.
 
 ### Tasks
 
-1. Ensure `knowledge-generator` accepts code-aware research notes.
+1. Ensure the `report` handler domain `knowledge_draft` accepts code-aware research notes.
 2. Ensure drafts include required frontmatter.
 3. Ensure drafts include required body sections.
-4. Ensure `knowledge-optimizer` scores drafts.
+4. Ensure the `report` handler domain `knowledge_optimization` scores drafts.
 5. Add promotion recommendation thresholds.
 6. Add draft rewrite loop when score is low.
 7. Persist draft and optimization artifacts.
@@ -2182,7 +2186,7 @@ Add tests for:
 ```text
 start local docs automation workday
 seed startup tasks
-run planner -> researcher -> generator -> optimizer
+run plan -> research -> report:knowledge_draft -> report:knowledge_optimization
 create approval request
 approve request
 apply docs mutation
@@ -2428,8 +2432,8 @@ Mitigation:
 
 Mitigation:
 
-* planner owns taxonomy proposals;
-* reviewer checks book/section fit;
+* planning agents own taxonomy proposals;
+* review agents check book/section fit;
 * taxonomy changes require approval;
 * decisions record accepted structure.
 

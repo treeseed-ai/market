@@ -30,14 +30,17 @@ Human teams, deterministic workflows, and AI agents use the same control-plane l
 provider check-in -> next assignment -> lease renewal -> mode-run telemetry -> complete/return/fail -> usage settlement
 ```
 
-Handlers are provider-independent abstractions. Providers are execution mechanisms. Existing semantic handlers such as `engineer`, `reviewer`, `tester`, `researcher`, `planner`, and `releaser` should work across AI, deterministic automation, and human issue queues when their capability requirements match provider supply.
+Handlers are provider-independent algorithms. Providers are execution mechanisms. First-party agents use the generic handler set `plan`, `research`, `act`, `review`, and `report`; project agent classes and `handlerConfig.domain` carry role semantics such as implementation, documentation review, release readiness, or codebase cartography. The same generic handlers can work across AI, deterministic automation, and human issue queues when their capability requirements match provider supply.
+
+TreeDX-backed content access is the default SDK and assignment runtime path. Execution provider invocations may include a redacted `treedx_proxy` tool descriptor when the assignment has a scoped proxy handle. AI providers such as Codex use that descriptor for TreeDX tool guidance and assignment-scoped MCP configuration metadata; human issue queues such as GitHub Issues render safe route templates, allowed operations, allowed paths, and required header names into the issue body. No execution provider prompt, issue, snapshot, log, or artifact should contain raw TreeDX credentials, provider API keys, GitHub tokens, or repository deploy keys.
 
 The design goal is that it must be easy for capacity providers to orchestrate humans and machines to achieve common objectives through cooperative decisions. That means humans, AI providers, and deterministic workflows should all receive the same bounded assignments, report comparable status and usage, and remain governed by the same decision readiness, capacity plan, and assignment lifecycle records.
 
 ## Core Principle
 
 ```text
-handler = what the work means
+handler = the generic algorithm
+agent class/domain = what the work means
 execution provider adapter = how and where the work runs
 capacity provider = who supplies execution capacity
 assignment = what Treeseed authorized now
@@ -519,7 +522,7 @@ Handlers do not own:
 - raw TreeDX credentials
 - unassigned external task creation
 
-The migration should not introduce a generic `human_delegation` handler as the default path. Human teams should execute the same `engineer`, `reviewer`, `tester`, `researcher`, `planner`, or `releaser` semantics when their provider capabilities match the assignment.
+The migration should not introduce a generic `human_delegation` handler as the default path. Human teams should execute assignments produced by the same `plan`, `research`, `act`, `review`, and `report` handlers when their provider capabilities match the assignment; role semantics come from project agent class, domain config, prompts, and output contracts.
 
 ## AgentKernel Integration
 
@@ -1048,7 +1051,7 @@ Run the complete package-local Phase I proof with:
 npm -w packages/agent run test:human-machine-providers
 ```
 
-Phase I local live proof requires Docker. If Docker is unavailable, `capacity-provider:test-local` fails with a clear diagnostic instead of skipping.
+Phase I local live proof requires Docker. If Docker is unavailable, `capacity-provider:test-local` fails with a clear diagnostic instead of skipping. The local smoke also checks Docker storage headroom before building images and points operators to an explicit cleanup command, for example `docker system prune -a --volumes`, instead of pruning shared Docker state automatically.
 
 Acceptance:
 
@@ -1057,6 +1060,7 @@ Acceptance:
 - New human-machine provider tests pass.
 - `npm -w packages/agent run test:human-machine-providers` passes.
 - `capacity-provider:test-local` fails when Docker is unavailable.
+- `capacity-provider:test-local` reports low Docker storage before expensive image builds.
 - No legacy prompt-execution usage remains.
 
 ## Failure Modes

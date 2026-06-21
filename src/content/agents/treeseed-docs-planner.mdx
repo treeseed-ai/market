@@ -2,7 +2,12 @@
 id: agent:treeseed-docs-planner
 name: TreeSeed Documentation Planner
 slug: treeseed-docs-planner
-handler: planner
+handler: plan
+projectAgentClassId: planning
+projectAgentClassSlug: planning
+handlerConfig:
+  workPackageKind: plan
+  domain: documentation_planning
 enabled: true
 description: Plans TreeSeed documentation work from codebase evidence, objectives, and knowledge gaps.
 summary: Maintains the documentation backlog and seeds research tasks without directly mutating canonical knowledge.
@@ -44,12 +49,35 @@ permissions:
     operations: [create, pick, update]
   - model: seed
     operations: [search, get]
+context:
+  queries:
+    - id: docs-planning-state
+      purpose: plan
+      query: documentation objectives open questions knowledge gaps proposal decision backlog governance seed manifests agent capacity
+      scope: /
+      codeScopes:
+        - docs
+        - src/content
+        - seeds
+      relations:
+        - related
+        - references
+      depth: 2
+      budget: 18
+      format: summary
 execution:
   provider: codex
   model: gpt-5.5
   approvalPolicy: never
   sandboxMode: workspace_write
   reasoningEffort: medium
+  providerProfile:
+    requiredCapabilities:
+      - reasoning
+      - treedx_context
+      - planning
+      - repo_read
+    fallbackPolicy: require_same_model_class
   maxConcurrency: 1
   timeoutSeconds: 900
   cooldownSeconds: 60

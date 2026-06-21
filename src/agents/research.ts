@@ -468,8 +468,8 @@ function executionText(execution: Record<string, unknown>) {
 	return stringValue(outputs.stdout, outputs.markdown, outputs.response, execution.summary) ?? '';
 }
 
-export const researcherHandler = {
-	kind: 'researcher',
+export const researchHandler = {
+	kind: 'research',
 
 	async resolveInputs(context: any) {
 		const payload = parsePayload(context);
@@ -584,7 +584,7 @@ export const researcherHandler = {
 					},
 				},
 				metadata: {
-					source: 'market_researcher_handler',
+					source: 'market_research_handler',
 					runId: context.runId,
 				},
 			},
@@ -602,7 +602,7 @@ export const researcherHandler = {
 			},
 			metadata: {
 				runId: context.runId,
-				handler: 'researcher',
+				handler: 'research',
 			},
 		});
 		const response = executionText(execution);

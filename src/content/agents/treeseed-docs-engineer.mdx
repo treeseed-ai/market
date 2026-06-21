@@ -2,7 +2,12 @@
 id: agent:treeseed-docs-engineer
 name: TreeSeed Documentation Engineer
 slug: treeseed-docs-engineer
-handler: engineer
+handler: act
+projectAgentClassId: implementation
+projectAgentClassSlug: implementation
+handlerConfig:
+  workPackageKind: act
+  domain: documentation_mutation
 enabled: true
 description: Applies approved documentation mutations through governed worktree and verification workflows.
 summary: Changes documentation paths only after approval, blocks forbidden paths, and records verification outcomes.
@@ -46,12 +51,37 @@ permissions:
     operations: [search, get, update, create]
   - model: message
     operations: [create, pick, update]
+context:
+  queries:
+    - id: docs-engineer-approved-work
+      purpose: implement
+      query: approved documentation mutation source map changed paths verification policy governance approval request
+      scope: /
+      codeScopes:
+        - docs
+        - src/content
+        - packages/*/README.md
+      relations:
+        - references
+        - implements
+      depth: 2
+      budget: 20
+      format: summary
 execution:
   provider: codex
   model: gpt-5.5
   approvalPolicy: on_request
   sandboxMode: workspace_write
   reasoningEffort: medium
+  providerProfile:
+    requiredCapabilities:
+      - reasoning
+      - treedx_context
+      - repo_read
+      - repo_write
+      - shell
+      - test_runner
+    fallbackPolicy: fail_if_unavailable
   allowedPaths:
     - docs/**
     - src/content/knowledge/**

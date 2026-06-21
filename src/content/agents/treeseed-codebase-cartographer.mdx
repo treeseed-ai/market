@@ -2,7 +2,12 @@
 id: agent:treeseed-codebase-cartographer
 name: TreeSeed Codebase Cartographer
 slug: treeseed-codebase-cartographer
-handler: researcher
+handler: research
+projectAgentClassId: research
+projectAgentClassSlug: research
+handlerConfig:
+  workPackageKind: research
+  domain: codebase_cartography
 enabled: true
 description: Maps TreeSeed packages, modules, runtime flows, tests, and content surfaces for documentation work.
 summary: Produces source-grounded research notes and source maps without mutating project files.
@@ -41,10 +46,18 @@ context:
     - id: treeseed-codebase-surface
       purpose: Map TreeSeed code and documentation surfaces for documentation automation.
       query: agent runtime handler registry research knowledge workday Codex docs mutation worktree path safety operational governance UI Mission Control approvals SDK graph CLI dev Core Knowledge Hub
-      scope: packages/agent/src packages/sdk/src packages/cli/src packages/core/src src docs migrations
+      scope: /
+      codeScopes:
+        - packages/agent/src
+        - packages/sdk/src
+        - packages/cli/src
+        - packages/core/src
+        - src
+        - docs
+        - migrations
       relations:
-        - imports
         - references
+        - implements
       depth: 2
       budget: 24
       format: summary
@@ -54,6 +67,13 @@ execution:
   approvalPolicy: never
   sandboxMode: read_only
   reasoningEffort: medium
+  providerProfile:
+    requiredCapabilities:
+      - reasoning
+      - treedx_context
+      - repo_read
+      - source_map
+    fallbackPolicy: require_same_model_class
   maxConcurrency: 1
   timeoutSeconds: 1200
   cooldownSeconds: 60

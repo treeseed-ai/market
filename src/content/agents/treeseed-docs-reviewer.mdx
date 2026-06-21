@@ -2,7 +2,12 @@
 id: agent:treeseed-docs-reviewer
 name: TreeSeed Documentation Reviewer
 slug: treeseed-docs-reviewer
-handler: reviewer
+handler: review
+projectAgentClassId: review
+projectAgentClassSlug: review
+handlerConfig:
+  workPackageKind: review
+  domain: documentation_review
 enabled: true
 description: Reviews generated drafts and documentation mutations for evidence, taxonomy fit, and path safety.
 summary: Produces recommendations and risk summaries before humans approve documentation changes.
@@ -33,12 +38,35 @@ permissions:
     operations: [search, get]
   - model: message
     operations: [create, pick, update]
+context:
+  queries:
+    - id: docs-review-evidence
+      purpose: review
+      query: documentation mutation source map verification output changed paths unsupported claims taxonomy fit approval recommendation
+      scope: /
+      codeScopes:
+        - docs
+        - src/content
+        - packages/*/README.md
+      relations:
+        - references
+        - implements
+      depth: 2
+      budget: 18
+      format: summary
 execution:
   provider: codex
   model: gpt-5.5
   approvalPolicy: never
   sandboxMode: read_only
   reasoningEffort: medium
+  providerProfile:
+    requiredCapabilities:
+      - reasoning
+      - treedx_context
+      - repo_read
+      - review
+    fallbackPolicy: require_same_model_class
   maxConcurrency: 1
   timeoutSeconds: 900
   cooldownSeconds: 60

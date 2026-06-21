@@ -39,7 +39,7 @@ Agents are bundled with projects, not capacity providers.
 Capacity providers bundle execution providers, runners, native capacity, and availability.
 ```
 
-This means capacity providers do not bring TreeSeed work semantics such as "researcher", "writer", "engineer", "tester", or "security reviewer". Those are project-owned agent definitions, project-owned handlers, or project-specific class mappings. A capacity provider brings runnable execution capacity, such as an OpenAI Pro subscription, an OpenRouter/OpenCode budget, a GitHub Copilot budget, a local model runner, a human review pool, or custom automation runners.
+This means capacity providers do not bring TreeSeed work semantics such as "research", "writing", "implementation", "testing", or "security review". Those are project-owned agent definitions, project agent classes, generic handler selections, and project-specific domain mappings. A capacity provider brings runnable execution capacity, such as an OpenAI Pro subscription, an OpenRouter/OpenCode budget, a GitHub Copilot budget, a local model runner, a human review pool, or custom automation runners.
 
 The TreeSeed API coordinates the match between:
 
@@ -135,6 +135,10 @@ Provider runners call this proxy using `TREESEED_CAPACITY_PROVIDER_API_KEY` plus
 
 Provider assignments also carry a redacted `capabilityHandles` bundle for repository access, TreeDX workspace access, workflow-operation dispatch, and secret-use references. The provider runner hydrates `AgentContext.capacity.capabilityHandles` and `workspaceAccessMode` from that bundle. Workflow operations use the assignment-scoped provider route and a matching handle id; providers must not receive GitHub App installation tokens, deploy keys, TreeDX node credentials, or customer project secret values.
 
+TreeDX is the SDK default content backend. SDK callers that omit `contentRepository.adapter` are in TreeDX-required mode, and missing `TREESEED_TREEDX_BASE_URL` or `TREESEED_TREEDX_URL` causes content operations to fail fast rather than falling back to local files. Explicit local filesystem content remains available for tests, local fixture bootstrap, and project spec loading through `contentRepository: { adapter: 'local' }`.
+
+When an assignment has a valid TreeDX proxy handle, the provider runner also attaches a redacted `treedx_proxy` tool descriptor to `ExecutionProviderInvocation.tools`. Live providers use the TreeSeed API proxy routes plus provider runtime headers; issue queue providers receive only safe route templates and header names. Content writes must use TreeDX workspace write and commit when workspace access is granted. Local file writes remain reserved for code, verification artifacts, temporary worktrees, package files, and other non-content artifacts.
+
 ### Project
 
 A project owns work semantics and the agents that express those semantics.
@@ -155,7 +159,8 @@ Example:
 
 ```text
 Project class: Security Engineering
-  handlers: security_reviewer, engineer
+  handlers: review, act
+  domains: security_review, security_fix
   allowed modes: planning, acting
   required capabilities: repo_read, repo_write optional, shell optional, security_review
 ```
@@ -558,22 +563,26 @@ Examples:
 
 ```text
 Research
-  handlers: researcher, writer
+  handlers: research, report
+  domains: source_research, knowledge_draft
   modes: planning
   required capabilities: reasoning, long_context, browser optional
 
 Feature Development
-  handlers: engineer
+  handlers: act
+  domains: software_implementation
   modes: planning, acting
   required capabilities: coding, repo_read, repo_write, shell
 
 Testing
-  handlers: tester, engineer
+  handlers: review, act
+  domains: verification_review, test_repair
   modes: planning, acting
   required capabilities: shell, test_runner, repo_read
 
 Security Engineering
-  handlers: security_reviewer, engineer
+  handlers: review, act
+  domains: security_review, security_fix
   modes: planning, acting
   required capabilities: security_review, repo_read, shell optional
 ```
