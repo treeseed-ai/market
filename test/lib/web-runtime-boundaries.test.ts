@@ -95,7 +95,6 @@ describe('web runtime boundaries', () => {
 
 		for (const allowedRootPath of [
 			'src/content',
-			'src/overrides/pages',
 			'src/pages/api/form/submit.ts',
 			'src/styles/treeseed.css',
 			'src/config.yaml',
@@ -108,10 +107,10 @@ describe('web runtime boundaries', () => {
 		}
 	});
 
-	it('keeps root overrides on public admin and UI package exports', () => {
-		const overrideFiles = files('src/overrides')
-			.filter((path) => /\.(astro|ts|js)$/u.test(path));
-		expect(overrideFiles.length).toBeGreaterThan(0);
+	it('keeps any root overrides on public admin and UI package exports', () => {
+		const overrideFiles = existsSync('src/overrides')
+			? files('src/overrides').filter((path) => /\.(astro|ts|js)$/u.test(path))
+			: [];
 
 		const offenders = overrideFiles.filter((path) => {
 			const source = readFileSync(path, 'utf8');
@@ -120,8 +119,10 @@ describe('web runtime boundaries', () => {
 		expect(offenders).toEqual([]);
 
 		const overrideSource = overrideFiles.map((path) => readFileSync(path, 'utf8')).join('\n');
-		expect(overrideSource).toContain('@treeseed/admin/');
-		expect(overrideSource).toContain('@treeseed/ui/');
+		if (overrideFiles.length > 0) {
+			expect(overrideSource).toContain('@treeseed/admin/');
+			expect(overrideSource).toContain('@treeseed/ui/');
+		}
 	});
 
 	it('reserves ecommerce implementation for the hosted market layer', () => {
@@ -331,6 +332,12 @@ describe('web runtime boundaries', () => {
 		}
 		const intentionallyShared = new Set([
 			'TREESEED_API_BASE_URL',
+			'TREESEED_CAPACITY_ACCEPTANCE_ADMIN_TOKEN',
+			'TREESEED_CAPACITY_ACCEPTANCE_AGENT_CLASS_ID',
+			'TREESEED_CAPACITY_ACCEPTANCE_API_URL',
+			'TREESEED_CAPACITY_ACCEPTANCE_PROJECT_ID',
+			'TREESEED_CAPACITY_ACCEPTANCE_PROVIDER_ID',
+			'TREESEED_CAPACITY_ACCEPTANCE_TEAM_ID',
 			'TREESEED_RAILWAY_PROJECT_ID',
 			'TREESEED_RAILWAY_WORKSPACE',
 		]);

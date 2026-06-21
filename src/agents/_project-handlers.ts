@@ -1,5 +1,3 @@
-import type { AgentHandler, AgentHandlerOutput } from '@treeseed/agent/runtime-types';
-
 type Inputs = {
   objective: string | null;
   triggerKind: string;
@@ -10,7 +8,37 @@ type Result = Inputs & {
   messageType: string;
 };
 
-function objectiveText(context: Parameters<AgentHandler<Inputs, Result>['resolveInputs']>[0]) {
+type AgentHandlerOutput = {
+  status: 'completed' | 'waiting' | 'failed';
+  summary: string;
+  metadata?: Record<string, unknown>;
+};
+
+type ProjectHandlerContext = {
+  runId: string;
+  coreObjective?: {
+    content?: string | null;
+    message?: string | null;
+  } | null;
+  trigger: {
+    kind: string;
+  };
+  sdk: {
+    createMessage(message: {
+      type: string;
+      payload: Record<string, unknown>;
+    }): Promise<unknown>;
+  };
+};
+
+type AgentHandler<TInputs, TResult> = {
+  kind: string;
+  resolveInputs(context: ProjectHandlerContext): Promise<TInputs> | TInputs;
+  execute(context: ProjectHandlerContext, inputs: TInputs): Promise<TResult> | TResult;
+  emitOutputs(context: ProjectHandlerContext, result: TResult): Promise<AgentHandlerOutput> | AgentHandlerOutput;
+};
+
+function objectiveText(context: ProjectHandlerContext) {
   return context.coreObjective?.content ?? context.coreObjective?.message ?? null;
 }
 

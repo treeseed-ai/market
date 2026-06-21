@@ -77,7 +77,7 @@ describe('one-purpose control app information architecture', () => {
 		expect(layout).toContain("url.searchParams.delete('teamId')");
 		expect(layout).not.toContain("url.searchParams.set('teamId'");
 		expect(layout).toContain('href="/app/teams" title="Manage teams"');
-		expect(layout).toContain(`href: '/app/capacity/providers'`);
+		expect(layout).toContain(`href: '/app/capacity/allocation'`);
 	});
 
 	it('centralizes app and marketplace resource access', () => {
@@ -222,7 +222,7 @@ describe('one-purpose control app information architecture', () => {
 		expect(page).toContain('What ${check.label} means');
 		expect(page).toContain('role="tooltip"');
 		expect(page).toContain('Launch recovery actions');
-		expect(page).toContain('name="sensitivePassphrase"');
+		expect(page).not.toContain('name="sensitivePassphrase"');
 		expect(page).toContain('initializeProjectDeployPage');
 		expect(page).toContain("document.addEventListener('astro:page-load', initializeProjectDeployPage)");
 		expect(page).toContain('Setup attention');
@@ -257,7 +257,7 @@ describe('one-purpose control app information architecture', () => {
 		expect(page).toContain('confirmProduction');
 		expect(page).toContain('submitDeploymentActionForm');
 		expect(page).toContain('watchDeploymentState');
-		expect(page).toContain('submitLaunchRecoveryForm');
+		expect(page).toContain('data-launch-recovery-action');
 		expect(page).toContain("['ArrowLeft', 'ArrowRight', 'Home', 'End']");
 		expect(newProject).toContain('/app/projects/deployment/');
 		expect(newProject).not.toContain('treeseed:project-launch:');
@@ -402,7 +402,7 @@ describe('one-purpose control app information architecture', () => {
 			'packages/admin/src/pages/app/capacity/grants/[grantId]/edit.astro',
 		];
 
-		expect(redirect).toContain("Astro.redirect('/app/capacity/providers')");
+		expect(redirect).toContain("Astro.redirect('/app/capacity/allocation')");
 		expect(start).toContain('/app/capacity/providers');
 		expect(start).not.toMatch(/lanes|grants/iu);
 		for (const path of deletedRoutes) {
@@ -423,8 +423,8 @@ describe('one-purpose control app information architecture', () => {
 		expect(dashboard).not.toContain('/app/capacity/grants');
 		expect(dashboard).not.toContain('Lanes');
 		expect(create).toContain('Launch mode');
-		expect(create).toContain('Budget mode');
-		expect(create).toContain('Derived from native capacity');
+		expect(create).toContain('TreeSeed derives internal credits');
+		expect(create).toContain('Provider creators do not configure TreeSeed credits here.');
 		expect(create).toContain('Native unit');
 		expect(create).toContain('Reserve buffer percent');
 		expect(create).toContain('Connected capacity provider host');
@@ -678,7 +678,8 @@ describe('one-purpose control app information architecture', () => {
 		expect(projectCreate).toContain("startsWith('platform:')");
 		expect(projectCreate).toContain('Create new GitHub repository host');
 		expect(projectCreate).toContain('Create new ${hostKind} host');
-		expect(projectCreate).toContain('sensitivePassphrase: passphrase');
+		expect(projectCreate).not.toContain('sensitivePassphrase: passphrase');
+		expect(projectCreate).toContain('Project launch no longer sends unlock passphrases to the API.');
 		expect(projectCreate).not.toContain('provider-credential-sessions');
 		expect(projectHosts).toContain('Template host bindings');
 		expect(projectHosts).toContain('data-project-host-card');

@@ -27,13 +27,14 @@ describe('project launch deployment pipeline contracts', () => {
 		expect(projectCreate).toContain("webNewRootDomainInput?.addEventListener('input', syncDomainDefaults)");
 	});
 
-	it('waits for sensitive data unlock before submitting launch passphrase', () => {
+	it('waits for sensitive data unlock before refusing API passphrase submission', () => {
 		const projectCreate = source('packages/admin/src/pages/app/projects/new.astro');
 		const unlockRequest = projectCreate.indexOf('await unlock?.promptPassphrase?.()');
 		expect(unlockRequest).toBeGreaterThan(-1);
 		expect(projectCreate).toContain('validateSelectedCredentialPassphrase');
 		expect(projectCreate).toContain('validatedLaunchUnlock');
-		expect(projectCreate).toContain('sensitivePassphrase: passphrase');
+		expect(projectCreate).not.toContain('sensitivePassphrase: passphrase');
+		expect(projectCreate).toContain('Project launch no longer sends unlock passphrases to the API.');
 		expect(projectCreate).toContain('Sensitive data unlocked for the selected project hosts.');
 		expect(projectCreate).not.toContain('createCredentialSession');
 		expect(projectCreate).not.toContain('provider-credential-sessions');

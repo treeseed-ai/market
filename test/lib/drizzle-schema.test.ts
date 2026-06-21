@@ -19,7 +19,6 @@ describe('Treeseed Drizzle schema baseline', () => {
 	it('exports SDK D1 tables separately from the Market PostgreSQL schema', () => {
 		expect(Object.keys(treeseedSchema).sort()).toEqual([
 			'contactSubmissions',
-			'runtimeRecords',
 			'subscribers',
 		]);
 		expect(Object.keys(treeseedMarketSchema)).toEqual(expect.arrayContaining([
@@ -97,13 +96,11 @@ describe('Treeseed Drizzle schema baseline', () => {
 		for (const tableName of [
 			'subscribers',
 			'contact_submissions',
-			'runtime_records',
 		]) {
 			expect(d1Sql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS \`${tableName}\`\\s*\\(`, 'u'));
 		}
 		expect(d1Sql).toContain('CREATE INDEX IF NOT EXISTS `idx_contact_submissions_created_at`');
 		expect(d1Sql).toContain('CREATE INDEX IF NOT EXISTS `idx_contact_submissions_email`');
-		expect(d1Sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS `idx_runtime_records_type_record_key`');
 		for (const tableName of [
 			'better_auth_user',
 			'better_auth_session',
@@ -116,6 +113,7 @@ describe('Treeseed Drizzle schema baseline', () => {
 			'teams',
 			'team_memberships',
 			'projects',
+			'runtime_records',
 			'remote_jobs',
 			'capacity_providers',
 			'execution_providers',
