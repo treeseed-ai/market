@@ -70,7 +70,7 @@ describe('CI/CD parallelism workflows', () => {
 		const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as any;
 		const script = readFileSync('scripts/market-verify.ts', 'utf8');
 		const releaseCandidate = readFileSync('packages/sdk/src/operations/services/release-candidate.ts', 'utf8');
-		expect(packageJson.scripts['verify:direct']).toBe('tsx ./scripts/market-verify.ts');
+  expect(packageJson.scripts['verify:direct']).toBe('node --import tsx ./scripts/market-verify.ts');
 		expect(script).toContain('TREESEED_VERIFY_PARALLEL');
 		expect(script).toContain('copyWorkspace(root, taskRoot)');
 		expect(script).toContain('cloneNodeModules(root, taskRoot)');

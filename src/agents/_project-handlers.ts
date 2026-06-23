@@ -4,6 +4,7 @@ type Inputs = {
 	messageType: string;
 	verb: string;
 	artifactKind: string;
+	summary: string;
 };
 
 type ContentArtifactRef = {
@@ -149,14 +150,15 @@ function buildContentNote(context: ProjectHandlerContext, inputs: Inputs, snapsh
 		`title: ${yamlString(title)}`,
 		`description: ${yamlString(inputs.summary)}`,
 		`date: ${yamlString(createdAt)}`,
-		'status: draft',
+		'status: planned',
+		'draft: true',
+		`summary: ${yamlString(inputs.summary)}`,
 		`artifactKind: ${yamlString(inputs.artifactKind)}`,
 		`producedByAgent: ${yamlString(agentSlug)}`,
 		`sourceAssignmentId: ${yamlString(assignmentId)}`,
 		`executionProviderRunId: ${yamlString(executionProviderRunId)}`,
 		'about:',
-		'  model: objective',
-		'  id: core',
+		'  - objective:core',
 		'relatedObjectives:',
 		'  - core',
 		'tags:',
@@ -264,6 +266,7 @@ function createProjectHandler(kind: string, messageType: string, verb: string, a
 				messageType,
 				verb,
 				artifactKind,
+				summary: `${verb} for the Market core objective.`,
 			};
 		},
 		async execute(context, inputs) {
