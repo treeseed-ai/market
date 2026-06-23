@@ -154,7 +154,7 @@ describe('UI migration completion', () => {
 	});
 
 	it('passes the UI audit guardrail', () => {
-		const output = execFileSync(process.execPath, ['scripts/audit-ui.mjs'], {
+		const output = execFileSync(process.execPath, ['scripts/audit-ui.ts'], {
 			cwd: process.cwd(),
 			encoding: 'utf8',
 		});

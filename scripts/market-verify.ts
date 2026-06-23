@@ -134,10 +134,10 @@ function assertBackendMovedToApiPackage() {
 	const forbidden = [
 		'src/api',
 		'src/operations-runner',
-		'scripts/build-api.mjs',
-		'scripts/build-operations-runner.mjs',
-		'scripts/migrate-db.mjs',
-		'scripts/api-acceptance.mjs',
+		'scripts/build-api.ts',
+		'scripts/build-operations-runner.ts',
+		'scripts/migrate-db.ts',
+		'scripts/api-acceptance.ts',
 	];
 	const present = forbidden.filter((entry) => existsSync(resolve(root, entry)));
 	if (present.length > 0) {

@@ -1877,7 +1877,7 @@ Test cases:
 Add:
 
 ```text
-packages/cli/scripts/projects-deploy.test.mjs
+packages/cli/scripts/projects-deploy.test.ts
 ```
 
 or extend existing CLI test harness.
@@ -1906,7 +1906,7 @@ Extend existing workflow tests:
 Add scenario to:
 
 ```text
-scripts/api-acceptance.mjs
+scripts/api-acceptance.ts
 test/acceptance/api.base.yaml
 ```
 

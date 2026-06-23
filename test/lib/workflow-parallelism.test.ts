@@ -21,9 +21,9 @@ describe('CI/CD parallelism workflows', () => {
 		expect(deploy.jobs).not.toHaveProperty('bootstrap-public-treedx');
 		expect(deploy.jobs).not.toHaveProperty('acceptance-prepare');
 		expect(deploy.jobs).not.toHaveProperty('acceptance');
-		expect(JSON.stringify(deploy)).not.toContain('packages/api/scripts/api-acceptance.mjs');
+		expect(JSON.stringify(deploy)).not.toContain('packages/api/scripts/api-acceptance.ts');
 		expect(JSON.stringify(deploy)).not.toContain('operations-runner-smoke.ts');
-		expect(JSON.stringify(deploy)).not.toContain('bootstrap-public-treedx.mjs');
+		expect(JSON.stringify(deploy)).not.toContain('bootstrap-public-treedx.ts');
 		expect(deployWeb.jobs.web.env).not.toHaveProperty('RAILWAY_API_TOKEN');
 		expect(deployWeb.jobs.web.env).not.toHaveProperty('TREESEED_RAILWAY_WORKSPACE');
 		expect(deployWeb.jobs.web.env).not.toHaveProperty('TREESEED_RAILWAY_PROJECT_ID');
@@ -68,9 +68,9 @@ describe('CI/CD parallelism workflows', () => {
 
 	it('keeps Market verify serial by default and parallel only by opt-in', () => {
 		const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as any;
-		const script = readFileSync('scripts/market-verify.mjs', 'utf8');
+		const script = readFileSync('scripts/market-verify.ts', 'utf8');
 		const releaseCandidate = readFileSync('packages/sdk/src/operations/services/release-candidate.ts', 'utf8');
-		expect(packageJson.scripts['verify:direct']).toBe('node ./scripts/market-verify.mjs');
+		expect(packageJson.scripts['verify:direct']).toBe('tsx ./scripts/market-verify.ts');
 		expect(script).toContain('TREESEED_VERIFY_PARALLEL');
 		expect(script).toContain('copyWorkspace(root, taskRoot)');
 		expect(script).toContain('cloneNodeModules(root, taskRoot)');

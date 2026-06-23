@@ -251,7 +251,7 @@ Verification:
 - `npm -w packages/sdk run test:unit -- test/utils/project-import.test.ts`
 - `npm -w packages/api run test:unit -- test/api/api.test.ts -t "imports existing GitHub repositories"`
 - `npm -w packages/api run test:unit -- test/lib/api-route-descriptors.test.ts`
-- `node packages/cli/scripts/projects-deploy.test.mjs`
+- `node packages/cli/scripts/projects-deploy.test.ts`
 - `npx trsd projects import treeseed-ai/sdk --team treeseed --plan --json`
 - `npm -w packages/cli run verify:local`
 - `npm -w packages/sdk run verify:local`

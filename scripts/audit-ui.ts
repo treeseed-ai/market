@@ -28,7 +28,7 @@ const defaultRoots = [
 ];
 
 const scanRoots = args.length > 0 ? args : defaultRoots;
-const sourceExts = new Set(['.astro', '.css', '.js', '.mjs', '.ts', '.tsx', '.jsx', '.yaml', '.yml']);
+const sourceExts = new Set(['.astro', '.css', '.js', '.ts', '.tsx', '.jsx', '.yaml', '.yml']);
 const rawColorPattern = /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/u;
 const retiredTokenPattern = /--(?:site|kc)-/u;
 const inlineStylePattern = /\sstyle=/u;

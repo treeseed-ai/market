@@ -57,6 +57,8 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 - `treedx` remains product-neutral and must not encode Treeseed product semantics.
 - Shared fixture references do not imply package ownership.
 - Prefer canonical SDK import paths. Do not reintroduce alias exports or compatibility paths in unreleased packages.
+- Type and lint failures must be fixed at the source. Do not silence them with `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`, relaxed compiler settings, disabled lint rules, declaration-build exclusions, or no-op placeholder shims unless the user explicitly approves a temporary exception with a removal plan.
+- Source code must be TypeScript-first. Do not add checked-in `.js` or `.d.ts` files outside `dist`/generated/vendor outputs unless the file is absolutely required, such as a tiny runtime loader or ambient declaration that cannot be represented as normal `.ts`; document that reason and prefer converting existing scripts to `.ts` whenever touched.
 
 ## Agent Capacity Architecture
 

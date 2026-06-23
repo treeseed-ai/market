@@ -32,7 +32,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: |
-          node ./.github/scripts/prepare-workspace-install.mjs
+          npx --yes tsx ./.github/scripts/prepare-workspace-install.ts
           npm ci
           for dir in packages/sdk packages/agent packages/core packages/cli packages/api packages/ui; do
             if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
@@ -64,7 +64,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: |
-          node ./.github/scripts/prepare-workspace-install.mjs
+          npx --yes tsx ./.github/scripts/prepare-workspace-install.ts
           npm ci
           for dir in packages/sdk packages/agent packages/core packages/cli packages/api packages/ui; do
             if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
@@ -96,7 +96,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: |
-          node ./.github/scripts/prepare-workspace-install.mjs
+          npx --yes tsx ./.github/scripts/prepare-workspace-install.ts
           npm ci
           for dir in packages/sdk packages/agent packages/core packages/cli packages/api packages/ui; do
             if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
@@ -128,7 +128,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: |
-          node ./.github/scripts/prepare-workspace-install.mjs
+          npx --yes tsx ./.github/scripts/prepare-workspace-install.ts
           npm ci
           for dir in packages/sdk packages/agent packages/core packages/cli packages/api packages/ui; do
             if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
@@ -162,7 +162,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: |
-          node ./.github/scripts/prepare-workspace-install.mjs
+          npx --yes tsx ./.github/scripts/prepare-workspace-install.ts
           npm ci
           for dir in packages/sdk packages/agent packages/core packages/cli packages/api packages/ui; do
             if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
