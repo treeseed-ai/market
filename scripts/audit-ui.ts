@@ -1,30 +1,24 @@
 #!/usr/bin/env node
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, relative, resolve } from 'node:path';
+import { componentInventory, routeInventory, type MigrationDebt } from './ui-migration/inventory.ts';
 
 const root = process.cwd();
 const args = process.argv.slice(2);
 
 const defaultRoots = [
-	'src/components/app',
-	'src/components/market',
-	'src/layouts',
-	'src/pages/app/account.astro',
-	'src/pages/app/launch.astro',
-	'src/pages/app/teams/new.astro',
-	'src/pages/app/teams/[teamSlug]/edit.astro',
-	'src/pages/app/teams/[teamSlug]/[section].astro',
-	'src/pages/app/teams/[teamSlug]/projects/[projectSlug]/[section].astro',
+	'src/pages',
 	'src/pages/auth',
 	'src/pages/market',
-	'src/pages/templates',
 	'src/styles/auth.css',
 	'src/styles/treeseed.css',
-	'packages/core/src/styles/app-shell.css',
-	'packages/core/src/styles/forms.css',
-	'packages/core/src/styles/theme.css',
-	'packages/core/src/styles/ui.css',
-	'packages/core/src/utils/color-schemes',
+	'packages/admin/src/pages',
+	'packages/admin/src/layouts',
+	'packages/core/src/pages',
+	'packages/ui/src/astro',
+	'packages/ui/src/react',
+	'packages/ui/src/styles',
+	'packages/ui/src/theme',
 ];
 
 const scanRoots = args.length > 0 ? args : defaultRoots;
@@ -35,19 +29,34 @@ const inlineStylePattern = /\sstyle=/u;
 const localStylePattern = /<style(?:\s|>)/u;
 
 const rawColorAllowlist = new Set([
-	'packages/core/src/styles/tokens.css',
-	'packages/core/src/utils/theme.ts',
+	'packages/ui/src/styles/tokens.css',
+	'packages/ui/src/styles/sandbox.css',
+	'packages/ui/src/theme/index.ts',
 	'src/config.yaml',
-	'src/lib/auth/welcome-email.ts',
 ]);
 const rawColorAllowlistPrefixes = [
-	'packages/core/src/utils/color-schemes/',
+	'packages/ui/src/theme/color-schemes/',
+	'packages/ui/src/theme/schemes/',
 ];
 
 const inlineStyleAllowlist = new Set([
-	'packages/core/src/components/ui/theme/ThemePreviewSwatch.astro',
-	'packages/core/src/components/ui/data/MetricGrid.astro',
+	'packages/ui/src/astro/data/MetricGrid.astro',
+	'packages/ui/src/astro/theme/ThemePreviewSwatch.astro',
 ]);
+const localStyleAllowlist = new Set([
+	'packages/ui/src/astro/app/controls/PlainTable.astro',
+	'packages/ui/src/astro/layouts/MainLayout.astro',
+	'packages/ui/src/astro/theme/ThemeScript.astro',
+]);
+
+function pathHasDebt(path: string, debt: MigrationDebt): boolean {
+	const route = routeInventory.find((entry) => entry.sourcePath === path);
+	if (route?.migrationDebt.includes(debt)) return true;
+	return componentInventory.some((entry) => {
+		if (!entry.migrationDebt.includes(debt)) return false;
+		return path === entry.sourcePath || path.startsWith(`${entry.sourcePath}/`);
+	});
+}
 
 function walk(path) {
 	const absolute = resolve(root, path);
@@ -78,13 +87,23 @@ for (const absolute of files) {
 	if (retiredTokenPattern.test(contents)) {
 		failures.push(`${path}: contains retired --site-* or --kc-* token`);
 	}
-	if (!rawColorAllowlist.has(path) && !rawColorAllowlistPrefixes.some((prefix) => path.startsWith(prefix)) && rawColorPattern.test(contents)) {
+	if (
+		!rawColorAllowlist.has(path)
+		&& !rawColorAllowlistPrefixes.some((prefix) => path.startsWith(prefix))
+		&& !pathHasDebt(path, 'raw-color-fallback')
+		&& rawColorPattern.test(contents)
+	) {
 		failures.push(`${path}: contains raw color literal`);
 	}
-	if (!inlineStyleAllowlist.has(path) && inlineStylePattern.test(contents)) {
+	if (!inlineStyleAllowlist.has(path) && !pathHasDebt(path, 'inline-dynamic-style') && inlineStylePattern.test(contents)) {
 		failures.push(`${path}: contains inline style attribute`);
 	}
-	if (!inlineStyleAllowlist.has(path) && path.endsWith('.astro') && localStylePattern.test(contents)) {
+	if (
+		!localStyleAllowlist.has(path)
+		&& !pathHasDebt(path, 'page-local-css')
+		&& path.endsWith('.astro')
+		&& localStylePattern.test(contents)
+	) {
 		failures.push(`${path}: contains page-local <style> block`);
 	}
 }

@@ -182,7 +182,7 @@ Create or open a hosted project. Show one focused control at a time: settings, h
 Narration:
 
 ```text
-TreeSeed guides project development through explicit controls, not a dashboard maze.
+TreeSeed guides project development through contextual dashboards and explicit drilldown controls, not a dashboard maze.
 ```
 
 ### 3. Deploy

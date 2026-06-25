@@ -196,7 +196,7 @@ Access behavior: anonymous users may see public project content; signed-in proje
 
 Purpose: discovery, listing pages, templates, knowledge packs, asset install/download/import, seller onboarding, seller listings, and paid/free distribution.
 
-Examples: `/market`, `/market/templates`, `/market/knowledge-packs`, future `/seller/...`.
+Examples: `/market`, `/market/templates`, `/market/knowledge-packs`, and `/app/market/seller`.
 
 Users must understand: what the asset is, who produced it, what it costs or requires, whether they are entitled to it, and how to use it.
 
@@ -370,9 +370,13 @@ Routes migrate incrementally. A legacy route does not need to jump directly to f
 - **Level 3:** Uses resolved actions and policy display states.
 - **Level 4:** Has capability registry entry.
 - **Level 5:** Uses UI resource schemas for collection/detail/create/edit flows.
-- **Level 6:** Fully schema/registry-driven with generated navigation, command entries, audit labels, responsive behavior, and tests.
+- **Level 6:** Shared shell-level help and feedback with policy-safe context handoff, lazy help/search/feedback behavior, and accessibility coverage.
+- **Level 7:** Contextual dashboards for personal, team, project, and market contexts.
+- **Level 8:** Service readiness dashboards and drilldowns with hosts and capacity providers as contextual resources.
+- **Level 9:** Work operating loop, allocation, agents, workdays, review queues, blockers, failures, approvals, and audit timelines.
+- **Level 10:** Knowledge and capability distribution, marketplace acquisition, seller readiness, entitlement-aware delivery, release review, and overlay bootstrap boundaries.
 
-New pages must target the highest practical level, but migration may advance one level at a time. Level 6 is the destination, not a prerequisite for shipping every migration step.
+New pages must target the highest practical level for their capability. The completed migration reference implementation is Level 10 where a surface belongs to knowledge distribution, marketplace acquisition, or overlay-capable readers; lower levels remain valid only for active surfaces whose capability does not include those later-phase concerns.
 
 ## UI Package Layering
 

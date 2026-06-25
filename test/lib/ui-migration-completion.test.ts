@@ -20,15 +20,28 @@ describe('UI migration completion', () => {
 		for (const path of convertedMarketPages) {
 			const contents = source(path);
 
-			expect(contents, path).toContain('Panel');
+			if (path === 'packages/admin/src/pages/market/index.astro') {
+				expect(contents, path).toContain('DashboardTemplate');
+			} else if (path.endsWith('/index.astro')) {
+				expect(contents, path).toContain('CollectionTemplate');
+			} else {
+				expect(contents, path).toContain('DetailTemplate');
+			}
+			if (path !== 'packages/admin/src/pages/market/index.astro') {
+				expect(contents, path).toContain('DistributionSummary');
+			}
+			expect(contents, path).toContain('helpContext');
+			expect(contents, path).toContain('feedbackContext');
 			expect(contents, path).not.toContain('<style');
 			expect(contents, path).not.toMatch(/\sstyle=/u);
 			expect(contents, path).not.toMatch(/--(?:site|kc)-/u);
 			expect(contents, path).not.toContain('class="ts-panel"');
 		}
 
-		expect(source('packages/admin/src/pages/market/templates/[slug].astro')).toContain('KeyValueList');
-		expect(source('packages/admin/src/pages/market/knowledge-packs/[slug].astro')).toContain('ActionList');
+		expect(source('packages/admin/src/pages/market/templates/[slug].astro')).toContain('loadPublicMarketplaceDetail');
+		expect(source('packages/admin/src/pages/market/knowledge-packs/[slug].astro')).toContain('loadPublicMarketplaceDetail');
+		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/pages/templates/index.astro'))).toBe(false);
+		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/pages/templates/[slug].astro'))).toBe(false);
 	});
 
 	it('uses @treeseed/ui for the market product card', () => {

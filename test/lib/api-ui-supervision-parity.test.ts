@@ -10,7 +10,8 @@ describe('API/UI workday supervision parity coverage', () => {
 			'packages/admin/src/lib/market/api-client.ts',
 			'packages/admin/src/pages/app/projects/[projectId]/workdays.astro',
 			'packages/admin/src/pages/app/projects/[projectId]/workdays/[workdayId].astro',
-			'packages/admin/src/pages/app/work/decisions/[approvalId].astro',
+			'packages/admin/src/pages/app/work/decisions/[slug].astro',
+			'packages/admin/src/pages/app/work/review.astro',
 			'packages/ui/src/astro/app/operations/GovernanceDecisionPanel.astro',
 		];
 		for (const surface of requiredSurfaces) {

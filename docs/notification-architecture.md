@@ -108,6 +108,8 @@ Feedback-derived notifications must use the same components. They may notify pla
 
 Help-derived notifications must also use the same components. They may notify maintainers when users mark help as missing, stale, confusing, or incorrect. Private help-topic feedback must not expose private route/resource context beyond recipient authorization.
 
+Distribution-derived notifications follow the same policy-filtered model. Release review, listing publication, install/import/download, seller onboarding, and entitlement changes may produce notifications only after the event payload has been stripped of raw artifact keys, private URLs, credentials, and unauthorized listing or project metadata.
+
 ## Notification Item Contract
 
 Every notification must define:

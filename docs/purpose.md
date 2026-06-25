@@ -166,11 +166,11 @@ Avoid:
 
 ## Authenticated app information architecture
 
-The authenticated app should remain centered on the compact control flow:
+The authenticated app should remain centered on contextual dashboards plus focused drilldowns:
 
 ```text
-/app                         Start
-/app/hosts                   Hosts
+/app                         Personal dashboard
+/app/services                Services
 /app/projects                Projects
 /app/capacity                Capacity
 /app/work/objectives         Work objectives
@@ -179,7 +179,7 @@ The authenticated app should remain centered on the compact control flow:
 /app/knowledge/artifacts     Knowledge artifacts
 ```
 
-No retired section-first navigation should return to the primary app experience. Teams remain real operational context in the backend and are managed through the persistent sidebar team selector and `/app/teams`, not as a primary navigation step.
+No retired section-first navigation should return to the primary app experience. Teams remain real operational context in the backend and are managed through the persistent sidebar team selector and `/app/teams`, not as a primary navigation step. Hosts remain available as `/app/hosts` service drilldowns rather than primary navigation.
 
 Project detail controls should keep deployment inside the selected project context. `/app/projects/:projectId/deploy` is the canonical place to inspect launch progress, readiness, staging and production deployment actions, monitor output, runner diagnostics, history, and events.
 
@@ -187,7 +187,7 @@ Project detail controls should keep deployment inside the selected project conte
 
 ### Start
 
-Start is a short control index that sends users to Hosts, Projects, Capacity, Work, or Knowledge.
+Start has been replaced by the personal dashboard, which sends users to Services, Projects, Capacity, Work, or Knowledge.
 
 It should immediately show:
 
@@ -198,7 +198,7 @@ It should immediately show:
 * work entry point
 * knowledge entry point
 
-Start should avoid dashboards and duplicate team-management controls.
+Start has been replaced by a personal contextual dashboard. It should avoid duplicate team-management controls and retired Mission Control/provider-console patterns.
 
 ### Work
 
@@ -304,7 +304,7 @@ The primary demo should be a real operational walkthrough, not a fabricated demo
 The 20-minute story:
 
 1. Open Start at `/app` and establish the active team through the sidebar selector.
-2. Open Hosts and Projects to show the seeded local configuration.
+2. Open Services and Projects to show the seeded local configuration.
 3. Open Capacity and show provider, lane, and grant controls.
 4. Open Work to show objectives, workday requests, decisions, and questions.
 5. Open Knowledge and show generated artifacts, templates, packs, releases, and publish actions.
@@ -315,7 +315,7 @@ The demo should reinforce:
 Setup -> Project -> Work -> Knowledge
 ```
 
-The project step includes the Deploy control after Hosts so a newly launched project can move from setup to staged web deployment without sending the operator to an infrastructure dashboard.
+The project step includes service readiness and Deploy controls so a newly launched project can move from setup to staged web deployment without sending the operator to an infrastructure dashboard.
 
 Never lead with prompting, code generation spectacle, or fake agent conversation. The system coordinates durable organizational work.
 
@@ -323,7 +323,7 @@ Never lead with prompting, code generation spectacle, or fake agent conversation
 
 1. Start is the entry point.
 2. Team management lives in the sidebar selector.
-3. Hosts and Projects are explicit setup controls.
+3. Services and Projects are explicit setup controls.
 4. Work owns objectives, workday requests, decisions, and questions.
 5. Knowledge owns generated artifacts, templates, packs, releases, and publishing.
 6. Capacity owns provider, lane, key, and grant controls.

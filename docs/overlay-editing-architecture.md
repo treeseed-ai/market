@@ -154,6 +154,8 @@ Implementations must add tests proving:
 - anonymous users do not receive the editor bundle
 - non-team users do not receive overlay bootstrap data
 - authorized team members can load the overlay
+
+Phase 10 adds the first shared UI display contract for that proof: `OverlayStatus` can show policy-safe overlay state on canonical distribution/reader surfaces, and `overlay-loader.ts` dynamically imports the overlay session only after explicit authorized intent. Shells and anonymous public readers must not statically import editor, search, or overlay bundles.
 - save draft writes through an approved path
 - browser code cannot write directly to R2
 - denied states do not leak private metadata

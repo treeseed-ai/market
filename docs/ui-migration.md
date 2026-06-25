@@ -23,7 +23,7 @@ Supporting specs:
 - Move routes through the maturity model incrementally.
 - Add only the schema facets needed by the current slice; do not implement unused schema surfaces speculatively.
 - Build each cross-cutting subsystem as a first proof route before expanding it across all pages.
-- Preserve existing public URLs through redirects, wrappers, or compatibility controllers while pages migrate.
+- Preserve active public URLs only when they remain canonical. Because TreeSeed is unreleased, remove redirect-only compatibility routes once a canonical replacement is proven.
 - Add enforcement and tests with each slice instead of waiting until the end.
 - Separate UI architecture from runtime security, content delivery, auth/proxy, overlay editing, and notifications through focused specs.
 
@@ -63,9 +63,13 @@ distribution loop:
 - **Level 3:** Uses resolved actions and policy display states.
 - **Level 4:** Has capability registry entry.
 - **Level 5:** Uses UI resource schemas for collection/detail/create/edit flows.
-- **Level 6:** Fully schema/registry-driven with generated navigation, command entries, audit labels, responsive behavior, and tests.
+- **Level 6:** Shell-level contextual help/feedback proof with policy-safe runtime context and lazy search/capture behavior.
+- **Level 7:** Contextual dashboards answer where I am, what this is about, what I can do, and what changed recently.
+- **Level 8:** Service readiness and capacity surfaces use canonical templates, readiness summaries, setup/error states, and sensitive-detail filtering.
+- **Level 9:** Operating-loop surfaces use allocation/work queue/timeline/workspace primitives for direction, allocation, workdays, agents, and review.
+- **Level 10:** Knowledge distribution and marketplace acquisition surfaces use entitlement-aware delivery/action state, seller readiness, and overlay bootstrap guardrails.
 
-Migration does not require every route to jump directly to Level 6. New pages should target the highest practical level and must at least avoid new sprawl.
+Migration does not require every route to jump directly to Level 10. New pages should target the highest practical level and must at least avoid new sprawl.
 
 ## Legacy Containment And Cleanup Strategy
 
@@ -79,7 +83,7 @@ Allowed coexistence pattern:
 inventory current route/component
   -> assign target shell/template/capability/maturity
   -> migrate one vertical slice
-  -> keep compatibility wrapper only when needed
+  -> keep compatibility wrapper only when explicitly inventoried and still active
   -> verify behavior and tests
   -> retire/delete replaced legacy code immediately
 ```
@@ -109,6 +113,10 @@ Every route/component inventory row must include:
 ## Phase 0: Inventory And Freeze Rules
 
 Purpose: create a route migration board and prevent new drift while the first vertical slices are built.
+
+Implementation convention: `scripts/ui-migration/inventory.ts` is the canonical typed Phase 0 inventory. The reviewer-facing board is generated at [UI Migration Phase 0 Inventory](./ui-migration-inventory.md). Update the typed inventory first, then run `npm run check:ui-migration -- --write` to refresh the board.
+
+Because TreeSeed is unreleased and this workspace must remain a reference implementation, compatibility wrappers are temporary only when explicitly inventoried. Do not preserve unused, deprecated, or replaced implementation in source trees; delete replaced code as soon as its replacement passes the required slice tests. Git history is the archive.
 
 Deliverables:
 
@@ -141,6 +149,7 @@ Freeze rules:
 - no new color-mode or color-scheme systems outside the `@treeseed/ui` YAML-backed theme system
 - no broad `tmp`, `backup`, `old`, or archive directories inside buildable source trees
 - no new canonical code importing from `legacy/**`
+- no hidden deprecated implementation after a route/component is marked `replaced` or `deleted`
 - no new feature work on legacy surfaces except production bug fixes required during migration
 - no new public remote content backed by local collections
 - no new private content route without Market/session/proxy model
@@ -173,6 +182,12 @@ Deliverables:
 - `AuthShell`
 - `PublicShell`
 - `ProductShell`
+- `ResolvedAction`
+- `CapabilityDefinition`
+- `ResourceUiSchema`
+- `PageViewModel`
+- `HelpContext`
+- `FeedbackContext`
 - `CollectionTemplate`
 - `DetailTemplate`
 - `ReaderTemplate`
@@ -197,14 +212,25 @@ Deliverables:
 - UI token/theme audit check scaffold
 - template no-direct-API check scaffold
 
+Implemented foundation entrypoints:
+
+- contracts: `@treeseed/ui` and `@treeseed/ui/lib/foundation`
+- shell components: `@treeseed/ui/components/astro/auth/AuthShell.astro`, `@treeseed/ui/components/astro/shell/PublicShell.astro`, and `@treeseed/ui/components/astro/shell/ProductShell.astro`
+- template components: `@treeseed/ui/components/astro/templates/CollectionTemplate.astro`, `DetailTemplate.astro`, `ReaderTemplate.astro`, and `SettingsTemplate.astro`
+- foundation components: `ActionBar.astro`, `ResourceCard.astro`, and `PermissionBoundary.astro`
+- proof route: `/app/work/questions`, composed from `TreeseedAppLayout`, `CollectionTemplate`, resolved actions, permission state, and a route-local view-model mapper
+- baseline: [UI Foundation Baseline](./ui-foundation-baseline.md)
+
+Phase 1 convention: route files continue to own authentication redirects and data loading, view-model helpers map loaded data into `PageViewModel` plus route-specific rows, and UI templates remain data-source agnostic. Shell help and feedback actions are non-submitting placeholders in Phase 1; full workflows belong to Phase 5/6.
+
 Acceptance:
 
 - one route can render through shell/template/view model
 - resolved action states render consistently
 - templates do not fetch service data
 - no service facades are called directly from templates
-- shell-level feedback action can submit policy-safe page context without page-local code
-- shell-level contextual help can render a policy-safe topic summary without page-local code
+- shell-level feedback action can render policy-safe page context without page-local code
+- shell-level contextual help action can render policy-safe topic context without page-local code
 - accessibility baseline is documented
 - bundle budget baseline is documented
 - initial enforcement checks run locally even if CI thresholds are warning-only
@@ -233,6 +259,16 @@ Implement end-to-end:
 - activity/audit labels
 - tests
 
+Implemented Phase 2 convention:
+
+- canonical question route family: `/app/work/questions`, `/app/work/questions/new`, `/app/work/questions/[slug]`, and `/app/work/questions/[slug]/edit`
+- capability and schema source: `packages/admin/src/capabilities/questions.ts`
+- route view-model source: `packages/admin/src/view-models/ui-foundation/questions.vm.ts`
+- form composition source: `packages/admin/src/components/work/QuestionForm.astro`
+- collection filters are part of the typed `CollectionViewModel` contract and render through `CollectionTemplate`
+- generic work routes no longer own primary question create/detail/edit behavior; question-specific routes are the reference implementation for the first direction resource
+- explicit route controllers remain the Phase 2 model; no `PageFromCapability` or generic page factory is introduced
+
 Acceptance:
 
 - question collection/detail/create/edit uses canonical shell, template, and reusable components
@@ -260,6 +296,17 @@ Implement:
 - staging/production gate rejecting `local_collections`
 - generated book/download metadata
 
+Implemented Phase 3 convention:
+
+- canonical public proof route: `/knowledge` and `/knowledge/[...slug]`, backed by the Core `docs-runtime` resource files
+- route view-model source: `packages/core/src/utils/runtime-reader.ts`
+- published runtime source: hosted R2 published manifest and runtime objects only
+- local development source: local `docs` collection fallback only when content serving mode is not `published_runtime`
+- reader UI: `MainLayout` plus `ReaderTemplate`, with `PublishedContentBody` for R2-rendered content and local Astro content rendering for local development
+- generated reader navigation and download actions come from `TreeseedBookRuntime` and `docsTree`
+- safe failure states are public-safe and do not expose R2 object keys or private metadata
+- the runtime reader remains a proof route; other content routes are not generalized until cache, purge, manifest failure, and navigation tests pass
+
 Acceptance:
 
 - public reader route does not require site rebuild for content changes
@@ -274,6 +321,16 @@ Acceptance:
 ## Phase 4: Private Knowledge Hub Access Vertical
 
 Purpose: prove private Knowledge Hub access and security before broad private project support.
+
+Implemented Phase 4 convention:
+
+- canonical private proof route: `/app/projects/:projectId/knowledge` and `/app/projects/:projectId/knowledge/:slug*`
+- route shell/template: `TreeseedAppLayout`/`ProductShell` plus `ReaderTemplate`
+- access authority: Market/API validates the active session and project read membership before Core reads private content
+- private content source: project-scoped R2 manifest under `teams/{teamId}/projects/{projectId}/private/common.json`
+- route behavior: no local collection fallback, no raw R2 URLs, no public cache headers, and no direct API calls from templates
+- audit events: `private_knowledge.read`, `private_knowledge.denied`, and `private_knowledge.not_found`
+- proof scope: private book/page reader only; private artifacts, packs, signed downloads, private help, and generalized proxy reuse remain later phases
 
 Implement:
 
@@ -326,6 +383,15 @@ Acceptance:
 - feedback notifications or triage records do not leak private metadata
 - screenshot capture does not expand beyond the proof surfaces until redaction, attachment privacy, bundle-loading, and notification-leak tests pass
 
+Implemented Phase 5 convention:
+
+- canonical UI entrypoints: `FeedbackButton`, `FeedbackDialog`, and `FeedbackRedactionBoundary` under `@treeseed/ui/components/astro/feedback`
+- canonical client controller: `packages/ui/src/lib/feedback/dialog.ts`, with `dom-capture.ts` loaded only after an explicit screenshot capture action
+- public/Core proof: `/knowledge` and `/knowledge/[...slug]` pass `FeedbackContext` from the Core runtime reader view model through `MainLayout`/`PublicShell` and submit through `/api/feedback/submit`
+- ProductShell proof: `/app/work/questions` and its Phase 2 route family pass authenticated/private feedback context from the question view-model mapper and submit through `/v1/feedback`
+- API proof: `POST /v1/feedback` accepts public anonymous feedback, validates private team/project context before retaining private identifiers, records `feedback.submitted`, and creates a safe team inbox triage item when a policy-safe team context exists
+- attachment proof stores screenshot metadata and storage policy only; signed uploads/downloads, long-term blob retention, analytics, and exact browser capture remain later-phase workflows
+
 ## Phase 6: Contextual Help Vertical
 
 Purpose: prove embedded contextual help using the same route/capability/page context foundation created for feedback.
@@ -357,22 +423,34 @@ Acceptance:
 - help UI passes accessibility checks for keyboard navigation, focus management, and screen-reader labels
 - contextual help does not expand to broad route coverage until public help runtime, private help filtering, feedback handoff, and lazy-loading tests pass
 
-## Phase 7: Team, Membership, Project Portfolio, And Launch
+Implemented Phase 6 convention:
 
-Purpose: prove the setup lifecycle: user productivity, team membership, project portfolio creation, and project launch monitoring without building every dashboard.
+- canonical UI entrypoints: `HelpButton`, `HelpPopover`, `HelpDrawer`, `ContextualHelpPanel`, `HelpTopicLink`, and `HelpActionList` under `@treeseed/ui/components/astro/help`
+- canonical client controller: `packages/ui/src/lib/help/drawer.ts`, with `search.ts` loaded only after explicit search focus or input
+- shell proof: `AuthShell`, `PublicShell`, and `ProductShell` render shared help triggers/drawers when `HelpContext` is provided; route pages must not render page-local help drawers or forms
+- public/Core proof: `/knowledge` and `/knowledge/[...slug]` pass public runtime `HelpContext` from the Core reader view model through `MainLayout`/`PublicShell`
+- ProductShell proof: `/app/work/questions` and its Phase 2 route family pass policy-filtered help context from the questions view-model mapper, including disabled-action reasons and remediation
+- feedback handoff: help topic feedback reuses the Phase 5 feedback dialog with a policy-safe context patch containing topic, route, capability, shell, and resource type metadata
+- private/global help search, help authoring, analytics, notifications, overlays, and broad route coverage remain later-phase workflows
 
-First contextual dashboard: `/app/projects/[projectId]`.
+## Phase 7: Contextual Dashboards, Team, Membership, Project Portfolio, And Launch
 
-Launch monitoring touchpoints:
+Purpose: prove the contextual dashboard architecture from `docs/ui-architecture.md` for the routed user contexts that exist today: personal, team, project, and market. These dashboards summarize resolved context and drive next action; they do not revive the retired Mission Control/provider-console experience.
 
-- `/app`
-- `/app/teams`
+Implemented contextual dashboards:
+
+- `/app` personal dashboard: principal, active team, project suggestions, setup progress, saved assets, and next actions
+- `/app/teams` team dashboard: active team, members/invites, project portfolio, capacity allocation summary, and team next actions
+- `/app/projects/[projectId]` project dashboard: project profile/status, Knowledge Hub readiness, deployment/runtime summary, workdays, artifacts, and recent activity
+- `/market` market dashboard: discovery context, listing categories, entitlement/install context, and seller-state summary linked to the canonical seller dashboard
+
+Launch monitoring touchpoints that remain active or are part of the routed proof:
+
 - `/app/teams/new`
-- `/app/teams/[teamId]`
 - `/app/teams/[teamId]/members`
 - `/app/projects/new`
 - `/app/projects/deployment/[id]`
-- project dashboard summary
+- `/app/projects/[projectId]/deploy`
 
 Include:
 
@@ -392,13 +470,15 @@ Include:
 
 Acceptance:
 
-- dashboard answers the four page questions
-- dashboard has active context and next action
+- each dashboard answers the four page questions from `docs/ui-architecture.md`: where am I, what is this about, what can I do here, and what changed recently
+- each dashboard has active resolved context, primary resource, actor/action context, recent changes, setup/readiness state, next recommended actions, and relevant alerts
+- dashboards render through `DashboardTemplate` and shell-level help/feedback; route pages must not carry page-local dashboard, help, feedback, CSS, raw role checks, or provider orchestration logic
 - launch flow shows deployment status and recovery
 - advanced operations do not dominate the default dashboard
 - deployment UI consumes view models, not provider orchestration logic
 - failed, retried, successful, and partially ready launches have defined UI states
 - deployment monitoring does not become a generic provider orchestration UI; it remains view-model driven until multiple launch surfaces prove the same monitor shape
+- seller dashboard behavior is completed by Phase 10 at `/app/market/seller`
 
 ## Phase 8: Services And Capacity Readiness
 
@@ -406,13 +486,15 @@ Purpose: prove the service-readiness journey for hosts, integrations, capacity p
 
 Implement:
 
-- team services dashboard
-- host collection/detail/settings
-- capacity provider collection/detail/settings
+- canonical team services dashboard at `/app/services`
+- primary rail entry `Services -> /app/services`; `/app/hosts` remains a drilldown collection
+- host collection/detail/settings: `/app/hosts`, `/app/hosts/:hostType/:hostId`, and `/app/hosts/:hostType/:hostId/settings`
+- capacity provider collection/detail/settings: `/app/capacity/providers`, `/app/capacity/providers/:providerId`, and `/app/capacity/providers/:providerId/settings`
 - integration readiness summaries
 - credentials/unlock flow integration where needed
 - diagnostics and recovery actions
 - project services readiness panel used by project launch and project dashboard
+- old service `/edit` routes are removed rather than retained as compatibility shims
 
 Acceptance:
 
@@ -426,18 +508,34 @@ Acceptance:
 
 Purpose: prove the recurring operating loop where users guide direction, allocate capacity, supervise agents/workdays, review exceptions, and fold output back into knowledge.
 
-Implement:
+Implemented entrypoints:
 
-- project direction workspace beyond first questions proof
-- objectives, notes, decisions, and proposals as repeated direction resources
-- team portfolio allocation
-- project allocation
-- workstream/mode allocation
-- agent-class and agent allocation views
-- workday collection/detail/workspace
-- agent run status
-- review queue, blocked work, failures, approvals, reruns
-- activity/audit timeline across direction, allocation, agents, and workdays
+- `/app/work` is the primary Work rail target and operating dashboard. It shows direction resources, review queue, blockers, allocation links, workday-run links, and an activity timeline.
+- `/app/work/review` is the canonical queue for approvals, blocked routing, failed tasks, needs-review work, and follow-up actions.
+- Direction resource families are explicit route controllers:
+  - `/app/work/objectives`, `/new`, `/:slug`, `/:slug/edit`
+  - `/app/work/notes`, `/new`, `/:slug`, `/:slug/edit`
+  - `/app/work/proposals`, `/new`, `/:slug`, `/:slug/edit`
+  - `/app/work/decisions`, `/new`, `/:slug`, `/:slug/edit`
+  - `/app/work/questions...` remains the Phase 2 canonical question family.
+- Generic `/app/work/[collection]/*` handlers and old decision approval compatibility routes are removed. They do not own primary create/detail/edit behavior.
+- `/app/capacity/allocation` renders the team portfolio allocation dashboard/editor through `DashboardTemplate`, `AllocationPanel`, `AllocationTree`, `AllocationStateLegend`, and `DynamicPieAllocationInput`.
+- Allocation drilldowns exist for project, mode, and agent paths:
+  - `/app/capacity/allocation/projects/:projectId`
+  - `/app/capacity/allocation/projects/:projectId/modes/:modeId`
+  - `/app/capacity/allocation/projects/:projectId/agents/:agentSlug`
+- Project workdays use canonical collection/workspace routes:
+  - `/app/projects/:projectId/workdays`
+  - `/app/projects/:projectId/workdays/:workdayId`
+- Portfolio workday runs use canonical collection/workspace routes:
+  - `/app/capacity/workday-runs`
+  - `/app/capacity/workday-runs/:runId`
+- Project agents use canonical collection/settings/workspace routes:
+  - `/app/projects/:projectId/agents`
+  - `/app/projects/:projectId/agents/new`
+  - `/app/projects/:projectId/agents/:agentSlug`
+- `@treeseed/ui` exports Phase 9 operating-loop display contracts and components: allocation summaries/tree/legend, work queue summary, activity timeline, and `WorkspaceTemplate`.
+- `@treeseed/admin` owns the Phase 9 operating-loop view-model mapper and the small route-scoped client helper for form/action submission. Templates receive ready view models and never call services directly.
 
 Nested allocation proof must use:
 
@@ -452,7 +550,7 @@ team portfolio
 
 Acceptance:
 
-- repeated direction/workday/allocation resources use shared templates and UI schemas
+- repeated direction/workday/allocation resources use shared templates and UI display contracts
 - capability modules are package-owned
 - repeated resources define help schemas where users need contextual guidance
 - route controllers remain explicit unless repetition justifies a page factory
@@ -464,24 +562,24 @@ Acceptance:
 - overrides are explicit, audited, and reversible
 - desired allocation, scheduled reservation, active assignment, and actual usage are visually distinct
 - workday supervision distinguishes running, blocked, failed, completed, and needs-review states
+- Admin observes and requests work through existing API/facade contracts. It does not become a scheduler, provider manager, assignment function, or provider orchestrator.
+- migrated Phase 9 routes must not contain page-local CSS, direct `fetch(` in templates, raw role checks, provider tokens, raw private identifiers, or duplicate generic direction implementations
 
 ## Phase 10: Knowledge And Capability Distribution
 
 Purpose: prove updating, packaging, distributing, acquiring, and reusing knowledge/capabilities after project/content workflows are stable.
 
-Implement:
+Implemented:
 
-- knowledge management dashboard
-- books and pages
-- Knowledge Hub overlay proof expansion
-- release manager
-- release review
-- knowledge pack listing
-- template listing
-- capability listing
-- install/download/import flow
-- seller onboarding
-- entitlement-aware private/paid download paths
+- `@treeseed/ui` distribution contracts for release status, entitlement state, artifact delivery state, install/import action summaries, and overlay edit state
+- `DistributionSummary` and `OverlayStatus` as reusable display primitives, exported from `@treeseed/ui`
+- `packages/admin/src/view-models/knowledge-distribution.vm.ts` as the admin-owned mapper for app knowledge, marketplace acquisition, seller readiness, release review, imports, capabilities, and policy-safe overlay status
+- `/app/knowledge` as the Knowledge distribution dashboard instead of a redirect
+- `/app/knowledge/artifacts`, `/packs`, `/templates`, `/releases`, `/publish`, and `/[category]/[slug]` through canonical shell/template/view-model rendering
+- `/app/knowledge/books`, `/app/knowledge/books/:slug`, `/app/knowledge/releases/:releaseId`, `/app/knowledge/releases/:releaseId/review`, `/app/knowledge/capabilities`, `/app/knowledge/capabilities/:slug`, `/app/knowledge/imports`, and `/app/knowledge/imports/:slug`
+- `/app/market/seller` as the seller readiness dashboard
+- `/market/knowledge-packs`, `/market/knowledge-packs/:slug`, `/market/templates`, and `/market/templates/:slug` as public acquisition routes with resolved entitlement/install/import/download action states
+- root `/templates/*` redirect compatibility routes and `/app/knowledge/artifacts/:artifactId` redirect compatibility route removed
 
 Acceptance:
 
@@ -493,12 +591,17 @@ Acceptance:
 - marketplace/release flows do not bypass the public/private content delivery, entitlement, notification, help, or feedback rules proven in earlier phases
 - generated knowledge packs are treated as runtime artifacts, not software build outputs
 - distribution flows combine public profiles/books, generated packs, templates, listings, visibility, entitlement, and reuse actions without duplicating publish concepts
+- overlay editor/search bootstrap remains policy-gated and lazy: shells and anonymous reader routes do not statically import editor or overlay bundles
+- Phase 10 guards reject redirect-only duplicate knowledge/template routes, page-local CSS, direct route-template `fetch`, raw role checks, raw private artifact identifiers, missing shell help/feedback, and unresolved publish/install/download actions
+
+Remaining exclusions:
+
+- full commerce, billing, payouts, broad seller analytics, global marketplace search, generalized overlay authoring, and notification preference UI remain later work
+- generated packs/templates/capabilities are runtime artifacts; they are not build outputs or compatibility source trees
 
 ## Target Interfaces
 
-Documentation-only change. No runtime APIs change.
-
-The docs define illustrative target contracts for future implementation:
+The implemented UI foundation now includes these public or package-local contracts. Future additions must extend these contracts from the owning package rather than inventing route-local shapes:
 
 - `CapabilityDefinition`
 - `ResourceUiSchema`
@@ -522,6 +625,8 @@ The docs define illustrative target contracts for future implementation:
 - `FeedbackScreenshotAttachment`
 - `DeploymentMonitorViewModel`
 - `AllocationViewModel`
+- `DistributionSummaryViewModel`
+- `OverlayStatusViewModel`
 
 ## Enforcement And Test Strategy
 
@@ -565,15 +670,13 @@ No phase is complete when its implementation works manually but its relevant enf
 
 ## Compatibility And Rollback
 
-Existing public URLs must keep working through redirects, wrappers, or compatibility controllers while pages migrate.
-
-Compatibility wrappers are temporary migration tools, not architecture. Each wrapper must name the legacy route/component it protects, the replacement capability, the tests required before removal, and the target deletion phase.
+Because TreeSeed is unreleased, canonical replacement routes should delete redirect-only compatibility routes and duplicate source immediately after acceptance. Compatibility wrappers are temporary migration tools, not architecture, and may exist only when an active inventory row names the protected route/component, replacement capability, tests required before removal, and target deletion phase.
 
 Rollback rules:
 
 - vertical slices must be independently revertible when practical
 - new registries/schemas must not remove working route controllers until replacement behavior is proven
-- public content URLs must preserve SEO-safe redirects or canonical URLs
+- public content URLs must preserve SEO-safe canonical URLs when already canonical; redirect-only compatibility routes are removed when they protect noncanonical paths
 - auth/private content failures must fail closed
 - release/marketplace download changes must preserve entitlement safety over convenience
 - rollback must use Git history, feature flags, or compatibility wrappers rather than copied source trees inside buildable project folders
@@ -616,20 +719,22 @@ See [Package Ownership](./package-ownership.md) for the current map.
 
 ## Current Implementation Status
 
-The authenticated app has been simplified again after the operational-dashboard migration. The current product UI is now a controls-first flow:
+The authenticated app has been updated after the controls-first simplification. The current product UI is a contextual dashboard plus focused drilldown flow:
 
 ```text
-Start -> Hosts -> Projects -> Capacity -> Work -> Knowledge
+Personal dashboard -> Hosts -> Projects -> Capacity -> Work -> Knowledge
 ```
 
 Team creation, editing, deletion, membership, and switching are handled through the persistent sidebar team selector and `/app/teams`, not as a primary Start-page or sidebar step.
 
-The earlier Mission Control, Workdays, Governance, and Infrastructure app sections are retained below as historical migration context only. They are not the current routed app IA. The current routes are:
+The earlier Mission Control, Workdays, Governance, and Infrastructure app sections are retained below as historical migration context only. They are not the current routed app IA. The current dashboard and drilldown routes are:
 
 ```text
 /app
+/app/teams
 /app/hosts
 /app/projects
+/app/projects/[projectId]
 /app/projects/[projectId]/settings
 /app/capacity
 /app/work/objectives
@@ -639,7 +744,7 @@ The earlier Mission Control, Workdays, Governance, and Infrastructure app sectio
 /app/knowledge/[category]/[slug]
 ```
 
-The current app should prioritize one-purpose controls for configuring hosts, launching hosted projects, managing capacity, guiding project work, recording decisions and questions, and publishing or packaging knowledge artifacts. It should not reintroduce dashboard-first routes, compatibility redirects, observability-style overview pages, duplicate team-management entry points, or JSON credential inputs.
+The current app should prioritize contextual dashboards for orientation and one-purpose controls for configuring hosts, launching hosted projects, managing capacity, guiding project work, recording decisions and questions, and publishing or packaging knowledge artifacts. It should not reintroduce retired Mission Control routes, compatibility redirects, observability-style provider overview pages, duplicate team-management entry points, or JSON credential inputs.
 
 ## Purpose
 
@@ -908,7 +1013,7 @@ Potential reusable primitives:
 * `Panel.astro`
 * `DataTable.astro`
 * `PageHeader.astro`
-* `AppShell.astro`
+* `ProductShell.astro`
 * `TopBar.astro`
 
 Existing project/team overview data loaders should be consolidated into:
@@ -1804,7 +1909,7 @@ Refactor:
 
 * `RailNav.astro`
 * `BottomNav.astro`
-* `AppShell.astro`
+* `ProductShell.astro`
 * `TopBar.astro`
 
 into:

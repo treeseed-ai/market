@@ -8,7 +8,7 @@ YAML-backed color scheme definitions are the canonical way to add dynamic TreeSe
 
 Use `ThemeScript` before paint on public, auth, and app shells. Use `ThemeSelector` wherever users can change appearance. Anonymous choices are stored in appearance cookies/localStorage, registration carries the selected `colorScheme` and `themeMode`, and logged-in account settings persist the same fields through `/auth/appearance`.
 
-Reusable TreeSeed web UI now lives in `@treeseed/ui`. Import Astro components from `@treeseed/ui/components/astro/...`, React components from `@treeseed/ui/react` or `@treeseed/ui/components/react/...`, helper scripts from `@treeseed/ui/lib/...`, and shared CSS from `@treeseed/ui/styles/...`. Admin, Market, and Core code should compose primitives such as `AppShell`, `PublicShell`, forms, data surfaces, auth cards, operation panels, and market cards from UI, while keeping only package-specific routes, data mapping, policy, and small adapter logic locally.
+Reusable TreeSeed web UI now lives in `@treeseed/ui`. Import Astro components from `@treeseed/ui/components/astro/...`, React components from `@treeseed/ui/react` or `@treeseed/ui/components/react/...`, helper scripts from `@treeseed/ui/lib/...`, and shared CSS from `@treeseed/ui/styles/...`. Admin, Market, and Core code should compose primitives such as `ProductShell`, `PublicShell`, forms, data surfaces, auth cards, operation panels, and market cards from UI, while keeping only package-specific routes, data mapping, policy, and small adapter logic locally.
 
 ## Package Ownership
 

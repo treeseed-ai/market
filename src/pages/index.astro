@@ -4,6 +4,7 @@ import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.a
 import MarketProductCard from '@treeseed/ui/components/astro/market/ProductCard.astro';
 import { createMarketTemplateCatalogProvider } from '@treeseed/admin/lib/market/catalog';
 import { resolveApiStore } from '@treeseed/admin/lib/market/store';
+import '../styles/treeseed.css';
 
 const templateListing = await listSiteTemplates({
 	locals: Astro.locals,
@@ -21,73 +22,99 @@ const accountDeleted = Astro.url.searchParams.get('account') === 'deleted';
 	description="TreeSeed is the self-serve marketplace and operating system for governed knowledge work, private teams, hosted projects, workflow imports, and durable memory."
 	currentPath={Astro.url.pathname}
 >
-	<section class="ts-hero">
-		<div class="ts-hero__main">
+	<section class="ts-home-hero" aria-labelledby="home-title">
+		<div class="ts-home-hero__content">
 			{accountDeleted ? <p class="ts-badge">Account deleted</p> : null}
-			<p class="ts-hero__eyebrow">TreeSeed Market</p>
-			<h1 class="ts-hero-copy">Buy, launch, and govern reusable knowledge work without booking a meeting.</h1>
-			<p class="ts-hero-copy">
-				Browse workflow imports, knowledge packs, hosted project options, maintenance plans, and private
-				team capacity. TreeSeed turns each purchase into a governed workday with reviewable outputs and
-				durable operational memory.
+			<p class="ts-home-hero__eyebrow">TreeSeed platform</p>
+			<h1 id="home-title">Governed AI work that leaves durable memory behind.</h1>
+			<p class="ts-home-hero__lede">
+				TreeSeed gives teams a market, a private operating console, and a Knowledge Hub for AI-assisted
+				work. Start from proven workflow imports, allocate real capacity, review the result, and keep the
+				decision trail as reusable organizational memory.
 			</p>
-			<div class="ts-hero__actions">
-				<a class="ts-button-secondary" href="/market/">Browse the market</a>
-				<a class="ts-button" href="/app/teams">Create private team</a>
+			<div class="ts-home-hero__actions" aria-label="Primary actions">
+				<a class="ts-home-button ts-home-button--primary" href="/market/">Explore workflow imports</a>
+				<a class="ts-home-button ts-home-button--secondary" href="/app/teams">Create private team</a>
 			</div>
+			<ul class="ts-home-proof-list" aria-label="TreeSeed operating guarantees">
+				<li>Direction, approvals, and review stay attached to the work.</li>
+				<li>Capacity is explicit before agents act.</li>
+				<li>Knowledge becomes a living project asset, not a chat transcript.</li>
+			</ul>
 		</div>
-		<div class="ts-metric-strip">
-			<div class="ts-panel ts-metric">
-				<span class="ts-metric__label">Workflow imports</span>
-				<span class="ts-metric__value">{templateListing.items.length}</span>
+		<div class="ts-home-hero__visual" aria-label="TreeSeed operating loop preview">
+			<div class="ts-home-visual-card ts-home-visual-card--focus">
+				<span class="ts-home-visual-card__eyebrow">Workday</span>
+				<strong>Launch Market Site</strong>
+				<span>Objective approved · capacity ready</span>
 			</div>
-			<div class="ts-panel ts-metric">
-				<span class="ts-metric__label">Knowledge packs</span>
-				<span class="ts-metric__value">{knowledgePacks.length}</span>
+			<div class="ts-home-loop" aria-hidden="true">
+				<span>Direction</span>
+				<span>Capacity</span>
+				<span>Situation</span>
+				<span>Results</span>
+				<span>Memory</span>
 			</div>
-			<div class="ts-panel ts-metric">
-				<span class="ts-metric__label">Content plane</span>
-				<span class="ts-metric__value">TreeDX</span>
+			<div class="ts-home-visual-grid">
+				<div>
+					<span>{templateListing.items.length}</span>
+					Workflow imports
+				</div>
+				<div>
+					<span>TreeDX</span>
+					Content plane
+				</div>
+				<div>
+					<span>{knowledgePacks.length}</span>
+					Knowledge packs
+				</div>
+				<div>
+					<span>Governed</span>
+					Work model
+				</div>
 			</div>
-			<div class="ts-panel ts-metric">
-				<span class="ts-metric__label">Work model</span>
-				<span class="ts-metric__value">Governed</span>
+			<div class="ts-home-visual-card">
+				<span class="ts-home-visual-card__eyebrow">Memory retained</span>
+				<strong>Questions, decisions, releases, and knowledge stay linked.</strong>
 			</div>
 		</div>
 	</section>
 
-	<section class="ts-panel">
-		<div class="ts-panel__header">
+	<section class="ts-home-section ts-home-section--compact" aria-label="How TreeSeed works">
+		<div class="ts-home-section__header">
 			<div>
-				<p class="ts-section__eyebrow">Homepage demo arc</p>
+				<p class="ts-home-section__eyebrow">Operating path</p>
 				<h2>A 90-second path from purchase to memory</h2>
 			</div>
 		</div>
-		<div class="ts-feature-grid">
+		<div class="ts-home-steps">
 			<article>
-				<h3>Find the resource</h3>
+				<span>01</span>
+				<h3>Choose a proven starting point</h3>
 				<p>Start with a workflow import, hosted project, private team, knowledge pack, maintenance plan, or continuous subscription.</p>
 			</article>
 			<article>
-				<h3>Allocate capacity</h3>
+				<span>02</span>
+				<h3>Bind real capacity and policy</h3>
 				<p>Choose hosts, TreeDX knowledge libraries, and capacity providers using native provider limits such as minutes, workers, tokens, or USD.</p>
 			</article>
 			<article>
-				<h3>Review the result</h3>
+				<span>03</span>
+				<h3>Review before memory hardens</h3>
 				<p>Monitor the workday, approve decisions, inspect artifacts, and retain the output as reusable organizational memory.</p>
 			</article>
 		</div>
 	</section>
 
-	<section class="ts-panel" aria-label="Governance cycle">
-		<div class="ts-panel__header">
+	<section class="ts-home-section" aria-label="Governance cycle">
+		<div class="ts-home-section__header">
 			<div>
-				<p class="ts-section__eyebrow">Governance cycle</p>
+				<p class="ts-home-section__eyebrow">Governance cycle</p>
 				<h2>Direction, capacity, situation, results, memory</h2>
 			</div>
-			<a href="/app/work/objectives">Open work</a>
+			<a class="ts-home-link" href="/app/work/objectives">Open work</a>
 		</div>
-		<div class="ts-feature-grid">
+		<div class="ts-home-cycle-grid">
 			<article><h3>Provide direction</h3><p>Define the team, project, objective, and authority for the change.</p></article>
 			<article><h3>Allocate capacity</h3><p>Bind hosts, TreeDX, providers, lanes, native limits, grants, and policies.</p></article>
 			<article><h3>Monitor situation</h3><p>Watch deployments, workdays, task events, blockers, and verification state.</p></article>
@@ -96,30 +123,33 @@ const accountDeleted = Astro.url.searchParams.get('account') === 'deleted';
 		</div>
 	</section>
 
-	<section class="ts-panel" aria-label="Live proof">
-		<div class="ts-panel__header">
-			<div>
-				<p class="ts-section__eyebrow">Live proof</p>
-				<h2>Karyon as a governed knowledge project</h2>
-			</div>
-			<a href="https://github.com/karyon-life/karyon" target="_blank" rel="noreferrer">Repository</a>
+	<section class="ts-home-proof" aria-label="Live proof">
+		<div>
+			<p class="ts-home-section__eyebrow">Live proof</p>
+			<h2>Karyon as a governed knowledge project</h2>
+			<p>
+				Karyon is the case-study project for the demo release: its repository remains the live source, its
+				<code>docs/</code> content is treated as the project knowledge body, and TreeDX provides the content
+				repository plane while local project/site work remains filesystem-backed.
+			</p>
 		</div>
-		<p>
-			Karyon is the case-study project for the demo release: its repository remains the live source, its
-			<code>docs/</code> content is treated as the project knowledge body, and TreeDX provides the content
-			repository plane while local project/site work remains filesystem-backed.
-		</p>
+		<div class="ts-home-proof__aside">
+			<span>Repository-backed</span>
+			<span>TreeDX content plane</span>
+			<span>Reviewable memory</span>
+			<a class="ts-home-link" href="https://github.com/karyon-life/karyon" target="_blank" rel="noreferrer">Open repository</a>
+		</div>
 	</section>
 
-	<section class="ts-grid-2" style="margin-top: 1rem;">
-		<div class="ts-panel">
-			<div class="ts-panel__header">
-				<div>
-					<p class="ts-section__eyebrow">Featured templates</p>
-					<h2>Start with a proven foundation</h2>
-				</div>
-				<a href="/market/templates/">View all</a>
+	<section class="ts-home-market" aria-label="Marketplace paths">
+		<div class="ts-home-section__header">
+			<div>
+				<p class="ts-home-section__eyebrow">Marketplace paths</p>
+				<h2>Start with a proven foundation</h2>
 			</div>
+			<a class="ts-home-link" href="/market/templates/">View all imports</a>
+		</div>
+		<div class="ts-home-market__grid">
 			<div class="ts-card-list">
 				{featuredTemplates.map((entry) => (
 					<MarketProductCard
@@ -135,27 +165,28 @@ const accountDeleted = Astro.url.searchParams.get('account') === 'deleted';
 					/>
 				))}
 			</div>
-		</div>
-		<div class="ts-panel">
-			<div class="ts-panel__header">
-				<div>
-					<p class="ts-section__eyebrow">Knowledge packs</p>
-					<h2>Reuse proven knowledge assets</h2>
-				</div>
-				<a href="/market/knowledge-packs/">View all</a>
-			</div>
-			<div class="ts-card-list">
-				{featuredPacks.length > 0 ? featuredPacks.map((entry: any) => (
-					<MarketProductCard
-						href={`/market/knowledge-packs/${entry.slug}/`}
-						slug={entry.slug}
-						title={entry.name}
-						summary={entry.summary ?? 'Reusable source material and market-packaged knowledge assets.'}
-						category="Knowledge pack"
-						publisherName="TreeSeed"
-						badges={[entry.visibility, entry.installStrategy]}
-					/>
-				)) : <div class="ts-empty">No public knowledge packs are published yet.</div>}
+			<div class="ts-home-market__knowledge">
+				<p class="ts-home-section__eyebrow">Knowledge imports</p>
+				<h3>Reuse assets when they are ready.</h3>
+				<p>
+					Knowledge packs will publish as entitlement-aware imports. Until then, TreeSeed proves the path
+					with first-party workflow imports and live Knowledge Hub content.
+				</p>
+				{featuredPacks.length > 0 ? (
+					<div class="ts-card-list">
+						{featuredPacks.map((entry: any) => (
+							<MarketProductCard
+								href={`/market/knowledge-packs/${entry.slug}/`}
+								slug={entry.slug}
+								title={entry.name}
+								summary={entry.summary ?? 'Reusable source material and market-packaged knowledge assets.'}
+								category="Knowledge pack"
+								publisherName="TreeSeed"
+								badges={[entry.visibility, entry.installStrategy]}
+							/>
+						))}
+					</div>
+				) : <a class="ts-home-button ts-home-button--secondary" href="/knowledge/">Read the Knowledge Hub</a>}
 			</div>
 		</div>
 	</section>

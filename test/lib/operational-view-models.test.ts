@@ -72,7 +72,9 @@ const mockStore: any = {
 	listTeamWebHosts: vi.fn(async () => [{ id: 'host-1', name: 'Staging host', provider: 'cloudflare', status: 'active' }]),
 	listRepositoryHosts: vi.fn(async () => [{ id: 'repo-host-1', name: 'GitHub', provider: 'github', status: 'active' }]),
 	listTeamCapacityProviders: vi.fn(async () => [{ id: 'provider-1', name: 'Managed capacity', provider: 'railway', status: 'active' }]),
+	listExecutionProviders: vi.fn(async () => [{ id: 'execution-1', provider: 'openai', status: 'active' }]),
 	listCapacityGrants: vi.fn(async () => [{ id: 'grant-capacity-1', state: 'active', grantScope: 'team' }]),
+	getTeamTreeDx: vi.fn(async () => ({ instance: { id: 'treedx-1', status: 'active' } })),
 	listTeamProducts: vi.fn(async () => [{ id: 'resource-1', title: 'Deployment workflow', kind: 'template', visibility: 'private' }]),
 };
 
@@ -87,13 +89,23 @@ describe('operational view models', () => {
 		vi.clearAllMocks();
 	});
 
-	it('loads Mission Control from existing operational data', async () => {
-		const { loadMissionControlViewModel } = await import('../../packages/admin/src/view-models/mission-control.vm.js');
-		const vm = await loadMissionControlViewModel({} as App.Locals);
+	it('loads contextual dashboards from existing operational data', async () => {
+		const { buildPersonalDashboard, buildProjectDashboard } = await import('../../packages/admin/src/view-models/contextual-dashboard.vm.js');
+		const context = {
+			store: mockStore,
+			principal: { id: 'user-1', email: 'user@example.test' },
+			teams: [{ id: 'team-1', name: 'treeseed', displayName: 'TreeSeed' }],
+			activeTeam: { id: 'team-1', name: 'treeseed', displayName: 'TreeSeed' },
+			projects: [mockProject],
+		};
+		const personal = await buildPersonalDashboard(context, new URL('https://admin.test/app/'));
+		const project = await buildProjectDashboard(context, mockProject, { project: mockProject }, context.activeTeam, new URL('https://admin.test/app/projects/project-1'));
 
-		expect(vm.metrics.map((metric) => metric.label)).toContain('Active workdays');
-		expect(vm.activeWorkdays[0]).toMatchObject({ id: 'workday-1', projectName: 'Ops Docs' });
-		expect(vm.pendingApprovals[0]).toMatchObject({ title: 'Publish operational report' });
+		expect(personal.viewModel.context.items.map((item) => item.label)).toContain('Active team');
+		expect(personal.viewModel.nextActions?.map((item) => item.href)).toContain('/app/projects');
+		expect(project.viewModel.status?.items.map((item) => item.label)).toContain('Workdays');
+		expect(project.viewModel.deployment?.items.map((item) => item.label)).toContain('Knowledge Hub');
+		expect(project.helpContext.template).toBe('dashboard');
 	});
 
 	it('loads Workday list and detail projections', async () => {
@@ -136,5 +148,85 @@ describe('operational view models', () => {
 		expect(infrastructure.resources.map((entry) => entry.title)).toContain('Deployment workflow');
 		expect(infrastructure.seeds.map((entry) => entry.title)).toContain('Seed treeseed');
 		expect(infrastructure.diagnostics.length).toBeGreaterThan(0);
+	});
+
+	it('builds Phase 8 service readiness dashboards from policy-safe service inventory', async () => {
+		const {
+			buildHostCollection,
+			buildProviderCollection,
+			buildServicesDashboard,
+			loadServiceInventory,
+		} = await import('../../packages/admin/src/view-models/service-readiness.vm.js');
+		const context = {
+			store: mockStore,
+			principal: { id: 'user-1', email: 'user@example.test' },
+			teams: [{ id: 'team-1', name: 'treeseed', displayName: 'TreeSeed' }],
+			activeTeam: { id: 'team-1', name: 'treeseed', displayName: 'TreeSeed' },
+			projects: [mockProject],
+		};
+
+		const inventory = await loadServiceInventory(context, {});
+		const bundle = buildServicesDashboard(context, inventory, new URL('https://admin.test/app/services'));
+		const hosts = buildHostCollection(inventory);
+		const providers = buildProviderCollection(inventory);
+		const serialized = JSON.stringify({ bundle, hosts, providers });
+
+		expect(bundle.dashboard.title).toBe('Services dashboard');
+		expect(bundle.readiness.items.map((item) => item.id)).toContain('capacity-providers');
+		expect(bundle.readiness.items.map((item) => item.id)).toContain('runtime-diagnostics');
+		expect(bundle.readiness.items.find((item) => item.id === 'runtime-diagnostics')?.advanced).toBe(true);
+		expect(bundle.actions.map((action) => action.href)).toEqual(['/app/hosts/new', '/app/capacity/providers/new']);
+		expect(bundle.helpContext.topicIds).toContain('services-readiness');
+		expect(bundle.feedbackContext.canonicalPath).toBe('/app/services');
+		expect((hosts.resources ?? []).map((resource) => resource.href)).toContain('/app/hosts/repository/repo-host-1');
+		expect((providers.resources ?? []).map((resource) => resource.href)).toContain('/app/capacity/providers/provider-1');
+		expect(serialized).not.toMatch(/apiToken|secret|runnerToken|providerToken|encryptedPayload|x-treeseed-service-secret/iu);
+	});
+
+	it('keeps Phase 8 service readiness stable for setup-required, empty, and partial diagnostics states', async () => {
+		const {
+			buildHostCollection,
+			buildProviderCollection,
+			buildServicesDashboard,
+			loadServiceInventory,
+		} = await import('../../packages/admin/src/view-models/service-readiness.vm.js');
+		const emptyStore: any = {
+			listRepositoryHosts: vi.fn(async () => []),
+			listTeamWebHosts: vi.fn(async () => []),
+			listTeamCapacityProviders: vi.fn(async () => []),
+			listExecutionProviders: vi.fn(async () => []),
+			listCapacityGrants: vi.fn(async () => []),
+			getTeamTreeDx: vi.fn(async () => null),
+		};
+		const noTeamContext = { store: emptyStore, principal: { id: 'user-1' }, teams: [], activeTeam: null, projects: [] };
+		const noTeamInventory = await loadServiceInventory(noTeamContext, {});
+		const noTeam = buildServicesDashboard(noTeamContext, noTeamInventory, new URL('https://admin.test/app/services'));
+		expect(noTeam.dashboard.context?.items.find((item) => item.label === 'Active team')?.value).toBe('None');
+		expect(noTeam.actions.every((action) => action.state === 'requiresSetup')).toBe(true);
+
+		const emptyContext = {
+			store: emptyStore,
+			principal: { id: 'user-1' },
+			teams: [{ id: 'team-1', name: 'treeseed' }],
+			activeTeam: { id: 'team-1', name: 'treeseed' },
+			projects: [],
+		};
+		const emptyInventory = await loadServiceInventory(emptyContext, {});
+		const empty = buildServicesDashboard(emptyContext, emptyInventory, new URL('https://admin.test/app/services'));
+		expect(buildHostCollection(emptyInventory).emptyTitle).toBe('No hosts yet');
+		expect(buildProviderCollection(emptyInventory).emptyTitle).toBe('No capacity providers yet');
+		expect(empty.readiness.items.find((item) => item.id === 'capacity-providers')?.status).toBe('blocked');
+
+		const partial = buildServicesDashboard(emptyContext, {
+			team: emptyContext.activeTeam,
+			hosts: [{ id: 'host-warning', provider: 'cloudflare', status: 'paused', _hostType: 'web' }],
+			providers: [{ id: 'provider-warning', name: 'Waiting provider', provider: 'railway', connectionState: 'waiting' }],
+			executionProvidersByProvider: new Map([['provider-warning', []]]),
+			grantsByProvider: new Map([['provider-warning', []]]),
+			treeDx: null,
+		}, new URL('https://admin.test/app/services'));
+		expect(partial.dashboard.status?.items.find((item) => item.label === 'Capacity')?.tone).toBe('warning');
+		expect(partial.readiness.items.find((item) => item.id === 'runtime-diagnostics')?.advanced).toBe(true);
+		expect(JSON.stringify(partial)).not.toMatch(/apiToken|secret|runnerToken|providerToken|encryptedPayload|x-treeseed-service-secret/iu);
 	});
 });

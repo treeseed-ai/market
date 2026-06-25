@@ -184,6 +184,8 @@ The content manifest for a book or book page must be able to reference:
 
 Public packs may use CDN-backed URLs. Private, paid, entitlement-gated, or team-only packs must use authenticated download routes or short-lived signed URLs after policy evaluation.
 
+Phase 10 UI implementation reflects this boundary: app knowledge and public marketplace routes render entitlement and delivery state through view models before any install, import, or download action is exposed. Route templates do not render raw R2 keys, direct private artifact URLs, or editor bundles. Overlay status is display-only until an authorized edit intent lazy-loads the overlay bootstrap.
+
 ## Cache And Purge
 
 Content publish must identify and purge:

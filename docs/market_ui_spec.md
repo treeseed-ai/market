@@ -1,54 +1,59 @@
 # TreeSeed Control App UI Specification
 
-This document replaces the legacy app specification. The authenticated app is no longer organized around retired dashboard routes or a resource-discovery-first workflow. The current product surface is a compact control console for configuring hosts, projects, capacity, work decisions, and knowledge artifacts.
+This document replaces the legacy app specification. The authenticated app is no longer organized around retired Mission Control routes or a resource-discovery-first workflow. The current product surface uses contextual dashboards for orientation plus compact controls for configuring hosts, projects, capacity, work decisions, and knowledge artifacts.
 
 ## Product Frame
 
-TreeSeed should feel like a plain operator console:
+TreeSeed should feel like a contextual operations manager:
 
 ```text
-Start
-  -> Hosts
+Personal dashboard
+  -> Services
   -> Projects
   -> Capacity
   -> Work
   -> Knowledge
 ```
 
-The UI should communicate that setup and supervision are concrete, named, and action-oriented.
+The UI should communicate that every dashboard answers where the user is, what the context is about, what they can do next, and what changed recently. Drilldown controls remain concrete, named, and action-oriented.
 
 ## Primary App IA
 
 The authenticated app has six primary sections:
 
 ```text
-/app                         Start
-/app/hosts                   Hosts
+/app                         Personal dashboard
+/app/teams                   Team dashboard
+/app/services                Services
 /app/projects                Projects
+/app/projects/:projectId     Project dashboard
 /app/capacity                Capacity
 /app/work/objectives         Work
 /app/knowledge/artifacts     Knowledge
 ```
 
-Team management lives in the persistent sidebar team selector and `/app/teams`, not in primary navigation. Additional app routes should be one-purpose detail or form surfaces under these sections.
+Team management lives in the persistent sidebar team selector and `/app/teams`. Hosts remain available as `/app/hosts` service drilldowns, but the primary IA presents service readiness as Services.
 
-Project controls live under `/app/projects/:projectId`. The expected control order is Settings, Hosts, Deploy, Guidance, Decisions, Artifacts, and Delete. `/app/projects/:projectId/deploy` is a project control rather than a primary section because it depends on the selected project, repository, web host, launch, environment, and operation history.
+Project controls live under `/app/projects/:projectId`. The expected control order is Overview, Settings, Deploy, Guidance, Decisions, Workdays, Agents, Artifacts, and Delete. `/app/projects/:projectId/deploy` is a project control rather than a primary section because it depends on the selected project, repository, web host, launch, environment, and operation history.
 
-## Start
+## Personal Dashboard
 
-Start is the shortest possible index into the control flow.
+The personal dashboard is the signed-in user's shortest possible index into the product.
 
 It should show:
 
-* current objective
+* active principal
 * active team context
+* project suggestions
+* saved assets or import context
+* notifications or recent activity
 * next setup action
 * host setup link
 * project setup link
 * capacity setup link
 * work and knowledge links
 
-Start should answer where to go next without becoming a dashboard.
+It must be a resolved-context dashboard, not a retired Mission Control or provider observability overview.
 
 ## Work
 
@@ -163,4 +168,4 @@ Do not reintroduce:
 
 ## Completion Status
 
-The UI migration is complete through Phase 7. Future UI work should extend the operational IA above and should keep teams, projects, resources, and runtime details as contextual infrastructure rather than primary product framing.
+The UI migration is complete through Phase 10. Work starts at `/app/work`, Services stays at `/app/services`, and Knowledge starts at `/app/knowledge`. Direction resources, allocation, agents, workdays, review queues, audit timelines, service readiness, knowledge distribution, marketplace acquisition, seller readiness, and entitlement-aware install/import/download states use canonical shell/template/view-model conventions. Future UI work should extend the operational IA above and should keep teams, projects, resources, providers, runtime details, artifacts, and marketplace entitlements as contextual product information rather than raw implementation framing.

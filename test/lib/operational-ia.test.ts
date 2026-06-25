@@ -23,7 +23,7 @@ function filesUnder(path: string): string[] {
 
 const primaryRoutes = [
 	'packages/admin/src/pages/app/index.astro',
-	'packages/admin/src/pages/app/hosts/index.astro',
+	'packages/admin/src/pages/app/services.astro',
 	'packages/admin/src/pages/app/projects/index.astro',
 	'packages/admin/src/pages/app/capacity/index.astro',
 	'packages/admin/src/pages/app/capacity/providers/index.astro',
@@ -39,7 +39,8 @@ const onePurposeRoutes = [
 	'packages/admin/src/pages/app/teams/[teamId]/delete.astro',
 	'packages/admin/src/pages/app/hosts/new.astro',
 	'packages/admin/src/pages/app/hosts/[hostType]/new.astro',
-	'packages/admin/src/pages/app/hosts/[hostType]/[hostId]/edit.astro',
+	'packages/admin/src/pages/app/hosts/[hostType]/[hostId].astro',
+	'packages/admin/src/pages/app/hosts/[hostType]/[hostId]/settings.astro',
 	'packages/admin/src/pages/app/projects/new.astro',
 	'packages/admin/src/pages/app/projects/[projectId]/settings.astro',
 	'packages/admin/src/pages/app/projects/[projectId]/hosts.astro',
@@ -49,11 +50,14 @@ const onePurposeRoutes = [
 	'packages/admin/src/pages/app/projects/[projectId]/artifacts.astro',
 	'packages/admin/src/pages/app/projects/[projectId]/delete.astro',
 	'packages/admin/src/pages/app/capacity/providers/new.astro',
-	'packages/admin/src/pages/app/capacity/providers/[providerId]/edit.astro',
+	'packages/admin/src/pages/app/capacity/providers/[providerId].astro',
+	'packages/admin/src/pages/app/capacity/providers/[providerId]/settings.astro',
 	'packages/admin/src/pages/app/capacity/providers/[providerId]/keys.astro',
+	'packages/admin/src/pages/app/work.astro',
 	'packages/admin/src/pages/app/work/objectives/new.astro',
 	'packages/admin/src/pages/app/work/decisions.astro',
-	'packages/admin/src/pages/app/work/decisions/[approvalId].astro',
+	'packages/admin/src/pages/app/work/decisions/[slug].astro',
+	'packages/admin/src/pages/app/work/review.astro',
 	'packages/admin/src/pages/app/work/questions.astro',
 	'packages/admin/src/pages/app/work/notes.astro',
 	'packages/admin/src/pages/app/work/proposals.astro',
@@ -63,12 +67,14 @@ const onePurposeRoutes = [
 	'packages/admin/src/pages/app/knowledge/publish.astro',
 ];
 
-describe('one-purpose control app information architecture', () => {
+describe('contextual dashboard and drilldown app information architecture', () => {
 	it('uses the guided control navigation labels', () => {
 		const layout = source('packages/admin/src/layouts/TreeseedAppLayout.astro');
-		for (const label of ['Start', 'Hosts', 'Projects', 'Capacity', 'Work', 'Knowledge']) {
+		const projectDashboard = source('packages/admin/src/pages/app/projects/[projectId].astro');
+		for (const label of ['Start', 'Services', 'Projects', 'Capacity', 'Work', 'Knowledge']) {
 			expect(layout).toContain(`label: '${label}'`);
 		}
+		expect(layout).not.toContain(`label: 'Hosts'`);
 		expect(layout).not.toContain(`label: 'Team'`);
 		for (const label of ['Mission Control', 'Workdays', 'Governance', 'Infrastructure', 'Market']) {
 			expect(layout).not.toContain(`label: '${label}'`);
@@ -78,6 +84,9 @@ describe('one-purpose control app information architecture', () => {
 		expect(layout).not.toContain("url.searchParams.set('teamId'");
 		expect(layout).toContain('href="/app/teams" title="Manage teams"');
 		expect(layout).toContain(`href: '/app/capacity/allocation'`);
+		expect(projectDashboard).toContain('ReadinessSummary');
+		expect(projectDashboard).toContain('loadServiceInventory');
+		expect(projectDashboard).toContain('buildServicesDashboard');
 	});
 
 	it('centralizes app and marketplace resource access', () => {
@@ -114,7 +123,11 @@ describe('one-purpose control app information architecture', () => {
 		expect(deploymentStatusPage).toContain("Astro.response.status = deploymentResolution?.status === 'forbidden' ? 403 : 404");
 		for (const path of projectPages) {
 			const contents = source(path);
-			expect(contents, path).toContain('resolveAppProject');
+			if (contents.includes('operating-loop.vm')) {
+				expect(contents, path).toMatch(/load(?:ProjectWorkday|Agent)|resolveProjectForRoute/u);
+			} else {
+				expect(contents, path).toContain('resolveAppProject');
+			}
 			expect(contents, path).not.toContain('context.projects.find');
 		}
 		expect(deploymentStatusPage).toContain('resolveAppDeployment');
@@ -126,8 +139,8 @@ describe('one-purpose control app information architecture', () => {
 			expect(contents, path).not.toContain('loadAccessibleTeams(Astro');
 			expect(contents, path).not.toMatch(/load[A-Za-z]+ViewModel\(Astro\.locals/u);
 		}
-		expect(source('packages/admin/src/pages/app/hosts/[hostType]/[hostId]/edit.astro')).toContain('resolveAppHost');
-		expect(source('packages/admin/src/pages/app/capacity/providers/[providerId]/edit.astro')).toContain('resolveAppCapacityProvider');
+		expect(source('packages/admin/src/pages/app/hosts/[hostType]/[hostId]/settings.astro')).toContain('resolveAppHost');
+		expect(source('packages/admin/src/pages/app/capacity/providers/[providerId]/settings.astro')).toContain('resolveAppCapacityProvider');
 		expect(source('packages/admin/src/pages/app/capacity/providers/[providerId]/keys.astro')).toContain('resolveAppCapacityProvider');
 		for (const path of [
 			'packages/admin/src/pages/app/teams/[teamId]/edit.astro',
@@ -141,19 +154,26 @@ describe('one-purpose control app information architecture', () => {
 		}
 		for (const path of [
 			'packages/admin/src/pages/market/index.astro',
-			'packages/admin/src/pages/market/templates/index.astro',
-			'packages/admin/src/pages/market/templates/[slug].astro',
-			'packages/admin/src/pages/market/knowledge-packs/index.astro',
-			'packages/admin/src/pages/market/knowledge-packs/[slug].astro',
 			'packages/admin/src/pages/t/[name].astro',
 			'packages/admin/src/pages/u/[username].astro',
 		]) {
 			expect(source(path), path).toContain('public-access');
 			expect(source(path), path).not.toContain('treeseed_active_team');
 		}
+		for (const path of [
+			'packages/admin/src/pages/market/templates/index.astro',
+			'packages/admin/src/pages/market/templates/[slug].astro',
+			'packages/admin/src/pages/market/knowledge-packs/index.astro',
+			'packages/admin/src/pages/market/knowledge-packs/[slug].astro',
+		]) {
+			expect(source(path), path).toContain('knowledge-distribution.vm');
+			expect(source(path), path).toContain('helpContext');
+			expect(source(path), path).toContain('feedbackContext');
+			expect(source(path), path).not.toContain('treeseed_active_team');
+		}
 	});
 
-	it('keeps primary app routes to one-purpose control entry points', () => {
+	it('keeps primary app routes to contextual dashboards and focused control entry points', () => {
 		for (const path of [...primaryRoutes, ...onePurposeRoutes]) {
 			expect(existsSync(resolve(process.cwd(), path)), path).toBe(true);
 		}
@@ -164,10 +184,39 @@ describe('one-purpose control app information architecture', () => {
 			'index.astro',
 			'knowledge',
 			'knowledge.astro',
+			'market',
 			'projects',
+			'services.astro',
 			'teams',
 			'work',
+			'work.astro',
 		]);
+	});
+
+	it('renders Phase 7 contextual dashboard proofs through the shared template', () => {
+		const dashboardTemplate = source('packages/ui/src/astro/templates/DashboardTemplate.astro');
+		const dashboardViewModel = source('packages/admin/src/view-models/contextual-dashboard.vm.ts');
+		const dashboardRoutes = [
+			['packages/admin/src/pages/app/index.astro', 'TreeseedAppLayout'],
+			['packages/admin/src/pages/app/teams/index.astro', 'TreeseedAppLayout'],
+			['packages/admin/src/pages/app/projects/[projectId].astro', 'TreeseedAppLayout'],
+			['packages/admin/src/pages/market/index.astro', 'TreeseedPublicLayout'],
+		] as const;
+
+		expect(dashboardTemplate).toContain('DashboardViewModel');
+		expect(dashboardTemplate).toContain('ActionBar');
+		for (const symbol of ['buildPersonalDashboard', 'buildTeamDashboard', 'buildProjectDashboard', 'buildMarketDashboard']) {
+			expect(dashboardViewModel).toContain(`function ${symbol}`);
+		}
+		for (const [path, shell] of dashboardRoutes) {
+			const contents = source(path);
+			expect(contents, path).toContain('DashboardTemplate');
+			expect(contents, path).toContain(shell);
+			expect(contents, path).toContain('helpContext');
+			expect(contents, path).toContain('feedbackContext');
+			expect(contents, path).not.toMatch(/<style(?:\s|>)|Mission Control|provider console|dashboard maze/iu);
+		}
+		expect(source('packages/admin/src/pages/app/projects/[projectId].astro')).not.toContain('Astro.redirect(`/app/projects/${encodeURIComponent(String(Astro.params.projectId');
 	});
 
 	it('keeps the rail team selector compact without a duplicate divider', () => {
@@ -207,8 +256,9 @@ describe('one-purpose control app information architecture', () => {
 		const styles = source('src/styles/treeseed.css');
 		const deployIndex = nav.indexOf("label: 'Deploy'");
 		expect(nav).not.toContain("label: 'Hosts'");
+		expect(nav).toContain("label: 'Overview'");
 		expect(deployIndex).toBeLessThan(nav.indexOf("label: 'Guidance'"));
-		expect(nav).toContain("current: 'settings' | 'hosts' | 'deploy'");
+		expect(nav).toContain("current: 'overview' | 'settings' | 'hosts' | 'deploy'");
 		expect(page).toContain('buildProjectDeploymentState');
 		expect(page).toContain('buildDeploymentViewModel');
 		expect(page).toContain('fallbackState');
@@ -382,12 +432,14 @@ describe('one-purpose control app information architecture', () => {
 		}
 	});
 
-	it('uses the Phase 7 native capacity provider lifecycle UI', () => {
+	it('uses the Phase 8 service readiness and capacity provider lifecycle UI', () => {
 		const start = source('packages/admin/src/pages/app/index.astro');
+		const services = source('packages/admin/src/pages/app/services.astro');
 		const redirect = source('packages/admin/src/pages/app/capacity/index.astro');
 		const dashboard = source('packages/admin/src/pages/app/capacity/providers/index.astro');
+		const detail = source('packages/admin/src/pages/app/capacity/providers/[providerId].astro');
 		const create = source('packages/admin/src/pages/app/capacity/providers/new.astro');
-		const edit = source('packages/admin/src/pages/app/capacity/providers/[providerId]/edit.astro');
+		const settings = source('packages/admin/src/pages/app/capacity/providers/[providerId]/settings.astro');
 		const keys = source('packages/admin/src/pages/app/capacity/providers/[providerId]/keys.astro');
 		const workdays = source('packages/admin/src/pages/app/projects/[projectId]/workdays.astro');
 		const workdayDetail = source('packages/admin/src/pages/app/projects/[projectId]/workdays/[workdayId].astro');
@@ -403,25 +455,28 @@ describe('one-purpose control app information architecture', () => {
 		];
 
 		expect(redirect).toContain("Astro.redirect('/app/capacity/allocation')");
-		expect(start).toContain('/app/capacity/providers');
+		expect(services).toContain('DashboardTemplate');
+		expect(services).toContain('ReadinessSummary');
+		expect(services).toContain('buildServicesDashboard');
+		expect(start).toContain('DashboardTemplate');
+		expect(source('packages/admin/src/view-models/contextual-dashboard.vm.ts')).toContain('/app/capacity/providers');
 		expect(start).not.toMatch(/lanes|grants/iu);
 		for (const path of deletedRoutes) {
 			expect(existsSync(resolve(process.cwd(), path)), path).toBe(false);
 		}
-		for (const contents of [dashboard, create, edit, keys, infrastructureProjection]) {
+		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/pages/app/capacity/providers/[providerId]/edit.astro'))).toBe(false);
+		for (const contents of [dashboard, detail, create, settings, keys, infrastructureProjection]) {
 			expect(contents).not.toContain('/app/capacity/grants');
 			expect(contents).not.toContain('/lanes');
 		}
-		expect(dashboard).toContain('Host and deployment');
-		expect(dashboard).toContain('Connection');
-		expect(dashboard).toContain('Operations');
-		expect(dashboard).toContain('Capacity');
-		expect(dashboard).toContain('Portfolio allocation');
-		expect(dashboard).toContain('Compatibility credits');
-		expect(dashboard).toContain('createApiFacade');
+		expect(dashboard).toContain('CollectionTemplate');
+		expect(dashboard).toContain('ReadinessSummary');
 		expect(dashboard).not.toContain('context.store.listTeamCapacityProviders');
 		expect(dashboard).not.toContain('/app/capacity/grants');
 		expect(dashboard).not.toContain('Lanes');
+		expect(detail).toContain('DetailTemplate');
+		expect(detail).toContain('ReadinessSummary');
+		expect(detail).toContain('Runtime diagnostics');
 		expect(create).toContain('Launch mode');
 		expect(create).toContain('TreeSeed derives internal credits');
 		expect(create).toContain('Provider creators do not configure TreeSeed credits here.');
@@ -435,31 +490,31 @@ describe('one-purpose control app information architecture', () => {
 		expect(create).not.toContain('dailyCreditBudget');
 		expect(create).not.toContain('monthlyCreditBudget');
 		expect(create).not.toContain('Legacy daily credits');
-		expect(edit).toContain('Save provider');
-		expect(edit).toContain('Broadcast capabilities');
-		expect(edit).toContain('Native-derived scheduling mode');
-		expect(edit).toContain('Save native capacity');
-		expect(edit).toContain('Projected TreeSeed capacity');
-		expect(edit).toContain('Portfolio allocation');
-		expect(edit).toContain('Save allocation');
-		expect(edit).toContain('portfolioAllocationPercent');
-		expect(edit).toContain('reservePoolPercent');
-		expect(edit).toContain('emergencyOverride');
-		expect(edit).toContain('createApiFacade');
-		expect(edit).toContain('resolveAppCapacityProvider');
-		expect(edit).not.toContain('context.store.listTeamCapacityProviders');
-		expect(edit).not.toContain('/app/capacity/grants');
-		expect(edit).toContain('Deployment status');
-		expect(edit).toContain('Deploy provider');
-		expect(edit).toContain('capacityProviderHost');
-		expect(edit).toContain('self-hosting');
-		expect(edit).not.toContain('Select name="provider"');
-		expect(workdays).toContain('createApiFacade');
-		expect(workdays).toContain('Native usage');
+		expect(settings).toContain('SettingsTemplate');
+		expect(settings).toContain('Save provider');
+		expect(settings).toContain('Broadcast capabilities');
+		expect(settings).toContain('Native-derived scheduling mode');
+		expect(settings).toContain('Save native capacity');
+		expect(settings).toContain('Projected TreeSeed capacity');
+		expect(settings).toContain('Portfolio allocation');
+		expect(settings).toContain('Save allocation');
+		expect(settings).toContain('portfolioAllocationPercent');
+		expect(settings).toContain('reservePoolPercent');
+		expect(settings).toContain('emergencyOverride');
+		expect(settings).toContain('createApiFacade');
+		expect(settings).toContain('resolveAppCapacityProvider');
+		expect(settings).not.toContain('context.store.listTeamCapacityProviders');
+		expect(settings).not.toContain('/app/capacity/grants');
+		expect(settings).toContain('Deployment status');
+		expect(settings).toContain('Deploy provider');
+		expect(settings).toContain('capacityProviderHost');
+		expect(settings).toContain('self-hosting');
+		expect(settings).not.toContain('Select name="provider"');
+		expect(workdays).toContain('loadProjectWorkdayCollection');
+		expect(workdays).toContain('CollectionTemplate');
 		expect(workdays).not.toContain('context.store');
-		expect(workdayDetail).toContain('createApiFacade');
-		expect(workdayDetail).toContain('Native and derived capacity');
-		expect(workdayDetail).toContain('Native pressure');
+		expect(workdayDetail).toContain('loadProjectWorkdayWorkspace');
+		expect(workdayDetail).toContain('WorkspaceTemplate');
 		expect(workdayDetail).not.toContain('context.store');
 		for (const method of ['updateCapacityProvider', 'listCapacityGrants', 'createCapacityGrant', 'updateCapacityGrant', 'createExecutionProvider', 'updateExecutionProvider', 'createExecutionProviderNativeLimit']) {
 			expect(apiClient).toContain(method);
@@ -482,9 +537,10 @@ describe('one-purpose control app information architecture', () => {
 
 	it('uses project-first host setup and operational host inventory', () => {
 		const hosts = source('packages/admin/src/pages/app/hosts/index.astro');
+		const hostDetail = source('packages/admin/src/pages/app/hosts/[hostType]/[hostId].astro');
 		const hostPicker = source('packages/admin/src/pages/app/hosts/new.astro');
 		const hostCreate = source('packages/admin/src/pages/app/hosts/[hostType]/new.astro');
-		const hostEdit = source('packages/admin/src/pages/app/hosts/[hostType]/[hostId]/edit.astro');
+		const hostSettings = source('packages/admin/src/pages/app/hosts/[hostType]/[hostId]/settings.astro');
 		const adminFormClient = source('packages/admin/src/lib/market/admin-form-client.ts');
 		const deleteModal = source('@treeseed/ui/components/astro/app/controls/DeleteConfirmationModal.astro');
 		const appLayout = source('packages/admin/src/layouts/TreeseedAppLayout.astro');
@@ -499,27 +555,23 @@ describe('one-purpose control app information architecture', () => {
 		const hostPermissionNote = source('@treeseed/ui/components/astro/app/controls/HostCredentialPermissionNote.astro');
 		const providerLaunch = source('packages/sdk/src/operations/services/hub-provider-launch.ts');
 
-		expect(hosts).toContain('Operational host inventory');
-		for (const label of ['Repository hosts', 'Web hosts', 'Email hosts', 'Capacity provider hosts', 'AI hosts']) {
-			expect(hosts).toContain(label);
-		}
-		expect(hosts).toContain('hostRecordNameHtml');
-		expect(hosts).toContain("(host._hostType ? host._hostType === type : hostTypeFor(host) === type)");
-		expect(hosts).toContain('defaultHosts');
-		expect(hosts).toContain('data-default-host-button');
-		expect(hosts).toContain('Set as default');
-		expect(hosts).toContain('Default</span>');
-		expect(hosts).toContain('ts-link-button--primary');
-		expect(hosts).toContain('/v1/teams/${encodeURIComponent(hostDefaultsPageData.teamId)}');
+		expect(hosts).toContain('CollectionTemplate');
+		expect(hosts).toContain('ReadinessSummary');
+		expect(hosts).toContain('buildHostCollection');
+		expect(hostDetail).toContain('DetailTemplate');
+		expect(hostDetail).toContain('ReadinessSummary');
+		expect(hostSettings).toContain('SettingsTemplate');
+		expect(hostSettings).toContain('resolveAppHost');
+		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/pages/app/hosts/[hostType]/[hostId]/edit.astro'))).toBe(false);
 		expect(hosts).not.toContain('Use in project');
-		expect(hostEdit).toContain('normalizeRequestedHostType');
-		expect(hostEdit).toContain("normalized === 'smtp'");
-		expect(hostEdit).toContain('resolveAppHost');
-		expect(hostEdit).toContain('routeHostTypeFor');
-		expect(hostEdit).toContain('hostTypeLabel(hostType)');
-		expect(hostEdit).toContain('const editTitle = `Edit ${hostTypeName} host`');
-		expect(hostEdit).toContain('title={editTitle}');
-		expect(hostEdit).toContain('bindHostEditCredentialForm');
+		expect(hostSettings).toContain('normalizeRequestedHostType');
+		expect(hostSettings).toContain("normalized === 'smtp'");
+		expect(hostSettings).toContain('resolveAppHost');
+		expect(hostSettings).toContain('routeHostTypeFor');
+		expect(hostSettings).toContain('hostTypeLabel(hostType)');
+		expect(hostSettings).toContain('const editTitle = `${hostTypeName} host settings`');
+		expect(hostSettings).toContain('title={editTitle}');
+		expect(hostSettings).toContain('bindHostEditCredentialForm');
 		expect(hostCredentialClient).toContain('bindAdministrativeForm');
 		expect(hostCredentialClient).toContain('preserveServerValues: true');
 		expect(hostCredentialClient).toContain('hostCredentialFieldNames');
@@ -528,18 +580,18 @@ describe('one-purpose control app information architecture', () => {
 		expect(hostCredentialClient).toContain('stopImmediatePropagation');
 		expect(hostCredentialClient).toContain('BINDING_VERSION');
 		expect(hostCredentialClient).toContain('cloneNode(true)');
-		expect(hostEdit).toContain('data-admin-preserve-values');
-		expect(hostEdit).toContain('autocomplete="off"');
-		expect(hostEdit).toContain('treeseedDeleteConfirmation');
-		expect(hostEdit).toContain('requiredText: confirmation');
-		expect(hostEdit).toContain('Delete cancelled.');
-		expect(hostEdit).toContain('Back to hosts');
-		expect(hostEdit).toContain('Root domain');
-		expect(hostEdit).not.toContain('Cloudflare zone ID');
-		expect(hostEdit).toContain('Saved value configured. Type a new value to replace it.');
-		expect(hostEdit).toContain('Saved secret configured. Type a new secret to replace it.');
+		expect(hostSettings).toContain('data-admin-preserve-values');
+		expect(hostSettings).toContain('autocomplete="off"');
+		expect(hostSettings).toContain('treeseedDeleteConfirmation');
+		expect(hostSettings).toContain('requiredText: confirmation');
+		expect(hostSettings).toContain('Delete cancelled.');
+		expect(hostSettings).toContain('Back to host');
+		expect(hostSettings).toContain('Root domain');
+		expect(hostSettings).not.toContain('Cloudflare zone ID');
+		expect(hostSettings).toContain('Saved value configured. Type a new value to replace it.');
+		expect(hostSettings).toContain('Saved secret configured. Type a new secret to replace it.');
 		expect(hostCreate).toContain('HostCredentialPermissionNote');
-		expect(hostEdit).toContain('HostCredentialPermissionNote');
+		expect(hostSettings).toContain('HostCredentialPermissionNote');
 		expect(projectCreate).toContain('HostCredentialPermissionNote');
 		expect(hostPermissionNote).toContain('repository:');
 		expect(hostPermissionNote).toContain('web:');
@@ -549,7 +601,7 @@ describe('one-purpose control app information architecture', () => {
 		for (const permission of ['GitHub token permissions', 'Cloudflare API token permissions', 'SMTP credential requirements', 'Railway API token permissions', 'AI provider key requirements']) {
 			expect(hostPermissionNote).toContain(permission);
 		}
-		expect(hostEdit).not.toContain("hostTypeFor(host) !== hostType) host = null");
+		expect(hostSettings).not.toContain("hostTypeFor(host) !== hostType) host = null");
 		expect(hostPicker).toContain('Create a host by workflow');
 		expect(hostPicker).toContain('Project creation');
 		expect(hostCreate).toContain('hostTypeLabel(hostType)');
@@ -569,6 +621,9 @@ describe('one-purpose control app information architecture', () => {
 		expect(projectCreate.indexOf('Production domain')).toBeGreaterThan(projectCreate.indexOf('Project web address'));
 		expect(projectCreate.indexOf('Production domain')).toBeLessThan(projectCreate.indexOf('Core objective'));
 		expect(projectCreate).toContain('data-domain-fields hidden');
+		expect(projectCreate).toContain('ReadinessSummary');
+		expect(projectCreate).toContain('loadServiceInventory');
+		expect(projectCreate).toContain('buildServicesDashboard');
 		expect(projectCreate).toContain('syncDomainDefaults');
 		expect(projectCreate).toContain('syncDomainInput');
 		expect(projectCreate).toContain('input.disabled = !hasRootDomain');
@@ -705,6 +760,8 @@ describe('one-purpose control app information architecture', () => {
 	it('represents every work content model in the management interface', () => {
 		const nav = source('@treeseed/ui/components/astro/app/controls/WorkContentNav.astro');
 		for (const [model, route] of [
+			['work', '/app/work'],
+			['review', '/app/work/review'],
 			['objectives', '/app/work/objectives'],
 			['questions', '/app/work/questions'],
 			['notes', '/app/work/notes'],
@@ -714,19 +771,27 @@ describe('one-purpose control app information architecture', () => {
 			expect(nav).toContain(`key: '${model}'`);
 			expect(nav).toContain(`href: '${route}'`);
 			const routePath = `packages/admin/src/pages${route}.astro`;
-			expect(source(routePath), routePath).toContain('loadWorkContentEntries');
+			if (model === 'questions') {
+				expect(source(routePath), routePath).toContain('buildQuestionsPageViewModel');
+			} else if (model === 'work') {
+				expect(source(routePath), routePath).toContain('loadWorkDashboard');
+			} else if (model === 'review') {
+				expect(source(routePath), routePath).toContain('loadReviewQueue');
+			} else {
+				expect(source(routePath), routePath).toContain('loadDirectionCollection');
+			}
 		}
 		expect(source('packages/admin/src/view-models/work-content.ts')).toContain("['questions', 'objectives', 'notes', 'proposals', 'decisions']");
 		expect(source('packages/admin/src/view-models/work-content.ts')).toContain("'objectives'");
 	});
 
-	it('removes dashboard and bundled setup surfaces from primary app code', () => {
+	it('keeps retired dashboard and bundled setup surfaces out of primary app code', () => {
 		for (const path of primaryRoutes) {
 			const contents = source(path);
 			expect(contents, path).not.toContain('MetricGrid');
 			expect(contents, path).not.toContain('InfrastructureStatusGrid');
 			expect(contents, path).not.toContain('WorkdaySummaryCard');
-			expect(contents, path).not.toMatch(/Mission Control|Operational Summary|phase strip|dashboard overview/iu);
+			expect(contents, path).not.toMatch(/Mission Control|Operational Summary|phase strip|provider console|dashboard maze/iu);
 			expect(contents, path).not.toContain('HostControlsPanel');
 			expect(contents, path).not.toContain('OrganizationContextPanel');
 		}
@@ -738,7 +803,7 @@ describe('one-purpose control app information architecture', () => {
 		const hostCredentialClient = source('packages/admin/src/lib/market/host-credential-form-client.ts');
 		for (const path of [
 			'packages/admin/src/pages/app/hosts/[hostType]/new.astro',
-			'packages/admin/src/pages/app/hosts/[hostType]/[hostId]/edit.astro',
+			'packages/admin/src/pages/app/hosts/[hostType]/[hostId]/settings.astro',
 		]) {
 			const contents = source(path);
 			expect(contents, path).toContain('host-credential-form-client');
@@ -746,7 +811,7 @@ describe('one-purpose control app information architecture', () => {
 			expect(contents, path).not.toMatch(/placeholder=['"]\{/u);
 		}
 		const hostCreate = source('packages/admin/src/pages/app/hosts/[hostType]/new.astro');
-		const hostEdit = source('packages/admin/src/pages/app/hosts/[hostType]/[hostId]/edit.astro');
+		const hostSettings = source('packages/admin/src/pages/app/hosts/[hostType]/[hostId]/settings.astro');
 		expect(hostCredentialClient).toContain('encryptHostConfig');
 		expect(hostCredentialClient).toContain('treeseedSensitiveUnlock');
 		expect(hostCredentialClient).toContain('currentSensitivePassphrase');
@@ -767,10 +832,10 @@ describe('one-purpose control app information architecture', () => {
 		expect(hostCreate).toContain('name="smtpSecure"');
 		expect(hostCreate).toContain('name="smtpUsername" required');
 		expect(hostCreate).toContain('name="smtpPassword" required');
-		expect(hostEdit).toContain('name="smtpSecure"');
-		expect(hostEdit).toContain('const smtpSettings =');
+		expect(hostSettings).toContain('name="smtpSecure"');
+		expect(hostSettings).toContain('const smtpSettings =');
 		expect(hostCreate).not.toContain('data-sensitive-lock');
-		expect(hostEdit).not.toContain('data-sensitive-lock');
+		expect(hostSettings).not.toContain('data-sensitive-lock');
 	});
 
 	it('keeps styling in shared CSS for the control interface', () => {
@@ -819,11 +884,8 @@ describe('one-purpose control app information architecture', () => {
 		expect(helper).toContain('/v1/platform/operations/');
 		expect(helper).toContain('TERMINAL_STATUSES');
 		for (const path of [
-			'packages/admin/src/pages/app/work/[collection]/new.astro',
-			'packages/admin/src/pages/app/work/objectives/new.astro',
-			'packages/admin/src/pages/app/work/[collection]/[slug].astro',
-			'packages/admin/src/pages/app/projects/[projectId]/agents/new.astro',
-			'packages/admin/src/pages/app/projects/[projectId]/agents/[agentSlug].astro',
+			'packages/admin/src/components/work/QuestionForm.astro',
+			'packages/admin/src/lib/market/operating-loop-client.ts',
 			'packages/admin/src/pages/app/projects/[projectId]/decisions.astro',
 			'@treeseed/ui/lib/app/related-content-creator',
 		]) {
@@ -832,5 +894,21 @@ describe('one-purpose control app information architecture', () => {
 			expect(contents, path).not.toContain('payload?.payload?.href');
 			expect(contents, path).not.toContain('result?.payload?.href');
 		}
+		for (const path of [
+			'packages/admin/src/components/work/DirectionContentForm.astro',
+			'packages/admin/src/pages/app/work/objectives/new.astro',
+			'packages/admin/src/pages/app/work/notes/new.astro',
+			'packages/admin/src/pages/app/work/proposals/new.astro',
+			'packages/admin/src/pages/app/work/decisions/new.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/agents/new.astro',
+			'packages/admin/src/pages/app/projects/[projectId]/agents/[agentSlug].astro',
+		]) {
+			const contents = source(path);
+			expect(contents, path).toMatch(/operating-loop-client|DirectionContentForm|bindAgentContentForm/u);
+			expect(contents, path).not.toContain('payload?.payload?.href');
+			expect(contents, path).not.toContain('result?.payload?.href');
+		}
+		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/pages/app/work/[collection]/new.astro'))).toBe(false);
+		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/pages/app/work/[collection]/[slug].astro'))).toBe(false);
 	});
 });

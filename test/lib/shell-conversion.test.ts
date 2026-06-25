@@ -11,7 +11,7 @@ describe('app and public shell conversion', () => {
 	it('adapts market app layout through core shell primitives', () => {
 		const contents = source('packages/admin/src/layouts/TreeseedAppLayout.astro');
 
-		expect(contents).toContain('AppShell');
+		expect(contents).toContain('ProductShell');
 		expect(contents).toContain('SensitiveDataUnlock');
 		expect(contents).toContain('slot="railContext"');
 		expect(contents).toContain('slot="headerAction"');
@@ -19,12 +19,14 @@ describe('app and public shell conversion', () => {
 		expect(contents).toContain('showSensitiveUnlock');
 		expect(contents).toContain('Astro.url.pathname');
 		expect(contents).toContain('/app/hosts');
+		expect(contents).toContain('/app/services');
 		expect(contents).toContain('/app/projects/new');
 		expect(contents).toContain('resolveAuthenticatedThemePreference');
 		expect(contents).toContain('Start');
 		expect(contents).not.toContain(`label: 'Team'`);
 		expect(contents).toContain('Manage teams');
-		expect(contents).toContain('Hosts');
+		expect(contents).toContain('Services');
+		expect(contents).not.toContain(`label: 'Hosts'`);
 		expect(contents).toContain('Projects');
 		expect(contents).toContain('Capacity');
 		expect(contents).toContain('Work');
@@ -48,7 +50,7 @@ describe('app and public shell conversion', () => {
 
 	it('installs the dev reload client through shared core shells', () => {
 		for (const path of [
-			'@treeseed/ui/components/astro/shell/AppShell.astro',
+			'@treeseed/ui/components/astro/shell/ProductShell.astro',
 			'@treeseed/ui/components/astro/shell/PublicShell.astro',
 		]) {
 			const contents = source(path);

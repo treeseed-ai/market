@@ -121,6 +121,8 @@ Public help may explain that sign-in or membership is required. It must not reve
 
 If a private artifact requires direct transfer, the proxy may mint a short-lived signed URL after policy evaluation.
 
+Phase 10 distribution UI depends on this rule for marketplace install/import/download actions. Public listings may describe CDN-backed delivery, but private, paid, team-only, or entitlement-gated artifacts must resolve through the Market/API policy path before a content proxy URL or short-lived signed URL is exposed. UI templates receive the resolved action and entitlement state only; they do not construct artifact URLs.
+
 Signed URLs must:
 
 - be scoped to the exact object

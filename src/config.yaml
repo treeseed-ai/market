@@ -11,7 +11,7 @@ site:
     - label: Market
       items:
         - label: Templates
-          href: /templates/
+          href: /market/templates/
         - label: Vision
           href: /vision/
         - label: Status
@@ -40,7 +40,7 @@ site:
     - label: Market
       items:
         - label: Templates
-          href: /templates/
+          href: /market/templates/
         - label: Status
           href: /status/
     - label: Project
