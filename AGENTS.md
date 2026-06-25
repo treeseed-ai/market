@@ -93,6 +93,19 @@ Projects own agents, agent classes, handlers, prompts, planning/acting permissio
 
 Architecture-changing capacity work must update the canonical docs above and `docs/package-ownership.md` before it is considered complete.
 
+### Real Workday And Agent Content Rules
+
+- Workday verification runs are real TreeSeed workdays, not scripted smoke tests. They must exercise the same API, provider, execution-provider, TreeDX, assignment, mode-run, usage, and settlement paths used by normal workdays.
+- A workday is duration- and budget-bounded. It must not stop merely because a fixed assignment count completed. While the workday window is open and capacity remains, the system should keep scheduling useful eligible planning work.
+- Planning mode must involve every eligible configured project agent before repeating agents. With no approved decisions, planning is still productive: agents propose work, ask questions, produce estimates, review proposals, generate notes, structure knowledge, and summarize the workday.
+- Acting mode must not run without approved decisions, readiness, and accepted/scheduled/active capacity-plan provenance.
+- Generated agent content must be real TreeSeed Knowledge Hub content, never dummy or test-shaped content. Workday observation reports belong under `.treeseed/workday-reports`; agent artifacts belong in the proper content collections.
+- TreeDX is the only way agents and operations may access, query, and update content model instances. Do not add direct local-content reads or writes for agent work, except fixture inspection that proves a TreeDX-backed operation.
+- Proposals, questions, notes, knowledge pages, books, and workday summaries must follow the SDK content model and land in the correct collections. Feedback, estimates, answers, reviews, release-readiness observations, and implementation/planning commentary are linked notes unless an agent's configured output explicitly creates another model.
+- Every generated note must link to its subject with frontmatter such as `about`, `relatedObjectives`, `relatedQuestions`, `relatedProposals`, or `relatedDecisions`.
+- Agent handoff must be configuration-driven. Handlers may deterministically validate, route, and serialize content, but agent prompts/configuration decide which subject is being handled and which artifact type is expected.
+- Every agent execution must be forensically traceable: agent, mode, class, handler, assignment, workday, provider, runner, execution-provider config, inputs, TreeDX context refs, generated artifacts, signals, diagnostics, token counts, durations, usage, and errors must be inspectable from CLI/Admin/API logs.
+
 ## Shared Fixture Model
 
 - `.fixtures/treeseed-fixtures` is the canonical integrated Treeseed project.

@@ -54,6 +54,8 @@ TreeDX is the default SDK content and repository backend, including local enviro
 
 Execution provider invocations can also carry a redacted `treedx_proxy` tool descriptor derived from the same assignment handle. Codex receives TreeDX tool guidance and assignment-scoped MCP configuration metadata; GitHub Issues receives credential-free route templates and header names for human or external automation executors. The descriptor never contains raw TreeDX bearer tokens, provider API keys, GitHub tokens, repository deploy keys, or unredacted proxy payloads.
 
+Codex and other AI-focused execution providers should receive assignment-scoped tools directly where their harness supports tool calling. A handler should not require a magic output string to ask the runtime for a tool; missing capability is reported as a structured blocked result. Provider runners capture execution-provider messages, usage, and artifacts as assignment/mode-run telemetry so UI surfaces can follow long-running agent work.
+
 ## Mode Selection
 
 Mode selection is API- and kernel-coordinated:
@@ -132,6 +134,8 @@ Handlers must not:
 - widen mode or capability scope
 - hide usage or retries from the mode run
 
+Project agent configuration is the central source for permissions and prompt policy. Handlers may validate and serialize outputs, but they must not widen content, repository, or tool permissions beyond the assignment and agent configuration.
+
 ## Fallback Behavior
 
 Fallback is policy-driven and observable.
@@ -151,6 +155,8 @@ Acting fallback examples:
 - repeated failure -> create weakness proposal if policy allows
 
 Every fallback emits a reason on the `AgentModeRun`. When the provider runner maps a bounded fallback to assignment return or failure, the same fallback can be persisted as an `AgentFallbackOutput` for operator review.
+
+Permissions failures are not a pause reason at assignment execution time. Work that the assigned agent cannot access should be rejected before lease. Runtime pauses are reserved for time or capacity shortage and must preserve assignment state for continuation.
 
 ## Telemetry
 

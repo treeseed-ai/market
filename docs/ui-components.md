@@ -4,6 +4,8 @@ This is the canonical guide for reusable Treeseed UI ownership. See [Package Own
 
 TreeSeed-owned UI uses one semantic token contract: `--ts-*`. New components and pages should not introduce `--site-*`, `--kc-*`, raw color literals, or page-local color systems. Scheme values live in the UI theme utilities and any generic runtime hook supplied by Core; product UI reads intent-based tokens such as `--ts-color-surface`, `--ts-color-text`, `--ts-color-border`, `--ts-color-accent`, and status tokens.
 
+YAML-backed color scheme definitions are the canonical way to add dynamic TreeSeed color schemes. `@treeseed/ui` parses, validates, completes, and emits scheme CSS for `html[data-ts-scheme][data-ts-mode]`; host apps and product pages must not create parallel color-mode systems.
+
 Use `ThemeScript` before paint on public, auth, and app shells. Use `ThemeSelector` wherever users can change appearance. Anonymous choices are stored in appearance cookies/localStorage, registration carries the selected `colorScheme` and `themeMode`, and logged-in account settings persist the same fields through `/auth/appearance`.
 
 Reusable TreeSeed web UI now lives in `@treeseed/ui`. Import Astro components from `@treeseed/ui/components/astro/...`, React components from `@treeseed/ui/react` or `@treeseed/ui/components/react/...`, helper scripts from `@treeseed/ui/lib/...`, and shared CSS from `@treeseed/ui/styles/...`. Admin, Market, and Core code should compose primitives such as `AppShell`, `PublicShell`, forms, data surfaces, auth cards, operation panels, and market cards from UI, while keeping only package-specific routes, data mapping, policy, and small adapter logic locally.

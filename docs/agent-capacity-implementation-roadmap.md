@@ -71,6 +71,7 @@ Implemented boundaries:
 - Lease-renewal, return, complete, and fail routes update `ProviderAssignment` lifecycle state with runner id, lease token, lifecycle reason/code, output summary, and ledger settlement.
 - The provider runner in `@treeseed/agent` is assignment-only. Legacy provider task HTTP routes and provider-client task methods have been removed.
 - Provider runners consume scoped project-agent assignment context and emit mode-run telemetry through the assignment route.
+- Provider images run provider manager and provider runner roles only. The retired provider-local API role is not part of the deployment service role set; provider coordination is outbound to the TreeSeed API.
 
 Acceptance criteria:
 
@@ -101,6 +102,7 @@ Implemented boundaries:
 - Mode-run telemetry records running and terminal attempts with selected input, capacity envelope, validation/fallback detail, and lower-level `AgentRunTrace` references when handler execution reaches the trace path.
 - Invalid or unsupported assignments are bounded and observable. Retryable runtime gaps can be returned when the provider client supports return semantics; non-retryable mode/profile violations fail without executing handlers.
 - Legacy provider task routes are intentionally absent. Provider runtime execution uses check-in, next assignment, renew, mode-run, complete, return/fail, and usage routes.
+- The package-local legacy worker runtime and codebase documentation scan task have been removed from the general-purpose agent runtime. Specialized agents may still implement repository inspection as assignment-scoped handler/tool capability.
 
 Acceptance criteria:
 
@@ -114,6 +116,10 @@ Still out of scope:
 - Full optimization across all queues, provider pressure, and borrowing policies.
 - Product-specific fallback proposal drafting beyond durable fallback-output records and bounded kernel outcomes.
 - Full optimization across all candidate queues, borrowing policies, and provider pressure remains incremental; the implemented scheduler surface is the local kernel decision point.
+
+## Planning Allocation Runtime
+
+Planning work is duration- and budget-bounded, not one-assignment-per-agent. The API-side assignment function is responsible for synthesizing repeated eligible planning assignments while a workday is open and planning capacity remains. Agent classes can carry planning allocation percentages; agents within the same class share that class allocation. Planning assignments are allowed to coordinate, ask and answer questions, create proposals, add estimates and feedback notes, and update agent-owned knowledge through scoped tools. Research is question-triggered agent work, not built-in deterministic question seeding.
 
 ## Phase 4: Admin And CLI Operator Surfaces
 

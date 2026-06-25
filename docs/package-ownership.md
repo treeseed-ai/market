@@ -33,7 +33,7 @@ First-party package repositories declare their future project shape in `treeseed
 | `@treeseed/sdk` | Programmatic platform substrate | Config, reconciliation, workflow engine, hosting graph, package workflow discovery, SDK-managed local dev supervisor, shared contracts, graph/content APIs, TreeDX client integration, portable agent-capacity contracts |
 | `@treeseed/api` | Deployed backend control-plane API | Hono API, package-local backend `treeseed.site.yaml`, PostgreSQL adapter/migrations, backend auth, operation lifecycle, operations runner, route descriptors, provider sessions, assignment leases, mode-run persistence, capacity ledger coordination |
 | `@treeseed/cli` | Human/operator command surface | `treeseed`/`trsd` command parsing, help, command handlers, terminal reporting, workflow entrypoints over SDK/Core/Agent |
-| `@treeseed/agent` | Capacity-provider and agent runtime | Provider API, provider manager/runner/worker runtime, AgentKernel execution, mode scheduling, provider-local capacity enforcement, runtime images/templates |
+| `@treeseed/agent` | Capacity-provider and agent runtime | Provider manager/runner runtime, AgentKernel execution, mode scheduling, execution-provider adapters, provider-local capacity enforcement, runtime images/templates |
 | `packages/treedx` | Generic repository data/index/query service consumed by Treeseed | TreeDX API, storage, Git/repository graph/indexing, federation, Docker image, language SDKs; no Treeseed product semantics |
 
 ## Dependency Direction
@@ -81,7 +81,7 @@ Railway
   public TreeDX federation services
 
 Capacity providers
-  packages/agent provider image and runtime roles
+  packages/agent provider image with manager and runner runtime roles
 
 TreeDX
   packages/treedx images consumed by API hosting
@@ -116,7 +116,7 @@ TreeDX is not an ordinary web dev process. It is run through TreeDX service work
 | Reconciliation, package workflows, config, hosting graph, provider adapters, managed local dev supervision | `@treeseed/sdk` |
 | Backend persistence, API routes, auth backend, operations runner, migrations | `@treeseed/api` |
 | CLI commands, help, terminal reports, workflow command entrypoints | `@treeseed/cli` |
-| Capacity provider manager/runner/worker runtime, AgentKernel execution, mode scheduling, and provider images | `@treeseed/agent` |
+| Capacity provider manager/runner runtime, AgentKernel execution, mode scheduling, and provider images | `@treeseed/agent` |
 | Generic repository storage, indexing, graph search, snapshots, artifacts | `packages/treedx` |
 
 ## Where New Documentation Belongs
@@ -176,7 +176,7 @@ TreeDX may store and index files that contain Treeseed content, but it must not 
 
 Admin and market may display capacity provider state and expose configuration workflows.
 
-`@treeseed/agent` owns provider runtime code, provider images, provider manager/runner/worker services, AgentKernel execution, mode scheduling, provider-local capacity enforcement, and runtime tests. `@treeseed/sdk` owns shared contracts and reconciliation. `@treeseed/cli` owns the operator command surface. `@treeseed/api` owns backend control-plane routes, provider availability sessions, assignment leases, mode-run records, reservations, and capacity ledger settlement.
+`@treeseed/agent` owns provider runtime code, provider images, provider manager/runner services, AgentKernel execution, mode scheduling, execution-provider adapters, provider-local capacity enforcement, and runtime tests. The provider-local API and legacy worker task queue are retired; providers coordinate outbound with the TreeSeed API assignment lifecycle. `@treeseed/sdk` owns shared contracts and reconciliation. `@treeseed/cli` owns the operator command surface. `@treeseed/api` owns backend control-plane routes, provider availability sessions, assignment leases, mode-run records, reservations, and capacity ledger settlement.
 
 Provider runtime execution is assignment-only. Do not add provider task claim/event/complete/fail HTTP routes or public provider-client methods; local task stores and project runner task APIs are separate non-provider-runtime surfaces.
 
