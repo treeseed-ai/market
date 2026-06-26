@@ -6,12 +6,14 @@ import { createMarketTemplateCatalogProvider } from '@treeseed/admin/lib/market/
 import { resolveApiStore } from '@treeseed/admin/lib/market/store';
 import '../styles/treeseed.css';
 
+export const prerender = true;
+
 const templateListing = await listSiteTemplates({
 	locals: Astro.locals,
 	catalogProvider: createMarketTemplateCatalogProvider(Astro.locals),
 });
 const store = resolveApiStore(Astro.locals);
-const knowledgePacks = store ? await store.listKnowledgePacks(null) : [];
+const knowledgePacks = store ? await store.listKnowledgePacks(null).catch(() => []) : [];
 const featuredTemplates = templateListing.items.slice(0, 3);
 const featuredPacks = knowledgePacks.slice(0, 3);
 const accountDeleted = Astro.url.searchParams.get('account') === 'deleted';
