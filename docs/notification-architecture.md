@@ -110,6 +110,8 @@ Help-derived notifications must also use the same components. They may notify ma
 
 Distribution-derived notifications follow the same policy-filtered model. Release review, listing publication, install/import/download, seller onboarding, and entitlement changes may produce notifications only after the event payload has been stripped of raw artifact keys, private URLs, credentials, and unauthorized listing or project metadata.
 
+Commerce and Commons notifications follow the same model. Checkout, service quote, capacity inquiry, seller readiness, proposal backing/voting, and steward decision events may notify only the users or teams authorized for the event context. Notification previews must not include raw payment identifiers, connected-account internals, entitlement secrets, governance weight internals beyond participant-visible summaries, private object keys, or steward-only evidence.
+
 ## Notification Item Contract
 
 Every notification must define:

@@ -1,118 +1,75 @@
 ---
 import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import DetailTemplate from '@treeseed/ui/components/astro/templates/DetailTemplate.astro';
+import Panel from '@treeseed/ui/components/astro/surface/Panel.astro';
+import CommerceOwnershipSummary from '@treeseed/ui/components/astro/commerce/CommerceOwnershipSummary.astro';
 import '@treeseed/ui/styles/commerce.css';
+import { createCheckoutFromOffer, label, loadMarketplaceProductPage, money } from '../../../lib/market-public-view-models';
 
 const productId = Astro.params.productId ?? '';
+let actionError: string | undefined;
+
+if (Astro.request.method === 'POST') {
+	const result = await createCheckoutFromOffer(Astro, await Astro.request.formData());
+	if (result.ok) {
+		const checkoutId = result.payload?.checkout?.id;
+		if (checkoutId) return Astro.redirect(`/checkout/${encodeURIComponent(String(checkoutId))}`, 303);
+		actionError = 'Checkout was created, but no checkout id was returned.';
+	} else {
+		actionError = result.error;
+	}
+}
+
+const page = await loadMarketplaceProductPage(Astro, productId);
+const product = page.data.product;
 ---
 
-<TreeseedPublicLayout title="Marketplace product" description="Review marketplace terms and cooperative ownership." currentPath={Astro.url.pathname}>
-	<main class="ts-commerce-page" data-product-id={productId}>
-		<section class="ts-commerce-band">
-			<div class="ts-commerce-inner ts-commerce-hero">
-				<p class="ts-commerce-eyebrow" id="product-kind">Marketplace product</p>
-				<h1 class="ts-commerce-title" id="product-title">Loading product...</h1>
-				<p class="ts-commerce-lede" id="product-summary">TreeSeed is loading buyer-visible terms, ownership, stewardship, and seller readiness.</p>
-			</div>
-		</section>
-		<section class="ts-commerce-inner ts-commerce-two-column">
-			<div class="ts-commerce-panel">
-				<div class="ts-commerce-panel-header">
-					<div>
-						<p class="ts-commerce-eyebrow">Offers</p>
-						<h2>Choose a path</h2>
-					</div>
+<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
+	<main class="ts-commerce-page">
+		<DetailTemplate title={page.title} description={page.description} eyebrow={label(product?.kind, 'Marketplace product')} metadata={page.data.metadata} actions={page.actions}>
+			{actionError ? <p class="ts-commerce-error">{actionError}</p> : null}
+			{product ? (
+				<div class="ts-commerce-two-column">
+					<section class="ts-commerce-panel">
+						<div class="ts-commerce-panel-header">
+							<div>
+								<p class="ts-commerce-eyebrow">Offers</p>
+								<h2>Choose a governed path</h2>
+							</div>
+						</div>
+						<div class="ts-commerce-grid">
+							{page.data.offers.length ? page.data.offers.map((offer) => (
+								<article class="ts-commerce-card">
+									<p class="ts-commerce-eyebrow">{label(offer.mode, 'offer')}</p>
+									<h3>{offer.title}</h3>
+									<dl class="ts-commerce-kv">
+										<div><dt>Amount</dt><dd>{money(offer.unitAmount, offer.currency, offer.billingInterval)}</dd></div>
+										<div><dt>Mirror</dt><dd>{label(offer.stripeSyncStatus, 'not required')}</dd></div>
+									</dl>
+									<div class="ts-commerce-actions">
+										{offer.checkoutEligible ? (
+											<form method="post">
+												<input type="hidden" name="offerId" value={offer.id} />
+												<input type="hidden" name="priceId" value={offer.priceId ?? ''} />
+												<input type="hidden" name="quantity" value="1" />
+												<button class="ts-commerce-button" type="submit">Start checkout</button>
+											</form>
+										) : null}
+										{offer.serviceEligible ? <a class="ts-commerce-button" href={`/services/new?offerId=${encodeURIComponent(offer.id)}`}>Request scope</a> : null}
+										{offer.capacityInquiryEligible && product.capacityListingId ? <a class="ts-commerce-button" href={`/capacity/${encodeURIComponent(product.capacityListingId)}`}>Capacity inquiry</a> : null}
+										{!offer.checkoutEligible && !offer.serviceEligible && !offer.capacityInquiryEligible ? <span class="ts-commerce-muted">Seller review required</span> : null}
+									</div>
+								</article>
+							)) : <p class="ts-commerce-muted">No buyer-visible offers are available yet.</p>}
+						</div>
+					</section>
+					<CommerceOwnershipSummary ownershipModel={product.ownershipModel} summary={product.buyerVisibleOwnershipSummary} stewards={product.stewardshipSummary ?? []} />
 				</div>
-				<div class="ts-commerce-grid" id="offer-list" aria-live="polite">Loading offers...</div>
-			</div>
-			<aside id="ownership-panel" class="ts-commerce-panel">
-				<p class="ts-commerce-eyebrow">Cooperative ownership</p>
-				<h2>Trust record</h2>
-				<p class="ts-commerce-muted">Loading ownership context...</p>
-			</aside>
-		</section>
+			) : (
+				<Panel title="Product unavailable">
+					<p>{page.description}</p>
+				</Panel>
+			)}
+		</DetailTemplate>
 	</main>
 </TreeseedPublicLayout>
-
-<script>
-	// @ts-nocheck
-	const shell = document.querySelector('.ts-commerce-page');
-	const productId = shell?.dataset.productId;
-	const kindEl = document.querySelector('#product-kind');
-	const titleEl = document.querySelector('#product-title');
-	const summaryEl = document.querySelector('#product-summary');
-	const offersEl = document.querySelector('#offer-list');
-	const ownershipEl = document.querySelector('#ownership-panel');
-
-	async function api(path, options = {}) {
-		const response = await fetch(path, {
-			...options,
-			headers: { 'content-type': 'application/json', ...(options.headers ?? {}) },
-		});
-		const payload = await response.json().catch(() => null);
-		if (!response.ok || !payload?.ok) throw new Error(payload?.error ?? `Request failed: ${response.status}`);
-		return payload.payload;
-	}
-
-	function amount(offer) {
-		if (offer.unitAmount != null && offer.currency) {
-			const formatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: offer.currency.toUpperCase() }).format(offer.unitAmount / 100);
-			return offer.billingInterval && offer.billingInterval !== 'one_time' ? `${formatted} / ${offer.billingInterval}` : formatted;
-		}
-		return offer.mode === 'free' ? 'Free' : 'Seller scoped';
-	}
-
-	async function startCheckout(offer) {
-		const body = { items: [{ offerId: offer.id, priceId: offer.priceId, quantity: 1 }] };
-		const payload = await api('/v1/commerce/checkout', { method: 'POST', body: JSON.stringify(body) });
-		sessionStorage.setItem(`treeseed.checkout.${payload.checkout.id}`, JSON.stringify(payload));
-		window.location.href = `/checkout/${encodeURIComponent(payload.checkout.id)}`;
-	}
-
-	function render(product) {
-		kindEl.textContent = product.kind.replaceAll('_', ' ');
-		titleEl.textContent = product.title;
-		summaryEl.textContent = product.summary || 'Review marketplace terms and cooperative ownership context before continuing.';
-		ownershipEl.innerHTML = `
-			<p class="ts-commerce-eyebrow">Cooperative ownership</p>
-			<h2>Trust record</h2>
-			<p class="ts-commerce-muted">${product.buyerVisibleOwnershipSummary || 'Ownership and stewardship are recorded by TreeSeed governance records.'}</p>
-			<dl class="ts-commerce-kv">
-				<div><dt>Seller</dt><dd>${product.vendorDisplayName || 'TreeSeed seller'}</dd></div>
-				<div><dt>Model</dt><dd>${(product.ownershipModel || 'documented').replaceAll('_', ' ')}</dd></div>
-				<div><dt>Stewards</dt><dd>${product.stewardshipSummary.length}</dd></div>
-			</dl>
-		`;
-		offersEl.innerHTML = product.offers.length ? product.offers.map((offer) => `
-			<article class="ts-commerce-card" data-offer-id="${offer.id}">
-				<div>
-					<p class="ts-commerce-eyebrow">${offer.mode.replaceAll('_', ' ')}</p>
-					<h3>${offer.title}</h3>
-				</div>
-				<dl class="ts-commerce-kv">
-					<div><dt>Amount</dt><dd>${amount(offer)}</dd></div>
-					<div><dt>Mirror</dt><dd>${offer.stripeSyncStatus || 'not required'}</dd></div>
-				</dl>
-				<div class="ts-commerce-actions">
-					${offer.checkoutEligible ? `<button type="button" class="ts-commerce-button" data-checkout="${offer.id}">Start checkout</button>` : ''}
-					${offer.serviceEligible ? `<a class="ts-commerce-button" href="/services/new?offerId=${encodeURIComponent(offer.id)}">Request scope</a>` : ''}
-					${offer.capacityInquiryEligible && product.capacityListingId ? `<a class="ts-commerce-button" href="/capacity/${encodeURIComponent(product.capacityListingId)}">Request capacity review</a>` : ''}
-					${!offer.checkoutEligible && !offer.serviceEligible && !offer.capacityInquiryEligible ? '<span class="ts-commerce-muted">Seller review required</span>' : ''}
-				</div>
-			</article>
-		`).join('') : '<p class="ts-commerce-muted">No buyer-visible offers are available yet.</p>';
-		for (const button of offersEl.querySelectorAll('[data-checkout]')) {
-			const offer = product.offers.find((entry) => entry.id === button.dataset.checkout);
-			button.addEventListener('click', () => startCheckout(offer).catch((error) => {
-				button.insertAdjacentHTML('afterend', `<p class="ts-commerce-error">${error instanceof Error ? error.message : 'Checkout could not start.'}</p>`);
-			}));
-		}
-	}
-
-	api(`/v1/commerce/marketplace/products/${encodeURIComponent(productId)}`)
-		.then(render)
-		.catch((error) => {
-			titleEl.textContent = 'Product unavailable';
-			summaryEl.textContent = error instanceof Error ? error.message : 'This product could not be loaded.';
-			offersEl.textContent = '';
-		});
-</script>

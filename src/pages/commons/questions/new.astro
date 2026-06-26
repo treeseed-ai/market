@@ -1,37 +1,31 @@
 ---
 import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import SettingsTemplate from '@treeseed/ui/components/astro/templates/SettingsTemplate.astro';
 import '@treeseed/ui/styles/governance.css';
+import { loadCommonsQuestionFormPage, submitCommonsQuestion } from '../../../lib/market-public-view-models';
+
+let actionError: string | undefined;
+let actionMessage: string | undefined;
+
+if (Astro.request.method === 'POST') {
+	const result = await submitCommonsQuestion(Astro, await Astro.request.formData());
+	if (result.ok) actionMessage = 'Question submitted.';
+	else actionError = result.error;
+}
+
+const page = loadCommonsQuestionFormPage(Astro, actionError);
 ---
 
-<TreeseedPublicLayout title="Ask a Commons question" description="Submit a TreeSeed Commons question." currentPath={Astro.url.pathname}>
+<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-governance-page">
-		<section class="ts-governance-inner ts-governance-hero">
-			<p class="ts-governance-eyebrow">Commons question</p>
-			<h1 class="ts-governance-title">Ask before proposing.</h1>
-			<p class="ts-governance-lede">Questions help the community clarify needs, evidence, objections, and priorities before a proposal enters the decision pipeline.</p>
-		</section>
-		<section class="ts-governance-inner">
-			<form id="commons-question" class="ts-governance-panel">
-				<label>Title <input name="title" required /></label>
-				<label>Question <textarea name="body" rows="8" required></textarea></label>
+		<SettingsTemplate title={page.title} description={page.description} actions={page.actions}>
+			<form class="ts-governance-panel" method="post">
+				{actionError ? <p class="ts-governance-muted">{actionError}</p> : null}
+				{actionMessage ? <p class="ts-governance-muted">{actionMessage}</p> : null}
+				<label class="ts-field"><span class="ts-field__label">Title</span><input class="ts-field__control" name="title" required /></label>
+				<label class="ts-field"><span class="ts-field__label">Question</span><textarea class="ts-field__control" name="body" rows="8" required></textarea></label>
 				<button class="ts-governance-button" type="submit">Submit question</button>
-				<p id="question-result" class="ts-governance-muted"></p>
 			</form>
-		</section>
+		</SettingsTemplate>
 	</main>
 </TreeseedPublicLayout>
-
-<script>
-	// @ts-nocheck
-	document.querySelector('#commons-question')?.addEventListener('submit', async (event) => {
-		event.preventDefault();
-		const form = new FormData(event.currentTarget);
-		const response = await fetch('/v1/commons/questions', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(Object.fromEntries(form.entries())),
-		});
-		const envelope = await response.json().catch(() => null);
-		document.querySelector('#question-result').textContent = envelope?.ok ? 'Question submitted.' : envelope?.error ?? 'Sign in to submit a question.';
-	});
-</script>

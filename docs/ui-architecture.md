@@ -196,13 +196,55 @@ Access behavior: anonymous users may see public project content; signed-in proje
 
 Purpose: discovery, listing pages, templates, knowledge packs, asset install/download/import, seller onboarding, seller listings, and paid/free distribution.
 
-Examples: `/market`, `/market/templates`, `/market/knowledge-packs`, and `/app/market/seller`.
+Examples: `/market`, `/marketplace`, `/market/products/:productId`, `/cart`, `/checkout/:checkoutId`, `/capacity/*`, `/services/*`, `/market/templates`, `/market/knowledge-packs`, `/app/market/seller`, and `/app/teams/:teamId/commerce`.
 
 Users must understand: what the asset is, who produced it, what it costs or requires, whether they are entitled to it, and how to use it.
 
 Navigation behavior: `PublicShell` for public market discovery; `ProductShell` for seller and authenticated management surfaces.
 
 Access behavior: anonymous visitors can inspect public listings; install/download/import/seller actions are entitlement- and policy-aware.
+
+## Commerce, Commons, And Platform Stewardship Capability Families
+
+Ecommerce, Commons governance, and platform stewardship are first-class capability families in the canonical UI stack. They are not standalone client mini-apps and must not own visual shells, browser-side authority, direct template fetches, or page-local styling systems.
+
+### Commerce Capability Family
+
+Commerce spans public buyer discovery, checkout, scoped services, capacity inquiries, ProductShell seller readiness, and platform steward review.
+
+Canonical public routes use `PublicShell` through the TreeSeed public layout:
+
+- `/marketplace` renders a marketplace dashboard and listing collection.
+- `/market/products/:productId` renders a product detail page with buyer-visible offers, ownership, stewardship, and resolved actions.
+- `/cart` and `/checkout/:checkoutId` render checkout dashboards/details. Stripe.js is allowed only in the tiny payment-confirmation helper after the server has resolved checkout and payment group state.
+- `/capacity`, `/capacity/:listingId`, `/services/new`, `/services/:requestId`, and `/services/:requestId/checkout` render through collection, detail, and settings templates with API-authoritative service/capacity state.
+
+Canonical authenticated routes use `ProductShell`:
+
+- `/app/market/seller` renders the seller dashboard.
+- `/app/teams/:teamId/commerce` renders team seller readiness, Stripe status, ownership evidence, marketplace governance, and required next actions.
+
+Commerce view models may display seller readiness, entitlement state, checkout/payment group state, ownership/stewardship summaries, service quote state, capacity inquiry state, and audit/status timelines. The UI never trusts client-provided seller, price, amount, connected account, entitlement, fulfillment, or ownership terms. Mutations use resolved action states such as `requiresSignIn`, `requiresEntitlement`, `requiresSetup`, `readOnly`, `disabledWithReason`, and `allowed`, then submit to API-authoritative endpoints.
+
+### Commons Governance Capability Family
+
+Commons governance spans anonymous public reading, signed-in participant actions, and steward ProductShell operations.
+
+Canonical public routes use `PublicShell`:
+
+- `/commons` renders Commons dashboard signal.
+- `/commons/proposals/:proposalId` renders proposal detail, vote/backing signal, timeline, and policy-safe actions.
+- `/commons/proposals/new` and `/commons/questions/new` render settings/form templates whose submissions flow through route controllers and API authority.
+
+Canonical steward routes use `ProductShell`:
+
+- `/app/commons` renders the steward dashboard for participant questions, proposals, voting signal, decisions, and governance events.
+
+Commons participation is advisory governance. It is not legal membership, payout governance, automatic roadmap authority, or operational scheduling. UI view models display proposal state, backing/vote signal, decision state, stewardship events, and resolved participant/steward actions. API persistence remains authoritative for participants, weights, votes, decisions, and audit events.
+
+### Platform Stewardship Capability Family
+
+Platform stewardship covers deliberate review of seller readiness, public listings, release/distribution state, Commons decisions, capacity inquiries, service disputes, entitlement exceptions, and operational safety concerns. Steward actions are ProductShell dashboards/details/settings with audit timelines and policy snapshots. They must be deliberate review actions, never hidden browser mutations or role checks embedded in templates.
 
 ## Canonical Shells
 

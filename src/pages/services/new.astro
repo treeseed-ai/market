@@ -1,73 +1,44 @@
 ---
 import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import SettingsTemplate from '@treeseed/ui/components/astro/templates/SettingsTemplate.astro';
+import Panel from '@treeseed/ui/components/astro/surface/Panel.astro';
 import '@treeseed/ui/styles/commerce.css';
+import { loadServiceRequestFormPage, submitServiceRequest } from '../../lib/market-public-view-models';
 
-const offerId = Astro.url.searchParams.get('offerId') ?? '';
+let actionError: string | undefined;
+
+if (Astro.request.method === 'POST') {
+	const result = await submitServiceRequest(Astro, await Astro.request.formData());
+	if (result.ok) return Astro.redirect(`/services/${encodeURIComponent(String(result.payload.id))}`, 303);
+	actionError = result.error;
+}
+
+const page = loadServiceRequestFormPage(Astro, actionError);
 ---
 
-<TreeseedPublicLayout title="Request service scope" description="Start a TreeSeed scoped service request." currentPath={Astro.url.pathname}>
+<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-commerce-page">
-		<section class="ts-commerce-band">
-			<div class="ts-commerce-inner ts-commerce-hero">
-				<p class="ts-commerce-eyebrow">Scoped services</p>
-				<h1 class="ts-commerce-title">Tell the seller what you need.</h1>
-				<p class="ts-commerce-lede">A service request starts scoping only. Quotes, buyer approval, vendor approval, checkout, and fulfillment remain governed TreeSeed records.</p>
+		<SettingsTemplate title={page.title} description={page.description} actions={page.actions}>
+			<div class="ts-commerce-two-column">
+				<form class="ts-commerce-panel ts-commerce-form" method="post">
+					<p class="ts-commerce-eyebrow">Request</p>
+					<h2>Scope request</h2>
+					{actionError ? <p class="ts-commerce-error">{actionError}</p> : null}
+					<label class="ts-commerce-field"><span>Offer ID</span><input name="offerId" value={page.data.offerId} required autocomplete="off" /></label>
+					<label class="ts-commerce-field"><span>Requested scope</span><textarea name="requestedScope" required></textarea></label>
+					<label class="ts-commerce-field"><span>Access needs</span><textarea name="accessNeeds"></textarea></label>
+					<label class="ts-commerce-field"><span>Related project ID</span><input name="relatedProjectId" autocomplete="off" /></label>
+					<label class="ts-commerce-field"><span>Related workday ID</span><input name="relatedWorkdayId" autocomplete="off" /></label>
+					<button class="ts-commerce-button" type="submit">Create request</button>
+				</form>
+				<Panel title="Governed flow">
+					<ul class="ts-commerce-timeline">
+						<li><span>The seller scopes the request and creates immutable quote versions.</span></li>
+						<li><span>Buyer and vendor approvals are separate governance steps.</span></li>
+						<li><span>Checkout becomes available only after an accepted quote creates a pending contract.</span></li>
+					</ul>
+				</Panel>
 			</div>
-		</section>
-		<section class="ts-commerce-inner ts-commerce-two-column">
-			<form class="ts-commerce-panel ts-commerce-form" id="service-request-form">
-				<p class="ts-commerce-eyebrow">Request</p>
-				<h2>Scope request</h2>
-				<label class="ts-commerce-field"><span>Offer ID</span><input name="offerId" value={offerId} required autocomplete="off" /></label>
-				<label class="ts-commerce-field"><span>Requested scope</span><textarea name="requestedScope" required></textarea></label>
-				<label class="ts-commerce-field"><span>Access needs</span><textarea name="accessNeeds"></textarea></label>
-				<label class="ts-commerce-field"><span>Related project ID</span><input name="relatedProjectId" autocomplete="off" /></label>
-				<label class="ts-commerce-field"><span>Related workday ID</span><input name="relatedWorkdayId" autocomplete="off" /></label>
-				<button class="ts-commerce-button" type="submit">Create request</button>
-				<p class="ts-commerce-muted" id="service-request-status" aria-live="polite"></p>
-			</form>
-			<aside class="ts-commerce-panel">
-				<p class="ts-commerce-eyebrow">Governed flow</p>
-				<h2>After submission</h2>
-				<ul class="ts-commerce-timeline">
-					<li><span>The seller scopes the request and creates immutable quote versions.</span></li>
-					<li><span>Buyer and vendor approvals are separate governance steps.</span></li>
-					<li><span>Checkout becomes available only after an accepted quote creates a pending contract.</span></li>
-				</ul>
-			</aside>
-		</section>
+		</SettingsTemplate>
 	</main>
 </TreeseedPublicLayout>
-
-<script>
-	// @ts-nocheck
-	const form = document.querySelector('#service-request-form');
-	const statusEl = document.querySelector('#service-request-status');
-	function parseLooseJson(value) {
-		const text = String(value || '').trim();
-		if (!text) return {};
-		try { return JSON.parse(text); } catch { return { summary: text }; }
-	}
-	form?.addEventListener('submit', async (event) => {
-		event.preventDefault();
-		statusEl.textContent = 'Creating request...';
-		const data = new FormData(form);
-		const response = await fetch('/v1/commerce/services/requests', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({
-				offerId: String(data.get('offerId') ?? '').trim(),
-				requestedScope: String(data.get('requestedScope') ?? '').trim(),
-				accessNeeds: parseLooseJson(data.get('accessNeeds')),
-				relatedProjectId: String(data.get('relatedProjectId') ?? '').trim() || null,
-				relatedWorkdayId: String(data.get('relatedWorkdayId') ?? '').trim() || null,
-			}),
-		});
-		const payload = await response.json().catch(() => null);
-		if (!response.ok || !payload?.ok) {
-			statusEl.textContent = payload?.error ?? 'Service request could not be created.';
-			return;
-		}
-		window.location.href = `/services/${encodeURIComponent(payload.payload.id)}`;
-	});
-</script>

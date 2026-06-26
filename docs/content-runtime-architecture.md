@@ -186,6 +186,8 @@ Public packs may use CDN-backed URLs. Private, paid, entitlement-gated, or team-
 
 Phase 10 UI implementation reflects this boundary: app knowledge and public marketplace routes render entitlement and delivery state through view models before any install, import, or download action is exposed. Route templates do not render raw R2 keys, direct private artifact URLs, or editor bundles. Overlay status is display-only until an authorized edit intent lazy-loads the overlay bootstrap.
 
+Commerce and Commons UI reuse this runtime boundary when listings reference generated packs, templates, capabilities, service deliverables, or capacity artifacts. Public pages may describe buyer-visible delivery posture, but entitlement-gated or private artifact access must resolve through the Market/API policy path before URLs or download actions are exposed.
+
 ## Cache And Purge
 
 Content publish must identify and purge:

@@ -33,6 +33,38 @@ Buyers purchase through TreeSeed-managed checkout. Phase 5 uses Stripe Elements 
 
 The frontend must never be authoritative for Stripe price IDs, seller IDs, amounts, entitlement scope, or fulfillment terms.
 
+## UI Architecture Integration
+
+Commerce is integrated into the canonical UI architecture as a capability family, not a standalone frontend app.
+
+Public buyer routes are server-loaded TreeSeed market routes rendered through `PublicShell` and canonical templates:
+
+- `/marketplace`: `DashboardTemplate` plus `CollectionTemplate` for public listings.
+- `/market/products/:productId`: `DetailTemplate` for product, offer, ownership, and stewardship context.
+- `/cart` and `/checkout/:checkoutId`: dashboard/detail checkout views. Stripe.js is limited to explicit payment confirmation after the API has resolved checkout and payment group state.
+- `/capacity/*` and `/services/*`: collection/detail/settings templates for trust-gated capacity and scoped service flows.
+
+Authenticated seller and steward routes are ProductShell routes rendered through admin-owned view models:
+
+- `/app/market/seller`: seller dashboard and distribution state.
+- `/app/teams/:teamId/commerce`: seller readiness, Stripe status, products/offers/sales/services/capacity, ownership/stewardship, and required next actions.
+
+Route controllers may resolve URL params, sessions, form submissions, and API calls. UI templates receive ready view models, metadata, and resolved actions only. Templates must not call `fetch`, perform raw role checks, render raw Stripe connected-account internals, render client secrets, expose private object keys, or trust browser-provided seller/price/entitlement/fulfillment state.
+
+Commerce UI states map to canonical action and resource schemas:
+
+| Commerce concept | UI representation |
+| --- | --- |
+| Product/listing/offer | resource schema plus collection/detail templates |
+| Checkout/payment group | checkout payment group view model plus resolved confirm action |
+| Entitlement | entitlement state and install/download/import action state |
+| Seller readiness | readiness summary and setup action state |
+| Scoped service quote | detail/settings templates with buyer/vendor approval actions |
+| Capacity inquiry | detail/settings templates with setup and review actions |
+| Ownership/stewardship | ownership summary component plus audit/governance metadata |
+
+Resolved action states are the only UI contract for buyer/seller/steward commands: `requiresSignIn`, `requiresEntitlement`, `requiresSetup`, `readOnly`, `disabledWithReason`, `denied`, or `allowed`.
+
 ## Cooperative Ownership Foundation
 
 TreeSeed ecommerce should be built so products and services can be owned by individuals, teams, organizations, cooperatives, or communities without redesigning commerce later.

@@ -1,66 +1,25 @@
 ---
 import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import DashboardTemplate from '@treeseed/ui/components/astro/templates/DashboardTemplate.astro';
+import CommonsProposalCard from '@treeseed/ui/components/astro/governance/CommonsProposalCard.astro';
 import '@treeseed/ui/styles/governance.css';
+import { loadCommonsPage } from '../../lib/market-public-view-models';
+
+const page = await loadCommonsPage(Astro);
 ---
 
-<TreeseedPublicLayout title="TreeSeed Commons" description="Participate in TreeSeed questions, proposals, voting, and bounded steward decisions." currentPath={Astro.url.pathname}>
+<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-governance-page">
-		<section class="ts-governance-inner ts-governance-hero">
-			<p class="ts-governance-eyebrow">TreeSeed Commons</p>
-			<h1 class="ts-governance-title">Help steer TreeSeed through governed questions, proposals, and decisions.</h1>
-			<p class="ts-governance-lede">Registration creates a Commons governance identity and TreeSeed team viewer membership. Votes create transparent signal; stewards turn high-signal proposals into bounded decisions.</p>
-			<div class="ts-governance-actions">
-				<a class="ts-governance-button" href="/commons/proposals/new">Submit proposal</a>
-				<a class="ts-governance-button" data-variant="secondary" href="/commons/questions/new">Ask question</a>
-			</div>
-		</section>
-		<section class="ts-governance-inner">
-			<div id="commons-summary" class="ts-governance-grid" aria-live="polite">Loading Commons...</div>
-		</section>
+		<DashboardTemplate viewModel={page.data.dashboard} actions={page.actions}>
+			{page.data.proposals.length ? (
+				<section class="ts-governance-inner">
+					<div class="ts-governance-grid">
+						{page.data.proposals.map((proposal) => (
+							<CommonsProposalCard proposal={proposal} href={`/commons/proposals/${encodeURIComponent(proposal.id)}`} />
+						))}
+					</div>
+				</section>
+			) : null}
+		</DashboardTemplate>
 	</main>
 </TreeseedPublicLayout>
-
-<script>
-	// @ts-nocheck
-	const container = document.querySelector('#commons-summary');
-	async function api(path) {
-		const response = await fetch(path);
-		const envelope = await response.json().catch(() => null);
-		if (!response.ok || !envelope?.ok) throw new Error(envelope?.error ?? `Request failed: ${response.status}`);
-		return envelope.payload;
-	}
-	function render(summary) {
-		const proposals = summary.recentProposals ?? [];
-		const events = summary.recentEvents ?? [];
-		container.innerHTML = `
-			<article class="ts-governance-panel">
-				<p class="ts-governance-eyebrow">Commons signal</p>
-				<h2>Current participation</h2>
-				<dl class="ts-governance-kv">
-					<div><dt>Participants</dt><dd>${summary.counts?.activeParticipants ?? 0}</dd></div>
-					<div><dt>Active proposals</dt><dd>${summary.counts?.activeProposals ?? 0}</dd></div>
-					<div><dt>Open questions</dt><dd>${summary.counts?.openQuestions ?? 0}</dd></div>
-					<div><dt>Accepted decisions</dt><dd>${summary.counts?.acceptedDecisions ?? 0}</dd></div>
-				</dl>
-			</article>
-			${proposals.map((proposal) => `
-				<article class="ts-governance-card">
-					<div class="ts-governance-badges"><span class="ts-governance-badge">${proposal.status}</span><span class="ts-governance-badge">${proposal.scope}</span></div>
-					<h2>${proposal.title}</h2>
-					<p>${proposal.summary}</p>
-					<a class="ts-governance-button" data-variant="secondary" href="/commons/proposals/${encodeURIComponent(proposal.id)}">Open proposal</a>
-				</article>
-			`).join('')}
-			<article class="ts-governance-panel">
-				<p class="ts-governance-eyebrow">Recent evidence</p>
-				<h2>Governance events</h2>
-				<ul class="ts-governance-timeline">
-					${events.map((event) => `<li><strong>${event.eventType}</strong> ${event.nextState ?? ''}</li>`).join('') || '<li>No events yet.</li>'}
-				</ul>
-			</article>
-		`;
-	}
-	api('/v1/commons/summary').then(render).catch((error) => {
-		container.textContent = error instanceof Error ? error.message : 'Commons could not be loaded.';
-	});
-</script>

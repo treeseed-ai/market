@@ -1,76 +1,51 @@
 ---
 import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import DetailTemplate from '@treeseed/ui/components/astro/templates/DetailTemplate.astro';
+import Panel from '@treeseed/ui/components/astro/surface/Panel.astro';
+import CommonsDecisionTimeline from '@treeseed/ui/components/astro/governance/CommonsDecisionTimeline.astro';
+import CommonsVoteSummary from '@treeseed/ui/components/astro/governance/CommonsVoteSummary.astro';
 import '@treeseed/ui/styles/governance.css';
-const proposalId = Astro.params.proposalId;
+import { loadCommonsProposalPage, submitCommonsProposalAction } from '../../../lib/market-public-view-models';
+
+const proposalId = Astro.params.proposalId ?? '';
+let actionError: string | undefined;
+
+if (Astro.request.method === 'POST') {
+	const result = await submitCommonsProposalAction(Astro, proposalId, await Astro.request.formData());
+	if (result.ok) return Astro.redirect(Astro.url.pathname, 303);
+	actionError = result.error;
+}
+
+const page = await loadCommonsProposalPage(Astro, proposalId, actionError);
+const proposal = page.data.proposal;
 ---
 
-<TreeseedPublicLayout title="Commons proposal" description="Review, back, and vote on a TreeSeed Commons proposal." currentPath={Astro.url.pathname}>
+<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-governance-page">
-		<section class="ts-governance-inner ts-governance-hero">
-			<p class="ts-governance-eyebrow">Commons proposal</p>
-			<h1 id="proposal-title" class="ts-governance-title">Loading proposal...</h1>
-			<p id="proposal-summary" class="ts-governance-lede"></p>
-			<div class="ts-governance-actions">
-				<button id="back-proposal" class="ts-governance-button" type="button">Back proposal</button>
-				<button id="vote-support" class="ts-governance-button" data-variant="secondary" type="button">Vote support</button>
+		<DetailTemplate title={page.title} description={page.description} eyebrow="Commons proposal" metadata={page.data.metadata} actions={page.actions}>
+			{page.data.error ? <p class="ts-governance-muted">{page.data.error}</p> : null}
+			<div class="ts-governance-two-column">
+				<Panel title="Body">
+					<p>{proposal?.body ?? 'This proposal could not be loaded.'}</p>
+					{proposal ? (
+						<form class="ts-governance-actions" method="post">
+							<input type="hidden" name="reason" value="Recorded from the Commons proposal page." />
+							<button class="ts-governance-button" type="submit" name="action" value="back">Back proposal</button>
+							<button class="ts-governance-button" data-variant="secondary" type="submit" name="action" value="vote">Vote support</button>
+							<input type="hidden" name="vote" value="support" />
+						</form>
+					) : null}
+				</Panel>
+				<div class="ts-governance-grid">
+					<CommonsVoteSummary
+						backers={proposal?.backingCount ?? proposal?.backings?.length ?? 0}
+						support={proposal?.voteSupportWeight ?? 0}
+						object={proposal?.voteObjectWeight ?? 0}
+						abstain={proposal?.voteAbstainWeight ?? 0}
+					/>
+					<CommonsDecisionTimeline events={proposal?.events ?? []} />
+				</div>
 			</div>
-		</section>
-		<section class="ts-governance-inner ts-governance-two-column">
-			<article class="ts-governance-panel">
-				<p class="ts-governance-eyebrow">Proposal</p>
-				<h2>Body</h2>
-				<p id="proposal-body"></p>
-			</article>
-			<aside id="proposal-side" class="ts-governance-grid"></aside>
-		</section>
+		</DetailTemplate>
 	</main>
 </TreeseedPublicLayout>
-
-<script is:inline define:vars={{ proposalId }}>
-	// @ts-nocheck
-	const title = document.querySelector('#proposal-title');
-	const summary = document.querySelector('#proposal-summary');
-	const body = document.querySelector('#proposal-body');
-	const side = document.querySelector('#proposal-side');
-	async function api(path, init) {
-		const response = await fetch(path, init);
-		const envelope = await response.json().catch(() => null);
-		if (!response.ok || !envelope?.ok) throw new Error(envelope?.error ?? `Request failed: ${response.status}`);
-		return envelope.payload;
-	}
-	function render(proposal) {
-		title.textContent = proposal.title;
-		summary.textContent = proposal.summary;
-		body.textContent = proposal.body;
-		side.innerHTML = `
-			<article class="ts-governance-panel">
-				<p class="ts-governance-eyebrow">Status</p>
-				<h2>${proposal.status}</h2>
-				<dl class="ts-governance-kv">
-					<div><dt>Backers</dt><dd>${proposal.backingCount}</dd></div>
-					<div><dt>Support</dt><dd>${proposal.voteSupportWeight}</dd></div>
-					<div><dt>Object</dt><dd>${proposal.voteObjectWeight}</dd></div>
-				</dl>
-			</article>
-			<article class="ts-governance-panel">
-				<p class="ts-governance-eyebrow">Timeline</p>
-				<h2>Governance evidence</h2>
-				<ul class="ts-governance-timeline">${(proposal.events ?? []).map((event) => `<li><strong>${event.eventType}</strong> ${event.nextState ?? ''}</li>`).join('') || '<li>No events yet.</li>'}</ul>
-			</article>
-		`;
-	}
-	async function reload() {
-		render(await api(`/v1/commons/proposals/${encodeURIComponent(proposalId)}`));
-	}
-	document.querySelector('#back-proposal')?.addEventListener('click', async () => {
-		await api(`/v1/commons/proposals/${encodeURIComponent(proposalId)}/back`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'Backed from Commons page.' }) });
-		await reload();
-	});
-	document.querySelector('#vote-support')?.addEventListener('click', async () => {
-		await api(`/v1/commons/proposals/${encodeURIComponent(proposalId)}/vote`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ vote: 'support', reason: 'Supported from Commons page.' }) });
-		await reload();
-	});
-	reload().catch((error) => {
-		title.textContent = error instanceof Error ? error.message : 'Proposal could not be loaded.';
-	});
-</script>

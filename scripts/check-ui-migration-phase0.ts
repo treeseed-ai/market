@@ -606,6 +606,58 @@ function findKnowledgeDistributionPhase10Violations(): string[] {
 	return failures;
 }
 
+function findCommerceGovernancePhase10Violations(): string[] {
+	const failures: string[] = [];
+	const publicExpectations: Array<[string, string[]]> = [
+		['src/pages/marketplace/index.astro', ['TreeseedPublicLayout', 'DashboardTemplate', 'CollectionTemplate', 'helpContext', 'feedbackContext', 'loadMarketplacePage']],
+		['src/pages/market/products/[productId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'helpContext', 'feedbackContext', 'loadMarketplaceProductPage']],
+		['src/pages/cart.astro', ['TreeseedPublicLayout', 'DashboardTemplate', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'createCheckoutFromOffer']],
+		['src/pages/checkout/[checkoutId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'CommercePaymentGroupPanel', 'helpContext', 'feedbackContext', 'commerce-checkout']],
+		['src/pages/capacity/index.astro', ['TreeseedPublicLayout', 'CollectionTemplate', 'helpContext', 'feedbackContext', 'loadCapacityListingsPage']],
+		['src/pages/capacity/[listingId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'helpContext', 'feedbackContext', 'submitCapacityInquiry']],
+		['src/pages/services/new.astro', ['TreeseedPublicLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitServiceRequest']],
+		['src/pages/services/[requestId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'ServiceQuotePanel', 'ServiceRequestTimeline', 'helpContext', 'feedbackContext']],
+		['src/pages/services/[requestId]/checkout.astro', ['TreeseedPublicLayout', 'DetailTemplate', 'CommercePaymentGroupPanel', 'helpContext', 'feedbackContext', 'commerce-checkout']],
+		['src/pages/commons/index.astro', ['TreeseedPublicLayout', 'DashboardTemplate', 'helpContext', 'feedbackContext', 'loadCommonsPage']],
+		['src/pages/commons/proposals/[proposalId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'CommonsVoteSummary', 'CommonsDecisionTimeline', 'helpContext', 'feedbackContext']],
+		['src/pages/commons/proposals/new.astro', ['TreeseedPublicLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitCommonsProposal']],
+		['src/pages/commons/questions/new.astro', ['TreeseedPublicLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitCommonsQuestion']],
+	];
+	const appExpectations: Array<[string, string[]]> = [
+		['packages/admin/src/pages/app/commons/index.astro', ['TreeseedAppLayout', 'DashboardTemplate', 'loadCommonsGovernanceDashboard', 'helpContext', 'feedbackContext']],
+		['packages/admin/src/pages/app/teams/[teamId]/commerce.astro', ['TreeseedAppLayout', 'DashboardTemplate', 'buildTeamCommerceDashboard', 'helpContext', 'feedbackContext']],
+		['packages/admin/src/pages/app/market/seller.astro', ['TreeseedAppLayout', 'DashboardTemplate', 'helpContext', 'feedbackContext']],
+	];
+	for (const [path, markers] of [...publicExpectations, ...appExpectations]) {
+		const contents = readFileSync(resolve(root, path), 'utf8');
+		for (const marker of markers) {
+			if (!contents.includes(marker)) failures.push(`${path}: missing ${marker}`);
+		}
+		if (/<style(?:\s|>)/u.test(contents)) failures.push(`${path}: ecommerce/governance route contains page-local CSS`);
+		if (/\bfetch\s*\(/u.test(contents)) failures.push(`${path}: ecommerce/governance route contains direct fetch`);
+		if (/clientSecret|connectedAccountId|stripeSecret|stripeAccountId|runnerToken|providerToken|objectKey|rawR2|r2:\/\//u.test(contents)) {
+			failures.push(`${path}: ecommerce/governance route risks private, payment, or object identifier leakage`);
+		}
+		if (/\b(?:roles|role|permissions)\s*\??\.\s*(?:includes|some|has)\s*\(/u.test(contents)) {
+			failures.push(`${path}: ecommerce/governance route contains raw role/permission checks`);
+		}
+		if (/@ts-nocheck/u.test(contents)) failures.push(`${path}: ecommerce/governance route contains disabled TypeScript checking`);
+	}
+	const helper = readFileSync(resolve(root, 'src/lib/market-public-view-models.ts'), 'utf8');
+	for (const marker of ['marketApi', 'ResolvedAction', 'requiresSignIn', 'requiresEntitlement', 'routeHelp', 'routeFeedback']) {
+		if (!helper.includes(marker)) failures.push(`src/lib/market-public-view-models.ts: missing ${marker}`);
+	}
+	const checkoutHelper = readFileSync(resolve(root, 'src/scripts/commerce-checkout.ts'), 'utf8');
+	for (const marker of ['window.Stripe', '/v1/commerce/payment-groups/', '/v1/commerce/stripe/config']) {
+		if (!checkoutHelper.includes(marker)) failures.push(`src/scripts/commerce-checkout.ts: missing ${marker}`);
+	}
+	const adminVm = readFileSync(resolve(root, 'packages/admin/src/view-models/ecommerce-governance.vm.ts'), 'utf8');
+	for (const marker of ['loadCommonsGovernanceDashboard', 'buildTeamCommerceDashboard', 'Seller readiness', 'Commons signal']) {
+		if (!adminVm.includes(marker)) failures.push(`packages/admin/src/view-models/ecommerce-governance.vm.ts: missing ${marker}`);
+	}
+	return failures;
+}
+
 function markdownList(values: string[]): string {
 	return values.length > 0 ? values.join('<br>') : 'none';
 }
@@ -745,6 +797,10 @@ for (const path of findOperatingLoopPhase9Violations()) {
 
 for (const path of findKnowledgeDistributionPhase10Violations()) {
 	failures.push(`Knowledge distribution Phase 10 guard violation: ${path}`);
+}
+
+for (const path of findCommerceGovernancePhase10Violations()) {
+	failures.push(`Commerce/governance Phase 10 guard violation: ${path}`);
 }
 
 const docs = generateDocs();

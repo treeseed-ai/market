@@ -1,42 +1,30 @@
 ---
 import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import SettingsTemplate from '@treeseed/ui/components/astro/templates/SettingsTemplate.astro';
 import '@treeseed/ui/styles/governance.css';
+import { loadCommonsProposalFormPage, submitCommonsProposal } from '../../../lib/market-public-view-models';
+
+let actionError: string | undefined;
+
+if (Astro.request.method === 'POST') {
+	const result = await submitCommonsProposal(Astro, await Astro.request.formData());
+	if (result.ok) return Astro.redirect(`/commons/proposals/${encodeURIComponent(String(result.payload.id))}`, 303);
+	actionError = result.error;
+}
+
+const page = loadCommonsProposalFormPage(Astro, actionError);
 ---
 
-<TreeseedPublicLayout title="Submit a Commons proposal" description="Submit a TreeSeed Commons proposal." currentPath={Astro.url.pathname}>
+<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-governance-page">
-		<section class="ts-governance-inner ts-governance-hero">
-			<p class="ts-governance-eyebrow">Commons proposal</p>
-			<h1 class="ts-governance-title">Turn a community need into governed work.</h1>
-			<p class="ts-governance-lede">Proposals create transparent advisory signal. Steward decisions remain bounded by capacity, safety, architecture, and the cooperative governance and ownership model.</p>
-		</section>
-		<section class="ts-governance-inner">
-			<form id="commons-proposal" class="ts-governance-panel">
-				<label>Title <input name="title" required /></label>
-				<label>Summary <input name="summary" required /></label>
-				<label>Proposal <textarea name="body" rows="10" required></textarea></label>
+		<SettingsTemplate title={page.title} description={page.description} actions={page.actions}>
+			<form class="ts-governance-panel" method="post">
+				{actionError ? <p class="ts-governance-muted">{actionError}</p> : null}
+				<label class="ts-field"><span class="ts-field__label">Title</span><input class="ts-field__control" name="title" required /></label>
+				<label class="ts-field"><span class="ts-field__label">Summary</span><input class="ts-field__control" name="summary" required /></label>
+				<label class="ts-field"><span class="ts-field__label">Proposal</span><textarea class="ts-field__control" name="body" rows="10" required></textarea></label>
 				<button class="ts-governance-button" type="submit">Create proposal</button>
-				<p id="proposal-result" class="ts-governance-muted"></p>
 			</form>
-		</section>
+		</SettingsTemplate>
 	</main>
 </TreeseedPublicLayout>
-
-<script>
-	// @ts-nocheck
-	document.querySelector('#commons-proposal')?.addEventListener('submit', async (event) => {
-		event.preventDefault();
-		const form = new FormData(event.currentTarget);
-		const response = await fetch('/v1/commons/proposals', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ ...Object.fromEntries(form.entries()), scope: 'treeseed_commons', decisionType: 'advisory' }),
-		});
-		const envelope = await response.json().catch(() => null);
-		if (envelope?.ok) {
-			location.href = `/commons/proposals/${encodeURIComponent(envelope.payload.id)}`;
-		} else {
-			document.querySelector('#proposal-result').textContent = envelope?.error ?? 'Sign in to submit a proposal.';
-		}
-	});
-</script>

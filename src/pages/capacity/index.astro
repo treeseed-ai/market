@@ -1,74 +1,14 @@
 ---
 import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import CollectionTemplate from '@treeseed/ui/components/astro/templates/CollectionTemplate.astro';
 import '@treeseed/ui/styles/commerce.css';
+import { loadCapacityListingsPage } from '../../lib/market-public-view-models';
+
+const page = await loadCapacityListingsPage(Astro);
 ---
 
-<TreeseedPublicLayout title="Capacity" description="Browse trust-gated TreeSeed capacity listings." currentPath={Astro.url.pathname}>
+<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-commerce-page">
-		<section class="ts-commerce-band">
-			<div class="ts-commerce-inner ts-commerce-hero">
-				<p class="ts-commerce-eyebrow">Capacity marketplace foundation</p>
-				<h1 class="ts-commerce-title">Find capacity posture before any execution is discussed.</h1>
-				<p class="ts-commerce-lede">Approved listings disclose runtime isolation, AI/human involvement, data and secret access posture, support policy, and cooperative ownership context. Inquiries start seller review only.</p>
-			</div>
-		</section>
-		<section class="ts-commerce-inner">
-			<div class="ts-commerce-grid" id="capacity-listings" aria-live="polite">Loading capacity listings...</div>
-		</section>
+		<CollectionTemplate viewModel={page.data.collection} actions={page.actions} mode="cards" />
 	</main>
 </TreeseedPublicLayout>
-
-<script>
-	// @ts-nocheck
-	const listingsEl = document.querySelector('#capacity-listings');
-
-	async function api(path) {
-		const response = await fetch(path);
-		const payload = await response.json().catch(() => null);
-		if (!response.ok || !payload?.ok) throw new Error(payload?.error ?? `Request failed: ${response.status}`);
-		return payload.payload;
-	}
-
-	async function productFor(listing) {
-		try {
-			return await api(`/v1/commerce/marketplace/products/${encodeURIComponent(listing.productId)}`);
-		} catch {
-			return null;
-		}
-	}
-
-	async function renderListings(listings) {
-		if (!listings.length) {
-			listingsEl.innerHTML = '<article class="ts-commerce-panel"><h2>No public capacity listings are approved yet.</h2><p class="ts-commerce-muted">Capacity listings appear after seller trust review and market approval.</p></article>';
-			return;
-		}
-		const productPairs = await Promise.all(listings.map(async (listing) => [listing, await productFor(listing)]));
-		listingsEl.innerHTML = productPairs.map(([listing, product]) => `
-			<article class="ts-commerce-card">
-				<div class="ts-commerce-panel-header">
-					<div>
-						<p class="ts-commerce-eyebrow">${listing.accessLevel.replaceAll('_', ' ')}</p>
-						<h2>${product?.title || listing.productId}</h2>
-					</div>
-					<span class="ts-status-pill" data-tone="muted">${listing.status}</span>
-				</div>
-				<p>${listing.buyerVisibleRiskSummary || listing.dataHandlingSummary || product?.summary || 'Capacity details are available for buyer review.'}</p>
-				<dl class="ts-commerce-kv">
-					<div><dt>Runtime</dt><dd>${listing.runtimeIsolationLevel}</dd></div>
-					<div><dt>AI / human</dt><dd>${listing.aiInvolvementLevel} / ${listing.humanInvolvementLevel}</dd></div>
-					<div><dt>Data / secrets</dt><dd>${listing.dataAccessLevel} / ${listing.secretAccessLevel}</dd></div>
-					<div><dt>Ownership</dt><dd>${(product?.ownershipModel || 'documented').replaceAll('_', ' ')}</dd></div>
-				</dl>
-				<div class="ts-commerce-actions">
-					<a class="ts-commerce-button" href="/capacity/${encodeURIComponent(listing.id)}">Review listing</a>
-				</div>
-			</article>
-		`).join('');
-	}
-
-	api('/v1/commerce/capacity-listings')
-		.then(renderListings)
-		.catch((error) => {
-			listingsEl.textContent = error instanceof Error ? error.message : 'Capacity listings could not be loaded.';
-		});
-</script>

@@ -139,6 +139,14 @@ Public resource and backend catalog systems may keep exact technical names where
 
 Resources belong contextually under Knowledge and Infrastructure, not as the primary app onboarding model.
 
+## Commerce And Commons UI Integration
+
+Public commerce and Commons pages are Market context surfaces, not standalone browser apps. `/marketplace`, `/market/products/:productId`, `/cart`, `/checkout/:checkoutId`, `/capacity/*`, `/services/*`, and `/commons/*` use `PublicShell`, canonical templates, route-owned server view models, shell-level help, and shell-level feedback.
+
+Product commerce and stewardship pages are ProductShell surfaces. `/app/market/seller`, `/app/teams/:teamId/commerce`, and `/app/commons` show seller readiness, entitlement and checkout state, ownership/stewardship, Commons signal, decisions, and audit events through dashboard/detail/settings templates.
+
+Checkout, entitlement, seller readiness, service quote, capacity inquiry, proposal backing/voting, and steward decision actions are displayed as resolved actions. The UI must never own seller identity, price, payment amount, entitlement scope, connected-account internals, governance weight, or steward authority.
+
 ## Visual Requirements
 
 The app-wide design language should be:
@@ -168,4 +176,4 @@ Do not reintroduce:
 
 ## Completion Status
 
-The UI migration is complete through Phase 10. Work starts at `/app/work`, Services stays at `/app/services`, and Knowledge starts at `/app/knowledge`. Direction resources, allocation, agents, workdays, review queues, audit timelines, service readiness, knowledge distribution, marketplace acquisition, seller readiness, and entitlement-aware install/import/download states use canonical shell/template/view-model conventions. Future UI work should extend the operational IA above and should keep teams, projects, resources, providers, runtime details, artifacts, and marketplace entitlements as contextual product information rather than raw implementation framing.
+The UI migration is complete through Phase 10. Work starts at `/app/work`, Services stays at `/app/services`, Knowledge starts at `/app/knowledge`, seller readiness is contextual under `/app/market/seller` and `/app/teams/:teamId/commerce`, and Commons stewardship is contextual under `/app/commons`. Direction resources, allocation, agents, workdays, review queues, audit timelines, service readiness, knowledge distribution, marketplace acquisition, seller readiness, checkout/entitlement state, Commons governance, and entitlement-aware install/import/download states use canonical shell/template/view-model conventions. Future UI work should extend the operational IA above and should keep teams, projects, resources, providers, runtime details, artifacts, marketplace entitlements, commerce authority, and Commons signal as contextual product information rather than raw implementation framing.

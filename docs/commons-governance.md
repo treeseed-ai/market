@@ -47,6 +47,23 @@ Admin owns steward operations under `/app/commons`. Root market owns participant
 
 The Commons layer reuses existing team membership, authentication, route descriptors, API acceptance metadata, and UI package components. It does not create a new ecommerce subsystem and does not change marketplace order, entitlement, Stripe, refund, service, or capacity behavior.
 
+## UI Architecture Integration
+
+Commons governance follows the canonical shell/template/view-model/action model.
+
+Public participant routes use `PublicShell`:
+
+- `/commons` renders a `DashboardTemplate` with participant counts, active proposals, open questions, accepted decisions, and recent governance events.
+- `/commons/proposals/:proposalId` renders a `DetailTemplate` with proposal body, vote/backing signal, decision timeline, and resolved participant actions.
+- `/commons/proposals/new` and `/commons/questions/new` render `SettingsTemplate` forms. Form submissions go through route controllers and API-authoritative endpoints.
+
+Authenticated steward routes use `ProductShell`:
+
+- `/app/commons` renders a `DashboardTemplate` shaped by an admin-owned governance view model.
+- Steward detail/review routes render proposal, decision, participant, and event state through canonical templates and reusable governance components.
+
+Commons UI may display advisory signal, proposal decision state, weight snapshots, participant summaries, and audit events. It must not render raw role checks, hidden policy internals, private payment identifiers, direct API calls in templates, or page-local help/feedback systems. Participant and steward commands must be resolved as `requiresSignIn`, `readOnly`, `denied`, `disabledWithReason`, or `allowed` before rendering.
+
 ## Release Boundary
 
 Commons is part of the current TreeSeed governance release, not a future legal membership system. It proves the same cooperative governance and ownership model used by ecommerce products can also guide TreeSeed platform priorities.

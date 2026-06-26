@@ -42,3 +42,9 @@ Admin and Market pages should import UI primitives from `@treeseed/ui` and keep 
 Run `npm run audit:ui` before shipping UI work. The audit blocks retired token names, raw colors outside allowlisted theme/email files, inline style attributes outside intentional dynamic CSS-variable cases, and page-local `<style>` blocks in converted surfaces.
 
 Book and docs pages are protected. They may receive token remapping and Starlight bridge variables, but their layout, typography, reading width, font controls, and navigation structure should not be redesigned as part of market app component migration.
+
+## Commerce And Governance Components
+
+Commerce and Commons components in `@treeseed/ui` are display components for canonical templates. They may render marketplace product cards, ownership summaries, seller readiness, payment group state, service quote state, capacity risk/readiness, Commons proposals, vote summaries, decision timelines, participant badges, and stewardship panels.
+
+They must not call APIs, own checkout authority, evaluate raw roles, render Stripe secrets or connected-account internals, expose private object keys, or implement page-local help/feedback. Route controllers and admin/root Market view models resolve seller readiness, entitlement state, checkout state, governance signal, proposal decision state, and actions before passing data to these components.

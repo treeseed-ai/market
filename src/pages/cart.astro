@@ -1,66 +1,37 @@
 ---
 import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import DashboardTemplate from '@treeseed/ui/components/astro/templates/DashboardTemplate.astro';
+import SettingsTemplate from '@treeseed/ui/components/astro/templates/SettingsTemplate.astro';
 import '@treeseed/ui/styles/commerce.css';
+import { createCheckoutFromOffer, loadCartPage } from '../lib/market-public-view-models';
+
+let actionError: string | undefined;
+
+if (Astro.request.method === 'POST') {
+	const result = await createCheckoutFromOffer(Astro, await Astro.request.formData());
+	if (result.ok) {
+		const checkoutId = result.payload?.checkout?.id;
+		if (checkoutId) return Astro.redirect(`/checkout/${encodeURIComponent(String(checkoutId))}`, 303);
+		actionError = 'Checkout was created, but no checkout id was returned.';
+	} else {
+		actionError = result.error;
+	}
+}
+
+const page = loadCartPage(Astro, actionError);
 ---
 
-<TreeseedPublicLayout title="Cart" description="Review TreeSeed marketplace selections." currentPath={Astro.url.pathname}>
+<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-commerce-page">
-		<section class="ts-commerce-band">
-			<div class="ts-commerce-inner ts-commerce-hero">
-				<p class="ts-commerce-eyebrow">TreeSeed marketplace</p>
-				<h1 class="ts-commerce-title">Cart</h1>
-				<p class="ts-commerce-lede">TreeSeed checkout groups purchases by seller. Each vendor owns their Stripe payment, while TreeSeed records unified cart, order, entitlement, and ownership snapshot state.</p>
-			</div>
-		</section>
-		<section class="ts-commerce-inner ts-commerce-two-column">
-			<form class="ts-commerce-panel ts-commerce-form" id="cart-form">
-				<p class="ts-commerce-eyebrow">Direct checkout</p>
-				<h2>Start from an approved offer</h2>
+		<DashboardTemplate viewModel={page.data.dashboard} actions={page.actions} />
+		<SettingsTemplate title="Direct checkout" description="Use an approved offer id. The API resolves seller, price, amount, and entitlement scope." actions={[]}>
+			<form class="ts-commerce-panel ts-commerce-form" method="post">
+				{actionError ? <p class="ts-commerce-error">{actionError}</p> : null}
 				<label class="ts-commerce-field"><span>Offer ID</span><input name="offerId" required autocomplete="off" /></label>
 				<label class="ts-commerce-field"><span>Price ID</span><input name="priceId" autocomplete="off" /></label>
 				<label class="ts-commerce-field"><span>Quantity</span><input name="quantity" type="number" min="1" value="1" /></label>
 				<button class="ts-commerce-button" type="submit">Start checkout</button>
-				<p class="ts-commerce-muted" id="cart-status" aria-live="polite"></p>
 			</form>
-			<aside class="ts-commerce-panel">
-				<p class="ts-commerce-eyebrow">Checkout rules</p>
-				<h2>What happens next</h2>
-				<ul class="ts-commerce-timeline">
-					<li><span>TreeSeed resolves seller, price, scope, and ownership terms server-side.</span></li>
-					<li><span>Commercial items are split into connected-account payment groups.</span></li>
-					<li><span>Entitlements activate only after the matching payment or subscription succeeds.</span></li>
-				</ul>
-			</aside>
-		</section>
+		</SettingsTemplate>
 	</main>
 </TreeseedPublicLayout>
-
-<script>
-	// @ts-nocheck
-	const form = document.querySelector('#cart-form');
-	const status = document.querySelector('#cart-status');
-	form?.addEventListener('submit', async (event) => {
-		event.preventDefault();
-		status.textContent = 'Creating checkout...';
-		const data = new FormData(form);
-		const body = {
-			items: [{
-				offerId: String(data.get('offerId') ?? '').trim(),
-				priceId: String(data.get('priceId') ?? '').trim() || null,
-				quantity: Number(data.get('quantity') ?? 1),
-			}],
-		};
-		const response = await fetch('/v1/commerce/checkout', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(body),
-		});
-		const payload = await response.json().catch(() => null);
-		if (!response.ok || !payload?.ok) {
-			status.textContent = payload?.error ?? 'Checkout could not be created.';
-			return;
-		}
-		sessionStorage.setItem(`treeseed.checkout.${payload.payload.checkout.id}`, JSON.stringify(payload.payload));
-		window.location.href = `/checkout/${encodeURIComponent(payload.payload.checkout.id)}`;
-	});
-</script>

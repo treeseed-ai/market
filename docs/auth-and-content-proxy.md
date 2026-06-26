@@ -123,6 +123,8 @@ If a private artifact requires direct transfer, the proxy may mint a short-lived
 
 Phase 10 distribution UI depends on this rule for marketplace install/import/download actions. Public listings may describe CDN-backed delivery, but private, paid, team-only, or entitlement-gated artifacts must resolve through the Market/API policy path before a content proxy URL or short-lived signed URL is exposed. UI templates receive the resolved action and entitlement state only; they do not construct artifact URLs.
 
+Commerce checkout and service/capacity actions follow the same authority boundary. Public pages may render buyer-visible seller readiness, payment group state, service quote state, capacity inquiry state, and Commons governance signal, but seller identity, payment amount, connected-account handling, entitlement activation, private artifact delivery, and steward authority are resolved by the Market/API path before the UI renders or submits an action.
+
 Signed URLs must:
 
 - be scoped to the exact object

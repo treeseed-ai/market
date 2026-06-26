@@ -1,82 +1,25 @@
 ---
 import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import DashboardTemplate from '@treeseed/ui/components/astro/templates/DashboardTemplate.astro';
+import CollectionTemplate from '@treeseed/ui/components/astro/templates/CollectionTemplate.astro';
+import MarketplaceProductCard from '@treeseed/ui/components/astro/commerce/MarketplaceProductCard.astro';
 import '@treeseed/ui/styles/commerce.css';
+import { loadMarketplacePage } from '../../lib/market-public-view-models';
+
+const page = await loadMarketplacePage(Astro);
 ---
 
-<TreeseedPublicLayout title="Marketplace" description="Browse TreeSeed digital products, scoped services, and trust-gated capacity listings." currentPath={Astro.url.pathname}>
+<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-commerce-page">
-		<section class="ts-commerce-band">
-			<div class="ts-commerce-inner ts-commerce-hero">
-				<p class="ts-commerce-eyebrow">TreeSeed marketplace</p>
-				<h1 class="ts-commerce-title">Digital products, scoped services, and capacity discovery in one governed market.</h1>
-				<p class="ts-commerce-lede">Every listing carries buyer-visible ownership, stewardship, and seller readiness context. Checkout, service scoping, and capacity inquiries stay rooted in TreeSeed governance records.</p>
-			</div>
-		</section>
-		<section class="ts-commerce-inner">
-			<div class="ts-commerce-grid" id="market-products" aria-live="polite">Loading marketplace...</div>
-		</section>
+		<DashboardTemplate viewModel={page.data.dashboard} actions={page.actions} />
+		<CollectionTemplate viewModel={page.data.collection} actions={[]} mode="cards">
+			{page.data.products.length ? (
+				<div class="ts-commerce-grid">
+					{page.data.products.map((product) => (
+						<MarketplaceProductCard {...product} />
+					))}
+				</div>
+			) : null}
+		</CollectionTemplate>
 	</main>
 </TreeseedPublicLayout>
-
-<script>
-	// @ts-nocheck
-	const productsEl = document.querySelector('#market-products');
-
-	async function api(path) {
-		const response = await fetch(path);
-		const payload = await response.json().catch(() => null);
-		if (!response.ok || !payload?.ok) throw new Error(payload?.error ?? `Request failed: ${response.status}`);
-		return payload.payload;
-	}
-
-	function amount(offer) {
-		if (offer?.unitAmount != null && offer.currency) {
-			const formatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: offer.currency.toUpperCase() }).format(offer.unitAmount / 100);
-			return offer.billingInterval && offer.billingInterval !== 'one_time' ? `${formatted} / ${offer.billingInterval}` : formatted;
-		}
-		return offer?.mode === 'free' ? 'Free' : 'Seller scoped';
-	}
-
-	function lane(product) {
-		if (product.kind === 'scoped_service') return 'Scoped service';
-		if (product.kind === 'capacity_listing') return 'Capacity discovery';
-		return 'Digital product';
-	}
-
-	function render(products) {
-		if (!products.length) {
-			productsEl.innerHTML = '<article class="ts-commerce-panel"><h2>No approved marketplace listings yet.</h2><p class="ts-commerce-muted">Seller-approved listings will appear here once governance review is complete.</p></article>';
-			return;
-		}
-		productsEl.innerHTML = products.map((product) => {
-			const offer = product.offers.find((entry) => entry.checkoutEligible || entry.serviceEligible || entry.capacityInquiryEligible) ?? product.offers[0];
-			return `
-				<article class="ts-commerce-card">
-					<div class="ts-commerce-panel-header">
-						<div>
-							<p class="ts-commerce-eyebrow">${lane(product)}</p>
-							<h2>${product.title}</h2>
-						</div>
-						<span class="ts-status-pill" data-tone="muted">${offer ? amount(offer) : 'Review'}</span>
-					</div>
-					<p>${product.summary || 'Review marketplace terms and governance context before continuing.'}</p>
-					<dl class="ts-commerce-kv">
-						<div><dt>Seller</dt><dd>${product.vendorDisplayName || 'TreeSeed seller'}</dd></div>
-						<div><dt>Ownership</dt><dd>${(product.ownershipModel || 'documented').replaceAll('_', ' ')}</dd></div>
-						<div><dt>Offers</dt><dd>${product.offers.length}</dd></div>
-					</dl>
-					<div class="ts-commerce-actions">
-						<a class="ts-commerce-button" href="/market/products/${encodeURIComponent(product.id)}">View details</a>
-						${product.capacityListingId ? `<a class="ts-commerce-button" data-variant="secondary" href="/capacity/${encodeURIComponent(product.capacityListingId)}">Capacity inquiry</a>` : ''}
-					</div>
-				</article>
-			`;
-		}).join('');
-	}
-
-	api('/v1/commerce/marketplace')
-		.then((payload) => render(payload.products ?? []))
-		.catch((error) => {
-			productsEl.textContent = error instanceof Error ? error.message : 'Marketplace could not be loaded.';
-		});
-</script>

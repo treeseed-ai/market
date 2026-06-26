@@ -15,6 +15,22 @@ const convertedMarketPages = [
 	'packages/admin/src/pages/market/knowledge-packs/[slug].astro',
 ];
 
+const publicCommerceGovernancePages = [
+	['src/pages/marketplace/index.astro', ['TreeseedPublicLayout', 'DashboardTemplate', 'CollectionTemplate', 'helpContext', 'feedbackContext', 'loadMarketplacePage']],
+	['src/pages/market/products/[productId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'helpContext', 'feedbackContext', 'loadMarketplaceProductPage']],
+	['src/pages/cart.astro', ['TreeseedPublicLayout', 'DashboardTemplate', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'createCheckoutFromOffer']],
+	['src/pages/checkout/[checkoutId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'CommercePaymentGroupPanel', 'helpContext', 'feedbackContext', 'commerce-checkout']],
+	['src/pages/capacity/index.astro', ['TreeseedPublicLayout', 'CollectionTemplate', 'helpContext', 'feedbackContext', 'loadCapacityListingsPage']],
+	['src/pages/capacity/[listingId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'helpContext', 'feedbackContext', 'submitCapacityInquiry']],
+	['src/pages/services/new.astro', ['TreeseedPublicLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitServiceRequest']],
+	['src/pages/services/[requestId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'ServiceQuotePanel', 'ServiceRequestTimeline', 'helpContext', 'feedbackContext']],
+	['src/pages/services/[requestId]/checkout.astro', ['TreeseedPublicLayout', 'DetailTemplate', 'CommercePaymentGroupPanel', 'helpContext', 'feedbackContext', 'commerce-checkout']],
+	['src/pages/commons/index.astro', ['TreeseedPublicLayout', 'DashboardTemplate', 'helpContext', 'feedbackContext', 'loadCommonsPage']],
+	['src/pages/commons/proposals/[proposalId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'CommonsVoteSummary', 'CommonsDecisionTimeline', 'helpContext', 'feedbackContext']],
+	['src/pages/commons/proposals/new.astro', ['TreeseedPublicLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitCommonsProposal']],
+	['src/pages/commons/questions/new.astro', ['TreeseedPublicLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitCommonsQuestion']],
+] as const;
+
 describe('UI migration completion', () => {
 	it('converts market catalogue pages to core primitives without inline styling', () => {
 		for (const path of convertedMarketPages) {
@@ -42,6 +58,54 @@ describe('UI migration completion', () => {
 		expect(source('packages/admin/src/pages/market/knowledge-packs/[slug].astro')).toContain('loadPublicMarketplaceDetail');
 		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/pages/templates/index.astro'))).toBe(false);
 		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/pages/templates/[slug].astro'))).toBe(false);
+	});
+
+	it('integrates public ecommerce and Commons routes into canonical templates', () => {
+		for (const [path, markers] of publicCommerceGovernancePages) {
+			const contents = source(path);
+			for (const marker of markers) expect(contents, path).toContain(marker);
+			expect(contents, path).not.toContain('<style');
+			expect(contents, path).not.toContain('@ts-nocheck');
+			expect(contents, path).not.toMatch(/\bfetch\s*\(/u);
+			expect(contents, path).not.toMatch(/clientSecret|connectedAccountId|stripeSecret|stripeAccountId|objectKey|rawR2|r2:\/\//u);
+		}
+
+		const helper = source('src/lib/market-public-view-models.ts');
+		for (const marker of ['marketApi', 'ResolvedAction', 'requiresSignIn', 'requiresEntitlement', 'routeHelp', 'routeFeedback']) {
+			expect(helper).toContain(marker);
+		}
+		const checkoutHelper = source('src/scripts/commerce-checkout.ts');
+		expect(checkoutHelper).toContain('window.Stripe');
+		expect(checkoutHelper).toContain('/v1/commerce/payment-groups/');
+	});
+
+	it('integrates ProductShell commerce and Commons stewardship dashboards', () => {
+		for (const [path, markers] of [
+			['packages/admin/src/pages/app/commons/index.astro', ['TreeseedAppLayout', 'DashboardTemplate', 'loadCommonsGovernanceDashboard', 'helpContext', 'feedbackContext']],
+			['packages/admin/src/pages/app/teams/[teamId]/commerce.astro', ['TreeseedAppLayout', 'DashboardTemplate', 'buildTeamCommerceDashboard', 'helpContext', 'feedbackContext']],
+		] as const) {
+			const contents = source(path);
+			for (const marker of markers) expect(contents, path).toContain(marker);
+			expect(contents, path).not.toContain('<style');
+			expect(contents, path).not.toMatch(/\bfetch\s*\(/u);
+			expect(contents, path).not.toMatch(/clientSecret|stripeSecret|objectKey|rawR2|r2:\/\//u);
+		}
+		const vm = source('packages/admin/src/view-models/ecommerce-governance.vm.ts');
+		expect(vm).toContain('loadCommonsGovernanceDashboard');
+		expect(vm).toContain('buildTeamCommerceDashboard');
+		expect(vm).toContain('Seller readiness');
+		expect(vm).toContain('Commons signal');
+	});
+
+	it('documents commerce, Commons, and platform stewardship as UI capability families', () => {
+		const architecture = source('docs/ui-architecture.md');
+		for (const marker of ['Commerce Capability Family', 'Commons Governance Capability Family', 'Platform Stewardship Capability Family']) {
+			expect(architecture).toContain(marker);
+		}
+		expect(source('docs/ecommerce.md')).toContain('UI Architecture Integration');
+		expect(source('docs/commons-governance.md')).toContain('UI Architecture Integration');
+		expect(source('docs/market_ui_spec.md')).toContain('Commerce And Commons UI Integration');
+		expect(source('docs/ui-components.md')).toContain('Commerce And Governance Components');
 	});
 
 	it('uses @treeseed/ui for the market product card', () => {
