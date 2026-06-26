@@ -158,6 +158,6 @@ jobs:
           npm -w packages/admin run build:dist
       - name: Validate deployment readiness
         run: |
-          tsx ./packages/sdk/scripts/deployment-readiness.ts \
+          npx --yes tsx ./packages/sdk/scripts/deployment-readiness.ts \
             --environment "${{ needs.classify.outputs.scope }}" \
             --strict
