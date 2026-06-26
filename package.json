@@ -72,7 +72,7 @@
     "@codemirror/view": "^6.43.0",
     "@mdxeditor/editor": "^4.0.1",
     "@react-email/render": "^2.0.8",
-    "@treeseed/admin": "^0.11.1-dev.demo.20260626T104307Z",
+    "@treeseed/admin": "^0.11.1-dev.demo.20260626T104859Z",
     "@treeseed/agent": "^0.11.1-dev.demo.20260626T102307Z",
     "@treeseed/cli": "^0.11.1-dev.demo.20260626T102306Z",
     "@treeseed/core": "^0.11.1-dev.demo.20260626T102306Z",
