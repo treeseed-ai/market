@@ -109,6 +109,20 @@ The repository-family index is only a discovery pointer. It lives under the git 
 
 For non-git projects, Treeseed falls back to a user-cache index keyed by project root. The worktree-local instance file remains authoritative; stale or missing index entries are repaired opportunistically by status/start/stop operations.
 
+## Managed Workflow Worktrees
+
+`trsd switch <branch> --worktree --json` creates a managed task worktree under:
+
+```text
+.treeseed/worktrees/<branch-slug>
+```
+
+The directory name intentionally mirrors the branch slug. That makes human inspection, process ownership, and cleanup easier than hash-first worktree names. A branch may have only one active managed worktree at a time; if another worktree already owns the branch, `switch` must report that owner instead of creating a second checkout.
+
+Commands run inside `.treeseed/worktrees/*` fail closed when the directory is stale, unregistered, or missing its worktree marker. They must not resolve upward into the parent root repository and accidentally save, stage, or stop processes for the wrong checkout.
+
+Successful `trsd stage` from a managed task worktree merges the branch into `staging`, updates package pointers through the workflow engine, and removes the staged branch/worktree after the promotion completes. Interrupted runs should be recovered with `trsd recover --json` or resumed with `trsd resume <run-id> --json`, not by manually deleting branches or worktree directories.
+
 ## Worktrees And Ports
 
 Runtime ownership is worktree-scoped. Main, staging, and every feature worktree can run its own managed dev instance at the same time.

@@ -180,6 +180,7 @@ describe('contextual dashboard and drilldown app information architecture', () =
 		expect(readdirSync(resolve(process.cwd(), 'packages/admin/src/pages/app')).sort()).toEqual([
 			'account.astro',
 			'capacity',
+			'commons',
 			'hosts',
 			'index.astro',
 			'knowledge',
@@ -220,10 +221,11 @@ describe('contextual dashboard and drilldown app information architecture', () =
 	});
 
 	it('keeps the rail team selector compact without a duplicate divider', () => {
-		const styles = source('src/styles/treeseed.css');
+		const styles = source('packages/ui/src/styles/app-controls.css');
 
 		expect(styles).toContain('.ts-team-switcher {\n\tmargin-bottom: 0;\n\tpadding: 0;\n\tborder-top: 0;');
 		expect(styles).toContain('grid-template-columns: minmax(0, 1fr) max-content;');
+		expect(styles).toContain('.ts-icon-button');
 		expect(styles).toContain('.ts-team-selector .ts-icon-button');
 		expect(styles).toContain('white-space: nowrap;');
 	});
@@ -253,7 +255,7 @@ describe('contextual dashboard and drilldown app information architecture', () =
 		const deploymentStatusPage = source('packages/admin/src/pages/app/projects/deployment/[id].astro');
 		const deploymentVm = source('packages/admin/src/view-models/deployment.vm.ts');
 		const apiClient = source('packages/admin/src/lib/market/api-client.ts');
-		const styles = source('src/styles/treeseed.css');
+		const styles = source('packages/ui/src/styles/operations.css');
 		const deployIndex = nav.indexOf("label: 'Deploy'");
 		expect(nav).not.toContain("label: 'Hosts'");
 		expect(nav).toContain("label: 'Overview'");
@@ -546,7 +548,8 @@ describe('contextual dashboard and drilldown app information architecture', () =
 		const appLayout = source('packages/admin/src/layouts/TreeseedAppLayout.astro');
 		const coreButton = source('@treeseed/ui/components/astro/forms/Button.astro');
 		const coreSelect = source('@treeseed/ui/components/astro/forms/Select.astro');
-		const styles = source('src/styles/treeseed.css');
+		const styles = source('packages/ui/src/styles/app-controls.css');
+		const formStyles = source('packages/ui/src/styles/forms.css');
 		const projectCreate = source('packages/admin/src/pages/app/projects/new.astro');
 		const projectSettings = source('packages/admin/src/pages/app/projects/[projectId]/settings.astro');
 		const projectHosts = source('packages/admin/src/pages/app/projects/[projectId]/hosts.astro');
@@ -668,14 +671,16 @@ describe('contextual dashboard and drilldown app information architecture', () =
 		expect(projectCreate).toContain('The short lowercase address used in project links');
 		expect(projectCreate).toContain('Core objective');
 		expect(projectCreate).toContain('name="coreObjective"');
-		expect(projectCreate).toContain('data-core-objective-editor');
-		expect(projectCreate).toContain('core-objective-mdx-editor.tsx');
+		expect(projectCreate).toContain('data-rich-markdown-editor');
+		expect(projectCreate).toContain('initializeRichMarkdownEditors');
+		expect(projectCreate).toContain("@treeseed/ui/react");
+		expect(projectCreate).not.toContain('core-objective-mdx-editor.tsx');
 		expect(projectCreate).toContain("coreObjective: value(formData, 'coreObjective')");
 		expect(projectCreate).toContain('src/content/objectives/core.md');
 		expect(projectCreate).not.toContain('label="Handle"');
 		expect(projectCreate).not.toContain('label="Purpose"');
 		expect(projectCreate).not.toContain('name="summary" rows={4}');
-		const coreObjectiveEditor = source('packages/admin/src/lib/market/core-objective-mdx-editor.tsx');
+		const coreObjectiveEditor = source('packages/ui/src/react/editors/RichMarkdownEditor.tsx');
 		for (const plugin of [
 			'diffSourcePlugin',
 			'DiffSourceToggleWrapper',
@@ -693,8 +698,10 @@ describe('contextual dashboard and drilldown app information architecture', () =
 		expect(coreObjectiveEditor).not.toContain('InsertAdmonition');
 		expect(projectSettings).toContain('Project web address');
 		expect(projectSettings).toContain('name="coreObjective"');
-		expect(projectSettings).toContain('data-core-objective-editor');
-		expect(projectSettings).toContain('core-objective-mdx-editor.tsx');
+		expect(projectSettings).toContain('data-rich-markdown-editor');
+		expect(projectSettings).toContain('initializeRichMarkdownEditors');
+		expect(projectSettings).toContain("@treeseed/ui/react");
+		expect(projectSettings).not.toContain('core-objective-mdx-editor.tsx');
 		expect(projectSettings).toContain('initializeSettingsCoreObjectiveEditor');
 		expect(projectSettings).toContain('pollCoreObjectiveJob');
 		expect(projectSettings).toContain('coreObjectiveJob');
@@ -747,7 +754,7 @@ describe('contextual dashboard and drilldown app information architecture', () =
 		expect(providerLaunch).toContain("src/content/objectives', 'core.md'");
 		expect(providerLaunch).toContain('input.coreObjective');
 		expect(styles).toContain('.ts-host-setup-grid');
-		expect(styles).toContain('.ts-core-objective-editor');
+		expect(formStyles).toContain('.ts-rich-markdown-editor');
 		expect(styles).toContain('.ts-project-lineage-card');
 		expect(styles).toContain('.ts-default-label');
 		expect(styles).toContain('.ts-link-button--primary');
@@ -839,7 +846,7 @@ describe('contextual dashboard and drilldown app information architecture', () =
 	});
 
 	it('keeps styling in shared CSS for the control interface', () => {
-		const css = source('src/styles/treeseed.css');
+		const css = source('packages/ui/src/styles/app-controls.css');
 		for (const marker of ['.ts-control-page', '.ts-plain-table', '.ts-link-button', '.ts-checkbox-group', 'prefers-reduced-motion', ':focus-visible']) {
 			expect(css).toContain(marker);
 		}

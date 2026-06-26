@@ -78,7 +78,6 @@ describe('web runtime boundaries', () => {
 			'src/pages/auth',
 			'src/pages/v1',
 			'src/pages/team-invites',
-			'src/pages/market',
 			'src/pages/templates',
 			'src/pages/u',
 			'src/pages/t',
@@ -131,11 +130,21 @@ describe('web runtime boundaries', () => {
 			.filter((path) => path !== 'packages/admin/src/commerce.ts');
 		const adminPaymentOffenders = adminSources.filter((path) => {
 			const source = readFileSync(path, 'utf8');
-			return /\b(stripe|checkout session|payment intent|seller payout|coupon)\b/iu.test(source);
+			return /(?:from ['"]stripe['"]|from ['"]@stripe\/stripe-js['"]|import\(['"]stripe['"]|import\(['"]@stripe\/stripe-js['"]|checkout session|payment intent|seller payout|coupon)/iu.test(source);
 		});
 
 		expect(adminPaymentOffenders).toEqual([]);
-		expect(existsSync('src/pages/checkout')).toBe(false);
+		expect(existsSync('src/pages/checkout')).toBe(true);
+		expect(existsSync('src/pages/marketplace/index.astro')).toBe(true);
+		expect(existsSync('src/pages/market/products/[productId].astro')).toBe(true);
+		expect(existsSync('src/pages/services/[requestId]/checkout.astro')).toBe(true);
+		expect(existsSync('src/pages/services/new.astro')).toBe(true);
+		expect(existsSync('src/pages/capacity/index.astro')).toBe(true);
+		expect(existsSync('src/pages/capacity/[listingId].astro')).toBe(true);
+		expect(existsSync('src/pages/commons/index.astro')).toBe(true);
+		expect(existsSync('src/pages/commons/questions/new.astro')).toBe(true);
+		expect(existsSync('src/pages/commons/proposals/new.astro')).toBe(true);
+		expect(existsSync('src/pages/commons/proposals/[proposalId].astro')).toBe(true);
 		expect(existsSync('src/pages/billing')).toBe(false);
 	});
 

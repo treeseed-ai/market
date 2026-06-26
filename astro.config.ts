@@ -1,14 +1,7 @@
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createTreeseedAdminSite } from '@treeseed/admin/config';
 
 const config = createTreeseedAdminSite();
-const repoRoot = dirname(fileURLToPath(import.meta.url));
-const sodiumSumoPath = resolve(
-	repoRoot,
-	'node_modules/libsodium-sumo/dist/modules-sumo-esm/libsodium-sumo.mjs',
-);
-const vitePlugins = config.vite?.plugins ?? [];
+const sodiumSumoPublicEntry = '\0treeseed-libsodium-sumo-public-entry';
 
 export default {
 	...config,
@@ -30,18 +23,21 @@ export default {
 				'@codemirror/view',
 				'@lezer/highlight',
 			])),
-			exclude: Array.from(new Set([
-				...(config.vite?.optimizeDeps?.exclude ?? []),
-				'libsodium-wrappers-sumo',
-			])),
+			exclude: config.vite?.optimizeDeps?.exclude,
 		},
 		plugins: [
-			...vitePlugins,
+			...(config.vite?.plugins ?? []),
 			{
-				name: 'treeseed-libsodium-sumo-resolve',
+				name: 'treeseed-libsodium-sumo-public-entry',
 				resolveId(source: string, importer?: string) {
 					if (source === './libsodium-sumo.mjs' && importer?.includes('libsodium-wrappers-sumo')) {
-						return sodiumSumoPath;
+						return sodiumSumoPublicEntry;
+					}
+					return null;
+				},
+				load(id: string) {
+					if (id === sodiumSumoPublicEntry) {
+						return "import sodium from 'libsodium-sumo';\nexport default sodium;\n";
 					}
 					return null;
 				},

@@ -1,0 +1,166 @@
+---
+import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import '@treeseed/ui/styles/commerce.css';
+
+const checkoutId = Astro.params.checkoutId ?? '';
+---
+
+<TreeseedPublicLayout title="Checkout" description="Confirm TreeSeed marketplace payment groups." currentPath={Astro.url.pathname}>
+	<main class="ts-commerce-page" data-checkout-id={checkoutId}>
+		<section class="ts-commerce-band">
+			<div class="ts-commerce-inner ts-commerce-hero">
+				<p class="ts-commerce-eyebrow">Grouped vendor checkout</p>
+				<h1 class="ts-commerce-title">Confirm one seller group at a time.</h1>
+				<p class="ts-commerce-lede">Stripe confirms money movement in each connected seller account. TreeSeed keeps cart, order, entitlement, and cooperative ownership snapshots authoritative.</p>
+			</div>
+		</section>
+		<section class="ts-commerce-inner ts-commerce-two-column">
+			<div class="ts-commerce-panel">
+				<div class="ts-commerce-panel-header">
+					<div>
+						<p class="ts-commerce-eyebrow">Payment groups</p>
+						<h2>Vendor confirmations</h2>
+					</div>
+					<button type="button" class="ts-commerce-button" data-variant="secondary" id="refresh-checkout">Refresh</button>
+				</div>
+				<div id="checkout-groups" class="ts-commerce-grid" aria-live="polite">Loading checkout...</div>
+			</div>
+			<aside class="ts-commerce-panel">
+				<p class="ts-commerce-eyebrow">Access</p>
+				<h2>Entitlements</h2>
+				<div id="checkout-entitlements" aria-live="polite">Waiting for confirmed groups.</div>
+			</aside>
+		</section>
+	</main>
+</TreeseedPublicLayout>
+
+<script is:inline src="https://js.stripe.com/v3/" async></script>
+<script>
+	// @ts-nocheck
+	const shell = document.querySelector('.ts-commerce-page');
+	const checkoutId = shell?.dataset.checkoutId;
+	const groupsEl = document.querySelector('#checkout-groups');
+	const entitlementsEl = document.querySelector('#checkout-entitlements');
+	const refreshButton = document.querySelector('#refresh-checkout');
+	let checkoutState = null;
+	let stripeConfig = null;
+
+	async function api(path, options = {}) {
+		const response = await fetch(path, {
+			...options,
+			headers: { 'content-type': 'application/json', ...(options.headers ?? {}) },
+		});
+		const payload = await response.json().catch(() => null);
+		if (!response.ok || !payload?.ok) throw new Error(payload?.error ?? `Request failed: ${response.status}`);
+		return payload.payload;
+	}
+
+	function cachedCheckout() {
+		try {
+			return JSON.parse(sessionStorage.getItem(`treeseed.checkout.${checkoutId}`) || 'null');
+		} catch {
+			return null;
+		}
+	}
+
+	function rememberCheckout(payload) {
+		checkoutState = payload;
+		try {
+			sessionStorage.setItem(`treeseed.checkout.${checkoutId}`, JSON.stringify(payload));
+		} catch {
+			// Session storage is a convenience cache only.
+		}
+	}
+
+	function renderEntitlements(entitlements = []) {
+		if (!entitlements.length) {
+			entitlementsEl.innerHTML = '<p class="ts-commerce-muted">No active entitlements yet.</p>';
+			return;
+		}
+		entitlementsEl.innerHTML = `<dl class="ts-commerce-kv">${entitlements.map((entitlement) => `
+			<div><dt>${entitlement.productId}</dt><dd>${entitlement.status} · ${entitlement.renewalState}</dd></div>
+		`).join('')}</dl>`;
+	}
+
+	function renderGroups(groups = []) {
+		if (!groups.length) {
+			groupsEl.innerHTML = '<p class="ts-commerce-muted">No payment groups found.</p>';
+			return;
+		}
+		groupsEl.innerHTML = groups.map((group) => `
+			<article class="ts-commerce-card" data-group-id="${group.id}">
+				<div class="ts-commerce-panel-header">
+					<div>
+						<p class="ts-commerce-eyebrow">${group.groupKind}</p>
+						<h3>${group.currency.toUpperCase()} ${(group.totalAmount / 100).toFixed(2)}</h3>
+					</div>
+					<span class="ts-status-pill" data-tone="${group.status === 'succeeded' ? 'success' : 'muted'}">${group.status}</span>
+				</div>
+				<p>Seller account ${group.connectedAccountId || 'not required'}.</p>
+				<div class="ts-commerce-actions">
+					${group.status === 'succeeded' ? '<span class="ts-commerce-muted">Confirmed</span>' : `<button type="button" class="ts-commerce-button" data-confirm="${group.id}">${group.clientSecret ? 'Confirm securely' : 'Prepare confirmation'}</button>`}
+				</div>
+			</article>
+		`).join('');
+		for (const button of groupsEl.querySelectorAll('[data-confirm]')) {
+			button.addEventListener('click', () => confirmGroup(groups.find((group) => group.id === button.dataset.confirm)));
+		}
+	}
+
+	async function loadCheckout() {
+		try {
+			const fresh = await api(`/v1/commerce/checkouts/${encodeURIComponent(checkoutId)}`);
+			const cached = cachedCheckout();
+			const cachedGroups = new Map((cached?.paymentGroups ?? []).map((group) => [group.id, group]));
+			fresh.paymentGroups = (fresh.paymentGroups ?? []).map((group) => ({ ...group, clientSecret: cachedGroups.get(group.id)?.clientSecret ?? group.clientSecret ?? null }));
+			rememberCheckout(fresh);
+			renderGroups(fresh.paymentGroups ?? []);
+			renderEntitlements(fresh.entitlements ?? []);
+		} catch (error) {
+			groupsEl.innerHTML = `<p class="ts-commerce-error">${error instanceof Error ? error.message : 'Checkout could not be loaded.'}</p>`;
+		}
+	}
+
+	async function loadStripeConfig() {
+		if (stripeConfig) return stripeConfig;
+		stripeConfig = await api('/v1/commerce/stripe/config');
+		return stripeConfig;
+	}
+
+	async function refreshGroup(group) {
+		const payload = await api(`/v1/commerce/payment-groups/${encodeURIComponent(group.id)}/refresh`, { method: 'POST', body: '{}' });
+		const nextGroup = { ...(payload.paymentGroup ?? payload.group), clientSecret: payload.clientSecret ?? null };
+		const next = checkoutState ?? cachedCheckout() ?? { paymentGroups: [] };
+		next.paymentGroups = (next.paymentGroups ?? []).map((entry) => entry.id === nextGroup.id ? nextGroup : entry);
+		rememberCheckout(next);
+		return nextGroup;
+	}
+
+	async function confirmGroup(group) {
+		if (!group) return;
+		try {
+			let nextGroup = group.clientSecret ? group : await refreshGroup(group);
+			if (!nextGroup.clientSecret) {
+				await loadCheckout();
+				throw new Error('This group is not ready for buyer confirmation yet. Refresh from cart or contact the seller if it stays pending.');
+			}
+			const config = await loadStripeConfig();
+			const stripeFactory = window.Stripe;
+			if (!stripeFactory) throw new Error('Stripe.js is still loading.');
+			const stripe = stripeFactory(config.publishableKey, nextGroup.connectedAccountId ? { stripeAccount: nextGroup.connectedAccountId } : undefined);
+			const result = await stripe.confirmPayment({
+				clientSecret: nextGroup.clientSecret,
+				confirmParams: { return_url: window.location.href },
+				redirect: 'if_required',
+			});
+			if (result.error) throw new Error(result.error.message ?? 'Stripe confirmation failed.');
+			await refreshGroup(nextGroup);
+			await loadCheckout();
+		} catch (error) {
+			groupsEl.insertAdjacentHTML('afterbegin', `<p class="ts-commerce-error">${error instanceof Error ? error.message : 'Payment confirmation failed.'}</p>`);
+		}
+	}
+
+	refreshButton?.addEventListener('click', loadCheckout);
+	loadCheckout();
+</script>

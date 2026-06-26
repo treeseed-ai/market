@@ -1,0 +1,101 @@
+schemaVersion: treeseed.scene/v1
+id: site-visual-audit
+title: Site Visual Audit
+description: Capture a role and device screenshot matrix for user-facing TreeSeed routes.
+audience:
+  - operator
+  - designer
+  - qa
+
+mode:
+  test: true
+  demo: false
+  training: false
+
+target:
+  app: market
+  environment: local
+  baseUrl: auto
+  browser: chromium
+  viewport:
+    width: 1600
+    height: 900
+
+devices:
+  defaultProfile: desktop
+  profiles:
+    - id: desktop
+      title: Desktop
+      orientation: landscape
+      viewport: { width: 1600, height: 900 }
+      video: { width: 1600, height: 900 }
+      output: { width: 1920, height: 1080 }
+      deviceScaleFactor: 1
+      isMobile: false
+      hasTouch: false
+    - id: tablet
+      title: Tablet
+      orientation: landscape
+      viewport: { width: 1024, height: 768 }
+      video: { width: 1024, height: 768 }
+      output: { width: 1440, height: 1080 }
+      deviceScaleFactor: 1
+      isMobile: true
+      hasTouch: true
+    - id: mobile
+      title: Mobile
+      orientation: portrait
+      viewport: { width: 390, height: 844 }
+      video: { width: 390, height: 844 }
+      output: { width: 1080, height: 1920 }
+      deviceScaleFactor: 2
+      isMobile: true
+      hasTouch: true
+
+setup:
+  dev:
+    required: true
+    reuseExisting: true
+
+artifacts:
+  trace: false
+  video: false
+  screenshots: true
+  console: true
+  network: false
+  timeline: true
+  appLogs: false
+
+runtime:
+  mode: acceptance
+  failure:
+    continueOnFailure: true
+  checkpoints:
+    enabled: false
+
+workflow:
+  - id: visual-audit-ready
+    title: Visual audit route discovery is ready
+    action:
+      pause:
+        mode: timed
+        durationSeconds: 1
+    demoOnly: true
+
+visualAudit:
+  enabled: true
+  roles:
+    - anonymous
+    - owner
+    - admin
+    - member
+  pathRoots: []
+  includeFullPage: false
+  routeDiscovery:
+    core: true
+    admin: true
+    tenantOverrides: true
+    contentCollections: true
+
+training:
+  enabled: false

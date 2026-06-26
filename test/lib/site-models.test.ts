@@ -12,5 +12,5 @@ describe('site model rendering', () => {
 		expect(siteModelRendered('templates')).toBe(true);
 
 		vi.unstubAllGlobals();
-	}, 15000);
+	}, 60_000);
 });

@@ -76,6 +76,7 @@ describe('UI migration completion', () => {
 		expect(css).toContain('market-product-card');
 		expect(css).toContain('ts-member-row');
 		expect(css).not.toMatch(/--(?:site|kc)-/u);
+		expect(source('src/pages/index.astro')).toContain("import '../styles/treeseed.css'");
 
 		const docsPath = 'docs/ui-components.md';
 		expect(existsSync(resolve(process.cwd(), docsPath))).toBe(true);

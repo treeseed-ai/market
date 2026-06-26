@@ -14,7 +14,7 @@ Reusable TreeSeed web UI now lives in `@treeseed/ui`. Import Astro components fr
 
 - `@treeseed/ui` owns reusable components, shells, forms, controls, cards, operation panels, auth surfaces, theme utilities, React widgets, and CSS primitives.
 - `@treeseed/admin` owns admin route composition, data binding, auth/session flow, admin view models, and workflow orchestration.
-- root `@treeseed/market` owns tenant content, public messaging, page overrides, Treeseed branding, and future ecommerce presentation.
+- root `@treeseed/market` owns tenant content, public messaging, page overrides, Treeseed branding, buyer marketplace pages, and Commons participant pages.
 - `@treeseed/core` owns generic site runtime and plugin/layout integration hooks, not layout-down product components.
 - `@treeseed/api`, `@treeseed/sdk`, `@treeseed/cli`, `@treeseed/agent`, and TreeDX own non-visual runtime behavior.
 

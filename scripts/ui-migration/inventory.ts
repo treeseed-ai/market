@@ -73,6 +73,9 @@ const adminProductRoutePaths = [
 	'packages/admin/src/pages/app/capacity/runtime.astro',
 	'packages/admin/src/pages/app/capacity/workday-runs/[runId].astro',
 	'packages/admin/src/pages/app/capacity/workday-runs/index.astro',
+	'packages/admin/src/pages/app/commons/index.astro',
+	'packages/admin/src/pages/app/commons/participants.astro',
+	'packages/admin/src/pages/app/commons/proposals/[proposalId].astro',
 	'packages/admin/src/pages/app/hosts/[hostType]/[hostId].astro',
 	'packages/admin/src/pages/app/hosts/[hostType]/[hostId]/settings.astro',
 	'packages/admin/src/pages/app/hosts/[hostType]/new.astro',
@@ -117,6 +120,14 @@ const adminProductRoutePaths = [
 	'packages/admin/src/pages/app/services.astro',
 	'packages/admin/src/pages/app/teams/[teamId]/delete.astro',
 	'packages/admin/src/pages/app/teams/[teamId]/edit.astro',
+	'packages/admin/src/pages/app/teams/[teamId]/commerce.astro',
+	'packages/admin/src/pages/app/teams/[teamId]/commerce/capacity.astro',
+	'packages/admin/src/pages/app/teams/[teamId]/commerce/capacity/[listingId].astro',
+	'packages/admin/src/pages/app/teams/[teamId]/commerce/products.astro',
+	'packages/admin/src/pages/app/teams/[teamId]/commerce/products/[productId]/governance.astro',
+	'packages/admin/src/pages/app/teams/[teamId]/commerce/sales.astro',
+	'packages/admin/src/pages/app/teams/[teamId]/commerce/services.astro',
+	'packages/admin/src/pages/app/teams/[teamId]/commerce/services/[requestId].astro',
 	'packages/admin/src/pages/app/teams/[teamId]/members.astro',
 	'packages/admin/src/pages/app/teams/index.astro',
 	'packages/admin/src/pages/app/teams/new.astro',
@@ -192,7 +203,22 @@ const coreRoutePaths = [
 	'packages/core/src/pages/ui/index.astro',
 ] as const;
 
-const marketRoutePaths = ['src/pages/index.astro'] as const;
+const marketRoutePaths = [
+	'src/pages/capacity/[listingId].astro',
+	'src/pages/capacity/index.astro',
+	'src/pages/cart.astro',
+	'src/pages/checkout/[checkoutId].astro',
+	'src/pages/commons/index.astro',
+	'src/pages/commons/proposals/[proposalId].astro',
+	'src/pages/commons/proposals/new.astro',
+	'src/pages/commons/questions/new.astro',
+	'src/pages/index.astro',
+	'src/pages/market/products/[productId].astro',
+	'src/pages/marketplace/index.astro',
+	'src/pages/services/[requestId].astro',
+	'src/pages/services/[requestId]/checkout.astro',
+	'src/pages/services/new.astro',
+] as const;
 
 function readSource(path: string): string {
 	return existsSync(path) ? readFileSync(path, 'utf8') : '';
@@ -334,6 +360,12 @@ function inferResourceType(routePattern: string): string {
 	if (routePattern.includes('/projects/deployment')) return 'deployment';
 	if (routePattern.includes('/projects')) return 'project';
 	if (routePattern.includes('/knowledge-packs')) return 'knowledge-pack';
+	if (routePattern.includes('/market/products')) return 'market-product';
+	if (routePattern.includes('/marketplace')) return 'marketplace';
+	if (routePattern.includes('/cart')) return 'cart';
+	if (routePattern.includes('/checkout')) return 'checkout';
+	if (routePattern.includes('/services')) return 'service-request';
+	if (routePattern.includes('/commons')) return 'commons-governance';
 	if (routePattern.includes('/templates')) return 'template';
 	if (routePattern.includes('/knowledge')) return 'knowledge-artifact';
 	if (routePattern.includes('/books') || routePattern.includes('/docs-runtime')) return 'book-page';
@@ -361,6 +393,48 @@ export const routeInventory: RouteInventoryEntry[] = [
 	...adminProductRoutePaths.map((sourcePath) => route(sourcePath)),
 	...coreRoutePaths.map((sourcePath) => route(sourcePath)),
 ].map((entry) => {
+	if (
+		entry.sourcePath.startsWith('src/pages/capacity/')
+		|| entry.sourcePath === 'src/pages/cart.astro'
+		|| entry.sourcePath.startsWith('src/pages/checkout/')
+		|| entry.sourcePath.startsWith('src/pages/commons/')
+		|| entry.sourcePath.startsWith('src/pages/market/products/')
+		|| entry.sourcePath === 'src/pages/marketplace/index.astro'
+		|| entry.sourcePath.startsWith('src/pages/services/')
+		|| entry.sourcePath.startsWith('packages/admin/src/pages/app/commons/')
+		|| entry.sourcePath.includes('/commerce')
+	) {
+		const isAdmin = entry.sourcePath.startsWith('packages/admin/');
+		const isDetail = entry.routePattern.includes('/:');
+		const isForm = entry.routePattern.endsWith('/new') || entry.routePattern.endsWith('/checkout') || entry.routePattern.endsWith('/governance');
+		return {
+			...entry,
+			currentShell: isAdmin ? 'ProductShell' : 'PublicShell',
+			targetShell: isAdmin ? 'ProductShell' : 'PublicShell',
+			targetTemplate: isForm
+				? 'settings'
+				: isDetail
+					? 'detail'
+					: entry.routePattern === '/cart' || entry.routePattern === '/marketplace' || entry.routePattern.endsWith('/commerce')
+						? 'dashboard'
+						: 'collection',
+			surfaceContext: isAdmin ? 'team' : entry.routePattern.startsWith('/commons') ? 'market' : 'market',
+			maturityLevel: 10,
+			migrationDifficulty: 'medium',
+			userValue: 'high',
+			risk: entry.routePattern.includes('/checkout') || entry.sourcePath.includes('/commerce') ? 'high' : 'medium',
+			firstSliceCandidate: 'Phase 10 marketplace acquisition, seller operations, and Commons governance sweep',
+			deletionBlocker: 'Phase 10 route is current active marketplace/Commons implementation; replacement must preserve public/private policy, entitlement or governance state, shell help/feedback, and no compatibility redirects.',
+			requiredTestsBeforeDeletion: ['UI migration guard', 'Phase 10 commerce/Commons route guards', 'marketplace action-state tests', 'policy-safe rendering tests'],
+			targetDeletionPhase: 'none while active; reassess after commerce capability registry reaches acceptance',
+			dataSource: isAdmin
+				? 'Market API commerce and Commons governance projections mapped through admin route view models'
+				: 'public marketplace, checkout, service, capacity, and Commons projections from Market API facades',
+			policyNeeds: isAdmin
+				? ['team membership', 'seller/governance authority', 'resolved commerce actions', 'shell help/feedback policy']
+				: ['public read', 'anonymous-safe checkout or participation', 'entitlement/governance-aware action resolution'],
+		};
+	}
 	if (
 		entry.sourcePath === 'packages/admin/src/pages/app/knowledge.astro'
 		|| entry.sourcePath.startsWith('packages/admin/src/pages/app/knowledge/')

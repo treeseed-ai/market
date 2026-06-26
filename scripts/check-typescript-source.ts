@@ -16,6 +16,8 @@ const ignoredDirectories = new Set([
 ]);
 
 const allowedDeclarationFiles = new Set([
+	// Ambient declaration for Astro's virtual content module used by admin package source tests.
+	'packages/admin/src/types/astro-content.d.ts',
 	'packages/admin/src/env.d.ts',
 	'packages/core/src/types/astro-build.d.ts',
 	'packages/core/src/types/cloudflare-sockets.d.ts',
