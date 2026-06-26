@@ -73,7 +73,7 @@
     "@mdxeditor/editor": "^4.0.1",
     "@react-email/render": "^2.0.8",
     "@treeseed/admin": "^0.11.1-dev.demo.20260625T233727Z",
-    "@treeseed/agent": "^0.11.1-dev.demo.20260625T152622Z",
+    "@treeseed/agent": "^0.11.1-dev.demo.20260626T000228Z",
     "@treeseed/cli": "^0.11.1-dev.demo.20260625T235346Z",
     "@treeseed/core": "^0.11.1-dev.demo.20260625T233020Z",
     "@treeseed/sdk": "^0.11.1-dev.demo.20260625T151401Z",
