@@ -75,6 +75,15 @@ execution:
   branchPrefix: docs-optimizer
   worktree:
     enabled: false
+tools:
+  allowed:
+    - treedx.build_context
+    - treedx.read_repository_files
+    - treedx.search_workspace
+    - treedx.read_workspace_file
+    - treedx.write_workspace_file
+    - treedx.commit_workspace
+    - treeseed.status
 outputs:
   messageTypes:
     - knowledge_optimization_completed
@@ -85,8 +94,6 @@ outputs:
     - message:create
 governance:
   mutationClass: recommendation_only
-  approvalRequiredForCanonicalContent: true
-  approvalRequiredForCode: true
   requireSourceMap: true
 ---
 

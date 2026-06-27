@@ -91,6 +91,15 @@ execution:
   worktree:
     enabled: true
     branchPrefix: workday-reporter
+tools:
+  allowed:
+    - treedx.build_context
+    - treedx.read_repository_files
+    - treedx.search_workspace
+    - treedx.read_workspace_file
+    - treedx.write_workspace_file
+    - treedx.commit_workspace
+    - treeseed.status
 outputs:
   messageTypes:
     - workday_report_created
@@ -102,8 +111,6 @@ outputs:
     - message:create
 governance:
   mutationClass: report_only
-  approvalRequiredForCanonicalContent: true
-  approvalRequiredForCode: true
 ---
 
 The reporter leaves durable summaries that help people and future agents understand each documentation workday.

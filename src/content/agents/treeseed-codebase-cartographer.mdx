@@ -89,6 +89,13 @@ execution:
   branchPrefix: docs-cartographer
   worktree:
     enabled: false
+tools:
+  allowed:
+    - treedx.build_context
+    - treedx.read_repository_files
+    - treedx.search_workspace
+    - treedx.read_workspace_file
+    - treeseed.status
 outputs:
   messageTypes:
     - codebase_inventory_completed
@@ -100,8 +107,6 @@ outputs:
     - message:create
 governance:
   mutationClass: research_only
-  approvalRequiredForCanonicalContent: true
-  approvalRequiredForCode: true
   requireSourceMap: true
 ---
 

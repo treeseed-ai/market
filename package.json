@@ -77,7 +77,7 @@
     "@treeseed/cli": "^0.11.1-dev.demo.20260626T213821Z",
     "@treeseed/core": "^0.11.1-dev.demo.20260626T213821Z",
     "@treeseed/sdk": "^0.11.1-dev.demo.20260626T213709Z",
-    "@treeseed/ui": "github:treeseed-ai/ui#bb8c43b55d87a52108ac82052e8e3985229303e5",
+    "@treeseed/ui": "^0.11.1-dev.demo.20260626T024152Z",
     "codemirror": "^6.0.2",
     "react": "^19.2.5",
     "react-dom": "^19.2.6"

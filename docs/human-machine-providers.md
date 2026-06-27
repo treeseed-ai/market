@@ -32,7 +32,11 @@ provider check-in -> next assignment -> lease renewal -> mode-run telemetry -> c
 
 Handlers are provider-independent algorithms. Providers are execution mechanisms. First-party agents use the generic handler set `plan`, `research`, `act`, `review`, and `report`; project agent classes and `handlerConfig.domain` carry role semantics such as implementation, documentation review, release readiness, or codebase cartography. The same generic handlers can work across AI, deterministic automation, and human issue queues when their capability requirements match provider supply.
 
-TreeDX-backed content access is the default SDK and assignment runtime path. Execution provider invocations may include a redacted `treedx_proxy` tool descriptor when the assignment has a scoped proxy handle. AI providers such as Codex use that descriptor for TreeDX tool guidance and assignment-scoped MCP configuration metadata; human issue queues such as GitHub Issues render safe route templates, allowed operations, allowed paths, and required header names into the issue body. No execution provider prompt, issue, snapshot, log, or artifact should contain raw TreeDX credentials, provider API keys, GitHub tokens, or repository deploy keys.
+TreeDX-backed content access is the default SDK and assignment runtime path. Execution provider invocations may include redacted `agent_tool` descriptors when the agent content definition allows those tools and the assignment has the required scoped handles. AI providers such as Codex use the catalog through assignment-scoped MCP configuration metadata; human issue queues such as GitHub Issues render safe route templates, allowed operations, allowed paths, and required header names into the issue body. Model-aware content tools expose generic `treeseed.content.*` commands plus generated model presets while sharing one SDK-backed renderer and validator. No execution provider prompt, issue, snapshot, log, or artifact should contain raw TreeDX credentials, provider API keys, GitHub tokens, or repository deploy keys.
+
+Codex live proof uses an isolated temporary `CODEX_HOME` with copied auth and sanitized config. The live proof must not edit a developer's real `~/.codex/config.toml`; unsupported local values such as `service_tier = "default"` are reported as readiness warnings and bypassed by the isolated live-test home.
+
+GitHub Copilot live proof uses the Copilot SDK native custom-tool interface. TreeSeed assignment tools are translated from the same execution-provider descriptors into Copilot custom tools, and the handlers call the shared `callAgentToolWithTelemetry()` runtime. Copilot authentication prefers the account-scoped `TREESEED_GITHUB_COPILOT_TOKEN`, translated at the managed tool boundary; if it is absent, the adapter can fall back to `TREESEED_GITHUB_TOKEN` for compatibility. The token must be accepted by GitHub Copilot and fine-grained PATs need the Copilot Requests permission.
 
 The design goal is that it must be easy for capacity providers to orchestrate humans and machines to achieve common objectives through cooperative decisions. That means humans, AI providers, and deterministic workflows should all receive the same bounded assignments, report comparable status and usage, and remain governed by the same decision readiness, capacity plan, and assignment lifecycle records.
 
@@ -107,6 +111,8 @@ Do not add:
 ## Current State
 
 Agent definitions are project content. In the root Market project they live under `src/content/agents` as MDX files. Their frontmatter is normalized into `AgentRuntimeSpec` from `@treeseed/sdk/types/agents`. The current execution config lives under the MDX `execution` frontmatter.
+
+Agent definitions separate content access from tool access. `contentAccess` grants handler/runtime permission for content models, actions, relations, books, paths, and commit capability. `tools.allowed` grants execution-provider callable tools. A handler may use SDK content operations that `contentAccess` permits without exposing those operations to Codex, Copilot, GitHub Issues, or another execution provider.
 
 The retired agent execution adapter was prompt-centric:
 

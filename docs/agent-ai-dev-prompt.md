@@ -64,12 +64,18 @@ For parity or runtime package work, also inspect:
 ```bash
 npm -w packages/agent run capacity-provider:build
 npm -w packages/agent run capacity-provider:test-local
+npm -w packages/agent run test:agent-tools
 npm -w packages/agent run verify:local
 ```
+
+For Knowledge Hub content work, use model-aware TreeSeed content tools when they are present. Do not hand-write frontmatter for questions, proposals, notes, decisions, books, knowledge pages, people, or agents when a `treeseed.content.*` or generated model preset tool is available. `contentAccess` controls the models and actions an agent or handler may use; `tools.allowed` controls only the callable tools exposed to an execution provider.
 
 `capacity-provider:test-local` exercises Docker when available. A local container
 healthcheck may warn about missing Codex auth; staging and production doctor
 checks should remain strict about missing hosted credentials or stub providers.
+Live Codex tool proof is opt-in and should only run with explicit budget intent:
+`TREESEED_AGENT_LIVE_CODEX=1 npm -w packages/agent run test:agent-tools:live`.
+For GitHub Copilot native custom-tool proof, use `TREESEED_AGENT_LIVE_COPILOT=1 npm -w packages/agent run test:agent-tools:live-copilot`; the preferred configured credential is `TREESEED_GITHUB_COPILOT_TOKEN` with Copilot Requests permission. The adapter can fall back to `TREESEED_GITHUB_TOKEN` for compatibility.
 
 ## Local Runtime Setup
 

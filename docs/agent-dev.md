@@ -351,18 +351,22 @@ kind: implementation
 agent_role: engineer
 human_gate: release_only; feature_branch_mutation_and_staging_allowed_by_policy
 operations:
-  handler_controlled:
-    - switch
-    - save
-    - stage
-    - close
-    - merge_to_staging
-  agent_visible:
-    - dev:readiness
-    - verify
-    - save_request
-  forbidden:
-    - release
+  tools_allowed:
+    - treedx.build_context
+    - treedx.read_workspace_file
+    - treedx.write_workspace_file
+    - treedx.commit_workspace
+    - treeseed.status
+    - treeseed.dev_plan
+    - treeseed.changed_paths
+    - treeseed.verify
+  handler_lifecycle:
+    - create_or_resume_isolated_worktree
+    - canonical_verification
+    - save_verified_snapshot
+    - stage_approved_paths
+    - merge_verified_branch_to_staging
+    - close_assignment
   deterministic_steps:
     before_mutation:
       - switch:create_or_resume_isolated_worktree
@@ -375,7 +379,7 @@ operations:
     after_verification_passes:
       - save:verified_snapshot
       - stage:approved_paths_only
-      - merge_to_staging
+      - merge_verified_branch_to_staging
       - close:staged
     after_verification_fails:
       - save:failure_snapshot
@@ -384,7 +388,7 @@ operations:
       - save:merge_failure_snapshot
       - create_repair_task
       - close:merge_failed
-  auto_merge_to_staging_when_verified: true
+  auto_merge_verified_branch_when_verified: true
   release_requires_human_approval: true
 allowed_paths:
   - packages/agent/src/agents/adapters/execution-codex.ts
@@ -1427,7 +1431,7 @@ Provider-neutral operation request:
 
 ```ts
 export interface AgentOperationRequest {
-  operation: 'switch' | 'dev' | 'verify' | 'save' | 'stage' | 'merge_to_staging' | 'close' | 'release';
+  operation: 'switch' | 'dev' | 'verify' | 'save' | 'stage' | 'close' | 'release';
   mode: 'dry_run' | 'read_only' | 'mutating';
   taskId: string;
   workDayId?: string;
@@ -1439,7 +1443,6 @@ export interface AgentOperationRequest {
   worktreeRoot?: string;
   featureBranch?: string;
   stagingBranch?: string;
-  approvalId?: string;
   permissionGrantId?: string;
   input: Record<string, unknown>;
 }
@@ -1479,8 +1482,8 @@ export interface AgentOperationResult {
 Required behavior:
 
 * Operations must be invoked through SDK operation dispatch, not arbitrary shell commands.
-* State-changing shared-repository operations must be handler-controlled by default.
-* Every operation invocation must check agent role, task kind, environment, approval state, allowed paths, forbidden paths, feature branch, staging branch, and assigned worktree root.
+* State-changing shared-repository lifecycle steps must be handler-controlled by default.
+* Every operation invocation must check agent role, task kind, environment, allowed paths, forbidden paths, feature branch, staging branch, and assigned worktree root.
 * Every operation result must be written to task events.
 * `release` must always require a human-approved release decision.
 * Feature-branch-to-staging merges may run automatically when verification and branch policy pass.
@@ -1488,7 +1491,7 @@ Required behavior:
 * `save` must produce a coherent snapshot summary that can be reviewed later.
 * `switch` must create or resume an isolated worktree before mutation.
 * `verify` may be run flexibly by the agent in the worktree, but canonical verification is run by the handler.
-* `merge_to_staging` must capture conflicts as structured failure context and create a repair task instead of silently failing.
+* Feature-branch-to-staging merge failures must capture conflicts as structured failure context and create a repair task instead of silently failing.
 * `close` must summarize what happened and mark any unresolved follow-up decisions.
 
 ### 11.1 Workday manager
@@ -2033,7 +2036,7 @@ Goal: let Codex help implement documentation changes safely inside isolated agen
 
 Tasks:
 
-* Require operation grants for handler-controlled `switch`, `verify`, `save`, `stage`, `merge_to_staging`, and `close`.
+* Require explicit agent content `tools.allowed` for every tool the execution provider may call.
 * Require release approval only for production release, not feature-branch mutation.
 * Require allowed paths.
 * Use isolated git worktree mutation provider.
@@ -2042,7 +2045,7 @@ Tasks:
 * Allow Codex to run flexible tests inside the worktree.
 * Run canonical content validation and package verification through the handler.
 * Record changed paths.
-* Run deterministic operation sequence: `switch/create worktree -> dev/readiness -> Codex execution in worktree -> canonical verify -> save verified snapshot -> stage approved paths -> merge_to_staging -> close`.
+* Run deterministic handler lifecycle: `create worktree -> dev/readiness -> Codex execution in worktree -> canonical verify -> save verified snapshot -> stage approved paths -> merge verified branch to staging -> close`.
 * On verification failure, save failure snapshot and retry or close failed with structured context.
 * On staging merge failure, create repair task with conflict context.
 * Reviewer verifies scope, staged files, operation events, merge status, and verification.
@@ -2300,21 +2303,21 @@ No code mutation in dogfood test.
 
 ### 16.0 Operations permission rules
 
-Operations commands are agent superpowers and must be governed as first-class permissions.
+Assignment tools are agent superpowers and must be governed as first-class content definition permissions.
 
 Rules:
 
-* `switch`, `save`, `stage`, `merge_to_staging`, `close`, and `release` require explicit grants when they can change state.
-* State-changing shared-repository operations are handler-controlled by default.
+* Agents may call only tools listed in `tools.allowed`; omitted tools are unavailable.
+* State-changing shared-repository lifecycle steps are handler-controlled by default.
 * Agents may edit and test only inside their assigned isolated worktree.
 * `dev --plan`, readiness checks, status checks, and worktree-local verification may be granted in read-only or worktree-scoped mode.
 * Canonical verification must be run by the handler before staging.
 * `stage` must only stage files inside the approved path set and only after canonical verification passes.
 * `save` must record a coherent change summary and changed paths for verified snapshots, failure snapshots, and merge-failure snapshots.
-* `merge_to_staging` must capture conflicts and create structured repair tasks instead of requiring manual human conflict resolution by default.
+* Feature-branch-to-staging merge failures must capture conflicts and create structured repair tasks instead of requiring manual human conflict resolution by default.
 * `close` must record outcome, unresolved risks, follow-up questions, staging status, repair task ids, and pending approvals.
 * `release` must require explicit human release approval every time.
-* Agent prompts and work packages must name the operations the handler may run and the tools the agent may use in the worktree.
+* Agent prompts and work packages must name the tools the agent may use in the worktree.
 * Operation calls must be recorded in task events and workday reports.
 
 ### 16.1 No mutation without decision
@@ -2513,7 +2516,7 @@ Fields:
 
 ### PR 12: Operations lifecycle in handlers
 
-* Wire deterministic worktree creation/switch, `dev`, canonical verification, `save`, `stage`, `merge_to_staging`, and `close` steps into implementation handlers.
+* Wire deterministic worktree creation/switch, `dev`, canonical verification, `save`, `stage`, staging merge, and `close` steps into implementation handlers.
 * Allow agents to edit/test only inside assigned worktrees.
 * Save failure snapshots when verification fails.
 * Create repair tasks when staging merges fail.
@@ -2533,7 +2536,7 @@ As of 2026-05-13, this plan is implemented across the planned package and Market
 
 Implemented coverage includes:
 
-* SDK declarative context query contracts, operation-as-agent-tool contracts, provider metadata, and Codex-related environment metadata.
+* SDK declarative context query contracts, assignment tool registry contracts, provider metadata, and Codex-related environment metadata.
 * Agent context processing, package-owned research/knowledge/optimizer handlers, workday orchestration, runtime readiness, operation adapters, Codex provider readiness/execution, worktree-scoped docs mutation, knowledge promotion, human-gated release approval, artifact APIs, operation observability, reports, and local E2E verification harnesses.
 * Capacity provider runtime: `@treeseed/agent` now owns provider API, provider
   manager, provider runner, AgentKernel execution, mode scheduling, provider
@@ -2563,7 +2566,7 @@ The plan is complete when all of these are true:
 8. Optimizer scores and improves drafts.
 9. Drafts appear in the API and web UI.
 10. Humans can approve production release, reject release, or request more research from the UI.
-11. Operations commands are exposed as permissioned SDK tools for agents.
+11. Assignment-scoped tools are exposed from the agent content definition through provider tool catalogs and local MCP where supported.
 12. Approved implementation handlers deterministically create/switch isolated worktrees, run canonical verification, save snapshots, stage approved paths, merge to staging, and close.
 13. Agents can flexibly test and request saves inside their own worktrees without mutating the shared repository checkout.
 14. Verified feature branches can merge automatically into staging, and merge failures create structured repair tasks.
@@ -2583,9 +2586,8 @@ The implementation target is complete. Use this checklist before staging or rele
 
 * Review diffs by subsystem: SDK contracts, agent runtime/workday, Codex/worktrees, API/UI, docs, and tests.
 * Confirm intentional compatibility and fallback paths are clear in code and tests:
-  * generic `merge_to_staging` in the operations adapter is policy-only;
-  * concrete feature-to-staging merge execution lives in implementation and knowledge-promotion lifecycles;
-  * promotion requests wait for an approval decision, not for a missing approval surface;
+  * concrete feature-to-staging merge execution lives inside implementation and knowledge-promotion lifecycles, not as a public SDK operation;
+  * release requests wait for an approval decision;
   * `releaseAttempted: false` and `stagingAttempted: false` in disconnected, unavailable, and waiting paths mean no unsafe side effect occurred.
 * Ensure no generated temp files, secrets, local auth material, or accidental `.agent-worktrees` artifacts are tracked.
 * Run final verification:

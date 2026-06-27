@@ -913,6 +913,12 @@ execution:
   leaseSeconds: 300
   retryLimit: 3
   branchPrefix: docs-planner
+tools:
+  allowed:
+    - treedx.build_context
+    - treedx.search_workspace
+    - treedx.read_workspace_file
+    - treeseed.status
 outputs:
   messageTypes:
     - documentation_gap_detected
@@ -927,8 +933,8 @@ outputs:
     - message:create
 governance:
   mutationClass: planning_only
-  approvalRequiredForCanonicalContent: true
-  approvalRequiredForCode: true
+  decisionRequiredForCanonicalContent: true
+  decisionRequiredForCode: true
 ---
 
 The planning agent keeps background documentation automation focused on the highest-value, evidence-backed work.
@@ -1800,8 +1806,8 @@ workPolicy:
     maxResearchTasksPerWorkday: 8
     maxDraftsPerWorkday: 5
     maxMutationsPerWorkday: 2
-    requireHumanApprovalForPromotion: true
-    requireHumanApprovalForRelease: true
+    requireDecisionForPromotion: true
+    requireDecisionForRelease: true
 ```
 
 ---
@@ -2454,8 +2460,8 @@ docsAutomation:
   maxDraftsPerWorkday: 5
   maxMutationsPerWorkday: 2
   requireSourceMap: true
-  requireHumanApprovalForCanonicalKnowledge: true
-  requireHumanApprovalForRelease: true
+  requireDecisionForCanonicalKnowledge: true
+  requireDecisionForRelease: true
   allowedWritePaths:
     - docs/**
     - src/content/knowledge/**
