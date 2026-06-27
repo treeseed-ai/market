@@ -81,11 +81,13 @@ Railway
   public TreeDX federation services
 
 Capacity providers
-  packages/agent provider image with manager and runner runtime roles
+  packages/agent provider manager and runner runtime roles
 
 TreeDX
   packages/treedx images consumed by API hosting
 ```
+
+Development and staging package manifests use exact GitHub commit refs for internal Treeseed dependencies. Staging Railway deploys `packages/api` API/runner, `packages/agent` capacity-provider manager/runner, and `packages/treedx` public federation nodes from GitHub source at the selected branch/commit. Production release rewrites installable package dependencies to npm semantic versions and deploys Docker-backed services from semantic Docker image tags. Routine staging saves and promotions must not create dev Git tags or publish development Docker images.
 
 `@treeseed/admin` does not own a package-local `treeseed.site.yaml`. It is a site layer/plugin consumed by a host application. In this workspace, the root market app is the host.
 

@@ -2,7 +2,7 @@
 
 This runbook documents the Railway services used by the API backend after the API package split. It is an inventory and reconciliation runbook, not a direct Railway mutation procedure.
 
-Capacity-provider deployment is separate and owned by `@treeseed/agent`; see the capacity commands at the end of this document for that path.
+Capacity-provider runtime behavior is owned by `@treeseed/agent`. The API hosting manifest owns the staging Railway service bindings for the provider manager and runner so the integrated control plane can reconcile them in one API hosting plan.
 
 Current package ownership:
 
@@ -21,6 +21,9 @@ See [Package Ownership](./package-ownership.md) for the full system map.
 ```text
 api
   Railway service name: treeseed-api
+  staging sourceMode: git
+  staging sourceRepo: treeseed-ai/api
+  prod sourceMode: image
   rootDir: packages/api
   buildCommand: npm run build
   startCommand: npm run start:api
@@ -29,6 +32,9 @@ api
 
 operationsRunner
   Railway service name: treeseed-api-operations-runner-01
+  staging sourceMode: git
+  staging sourceRepo: treeseed-ai/api
+  prod sourceMode: image
   rootDir: packages/api
   buildCommand: npm run build
   startCommand: npm run start:runner
@@ -39,9 +45,40 @@ operationsRunner
 apiDatabase
   Railway PostgreSQL service
   serviceTargets: api, operationsRunner
+
+capacityProviderManager
+  Railway service name: treeseed-agent-manager
+  staging sourceMode: git
+  staging sourceRepo: treeseed-ai/agent
+  prod sourceMode: image
+  buildCommand: npm run build
+  startCommand: node ./dist/provider/entrypoint.js manager
+
+capacityProviderRunner
+  Railway service name: treeseed-agent-runner-01
+  staging sourceMode: git
+  staging sourceRepo: treeseed-ai/agent
+  prod sourceMode: image
+  buildCommand: npm run build
+  startCommand: node ./dist/provider/entrypoint.js runner
+  volumeMountPath: /data
+
+publicTreeDxNode
+  Railway service name: public-treedx-node-01
+  staging sourceMode: git
+  staging sourceRepo: treeseed-ai/treedx
+  staging sourceRootDirectory: .
+  prod sourceMode: image
+  prod imageRefEnv: TREESEED_PUBLIC_TREEDX_IMAGE_REF
+  Dockerfile target: prod
+  volumeMountPath: /data
 ```
 
 The root Market app is not a Railway backend. It deploys the Cloudflare web UI and proxies `/v1/*` to the hosted API.
+
+Staging service creation and repair must use Railway GitHub source services, not Docker Hub image refs, for API, operations runner, capacity-provider manager/runner, and public TreeDX federation nodes. Existing services are repaired in place. If Railway cannot switch source mode safely, reconciliation must report blocked drift; do not delete and recreate a service to change source mode.
+
+Production remains artifact-based. API, operations runner, capacity-provider, and TreeDX production services use image mode with semantic Docker image tags supplied by the production release process. Production plans must fail or report blocked configuration when semantic image refs are missing; they must never fall back to branch-derived or moving development tags.
 
 Provider CLIs and API calls are diagnostic-only in this workflow. Mutating repairs must go through `trsd hosting apply`, `trsd reconcile apply`, or release-gate reconciliation so live observation and postcondition verification run before success is reported.
 

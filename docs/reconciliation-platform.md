@@ -75,7 +75,7 @@ Examples:
 - `api:railway-volume:treeseed-api-operations-runner-01-volume`
 - `api:railway-postgres:treeseed-api-postgres`
 - `api:treedx-node:public-treedx-node-01`
-- `treedx:github-workflow:dev-staging-image`
+- `treedx:railway-source-build:public-treedx-node-01`
 - `agent:capacity-provider:local-docker`
 
 The graph compiler is SDK-owned. Hosting graph APIs, config sync, dev orchestration, package image commands, capacity lifecycle commands, stage, and release can expose specialized CLI surfaces, but they must consume the same compiled graph model. Legacy hosting graph apply is only a deprecated facade over `reconcileTreeseedTarget`; it must not call provider deploy helpers directly.
@@ -154,6 +154,17 @@ Reconciliation is exact. A selected run fails when any selected resource is:
 
 Apply must exit nonzero when required drift remains after mutation and verification. Warnings are only for nonblocking observations.
 
+## Deployment Source Policy
+
+Development and staging deployments must not routinely publish Docker registry images or create development Git tags. Source selection is part of desired state:
+
+- `local` and feature branches use local workspace links while editing, and saved package manifests use exact GitHub commit references (`github:owner/repo#<commit-sha>`) for all internal Treeseed package dependencies.
+- `staging` package manifests and lockfiles use exact GitHub commit references for internal Treeseed dependencies. Railway API, operations runner, capacity-provider, and TreeDX services build from GitHub source (`sourceMode: git`) on the selected branch and recorded commit. Reconciliation configures repository, branch, root directory, build command, start command, health checks, variables, and volumes. If an existing service cannot be switched or repaired in place, the run reports blocked drift; it must not delete and recreate the service.
+- `prod` uses immutable released artifacts: package manifests and lockfiles use plain npm semantic versions for internal installable packages, and Docker services use semantic image tags. Production planning must not use Git dependency refs, prerelease package refs, source-mode Railway services, or `dev-*` Docker image tags.
+- TreeDX production still uses semantic Docker image tags, but staging builds the TreeDX Dockerfile from GitHub source at the selected commit.
+
+Package save and stage flows use `github:owner/repo#<commit-sha>` for development package dependencies. Semantic Git tags are reserved for production releases and are not used as production package.json dependency refs. Release rewrites installable internal dependencies to npm semantic versions before production rehearsal.
+
 ## Ownership Boundaries
 
 - Root web app owns Cloudflare web resources, web build/deploy, proxy metadata, and the configured API connection.
@@ -165,7 +176,7 @@ Apply must exit nonzero when required drift remains after mutation and verificat
 
 ## Provider Coverage
 
-Railway adapters cover projects, environments, services, image sources, deployments, managed PostgreSQL, domains, variables, volumes, schedules, logs, and health.
+Railway adapters cover projects, environments, services, GitHub source services, image sources, deployments, managed PostgreSQL, domains, variables, volumes, schedules, logs, and health.
 
 Cloudflare adapters cover Pages, Workers, D1, R2, KV, Queues, Turnstile, DNS, cache rules, secrets, routes, preview domains, and production domains.
 
@@ -179,7 +190,7 @@ Capacity adapters cover provider registration, local Docker provider runtime, ma
 
 Capacity adapters do not reconcile runtime coordination records such as provider availability sessions, assignment leases, mode runs, usage actuals, or ledger entries. Those are API/control-plane records owned by `@treeseed/api` and consumed by `@treeseed/agent`, Admin, CLI, and SDK clients. Reconciliation proves that the provider runtime exists, has the right image/config/secrets, and is healthy; assignment coordination proves that a live provider can check in, receive leased work, report mode runs, and settle usage.
 
-TreeDX adapters cover dev-image workflow dispatch, image reference selection, public federation services, private team instances, volumes, domains, health, SDK publishing gates, and profile image gates.
+TreeDX adapters cover source-build selection, production image reference selection, public federation services, private team instances, volumes, domains, health, SDK publishing gates, and profile image gates.
 
 ## JSON Report Contract
 
@@ -210,7 +221,7 @@ API-only apply selects `packages/api` resources from `packages/api/treeseed.site
 
 Mixed app release selects affected apps by dependency graph. API changes deploy API-owned resources first when web depends on new API behavior. UI-only changes skip API verify/deploy/smoke and may run only a lightweight configured API health check.
 
-TreeDX image update reconciles package repository credentials, Docker Hub config, dev-staging image workflow, immutable image ref selection, and API-hosted public node consumption. SDK/profile publication gates run after successful TreeDX image publication.
+TreeDX staging updates reconcile the package repository source build and API-hosted public node consumption without publishing registry artifacts. TreeDX production releases reconcile package repository credentials, Docker Hub config, semantic image publication, immutable image ref selection, and API-hosted public node consumption. SDK/profile publication gates run after successful production TreeDX image publication.
 
 Capacity provider lifecycle reconciles provider registration, secrets, local or hosted runtime, health, and cleanup through the same run model. Provider check-ins, next-assignment polling, lease renewal, completion/failure, mode-run telemetry, and usage settlement are runtime API behavior and must not be modeled as infrastructure drift. Capacity runtime acceptance may create tagged diagnostic assignments and mode runs as audit evidence, but those records remain API control-plane records rather than reconciled resources.
 
@@ -231,7 +242,7 @@ Live scenarios include:
 - GitHub environment, secret, variable, workflow dispatch, workflow observation, and repository-scoped token routing.
 - Local process, port, local DB, local runner, Docker Compose capacity provider, and `capacity-provider-assignment-proof`.
 - Railway `capacity-provider-runtime-assignment-proof`, which checks in with the provider API key, creates a tagged diagnostic assignment through the existing team API, leases the assignment through the provider protocol, emits mode-run telemetry, completes the assignment, and verifies project mode-run visibility.
-- TreeDX `dev-staging` image consumed by API-hosted public node and verified over HTTP.
+- TreeDX Railway source build consumed by the API-hosted public node and verified over HTTP.
 
 The live command reports capability coverage by provider and resource type. Mutation-capable scenarios compile isolated desired resources and exercise the adapter lifecycle: refresh, diff, plan, validate, apply, refresh, verify, persist, destroy, refresh, verify-cleanup. Provider-private probes are allowed only for credential/API reachability checks that cannot be modeled as desired resources. Missing adapter coverage, failed cleanup drift, or an unavailable required credential is a failing `blocked` result, not a silent skip.
 
