@@ -873,16 +873,22 @@ describe('contextual dashboard and drilldown app information architecture', () =
 		expect(source('src/styles/treeseed.css')).toContain('.ts-record-card__actions');
 	});
 
-	it('splits project decisions into proposal, decision, and review tabs with verdict actions', () => {
+	it('splits project decisions into proposal governance and immutable decision tabs', () => {
 		const decisions = source('packages/admin/src/pages/app/projects/[projectId]/decisions.astro');
-		for (const tab of ['proposals', 'decisions', 'review']) {
+		for (const tab of ['proposals', 'voting', 'decisions', 'timeline']) {
 			expect(decisions).toContain(`key: '${tab}'`);
 			expect(decisions).toContain(`?tab=${tab}`);
 		}
-		expect(decisions).toContain('data-proposal-select');
-		expect(decisions).toContain('data-proposal-decide');
-		expect(decisions).toContain('data-final-verdict-open');
-		expect(decisions).toContain('/local-content/decisions/from-proposals');
+		expect(decisions).toContain('Proposal governance');
+		expect(decisions).toContain('Active voting');
+		expect(decisions).toContain('Immutable decisions');
+		expect(decisions).not.toContain(`key: 'review'`);
+		expect(decisions).not.toContain('data-proposal-decide');
+		expect(decisions).not.toContain('/local-content/decisions/from-proposals');
+		const review = source('packages/admin/src/pages/app/work/review.astro');
+		expect(review).toContain('loadReviewQueue');
+		expect(review).toContain('WorkQueueSummary');
+		expect(review).toContain('ActivityTimeline');
 	});
 
 	it('makes local content mutation flows platform-operation aware', () => {
@@ -893,7 +899,6 @@ describe('contextual dashboard and drilldown app information architecture', () =
 		for (const path of [
 			'packages/admin/src/components/work/QuestionForm.astro',
 			'packages/admin/src/lib/market/operating-loop-client.ts',
-			'packages/admin/src/pages/app/projects/[projectId]/decisions.astro',
 			'@treeseed/ui/lib/app/related-content-creator',
 		]) {
 			const contents = source(path);
