@@ -181,6 +181,8 @@ The ecommerce model intentionally does not include commissions, application fees
 
 TreeSeed Commons governance creates participant signal, questions, proposals, votes, delegations, and steward decisions. Registration creates a governance identity, not legal cooperative membership, patronage rights, equity-like claims, or unbounded roadmap authority.
 
+Proposal governance is provider-backed. `@treeseed/sdk` owns portable governance provider contracts and built-in voting math, including admin approval, simple majority, absolute threshold, and TreeSeed bicameral providers. `@treeseed/api` owns durable governance policies, proposal versions, electorate snapshots, votes, delegations, events, and immutable decision records. `@treeseed/core` owns proposal/decision content schema fields, and `@treeseed/admin` owns the project/work UI over those records. Operational `approval_requests` remain separate from proposal governance and must not be presented as decisions.
+
 ## TreeDX Boundary
 
 TreeDX is a generic repository data, storage, query, graph, artifact, and federation service.

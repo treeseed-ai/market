@@ -84,13 +84,13 @@ Planning budget can be used for:
 - proposal drafting when no required planning inputs remain
 - agent-local documentation improvements when configured by policy
 
-Planning outputs do not approve work. They feed humans, decisions, allocation policy, and later capacity plans.
+Planning outputs do not approve work. They feed proposal governance, immutable decisions, allocation policy, and later capacity plans.
 
 ## Acting Budget
 
 Acting budget can be used for:
 
-- approved decision execution
+- immutable accepted decision execution
 - repository or content edits through scoped project tools
 - verification and release steps authorized by the assignment
 - diagnostic or repair work explicitly included in the assignment
@@ -131,7 +131,7 @@ Handlers may:
 
 Handlers must not:
 
-- approve decisions
+- approve proposals or mutate governance outcomes
 - mutate allocation policy
 - create unscoped provider work
 - request raw TreeDX credentials

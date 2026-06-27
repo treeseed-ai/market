@@ -56,7 +56,7 @@ The TreeSeed API coordinates the match between:
 2. **TreeSeed API is a durable coordination and assignment surface.** It stores demand, policies, provider sessions, assignments, leases, reservations, ledgers, and telemetry.
 3. **Providers initiate contact through outbound check-in.** The API must not require inbound network reachability to local laptops, firewalled hosts, or self-hosted provider networks.
 4. **Providers are authoritative for native capacity, local runner availability, and provider-local constraints.** TreeSeed can derive and summarize availability, but providers can always report pressure, reject work, return work, or reduce supply when native conditions change.
-5. **TreeSeed is authoritative for team/project demand, governance, decisions, allocation policies, reservations, and ledger settlement.** Providers cannot approve decisions, mutate allocation policies, or decide cross-provider team priorities.
+5. **TreeSeed is authoritative for team/project demand, governance, decisions, allocation policies, reservations, and ledger settlement.** Providers cannot approve proposals, create executable decisions, mutate allocation policies, or decide cross-provider team priorities.
 6. **Projects own agent definitions and work semantics.** Project content/configuration defines agent classes, agent definitions, handlers, prompts, class-to-handler mappings, output expectations, and required execution capabilities.
 7. **Capacity providers own execution surfaces and runner mechanics.** They bundle execution providers, runner pools, native quota/spend limits, local availability, and provider-local enforcement.
 8. **Workdays are TreeSeed-side coordination/accounting windows, not provider-owned calendars.** A provider may participate in all, part, or none of a TreeSeed workday.
@@ -188,7 +188,7 @@ Responsibilities:
 Non-responsibilities:
 
 - defining project agents;
-- approving TreeSeed decisions;
+- approving TreeSeed proposals or creating executable decisions;
 - deciding cross-provider routing;
 - owning portfolio-level project priorities;
 - mutating team allocation policy;
@@ -1277,7 +1277,7 @@ Rules:
 9. Admin overrides are audited.
 10. Borrowing from reserve or another slice is audited.
 
-Provider authentication should be scoped to provider actions. Project assignment context should expose only the information needed for the leased assignment. Acting assignments should still require decision readiness, accepted capacity plan, required capabilities, and environment checks.
+Provider authentication should be scoped to provider actions. Project assignment context should expose only the information needed for the leased assignment. Acting assignments should still require an immutable accepted governance decision, accepted capacity plan, required capabilities, and environment checks.
 
 ---
 
