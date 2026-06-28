@@ -4,6 +4,15 @@ This repository is the unified development workspace for the Treeseed system and
 
 For the canonical current-state package map, see `docs/package-ownership.md`.
 
+## Independent Project Rule
+
+This workspace is an integrated development and verification environment, not a monorepo. Each project under `packages/` is its own package/repository and must remain independently buildable, testable, and releasable from its package checkout.
+
+- Do not assume root-level workspace state is available when package-local verification, builds, release checks, or CI run inside an individual package repository.
+- Do not make package-local tests or builds depend on unpublished sibling source checkouts unless the dependency is explicitly declared and intentionally injected by the Treeseed package workflow.
+- The Market project may orchestrate integrated saves, dependency pointers, fixture support, and cross-package verification, but that orchestration must preserve independent package operability.
+- When fixing package verification, fix the package's standalone path first; integrated Market workflows should consume that capability instead of replacing it.
+
 ## Canonical Reconciliation Rules
 
 Treeseed infrastructure is reconciled from exact desired state. The SDK-owned reconciliation platform documented in `docs/reconciliation-platform.md` is the only orchestration model for hosting, config sync, local development infrastructure, package workflows, capacity providers, TreeDX hosting/image consumption, staging, and release.
@@ -29,8 +38,6 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 - `@treeseed/api`: Treeseed backend API, package-local backend `treeseed.site.yaml`, Treeseed PostgreSQL adapter, migrations, operation lifecycle, route descriptors, and Treeseed operations runner
 - `@treeseed/cli`: operator and developer CLI workflows
 - `packages/treedx`: TreeDX implementation and Docker Hub release image used by Treeseed-hosted TreeDX bootstrap and related platform workflows
-
-This workspace is an integrated development and verification environment, not a monorepo. Each project under `packages/` is its own package/repository and must remain independently buildable, testable, and releasable from its package checkout. The Market project may orchestrate integrated saves, dependency pointers, fixture support, and cross-package verification, but package-local tests and builds must not rely on unpublished root-only state or sibling source checkouts unless that dependency is declared and intentionally injected by the Treeseed package workflow.
 
 ## Package Integration Manifests
 
