@@ -30,6 +30,8 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 - `@treeseed/cli`: operator and developer CLI workflows
 - `packages/treedx`: TreeDX implementation and Docker Hub release image used by Treeseed-hosted TreeDX bootstrap and related platform workflows
 
+This workspace is an integrated development and verification environment, not a monorepo. Each project under `packages/` is its own package/repository and must remain independently buildable, testable, and releasable from its package checkout. The Market project may orchestrate integrated saves, dependency pointers, fixture support, and cross-package verification, but package-local tests and builds must not rely on unpublished root-only state or sibling source checkouts unless that dependency is declared and intentionally injected by the Treeseed package workflow.
+
 ## Package Integration Manifests
 
 - Checked-out package repositories should declare package-local Treeseed metadata in `treeseed.package.yaml`.
