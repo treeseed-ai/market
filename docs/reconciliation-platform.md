@@ -78,13 +78,13 @@ Examples:
 - `treedx:railway-source-build:public-treedx-node-01`
 - `agent:capacity-provider:local-docker`
 
-The graph compiler is SDK-owned. Hosting graph APIs, config sync, dev orchestration, package image commands, capacity lifecycle commands, stage, and release can expose specialized CLI surfaces, but they must consume the same compiled graph model. Legacy hosting graph apply is only a deprecated facade over `reconcileTreeseedTarget`; it must not call provider deploy helpers directly.
+The graph compiler is SDK-owned. Hosting graph APIs, config sync, dev orchestration, package image commands, capacity lifecycle commands, and release can expose specialized CLI surfaces, but they must consume the same compiled graph model. Legacy hosting graph apply is only a deprecated facade over `reconcileTreeseedTarget`; it must not call provider deploy helpers directly.
 
-Task-branch Git workflow commands remain SDK-owned and GitRunner-backed. `trsd update --from staging` is the canonical inverse of `stage`: it merges staging down into the current task branch across the root repo and checked-out package repos, including manifest-only packages such as TreeDX. It does not mutate providers or hosted resources; all Git reads and mutations go through GitRunner.
+Task-branch Git workflow commands remain SDK-owned and GitRunner-backed. `trsd stage` is branch/ref promotion, not hosted reconciliation: it merges staging down into the current task branch across the root repo and checked-out package repos, runs local proof by default, promotes exact verified refs to staging, and does not wait for hosted CI/CD or provider checks unless explicitly requested. `trsd update --from staging` remains the standalone inverse/update command when operators want to integrate staging before staging promotion. These commands do not mutate providers or hosted resources; all Git reads and mutations go through GitRunner.
 
 Managed task worktrees use branch-aligned paths under `.treeseed/worktrees/<branch-slug>` and a branch may have only one active managed worktree. Stale or unregistered paths below `.treeseed/worktrees` must fail closed instead of resolving upward into the parent root repository. Save, update, stage, and close commands should therefore operate on the intended checkout or stop with a clear recovery message.
 
-Merge and rebase conflicts are expected workflow states, not partial failures to push through. `update` and `stage` must capture the conflicted files and package roots, abort the in-progress integration where possible, leave repositories clean or explicitly blocked, and report the smallest next command. They must not leave staging, task branches, or package repositories half-merged.
+Merge and rebase conflicts are expected workflow states, not partial failures to push through. `update` and `stage` must capture the conflicted files and package roots and report the smallest next command. `stage` must stop before staging is mutated when conflicts or local verification failures occur, preserving the feature branch/worktree for repair. Cleanup of source branches and managed worktrees is allowed only after promoted staging refs are verified.
 
 ## Adapter Contract
 

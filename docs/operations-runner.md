@@ -402,6 +402,8 @@ type MarketRepositoryOperation =
   | "publish_market_content";
 ```
 
+`stage_market_changes` dispatches the SDK-owned `trsd stage` branch/ref promotion workflow. It must not directly reconcile Railway, Cloudflare, GitHub Actions, or other hosted providers. The stage workflow merges `staging` down into the feature branch first, performs local proof by default, promotes verified refs to staging, and leaves hosted CI/CD repair to a separate staging release workflow.
+
 Infrastructure operation examples:
 
 ```ts

@@ -235,13 +235,15 @@ The plan must show:
 - API database targets `api` and `operationsRunner`
 - readiness blockers before deploy work begins
 
-If the task is running in a managed worktree, the worktree path should match the branch slug under `.treeseed/worktrees/<branch-slug>`. A successful `stage` merges the task branch into `staging`, runs the selected package/root/reconcile gates, and removes the staged branch/worktree. If a package or root merge conflicts, the workflow must capture the conflict report, abort the merge where possible, and stop before deploying.
+If the task is running in a managed worktree, the worktree path should match the branch slug under `.treeseed/worktrees/<branch-slug>`. A successful `stage` first merges `staging` down into the task branch, runs local proof, promotes exact verified root/package refs to `staging`, verifies the remote staging refs, and removes the staged branch/worktree only after those postconditions pass. If a package or root merge conflicts, the workflow must capture the conflict report and stop before staging is mutated.
 
-Execute staging with live hosted checks:
+Promote refs to staging:
 
 ```bash
-npx trsd stage --verify-deployed-resources --json "complete API package migration"
+npx trsd stage --json "complete API package migration"
 ```
+
+Stage does not run live hosted checks by default. After promotion, run the staging release/repair workflow or explicit hosted verification commands such as `npx trsd ready staging --json`, `npx trsd hosting verify --environment staging --service api --live --json`, and `npx trsd hosting verify --environment staging --service operationsRunner --live --json`.
 
 Staging acceptance:
 
