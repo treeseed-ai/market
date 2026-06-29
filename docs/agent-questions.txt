@@ -1,0 +1,45 @@
+I have some questions, answer the following questions in detail reviewing only the code, not the documentation.  And please call out any missing or placeholder or stub functionality you encounter, as that can not exist in the production system.
+
+Relating to Workday Flow:
+
+1. In the workday flow, when you say the manager cycle starts by loading / ensuring the work policy and checking workday requests is that the request to the TreeSeed API to register?  
+2. Also when you say the manager claims a lease so only one manager reconciles the workday, how does that work when the team has multiple capacity providers or the capacity provider serves multiple teams?  
+3. Also describe how the project capacity allocation is handled via the TreeSeed API workday endpoints and the capacity provider manager between projects? They each have their own allocations so how does that work?
+4. What kind of information does a provider capacity plan contain?  And why will it exist or not?
+5. Describe in more detail the routing decision created by the manager?
+6. How exactly does the manager seed initial tasks?  I am referring to what the actual tasks are as much as the process of seeding.
+7. How does the manager compute desired worker count?  And what workers are we talking about (are these worker runners)?
+8. What are the local queued task records and where do they come from?
+9. Explain the actual task execution process in detail that triggers the agent?
+10. How are communication signals or triggers handled and dispatched to propel the agent execution dependency chain?  Does manager handle the continuous execution throughout the workday?
+11. What is the process of approval requests?  DO agents have to have approval requests for planning mode, or just acting?
+12. You say capacity boundaries are enforced before and after execution, so what exactly do you mean when you refer to capacity boundaries?
+13. How is the task queue managed in which tasks are fetched?
+14.  Exactly how are task assignments drained at the TreeSeed API level?  I am having an issue where agents do not use up the allowed workday in planning mode when there is much they could be doing in reaction to what other agents are doing.  For example, if an agent creates a proposal or question, other agents could then answer or provide feedback, estimates, or level of effort notes on it.  This could result in new proposals, with new notes.  Questions could lead to answers and proposals.  Knowledge work can be conducted during the planning mode.  So why would I have an issue, particularly in planning mode where we ever ran out of work during the workday?
+
+Relating to Agent Architecture:
+
+1. Explain the differences between kernel.runAgent(...) and kernel.runAssignment(...) in detail?  I'm not sure why we need both if they both converge on executeAgentInternal(...)?  Where is each used?
+2. Where and how exactly is the agent context formed?  Take Codex for example, it requires a prompt that serves as a context window, so how does it compile that final prompt and is this standardized across AI agent architecture or execution providers?
+3. Does the AI agent itself write files and TreeDX records or does the handler perform those tasks deterministically?
+4. Describe the agent input and output communication channels or triggers and what kind of data payloads they contain?
+5. What is the typical processing of input that goes on in a agent handler?
+6. What is the typical processing of output that goes on in a agent handler?
+7. How do individual agents manage difference in needs between planning mode and acting mode?  For instance, planning is more agent directed (planning and optimization activities), acting is more human directed (decisions), with both following objectives?
+8. How are research agents handled that just take questions that are asked and go research and add to the knowledge base?  These are neither based on decisions nor do they require agent planning, and what do we do about the fact that certain agents might be better equipped to answer certain questions, so it seems like research can be a continuous activity across planning and acting mode or it can be performed by agents with clear actions in the planning mode to answer related questions, driving potential proposals, objectives, and other questions.
+9. How are prompts and context queries managed in the various agents and how do we ensure the core objective is always present and prominent?
+
+Relating to the Provider and Execution Provider Link:
+
+1. Is the capacity provider runner asking the capacity provider API or the TreeSeed API for the next assignment?  Also how is the capacity provider API service used between the services?
+2. What are the exact inputs to the runProviderAssignment(...) process and tell me more about the preparing the project portfolio/workspace, the assignment scoped SDK, the TreeDX proxy adapter, and tool descriptor?  Is it preparing one project or an entire portfolio?  Where does it get and do we set the permissions that allow the access?  Does the TreeDX proxy adapter contains a stripped down interface based on permissions like the scoped SDK?  And is the tool descriptor referring to local tools, MCP, or something else?
+3. How is the TreeDX proxy adapter exposed to AI focused execution providers like Codex?  Is it exposed as a tool that the agent harness can call to dynamically query the knowledge, subject to it's own permissions?
+4. Explain all the capacity provider adapters in detail like adapters for mutation, repository inspection, verification, notification, research, and workflow operations?  How do these interface with the actual AI harnesses in execution providers like Codex or GitHub CoPilot?
+5. How and where exactly are execution providers assigned to the agent?  And what are the selection criteria (how is the decision what to use made)?
+6. How does the actual Codex and GitHub AI SDK work in the execution providers?  Show me how they are configured, executed, and followed.
+7. Do we capture all of the messages that AI agents expose during operation through the relevant SDKs?  Where are the gaps in fully debuggable logging?
+
+Regarding the Unified Architecture:
+
+1. Describe each one of these processes in a single sentence so they all connect together in a easily understood 100% accurate narrative: Workday policy/window -> manager lease -> workday record -> priority snapshot -> admitted tasks / provider assignments -> worker or provider runner -> AgentKernel -> agent handler -> execution provider / TreeDX / operations adapters -> task completion or assignment lifecycle -> mode runs, usage, ledger, summaries?
+2. How much old legacy junk do we have laying around?  You mentioned an older workday task queue, is this still used?  What is unused and needs to be cleaned?
