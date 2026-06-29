@@ -235,7 +235,7 @@ The plan must show:
 - API database targets `api` and `operationsRunner`
 - readiness blockers before deploy work begins
 
-If the task is running in a managed worktree, the worktree path should match the branch slug under `.treeseed/worktrees/<branch-slug>`. A successful `stage` first merges `staging` down into the task branch, runs local proof, promotes exact verified root/package refs to `staging`, verifies the remote staging refs, and removes the staged branch/worktree only after those postconditions pass. If a package or root merge conflicts, the workflow must capture the conflict report and stop before staging is mutated.
+If the task is running in a managed worktree, the worktree path should match the branch slug under `.treeseed/worktrees/<branch-slug>`. A successful `stage` first merges `staging` down into the task branch, runs local proof, promotes exact verified root/package refs to `staging`, verifies the remote staging refs, and preserves the staged branch/worktree by default. Use `--cleanup success` only when source cleanup is intentionally safe after promotion. If a package or root merge conflicts, the workflow must capture the conflict report and stop before staging is mutated.
 
 Promote refs to staging:
 

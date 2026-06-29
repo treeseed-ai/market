@@ -121,7 +121,7 @@ The directory name intentionally mirrors the branch slug. That makes human inspe
 
 Commands run inside `.treeseed/worktrees/*` fail closed when the directory is stale, unregistered, or missing its worktree marker. They must not resolve upward into the parent root repository and accidentally save, stage, or stop processes for the wrong checkout.
 
-Successful `trsd stage` from a managed task worktree merges the branch into `staging`, updates package pointers through the workflow engine, and removes the staged branch/worktree after the promotion completes. Interrupted runs should be recovered with `trsd recover --json` or resumed with `trsd resume <run-id> --json`, not by manually deleting branches or worktree directories.
+Successful `trsd stage` from a managed task worktree merges current `staging` down into the task branch, promotes exact verified refs through the workflow engine, and preserves the staged branch/worktree by default. Use `--cleanup success` only when source cleanup is intentionally safe after promotion. Interrupted runs should be recovered with `trsd recover --json` or resumed with `trsd resume <run-id> --json`, not by manually deleting branches or worktree directories.
 
 ## Worktrees And Ports
 
