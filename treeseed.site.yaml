@@ -1,6 +1,6 @@
 name: TreeSeed Market
 slug: treeseed-market
-siteUrl: https://treeseed.ai
+siteUrl: https://treeseed.dev
 contactEmail: hello@treeseed.email
 hosting:
   kind: self_hosted_project
@@ -29,15 +29,15 @@ surfaces:
     enabled: true
     provider: cloudflare
     rootDir: .
-    publicBaseUrl: https://treeseed.ai
+    publicBaseUrl: https://treeseed.dev
     localBaseUrl: http://127.0.0.1:4321
     local:
       runtime: provider
     environments:
       staging:
-        domain: treeseed-market-staging-479e4625.treeseed.ai
+        domain: preview.treeseed.dev
       prod:
-        domain: treeseed.ai
+        domain: treeseed.dev
     cache:
       sourcePages:
         browserTtlSeconds: 0
@@ -64,9 +64,9 @@ connections:
     localBaseUrl: http://127.0.0.1:3000
     environments:
       staging:
-        baseUrl: https://api-treeseed-market-staging-ca844c56.treeseed.ai
+        baseUrl: https://api.preview.treeseed.dev
       prod:
-        baseUrl: https://api.treeseed.ai
+        baseUrl: https://api.treeseed.dev
 plugins:
   - package: "@treeseed/core/plugin-default"
   - package: "@treeseed/admin/plugin"
