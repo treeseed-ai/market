@@ -162,7 +162,7 @@ describe('web runtime boundaries', () => {
 			railway: {
 				serviceName: 'treeseed-api-operations-runner-01',
 				rootDir: '.',
-				buildCommand: 'npm run build',
+				dockerfilePath: '/Dockerfile.operations-runner',
 				startCommand: 'npm run start:runner',
 				volumeMountPath: '/data',
 				runnerPool: {
