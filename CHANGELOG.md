@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.2] - 2026-07-01
+
+### Fixed
+
+- fix(deploy): wait for production pages propagation (041e85c9fc5e)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.2
+- @treeseed/agent: 0.12.2
+- @treeseed/api: 0.6.2
+- @treeseed/cli: 0.12.2
+- @treeseed/core: 0.12.2
+- @treeseed/sdk: 0.12.2
+- @treeseed/ui: 0.12.2
+- treedx: 0.2.2
+
 ## [0.7.1] - 2026-07-01
 
 ### Fixed
