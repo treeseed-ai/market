@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.1] - 2026-07-01
+
+### Fixed
+
+- fix(release): dispatch production web deploy gate (b140a0d5ad66)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.1
+- @treeseed/agent: 0.12.1
+- @treeseed/api: 0.6.1
+- @treeseed/cli: 0.12.1
+- @treeseed/core: 0.12.1
+- @treeseed/sdk: 0.12.1
+- @treeseed/ui: 0.12.1
+- treedx: 0.2.1
+
 ## [0.7.0] - 2026-07-01
 
 ### Added
