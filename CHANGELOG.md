@@ -1,5 +1,75 @@
 # Changelog
 
+## [0.7.0] - 2026-07-01
+
+### Added
+
+- feat(deps): fix API acceptance team member isolation after guarantee (c273ebd3478d)
+- feat(deps): restore TreeDX release gate Beam setup (da616767185f)
+- feat(deps): replay stale API Postgres baseline markers (1bb6abd57dc6)
+- feat(deps): require full API Postgres baseline before adoption (d2c756da99bb)
+- feat(deps): replay partial API Postgres baselines idempotently (bb199921ec89)
+- feat(deps): make API Postgres baseline recovery idempotent (38bdfbc0dd8a)
+- feat(deps): adopt existing API Postgres baseline migrations (31282e1879ea)
+- feat(deps): allow API release graph CLI tarball dependency (30c5a10ea131)
+- feat(deps): fix stage verification cleanup issues (4c4d01c85519)
+
+### Fixed
+
+- fix(release): allow stable release refs (fb5574b5ee26)
+- fix(release): restore production promotion (f60b46156774)
+- build(deps): fix image release root directory verification (4e16628f587e)
+- build(deps): fix Railway runtime config verification (efb17e749b2d)
+- build(deps): fix release guarantee API verifiers (873966dc14e3)
+- build(deps): fix staging release guarantee auth (5028e58fa363)
+- build(deps): fix production release gates (d57d691d34c5)
+- build(deps): promotion proof after CI and acceptance fixes (2e61b8ce3e4e)
+- build(deps): fix SDK proof regressions after guarantee framework (1ccbe73a88a4)
+- build(deps): fix guarantees CLI help metadata (cb62188cc988)
+- build(deps): fix proof tests for clean hosted runners (2e4270a6513d)
+- build(deps): replace legacy strict tail with proof ledger (7aa371503714)
+- build(deps): fix core hosted proof railway dependency lock (0a282cd6e575)
+- build(deps): fix promotion release gate assertions (efe1e8d20b93)
+- build(deps): fix TreeDX release gate Beam setup (ea1f5811ba42)
+- build(deps): fix scoped project domains for staging Pages (725c6deb6b03)
+- build(deps): fix Railway deploy live verification settle window (a7aa31e9c36c)
+- build(deps): fix Agent capacity provider Docker build shape test (f8cb7e22f7b8)
+- ci(deps): fix staging hosted service credential and Railway source (8094ac2eb8c2)
+- build(deps): harden Railway IaC reconciliation and domain verification (7b7ff5e11f38)
+- 24 additional changes omitted from this summary.
+
+### Tests
+
+- build(deps): checkpoint user and team guarantees passing locally (64276b567aa8)
+- ci(deps): switch hosted domains to treeseed.dev (8462131ac0b9)
+- build(deps): rework stage promotion workflow (40a6160fda90)
+- build(deps): use image-backed Railway API staging services (589286fa54c8)
+- build(deps): implement model-aware agent content tools (a0581b17ca19)
+
+### Dependencies
+
+- build(deps): allow first production API domain validation (5225f27c2f7d)
+- build(deps): merge package main history back to staging (109f914c7f38)
+- build(deps): implement incremental release proof (ea11d3cc7584)
+- ci(deps): pin hosted workflow API domains to treeseed.dev (c595f6c08227)
+- build(deps): use configured API domains for hosted reconciliation (2679fa71cd6f)
+- build(deps): include domain units in promotion hosted reconciliation (102eff0d8905)
+- build(deps): finish staging workflow hardening checkpoint (3c697b8144ef)
+- build(deps): exclude build artifacts from stage proof workspace (781392bde15b)
+- build(deps): skip opaque railway sync provider errors after retries (6ee22e08e624)
+- build(deps): tolerate railway deploy trigger processing errors (3b6fa750fb6d)
+- build(deps): repair railway existing service deployment recovery (252785c295d1)
+- build(deps): remove legacy Mailpit dev hooks (40622214127e)
+- build(deps): restore Mailpit as reconciled local dev service (fbe3bf024dd2)
+- build(deps): allow local git commit refs in SDK release candidate (7d345ec293cd)
+- build(deps): stabilize SDK release candidate commit ref action (3884c12d66c6)
+- build(deps): prevent Railway service replacement during repair (49d6359b7352)
+- build(deps): harden staging image deployment reconciliation (bec010141a4e)
+- build(deps): keep admin dist stable during release gate reads (1ec1695be46d)
+- build(deps): serialize admin dist builds for concurrent release gates (be6543a18e7a)
+- build(deps): publish sdk dist files atomically for concurrent consumers (34a453446c99)
+- 10 additional changes omitted from this summary.
+
 ## [0.6.28] - 2026-06-12
 
 ### Added
