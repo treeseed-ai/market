@@ -1,0 +1,73 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.commons.question.answer-commons-question.134
+journeyIndex: 134
+type: commons
+subtype: question
+journey: Answer Commons Question
+ownerPackage: "@treeseed/market"
+summary: First-pass product guarantee for Answer Commons Question.
+status: planned
+dependencies:
+  journeys:
+    - 133
+  guarantees:
+    - guarantee.commons.question.ask-commons-question.133
+actors:
+  allowed:
+    - commons_participant
+    - commons_steward
+  forbidden:
+    - anonymous_user
+    - unauthorized_user
+devices:
+  required:
+    - desktop_chromium
+    - mobile_chromium
+gates:
+  - core
+  - release
+preconditions:
+  fixtures:
+    - integrated_treeseed_project
+  notes:
+    - "Journey dependencies must be satisfied: 133"
+scene:
+  required: true
+  manifest: ./scenes/answer-commons-question.scene.yaml
+  mode:
+    acceptance: true
+    demo: true
+    training: true
+  entryRoute: /commons/question/answer-commons-question
+  componentContract: inline-form/search-panel guarantee harness
+  expectedEvidence:
+    - playwright_trace
+    - scene_video
+    - screenshot_on_failure
+    - console_log
+    - network_log
+api:
+  required: true
+  verifierRefs:
+    - todo.commons.question.answer-commons-question.api
+content:
+  required: true
+  verifierRefs:
+    - todo.commons.question.answer-commons-question.content
+audit:
+  required: true
+  verifierRefs:
+    - todo.commons.question.answer-commons-question.audit
+negativeCases:
+  - id: unauthorized-actor-denied
+    actor: anonymous_user
+    verifierRefs:
+      - todo.commons.question.answer-commons-question.negative
+evidence:
+  required:
+    - playwright_trace
+    - scene_video
+    - api_verification_log
+    - audit_event_id
+notes:
+  - First-pass product guarantee for Answer Commons Question.

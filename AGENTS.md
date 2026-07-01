@@ -69,6 +69,34 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 - Type and lint failures must be fixed at the source. Do not silence them with `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`, relaxed compiler settings, disabled lint rules, declaration-build exclusions, or no-op placeholder shims unless the user explicitly approves a temporary exception with a removal plan.
 - Source code must be TypeScript-first. Do not add checked-in `.js` or `.d.ts` files outside `dist`/generated/vendor outputs unless the file is absolutely required, such as a tiny runtime loader or ambient declaration that cannot be represented as normal `.ts`; document that reason and prefer converting existing scripts to `.ts` whenever touched.
 
+## Guarantee Planning And Maintenance
+
+TreeSeed guarantees are package-local YAML product contracts integrated by the root Market project. They are the canonical source for release-blocking product promises; generated CSV, JSON, and Markdown outputs are reports only and must not be hand-edited.
+
+- During planning, identify affected guarantees or recommend new guarantees.
+- Use lowercase kebab-case `type` and `subtype` values, for example `project` and `question`.
+- Use the `surface` field to distinguish where a promise is verified, such as `admin-ui`, `agent-runtime`, or `api-control-plane`.
+- Keep guarantee files under `guarantees/<type>/<subtype>/` in the package or root project that owns the behavior.
+- When implementing a feature, update or add the package-local guarantee YAML near the owning implementation.
+- When changing API behavior, update verifier references or API acceptance cases.
+- When changing UI behavior, update guarantee scene manifests and stable `data-scene` or `testId` selectors.
+- When fixing a bug, add or strengthen a guarantee if the bug represents a product promise that should not regress.
+- Do not add TreeSeed guarantee manifests to `packages/treedx`; TreeDX remains product-neutral. TreeSeed TreeDX routing and authorization guarantees belong in `packages/api`.
+- Agent runtime guarantees belong in `packages/agent`, durable agent control-plane guarantees belong in `packages/api`, and Admin observability guarantees belong in `packages/admin`.
+- If a guarantee cannot be implemented yet, mark it `planned`, `blocked`, or `backlog` with explicit notes and do not rely on it as an active release gate.
+- Do not mark a guarantee `active` until required scene/API/content/audit verifier refs resolve and can produce repeatable evidence.
+- Use focused guarantee commands while developing:
+
+```bash
+npx trsd guarantees validate --type project --subtype question --json
+npx trsd guarantees plan --type capacity --json
+npx trsd guarantees run --owner-package @treeseed/agent --environment local --json
+```
+
+- Before completing substantial work, run the narrowest relevant guarantee validation, plan, or active guarantee run.
+- Before release work, use the release CLI path so full release guarantees are executed and enforced.
+- Never bypass release guarantees by editing GitHub Actions directly.
+
 ## Agent Capacity Architecture
 
 Canonical implementation docs:

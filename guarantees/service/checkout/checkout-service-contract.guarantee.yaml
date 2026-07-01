@@ -1,0 +1,73 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.service.checkout.checkout-service-contract.125
+journeyIndex: 125
+type: service
+subtype: checkout
+journey: Checkout Service Contract
+ownerPackage: "@treeseed/market"
+summary: First-pass product guarantee for Checkout Service Contract.
+status: planned
+dependencies:
+  journeys:
+    - 124
+  guarantees:
+    - guarantee.service.quote.approve-service-quote.124
+actors:
+  allowed:
+    - buyer
+    - seller
+    - market_operator
+  forbidden:
+    - unauthorized_user
+devices:
+  required:
+    - desktop_chromium
+    - mobile_chromium
+gates:
+  - core
+  - release
+preconditions:
+  fixtures:
+    - integrated_treeseed_project
+  notes:
+    - "Journey dependencies must be satisfied: 124"
+scene:
+  required: true
+  manifest: ./scenes/checkout-service-contract.scene.yaml
+  mode:
+    acceptance: true
+    demo: true
+    training: true
+  entryRoute: /services/checkout-service-contract
+  componentContract: record-action guarantee harness
+  expectedEvidence:
+    - playwright_trace
+    - scene_video
+    - screenshot_on_failure
+    - console_log
+    - network_log
+api:
+  required: true
+  verifierRefs:
+    - todo.service.checkout.checkout-service-contract.api
+content:
+  required: false
+  verifierRefs:
+    - todo.service.checkout.checkout-service-contract.content
+audit:
+  required: true
+  verifierRefs:
+    - todo.service.checkout.checkout-service-contract.audit
+negativeCases:
+  - id: unauthorized-actor-denied
+    actor: unauthorized_user
+    verifierRefs:
+      - todo.service.checkout.checkout-service-contract.negative
+evidence:
+  required:
+    - playwright_trace
+    - scene_video
+    - api_verification_log
+    - audit_event_id
+notes:
+  - First-pass product guarantee for Checkout Service Contract.

@@ -1,0 +1,73 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.commons.proposal.vote-on-commons-proposal.136
+journeyIndex: 136
+type: commons
+subtype: proposal
+journey: Vote On Commons Proposal
+ownerPackage: "@treeseed/market"
+summary: First-pass product guarantee for Vote On Commons Proposal.
+status: planned
+dependencies:
+  journeys:
+    - 135
+  guarantees:
+    - guarantee.commons.proposal.create-commons-proposal.135
+actors:
+  allowed:
+    - commons_participant
+    - commons_steward
+  forbidden:
+    - anonymous_user
+    - unauthorized_user
+devices:
+  required:
+    - desktop_chromium
+    - mobile_chromium
+gates:
+  - core
+  - release
+preconditions:
+  fixtures:
+    - integrated_treeseed_project
+  notes:
+    - "Journey dependencies must be satisfied: 135"
+scene:
+  required: true
+  manifest: ./scenes/vote-on-commons-proposal.scene.yaml
+  mode:
+    acceptance: true
+    demo: true
+    training: true
+  entryRoute: /commons/proposal/vote-on-commons-proposal
+  componentContract: record-action guarantee harness
+  expectedEvidence:
+    - playwright_trace
+    - scene_video
+    - screenshot_on_failure
+    - console_log
+    - network_log
+api:
+  required: true
+  verifierRefs:
+    - todo.commons.proposal.vote-on-commons-proposal.api
+content:
+  required: true
+  verifierRefs:
+    - todo.commons.proposal.vote-on-commons-proposal.content
+audit:
+  required: true
+  verifierRefs:
+    - todo.commons.proposal.vote-on-commons-proposal.audit
+negativeCases:
+  - id: unauthorized-actor-denied
+    actor: anonymous_user
+    verifierRefs:
+      - todo.commons.proposal.vote-on-commons-proposal.negative
+evidence:
+  required:
+    - playwright_trace
+    - scene_video
+    - api_verification_log
+    - audit_event_id
+notes:
+  - First-pass product guarantee for Vote On Commons Proposal.

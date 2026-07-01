@@ -1,0 +1,73 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.checkout.cart.view-cart.115
+journeyIndex: 115
+type: checkout
+subtype: cart
+journey: View Cart
+ownerPackage: "@treeseed/market"
+summary: First-pass product guarantee for View Cart.
+status: planned
+dependencies:
+  journeys:
+    - 99
+  guarantees:
+    - guarantee.marketplace.discovery.browse-marketplace.099
+actors:
+  allowed:
+    - buyer
+    - seller
+    - market_operator
+  forbidden:
+    - unauthorized_user
+devices:
+  required:
+    - desktop_chromium
+    - mobile_chromium
+gates:
+  - core
+  - release
+preconditions:
+  fixtures:
+    - integrated_treeseed_project
+  notes:
+    - "Journey dependencies must be satisfied: 99"
+scene:
+  required: true
+  manifest: ./scenes/view-cart.scene.yaml
+  mode:
+    acceptance: true
+    demo: true
+    training: true
+  entryRoute: /checkout/view-cart
+  componentContract: dashboard/read-model guarantee harness
+  expectedEvidence:
+    - playwright_trace
+    - scene_video
+    - screenshot_on_failure
+    - console_log
+    - network_log
+api:
+  required: true
+  verifierRefs:
+    - todo.checkout.cart.view-cart.api
+content:
+  required: false
+  verifierRefs:
+    - todo.checkout.cart.view-cart.content
+audit:
+  required: true
+  verifierRefs:
+    - todo.checkout.cart.view-cart.audit
+negativeCases:
+  - id: unauthorized-actor-denied
+    actor: unauthorized_user
+    verifierRefs:
+      - todo.checkout.cart.view-cart.negative
+evidence:
+  required:
+    - playwright_trace
+    - scene_video
+    - api_verification_log
+    - audit_event_id
+notes:
+  - First-pass product guarantee for View Cart.

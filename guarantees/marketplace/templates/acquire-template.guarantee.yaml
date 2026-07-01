@@ -1,0 +1,73 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.marketplace.templates.acquire-template.102
+journeyIndex: 102
+type: marketplace
+subtype: templates
+journey: Acquire Template
+ownerPackage: "@treeseed/market"
+summary: First-pass product guarantee for Acquire Template.
+status: planned
+dependencies:
+  journeys:
+    - 100
+  guarantees:
+    - guarantee.marketplace.discovery.view-marketplace-listing.100
+actors:
+  allowed:
+    - buyer
+    - seller
+    - market_operator
+  forbidden:
+    - unauthorized_user
+devices:
+  required:
+    - desktop_chromium
+    - mobile_chromium
+gates:
+  - core
+  - release
+preconditions:
+  fixtures:
+    - integrated_treeseed_project
+  notes:
+    - "Journey dependencies must be satisfied: 100"
+scene:
+  required: true
+  manifest: ./scenes/acquire-template.scene.yaml
+  mode:
+    acceptance: true
+    demo: true
+    training: true
+  entryRoute: /marketplace/acquire-template
+  componentContract: record-action guarantee harness
+  expectedEvidence:
+    - playwright_trace
+    - scene_video
+    - screenshot_on_failure
+    - console_log
+    - network_log
+api:
+  required: true
+  verifierRefs:
+    - todo.marketplace.templates.acquire-template.api
+content:
+  required: true
+  verifierRefs:
+    - todo.marketplace.templates.acquire-template.content
+audit:
+  required: true
+  verifierRefs:
+    - todo.marketplace.templates.acquire-template.audit
+negativeCases:
+  - id: unauthorized-actor-denied
+    actor: unauthorized_user
+    verifierRefs:
+      - todo.marketplace.templates.acquire-template.negative
+evidence:
+  required:
+    - playwright_trace
+    - scene_video
+    - api_verification_log
+    - audit_event_id
+notes:
+  - First-pass product guarantee for Acquire Template.

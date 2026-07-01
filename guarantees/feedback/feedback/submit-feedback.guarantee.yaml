@@ -1,0 +1,69 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.feedback.feedback.submit-feedback.131
+journeyIndex: 131
+type: feedback
+subtype: feedback
+journey: Submit Feedback
+ownerPackage: "@treeseed/market"
+summary: First-pass product guarantee for Submit Feedback.
+status: planned
+dependencies:
+  journeys: []
+  guarantees: []
+actors:
+  allowed:
+    - verified_user
+  forbidden:
+    - anonymous_user
+    - unauthorized_user
+devices:
+  required:
+    - desktop_chromium
+    - mobile_chromium
+gates:
+  - core
+  - release
+preconditions:
+  fixtures:
+    - integrated_treeseed_project
+  notes: []
+scene:
+  required: true
+  manifest: ./scenes/submit-feedback.scene.yaml
+  mode:
+    acceptance: true
+    demo: true
+    training: true
+  entryRoute: /feedback/submit-feedback
+  componentContract: full-page-form guarantee harness
+  expectedEvidence:
+    - playwright_trace
+    - scene_video
+    - screenshot_on_failure
+    - console_log
+    - network_log
+api:
+  required: true
+  verifierRefs:
+    - todo.feedback.feedback.submit-feedback.api
+content:
+  required: false
+  verifierRefs:
+    - todo.feedback.feedback.submit-feedback.content
+audit:
+  required: true
+  verifierRefs:
+    - todo.feedback.feedback.submit-feedback.audit
+negativeCases:
+  - id: unauthorized-actor-denied
+    actor: anonymous_user
+    verifierRefs:
+      - todo.feedback.feedback.submit-feedback.negative
+evidence:
+  required:
+    - playwright_trace
+    - scene_video
+    - api_verification_log
+    - audit_event_id
+notes:
+  - First-pass product guarantee for Submit Feedback.

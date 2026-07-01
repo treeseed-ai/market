@@ -1,0 +1,73 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.checkout.cart.start-checkout.116
+journeyIndex: 116
+type: checkout
+subtype: cart
+journey: Start Checkout
+ownerPackage: "@treeseed/market"
+summary: First-pass product guarantee for Start Checkout.
+status: planned
+dependencies:
+  journeys:
+    - 115
+  guarantees:
+    - guarantee.checkout.cart.view-cart.115
+actors:
+  allowed:
+    - buyer
+    - seller
+    - market_operator
+  forbidden:
+    - unauthorized_user
+devices:
+  required:
+    - desktop_chromium
+    - mobile_chromium
+gates:
+  - core
+  - release
+preconditions:
+  fixtures:
+    - integrated_treeseed_project
+  notes:
+    - "Journey dependencies must be satisfied: 115"
+scene:
+  required: true
+  manifest: ./scenes/start-checkout.scene.yaml
+  mode:
+    acceptance: true
+    demo: true
+    training: true
+  entryRoute: /checkout/start-checkout
+  componentContract: record-action guarantee harness
+  expectedEvidence:
+    - playwright_trace
+    - scene_video
+    - screenshot_on_failure
+    - console_log
+    - network_log
+api:
+  required: true
+  verifierRefs:
+    - todo.checkout.cart.start-checkout.api
+content:
+  required: false
+  verifierRefs:
+    - todo.checkout.cart.start-checkout.content
+audit:
+  required: true
+  verifierRefs:
+    - todo.checkout.cart.start-checkout.audit
+negativeCases:
+  - id: unauthorized-actor-denied
+    actor: unauthorized_user
+    verifierRefs:
+      - todo.checkout.cart.start-checkout.negative
+evidence:
+  required:
+    - playwright_trace
+    - scene_video
+    - api_verification_log
+    - audit_event_id
+notes:
+  - First-pass product guarantee for Start Checkout.

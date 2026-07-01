@@ -1,0 +1,73 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.service.quote.approve-service-quote.124
+journeyIndex: 124
+type: service
+subtype: quote
+journey: Approve Service Quote
+ownerPackage: "@treeseed/market"
+summary: First-pass product guarantee for Approve Service Quote.
+status: planned
+dependencies:
+  journeys:
+    - 123
+  guarantees:
+    - guarantee.service.quote.create-service-quote.123
+actors:
+  allowed:
+    - buyer
+    - seller
+    - market_operator
+  forbidden:
+    - unauthorized_user
+devices:
+  required:
+    - desktop_chromium
+    - mobile_chromium
+gates:
+  - core
+  - release
+preconditions:
+  fixtures:
+    - integrated_treeseed_project
+  notes:
+    - "Journey dependencies must be satisfied: 123"
+scene:
+  required: true
+  manifest: ./scenes/approve-service-quote.scene.yaml
+  mode:
+    acceptance: true
+    demo: true
+    training: true
+  entryRoute: /services/approve-service-quote
+  componentContract: record-action guarantee harness
+  expectedEvidence:
+    - playwright_trace
+    - scene_video
+    - screenshot_on_failure
+    - console_log
+    - network_log
+api:
+  required: true
+  verifierRefs:
+    - todo.service.quote.approve-service-quote.api
+content:
+  required: false
+  verifierRefs:
+    - todo.service.quote.approve-service-quote.content
+audit:
+  required: true
+  verifierRefs:
+    - todo.service.quote.approve-service-quote.audit
+negativeCases:
+  - id: unauthorized-actor-denied
+    actor: unauthorized_user
+    verifierRefs:
+      - todo.service.quote.approve-service-quote.negative
+evidence:
+  required:
+    - playwright_trace
+    - scene_video
+    - api_verification_log
+    - audit_event_id
+notes:
+  - First-pass product guarantee for Approve Service Quote.

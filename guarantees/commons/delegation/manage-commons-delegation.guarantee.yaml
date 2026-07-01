@@ -1,0 +1,70 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.commons.delegation.manage-commons-delegation.138
+journeyIndex: 138
+type: commons
+subtype: delegation
+journey: Manage Commons Delegation
+ownerPackage: "@treeseed/market"
+summary: First-pass product guarantee for Manage Commons Delegation.
+status: planned
+dependencies:
+  journeys: []
+  guarantees: []
+actors:
+  allowed:
+    - commons_participant
+    - commons_steward
+  forbidden:
+    - anonymous_user
+    - unauthorized_user
+devices:
+  required:
+    - desktop_chromium
+    - mobile_chromium
+gates:
+  - core
+  - release
+preconditions:
+  fixtures:
+    - integrated_treeseed_project
+  notes: []
+scene:
+  required: true
+  manifest: ./scenes/manage-commons-delegation.scene.yaml
+  mode:
+    acceptance: true
+    demo: true
+    training: true
+  entryRoute: /commons/delegation/manage-commons-delegation
+  componentContract: full-page-form guarantee harness
+  expectedEvidence:
+    - playwright_trace
+    - scene_video
+    - screenshot_on_failure
+    - console_log
+    - network_log
+api:
+  required: true
+  verifierRefs:
+    - todo.commons.delegation.manage-commons-delegation.api
+content:
+  required: false
+  verifierRefs:
+    - todo.commons.delegation.manage-commons-delegation.content
+audit:
+  required: true
+  verifierRefs:
+    - todo.commons.delegation.manage-commons-delegation.audit
+negativeCases:
+  - id: unauthorized-actor-denied
+    actor: anonymous_user
+    verifierRefs:
+      - todo.commons.delegation.manage-commons-delegation.negative
+evidence:
+  required:
+    - playwright_trace
+    - scene_video
+    - api_verification_log
+    - audit_event_id
+notes:
+  - First-pass product guarantee for Manage Commons Delegation.

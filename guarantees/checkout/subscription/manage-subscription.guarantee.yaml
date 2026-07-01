@@ -1,0 +1,73 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.checkout.subscription.manage-subscription.119
+journeyIndex: 119
+type: checkout
+subtype: subscription
+journey: Manage Subscription
+ownerPackage: "@treeseed/market"
+summary: First-pass product guarantee for Manage Subscription.
+status: planned
+dependencies:
+  journeys:
+    - 118
+  guarantees:
+    - guarantee.checkout.entitlement.view-entitlement.118
+actors:
+  allowed:
+    - buyer
+    - seller
+    - market_operator
+  forbidden:
+    - unauthorized_user
+devices:
+  required:
+    - desktop_chromium
+    - mobile_chromium
+gates:
+  - core
+  - release
+preconditions:
+  fixtures:
+    - integrated_treeseed_project
+  notes:
+    - "Journey dependencies must be satisfied: 118"
+scene:
+  required: true
+  manifest: ./scenes/manage-subscription.scene.yaml
+  mode:
+    acceptance: true
+    demo: true
+    training: true
+  entryRoute: /checkout/manage-subscription
+  componentContract: record-operations guarantee harness
+  expectedEvidence:
+    - playwright_trace
+    - scene_video
+    - screenshot_on_failure
+    - console_log
+    - network_log
+api:
+  required: true
+  verifierRefs:
+    - todo.checkout.subscription.manage-subscription.api
+content:
+  required: false
+  verifierRefs:
+    - todo.checkout.subscription.manage-subscription.content
+audit:
+  required: true
+  verifierRefs:
+    - todo.checkout.subscription.manage-subscription.audit
+negativeCases:
+  - id: unauthorized-actor-denied
+    actor: unauthorized_user
+    verifierRefs:
+      - todo.checkout.subscription.manage-subscription.negative
+evidence:
+  required:
+    - playwright_trace
+    - scene_video
+    - api_verification_log
+    - audit_event_id
+notes:
+  - First-pass product guarantee for Manage Subscription.

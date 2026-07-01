@@ -1,0 +1,70 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.marketplace.discovery.browse-marketplace.099
+journeyIndex: 99
+type: marketplace
+subtype: discovery
+journey: Browse Marketplace
+ownerPackage: "@treeseed/market"
+summary: First-pass product guarantee for Browse Marketplace.
+status: planned
+dependencies:
+  journeys: []
+  guarantees: []
+actors:
+  allowed:
+    - buyer
+    - seller
+    - market_operator
+  forbidden:
+    - unauthorized_user
+devices:
+  required:
+    - desktop_chromium
+    - mobile_chromium
+gates:
+  - core
+  - release
+preconditions:
+  fixtures:
+    - integrated_treeseed_project
+  notes: []
+scene:
+  required: true
+  manifest: ./scenes/browse-marketplace.scene.yaml
+  mode:
+    acceptance: true
+    demo: true
+    training: true
+  entryRoute: /marketplace/browse-marketplace
+  componentContract: dashboard/read-model guarantee harness
+  expectedEvidence:
+    - playwright_trace
+    - scene_video
+    - screenshot_on_failure
+    - console_log
+    - network_log
+api:
+  required: true
+  verifierRefs:
+    - todo.marketplace.discovery.browse-marketplace.api
+content:
+  required: false
+  verifierRefs:
+    - todo.marketplace.discovery.browse-marketplace.content
+audit:
+  required: true
+  verifierRefs:
+    - todo.marketplace.discovery.browse-marketplace.audit
+negativeCases:
+  - id: unauthorized-actor-denied
+    actor: unauthorized_user
+    verifierRefs:
+      - todo.marketplace.discovery.browse-marketplace.negative
+evidence:
+  required:
+    - playwright_trace
+    - scene_video
+    - api_verification_log
+    - audit_event_id
+notes:
+  - First-pass product guarantee for Browse Marketplace.

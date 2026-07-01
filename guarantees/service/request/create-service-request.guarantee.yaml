@@ -1,0 +1,73 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.service.request.create-service-request.121
+journeyIndex: 121
+type: service
+subtype: request
+journey: Create Service Request
+ownerPackage: "@treeseed/market"
+summary: First-pass product guarantee for Create Service Request.
+status: planned
+dependencies:
+  journeys:
+    - 99
+  guarantees:
+    - guarantee.marketplace.discovery.browse-marketplace.099
+actors:
+  allowed:
+    - buyer
+    - seller
+    - market_operator
+  forbidden:
+    - unauthorized_user
+devices:
+  required:
+    - desktop_chromium
+    - mobile_chromium
+gates:
+  - core
+  - release
+preconditions:
+  fixtures:
+    - integrated_treeseed_project
+  notes:
+    - "Journey dependencies must be satisfied: 99"
+scene:
+  required: true
+  manifest: ./scenes/create-service-request.scene.yaml
+  mode:
+    acceptance: true
+    demo: true
+    training: true
+  entryRoute: /services/create-service-request
+  componentContract: full-page-form guarantee harness
+  expectedEvidence:
+    - playwright_trace
+    - scene_video
+    - screenshot_on_failure
+    - console_log
+    - network_log
+api:
+  required: true
+  verifierRefs:
+    - todo.service.request.create-service-request.api
+content:
+  required: false
+  verifierRefs:
+    - todo.service.request.create-service-request.content
+audit:
+  required: true
+  verifierRefs:
+    - todo.service.request.create-service-request.audit
+negativeCases:
+  - id: unauthorized-actor-denied
+    actor: unauthorized_user
+    verifierRefs:
+      - todo.service.request.create-service-request.negative
+evidence:
+  required:
+    - playwright_trace
+    - scene_video
+    - api_verification_log
+    - audit_event_id
+notes:
+  - First-pass product guarantee for Create Service Request.

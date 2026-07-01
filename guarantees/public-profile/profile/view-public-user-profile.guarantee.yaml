@@ -1,0 +1,69 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.public-profile.profile.view-public-user-profile.095
+journeyIndex: 95
+type: public-profile
+subtype: profile
+journey: View Public User Profile
+ownerPackage: "@treeseed/market"
+summary: First-pass product guarantee for View Public User Profile.
+status: planned
+dependencies:
+  journeys: []
+  guarantees: []
+actors:
+  allowed:
+    - verified_user
+  forbidden:
+    - anonymous_user
+    - unauthorized_user
+devices:
+  required:
+    - desktop_chromium
+    - mobile_chromium
+gates:
+  - core
+  - release
+preconditions:
+  fixtures:
+    - integrated_treeseed_project
+  notes: []
+scene:
+  required: true
+  manifest: ./scenes/view-public-user-profile.scene.yaml
+  mode:
+    acceptance: true
+    demo: true
+    training: true
+  entryRoute: /u/:username/view-public-user-profile
+  componentContract: dashboard/read-model guarantee harness
+  expectedEvidence:
+    - playwright_trace
+    - scene_video
+    - screenshot_on_failure
+    - console_log
+    - network_log
+api:
+  required: true
+  verifierRefs:
+    - todo.public-profile.profile.view-public-user-profile.api
+content:
+  required: false
+  verifierRefs:
+    - todo.public-profile.profile.view-public-user-profile.content
+audit:
+  required: true
+  verifierRefs:
+    - todo.public-profile.profile.view-public-user-profile.audit
+negativeCases:
+  - id: unauthorized-actor-denied
+    actor: anonymous_user
+    verifierRefs:
+      - todo.public-profile.profile.view-public-user-profile.negative
+evidence:
+  required:
+    - playwright_trace
+    - scene_video
+    - api_verification_log
+    - audit_event_id
+notes:
+  - First-pass product guarantee for View Public User Profile.
