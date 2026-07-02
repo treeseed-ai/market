@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.7.3] - 2026-07-02
+
+### Fixed
+
+- fix(deploy): keep staging domain probe (75400abea271)
+- fix(config): invoke key agent without tsx shim (3581126a145b)
+- fix(deploy): probe pages deployment after publish (dd5facd1e422)
+
+### Tests
+
+- test: clean treedx sdk verifier artifacts (1c767b9697a1)
+- test: reuse ui sandbox during release verify (8a05dde0756b)
+- test: isolate treedx audit event storage (91220f7bd903)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.3
+- @treeseed/agent: 0.12.3
+- @treeseed/api: 0.6.3
+- @treeseed/cli: 0.12.3
+- @treeseed/core: 0.12.3
+- @treeseed/sdk: 0.12.3
+- @treeseed/ui: 0.12.3
+- treedx: 0.2.3
+
 ## [0.7.2] - 2026-07-01
 
 ### Fixed
