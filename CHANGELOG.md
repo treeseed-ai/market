@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.7.8] - 2026-07-02
+
+### Changed
+
+- Update api acceptance credential isolation (0d702593fc7b)
+- Update sdk Railway image env scope (30c6c9f501f9)
+- Update sdk production database reconciliation (fb85977da527)
+
+### Fixed
+
+- Update sdk production image scope fix (7d82fec56df9)
+- Update sdk reconcile env overlay fix (4705bfa058eb)
+
+### Dependencies
+
+- Update api production dependency assertion (e0272bf95ddb)
+- @treeseed/admin: 0.12.11
+- @treeseed/agent: 0.12.11
+- @treeseed/api: 0.6.10
+- @treeseed/cli: 0.12.11
+- @treeseed/core: 0.12.12
+- @treeseed/sdk: 0.12.14
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.10
+
 ## [0.7.7] - 2026-07-02
 
 ### Fixed
