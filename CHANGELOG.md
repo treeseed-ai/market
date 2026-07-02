@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.9] - 2026-07-02
+
+### Changed
+
+- Update sdk Railway Postgres reconciliation (c2e7378d6033)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.12
+- @treeseed/agent: 0.12.12
+- @treeseed/api: 0.6.11
+- @treeseed/cli: 0.12.12
+- @treeseed/core: 0.12.13
+- @treeseed/sdk: 0.12.15
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.11
+
 ## [0.7.8] - 2026-07-02
 
 ### Changed
