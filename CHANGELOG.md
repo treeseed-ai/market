@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.4] - 2026-07-02
+
+### Fixed
+
+- fix(release): publish plain semver tags (59db2c4e0b7d)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.4
+- @treeseed/agent: 0.12.4
+- @treeseed/api: 0.6.4
+- @treeseed/cli: 0.12.4
+- @treeseed/core: 0.12.4
+- @treeseed/sdk: 0.12.4
+- @treeseed/ui: 0.12.4
+- treedx: 0.2.4
+
 ## [0.7.3] - 2026-07-02
 
 ### Fixed
