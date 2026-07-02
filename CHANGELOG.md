@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.7.7] - 2026-07-02
+
+### Fixed
+
+- Update sdk production reconciliation fix (2999cd1d5624)
+- Update sdk release image gate fix (2bdf05f1efb8)
+- fix(release): refresh staging lock recovery refs (9293494aec6a)
+- fix(release): refresh staging release guard refs (9e3ed89394a3)
+- fix(release): require valid production railway topology (266403a39edb)
+- fix(release): refresh staging package refs (6068f6499170)
+- fix(release): update sdk journal loader (13466d9854cd)
+- fix(release): restore staging refs after artifact check fix (2029acf63492)
+- fix(release): align SDK staging pointer (e58cfb3911d0)
+- fix(release): restore staging refs after TreeDX crate fix (42db83de09a6)
+- fix(release): update TreeDX crate package fix (7ce5b95d8d4c)
+- fix(release): refresh staging refs after SDK launcher fix (b875c0024536)
+- fix(release): restore staging package commit refs (7f6617c4a67f)
+- fix(release): update SDK key-agent release guard (64a790191884)
+- fix(release): update TreeDX Rust publish fix (3c0fc48bb44c)
+- fix(release): retry visual fixture login (0605c860a113)
+- fix(release): retry hosted scene navigation (45adac7a4e2d)
+- fix(release): retry API acceptance requests (b342bf8cac69)
+- fix(release): allow agent npm provenance (77ebc000d6c0)
+- fix(release): retry npm lockfile refresh (39e60d38ebe1)
+- 7 additional changes omitted from this summary.
+
+### Infrastructure
+
+- Update release recovery package pointers (141f97e1fb40)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.10
+- @treeseed/agent: 0.12.10
+- @treeseed/api: 0.6.9
+- @treeseed/cli: 0.12.10
+- @treeseed/core: 0.12.11
+- @treeseed/sdk: 0.12.13
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.9
+
 ## [0.7.5] - 2026-07-02
 
 ### Fixed
