@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.7.5] - 2026-07-02
+
+### Fixed
+
+- fix(release): update sdk release graph (944ba41a0067)
+- fix(release): require image publish credentials (5d5f2457e7f7)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.5
+- @treeseed/agent: 0.12.5
+- @treeseed/api: 0.6.5
+- @treeseed/cli: 0.12.5
+- @treeseed/core: 0.12.5
+- @treeseed/sdk: 0.12.5
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.5
+
 ## [0.7.4] - 2026-07-02
 
 ### Fixed
