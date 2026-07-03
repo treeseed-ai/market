@@ -162,11 +162,18 @@ jobs:
           echo "Waiting for ${api_repo}@${api_sha} on ${api_branch}: ${required_workflows[*]}"
 
           while (( SECONDS < deadline )); do
-            runs_json="$(gh run list \
+            gh_error="$(mktemp)"
+            if ! runs_json="$(gh run list \
               --repo "${api_repo}" \
               --branch "${api_branch}" \
               --limit 100 \
-              --json workflowName,status,conclusion,headSha,url)"
+              --json workflowName,status,conclusion,headSha,url 2>"${gh_error}")"; then
+              echo "::warning::Unable to query API package workflow status; retrying. $(tr '\n' ' ' < "${gh_error}")"
+              rm -f "${gh_error}"
+              sleep 30
+              continue
+            fi
+            rm -f "${gh_error}"
 
             required_workflows_text="$(printf '%s\n' "${required_workflows[@]}")"
             gate_result="$(
