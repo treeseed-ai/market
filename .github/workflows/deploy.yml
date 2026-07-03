@@ -126,11 +126,12 @@ jobs:
       - classify
     if: |
       needs.classify.outputs.scope == 'staging' &&
-      needs.classify.outputs.api_changed == 'true' &&
       (
         needs.classify.outputs.workflow_action == 'deploy_web' ||
         needs.classify.outputs.workflow_action == 'publish_content' ||
-        needs.classify.outputs.workflow_action == 'auto'
+        needs.classify.outputs.workflow_action == 'auto' ||
+        needs.classify.outputs.web_changed == 'true' ||
+        needs.classify.outputs.content_changed == 'true'
       )
     runs-on: ubuntu-latest
     permissions:
@@ -234,7 +235,10 @@ jobs:
     if: |
       always() &&
       needs.preflight.result == 'success' &&
-      (needs.api-package-gate.result == 'success' || needs.api-package-gate.result == 'skipped') &&
+      (
+        (needs.classify.outputs.scope == 'staging' && needs.api-package-gate.result == 'success') ||
+        (needs.classify.outputs.scope != 'staging' && (needs.api-package-gate.result == 'success' || needs.api-package-gate.result == 'skipped'))
+      ) &&
       (
         needs.classify.outputs.workflow_action == 'deploy_web' ||
         needs.classify.outputs.workflow_action == 'publish_content' ||
