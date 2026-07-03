@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.7.11] - 2026-07-03
+
+### Fixed
+
+- Update staging refs for release verification fix (c5710a3e235f)
+- fix(release): load API acceptance credentials from config (55554eefc5ce)
+- fix(release): gate root deploy on API production verification (40bfcdfe4522)
+
+### Infrastructure
+
+- Update staging package refs for release retry (bd45e8b95cef)
+- Update release verification package pointers (df7f55a2ed4a)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.16
+- @treeseed/agent: 0.12.16
+- @treeseed/api: 0.6.15
+- @treeseed/cli: 0.12.16
+- @treeseed/core: 0.12.17
+- @treeseed/sdk: 0.12.20
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.15
+
 ## [0.7.10] - 2026-07-03
 
 ### Infrastructure
