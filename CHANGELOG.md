@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.7.10] - 2026-07-03
+
+### Infrastructure
+
+- Update release diagnostics (c98546b7eb45)
+- Update sdk release journal scan (cdd0eb309a9b)
+- Update sdk release image reconciliation (0408f6cb8d66)
+
+### Tests
+
+- Update sdk release gate test isolation (484feb3f886f)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.13
+- @treeseed/agent: 0.12.13
+- @treeseed/api: 0.6.12
+- @treeseed/cli: 0.12.13
+- @treeseed/core: 0.12.14
+- @treeseed/sdk: 0.12.16
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.12
+
 ## [0.7.9] - 2026-07-02
 
 ### Changed
