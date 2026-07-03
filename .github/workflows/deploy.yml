@@ -263,7 +263,15 @@ jobs:
     secrets: inherit
 
   preflight:
-    needs: classify
+    needs:
+      - classify
+      - api-package-gate
+    if: |
+      always() &&
+      (
+        (needs.classify.outputs.scope == 'staging' && needs.api-package-gate.result == 'success') ||
+        (needs.classify.outputs.scope != 'staging' && (needs.api-package-gate.result == 'success' || needs.api-package-gate.result == 'skipped'))
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read

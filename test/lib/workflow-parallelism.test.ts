@@ -12,6 +12,8 @@ describe('CI/CD parallelism workflows', () => {
 		const deployWeb = workflow('.github/workflows/deploy-web.yml');
 		expect(deploy.jobs).toHaveProperty('preflight');
 		expect(deploy.jobs).toHaveProperty('api-package-gate');
+		expect(deploy.jobs.preflight.needs).toEqual(['classify', 'api-package-gate']);
+		expect(deploy.jobs.preflight.if).toContain("needs.api-package-gate.result == 'success'");
 		expect(deploy.jobs['deploy-web'].needs).toEqual(['classify', 'preflight', 'api-package-gate']);
 		expect(deploy.jobs['api-package-gate'].steps).toEqual(expect.arrayContaining([
 			expect.objectContaining({ name: 'Wait for API package CI/CD' }),
@@ -75,13 +77,11 @@ describe('CI/CD parallelism workflows', () => {
 	it('keeps Market verify serial by default and parallel only by opt-in', () => {
 		const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as any;
 		const script = readFileSync('scripts/market-verify.ts', 'utf8');
-		const releaseCandidate = readFileSync('packages/sdk/src/operations/services/release-candidate.ts', 'utf8');
-  expect(packageJson.scripts['verify:direct']).toBe('node --import tsx ./scripts/market-verify.ts');
+		expect(packageJson.scripts['verify:direct']).toBe('node --import tsx ./scripts/market-verify.ts');
 		expect(script).toContain('TREESEED_VERIFY_PARALLEL');
 		expect(script).toContain('copyWorkspace(root, taskRoot)');
 		expect(script).toContain('cloneNodeModules(root, taskRoot)');
 		expect(script).toContain("['-al'");
-		expect(releaseCandidate).toContain("packageJson?.name === '@treeseed/market'");
-		expect(releaseCandidate).toContain("TREESEED_VERIFY_PARALLEL: '1'");
+		expect(script).toContain('TREESEED_VERIFY_PARALLEL_CHILD');
 	});
 });
