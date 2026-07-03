@@ -45,7 +45,6 @@ jobs:
       scope: ${{ steps.classify.outputs.scope }}
       web_changed: ${{ steps.classify.outputs.web_changed }}
       content_changed: ${{ steps.classify.outputs.content_changed }}
-      api_changed: ${{ steps.classify.outputs.api_changed }}
       release_tag: ${{ steps.classify.outputs.release_tag }}
       workflow_action: ${{ steps.classify.outputs.workflow_action }}
       preview_id: ${{ steps.classify.outputs.preview_id }}
@@ -66,7 +65,6 @@ jobs:
             preview_id="${{ inputs.preview_id }}"
             web_changed=$([[ "${workflow_action}" == "deploy_web" || "${workflow_action}" == "publish_content" ]] && echo "true" || echo "false")
             content_changed=$([[ "${workflow_action}" == "publish_content" ]] && echo "true" || echo "false")
-            api_changed=$([[ "${scope}" == "staging" && ( "${workflow_action}" == "deploy_web" || "${workflow_action}" == "publish_content" ) ]] && echo "true" || echo "false")
           else
             scope=$([[ "${GITHUB_REF_TYPE}" == "tag" ]] && echo "prod" || echo "staging")
             workflow_action="auto"
@@ -78,7 +76,6 @@ jobs:
             fi
             web_changed="false"
             content_changed="false"
-            api_changed="false"
             if [[ -z "${compare_ref}" || "${release_tag}" == "true" ]]; then
               web_changed="true"
             else
@@ -90,7 +87,6 @@ jobs:
                     web_changed="true"
                     ;;
                   packages/api|packages/api/**)
-                    api_changed="true"
                     # Backend/API package changes are released by the API package workflow.
                     ;;
                   packages/treedx|packages/treedx/**|.railwayignore)
@@ -115,137 +111,18 @@ jobs:
             echo "scope=${scope}"
             echo "web_changed=${web_changed}"
             echo "content_changed=${content_changed}"
-            echo "api_changed=${api_changed}"
             echo "release_tag=${release_tag}"
             echo "workflow_action=${workflow_action}"
             echo "preview_id=${preview_id}"
           } >> "${GITHUB_OUTPUT}"
 
-  api-package-gate:
-    needs:
-      - classify
-    if: |
-      needs.classify.outputs.scope == 'staging' &&
-      (
-        needs.classify.outputs.workflow_action == 'deploy_web' ||
-        needs.classify.outputs.workflow_action == 'publish_content' ||
-        needs.classify.outputs.workflow_action == 'auto' ||
-        needs.classify.outputs.web_changed == 'true' ||
-        needs.classify.outputs.content_changed == 'true'
-      )
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    env:
-      GH_TOKEN: ${{ secrets.TREESEED_GITHUB_TOKEN || secrets.TREESEED_HOSTED_HUBS_GITHUB_TOKEN || github.token }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Wait for API package CI/CD
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${GH_TOKEN:-}" ]]; then
-            echo "::error::A GitHub token with access to treeseed-ai/api is required to gate Market deployment."
-            exit 1
-          fi
-
-          api_sha="$(git rev-parse HEAD:packages/api)"
-          api_branch="${GITHUB_REF_NAME}"
-          api_repo="treeseed-ai/api"
-          required_workflows=("Verify" "Verify TreeSeed API" "TreeSeed API Deploy")
-          deadline=$((SECONDS + 5400))
-
-          echo "Waiting for ${api_repo}@${api_sha} on ${api_branch}: ${required_workflows[*]}"
-
-          while (( SECONDS < deadline )); do
-            gh_error="$(mktemp)"
-            if ! runs_json="$(gh run list \
-              --repo "${api_repo}" \
-              --branch "${api_branch}" \
-              --limit 100 \
-              --json workflowName,status,conclusion,headSha,url 2>"${gh_error}")"; then
-              echo "::warning::Unable to query API package workflow status; retrying. $(tr '\n' ' ' < "${gh_error}")"
-              rm -f "${gh_error}"
-              sleep 30
-              continue
-            fi
-            rm -f "${gh_error}"
-
-            required_workflows_text="$(printf '%s\n' "${required_workflows[@]}")"
-            gate_result="$(
-              RUNS_JSON="${runs_json}" API_SHA="${api_sha}" REQUIRED_WORKFLOWS="${required_workflows_text}" node <<'NODE'
-          const runs = JSON.parse(process.env.RUNS_JSON ?? '[]');
-          const apiSha = process.env.API_SHA;
-          const required = (process.env.REQUIRED_WORKFLOWS ?? '').split('\n').filter(Boolean);
-          const byWorkflow = new Map();
-          for (const run of runs) {
-            if (run.headSha !== apiSha || byWorkflow.has(run.workflowName)) continue;
-            byWorkflow.set(run.workflowName, run);
-          }
-          const missing = [];
-          const pending = [];
-          const failed = [];
-          for (const name of required) {
-            const run = byWorkflow.get(name);
-            if (!run) {
-              missing.push(name);
-            } else if (run.status !== 'completed') {
-              pending.push(`${name} (${run.status})`);
-            } else if (run.conclusion !== 'success') {
-              failed.push(`${name} (${run.conclusion}) ${run.url}`);
-            }
-          }
-          if (failed.length > 0) {
-            console.log(`failed\t${failed.join('\n')}`);
-          } else if (missing.length > 0 || pending.length > 0) {
-            console.log(`waiting\tmissing: ${missing.join(', ') || 'none'}; pending: ${pending.join(', ') || 'none'}`);
-          } else {
-            console.log('success\tall required API workflows passed');
-          }
-          NODE
-            )"
-
-            status="${gate_result%%$'\t'*}"
-            detail="${gate_result#*$'\t'}"
-            echo "${detail}"
-
-            case "${status}" in
-              success)
-                exit 0
-                ;;
-              failed)
-                echo "::error::API package CI/CD failed; refusing to deploy Market."
-                exit 1
-                ;;
-              waiting)
-                sleep 30
-                ;;
-              *)
-                echo "::error::Unexpected API gate status: ${status}"
-                exit 1
-                ;;
-            esac
-          done
-
-          echo "::error::Timed out waiting for API package CI/CD."
-          exit 1
-
   deploy-web:
     needs:
       - classify
       - preflight
-      - api-package-gate
     if: |
       always() &&
       needs.preflight.result == 'success' &&
-      (
-        (needs.classify.outputs.scope == 'staging' && needs.api-package-gate.result == 'success') ||
-        (needs.classify.outputs.scope != 'staging' && (needs.api-package-gate.result == 'success' || needs.api-package-gate.result == 'skipped'))
-      ) &&
       (
         needs.classify.outputs.workflow_action == 'deploy_web' ||
         needs.classify.outputs.workflow_action == 'publish_content' ||
@@ -265,13 +142,6 @@ jobs:
   preflight:
     needs:
       - classify
-      - api-package-gate
-    if: |
-      always() &&
-      (
-        (needs.classify.outputs.scope == 'staging' && needs.api-package-gate.result == 'success') ||
-        (needs.classify.outputs.scope != 'staging' && (needs.api-package-gate.result == 'success' || needs.api-package-gate.result == 'skipped'))
-      )
     runs-on: ubuntu-latest
     permissions:
       contents: read

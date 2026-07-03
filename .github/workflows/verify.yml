@@ -34,7 +34,7 @@ jobs:
         run: |
           npx --yes tsx ./.github/scripts/prepare-workspace-install.ts
           npm ci
-          for dir in packages/sdk packages/agent packages/core packages/cli packages/api packages/ui; do
+          for dir in packages/sdk packages/agent packages/core packages/cli packages/ui; do
             if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
               git -C "${dir}" checkout -- package.json
             fi
@@ -66,7 +66,7 @@ jobs:
         run: |
           npx --yes tsx ./.github/scripts/prepare-workspace-install.ts
           npm ci
-          for dir in packages/sdk packages/agent packages/core packages/cli packages/api packages/ui; do
+          for dir in packages/sdk packages/agent packages/core packages/cli packages/ui; do
             if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
               git -C "${dir}" checkout -- package.json
             fi
@@ -98,7 +98,7 @@ jobs:
         run: |
           npx --yes tsx ./.github/scripts/prepare-workspace-install.ts
           npm ci
-          for dir in packages/sdk packages/agent packages/core packages/cli packages/api packages/ui; do
+          for dir in packages/sdk packages/agent packages/core packages/cli packages/ui; do
             if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
               git -C "${dir}" checkout -- package.json
             fi
@@ -130,7 +130,7 @@ jobs:
         run: |
           npx --yes tsx ./.github/scripts/prepare-workspace-install.ts
           npm ci
-          for dir in packages/sdk packages/agent packages/core packages/cli packages/api packages/ui; do
+          for dir in packages/sdk packages/agent packages/core packages/cli packages/ui; do
             if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
               git -C "${dir}" checkout -- package.json
             fi
@@ -164,7 +164,7 @@ jobs:
         run: |
           npx --yes tsx ./.github/scripts/prepare-workspace-install.ts
           npm ci
-          for dir in packages/sdk packages/agent packages/core packages/cli packages/api packages/ui; do
+          for dir in packages/sdk packages/agent packages/core packages/cli packages/ui; do
             if test -d "${dir}/.git" || git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1; then
               git -C "${dir}" checkout -- package.json
             fi
