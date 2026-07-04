@@ -2,10 +2,6 @@
 
 ## [0.7.20] - 2026-07-04
 
-### Changed
-
-- docs: prohibit dry-run behavior (9095027b80e9)
-
 ### Fixed
 
 - chore: advance sdk test fix (d77ddb06dbda)
