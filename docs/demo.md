@@ -132,12 +132,12 @@ Capacity-provider workday automation is required for the canonical demo because 
 npx trsd capacity status --market local --provider local
 ```
 
-If the older local docs-automation workday command is available in the current branch, start with dry-run automation for a reliable rehearsal:
+If the older local docs-automation workday command is available in the current branch, start with plan automation for a reliable rehearsal:
 
 ```bash
 npx trsd dev:manager \
   --with-worker \
-  --docs-automation dry-run \
+  --docs-automation plan \
   --approval-policy manual \
   --workday-id local-docs-1 \
   --capacity-budget 500
@@ -305,7 +305,7 @@ npx trsd dev:manager --plan --json
 Then restart the workday manager with an explicit workday id:
 
 ```bash
-npx trsd dev:manager --with-worker --docs-automation dry-run --approval-policy manual --workday-id local-docs-1 --capacity-budget 500
+npx trsd dev:manager --with-worker --docs-automation plan --approval-policy manual --workday-id local-docs-1 --capacity-budget 500
 ```
 
 ### Tasks Do Not Run

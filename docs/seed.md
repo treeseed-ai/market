@@ -29,7 +29,7 @@ See [Package Ownership](./package-ownership.md) for the current package map.
 1. Add a `seeds/` directory to the market project.
 2. Define one or more named seed manifests.
 3. Add a `trsd seed` command that accepts a seed name and optional environment list.
-4. Implement dry-run planning and idempotent apply behavior.
+4. Implement plan planning and idempotent apply behavior.
 5. Use reconciliation semantics rather than one-shot insert scripts.
 6. Support local development setup and production-safe maintenance.
 7. Allow AI agents to propose seed changes and run safe seed plans under policy control.
@@ -72,7 +72,7 @@ trsd seed treeseed --environments local,staging
 
 Applies only resources that target `local` or `staging`.
 
-### Production dry-run
+### Production plan
 
 ```bash
 trsd seed treeseed --environments prod --plan
@@ -1125,7 +1125,7 @@ Deliverable: `trsd seed treeseed --environments local --apply` creates a ready l
 
 * Add permission checks.
 * Add audit records.
-* Add production dry-run enforcement.
+* Add production plan enforcement.
 * Add approval gate for agent-driven production apply.
 * Add JSON plan output for UI/agent review.
 

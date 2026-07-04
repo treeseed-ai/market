@@ -42,7 +42,7 @@ npm -w packages/agent run verify:local
 
 The package-shape tests assert that provider runtime files are present in
 `dist`, and that `.ts-run-*` source-mode temp files are absent from both `dist`
-and `npm pack --dry-run`. `verify:local` installs the packed package into a
+and `npm pack --plan`. `verify:local` installs the packed package into a
 temporary project and validates the provider entrypoint, runtime paths, and
 built-in handler registry.
 

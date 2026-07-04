@@ -329,7 +329,7 @@ Manual approval is the default.
 Ask me before:
 
 * approving TreeSeed governance decisions
-* switching from `--docs-automation dry-run` to `--docs-automation on`
+* switching from `--docs-automation plan` to `--docs-automation on`
 * applying canonical docs mutations
 * staging or saving generated documentation changes
 * releasing or publishing
@@ -673,7 +673,7 @@ Repeat this loop until acceptance criteria pass:
 ```text
 1. Confirm web/API are running or restart them with logs.
 2. Confirm seed state exists.
-3. Run or rerun manager + worker with the same workday id in dry-run mode.
+3. Run or rerun manager + worker with the same workday id in plan mode.
 4. Tail logs and inspect API/UI/state.
 5. Classify the first real blocker.
 6. Patch the smallest integrated slice.
@@ -682,9 +682,9 @@ Repeat this loop until acceptance criteria pass:
 9. Update notes in your response with what changed and what remains.
 ```
 
-Do not switch from `dry-run` to `on` until dry-run is boring and the UI/API/reporting path is understandable.
+Do not switch from `plan` to `on` until plan is boring and the UI/API/reporting path is understandable.
 
-When dry-run passes, ask me before starting the local capacity provider:
+When plan passes, ask me before starting the local capacity provider:
 
 ```bash
 npx trsd capacity up --execute --json

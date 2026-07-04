@@ -1070,7 +1070,7 @@ treeseed release reads config produced by Market UI launch
 6. Confirm src/env.yaml includes generated environment entries.
 7. Confirm secrets/variables are planned or synced to GitHub/Cloudflare/Railway.
 8. Run CLI config validation against the generated repo.
-9. Run deploy dry-run from the generated repo.
+9. Run deploy plan from the generated repo.
 ```
 
 ---

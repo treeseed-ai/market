@@ -446,7 +446,7 @@ Humans also do **not** need to approve every feature-branch-to-staging merge. Ve
 
 Agents may:
 
-* run read-only operations such as `dev --plan`, runtime readiness checks, status checks, and operation dry-runs when granted by policy;
+* run read-only operations such as `dev --plan`, runtime readiness checks, status checks, and operation plans when granted by policy;
 * inspect repository files through approved context retrieval;
 * build context packs;
 * create or reprioritize questions;
@@ -1432,7 +1432,7 @@ Provider-neutral operation request:
 ```ts
 export interface AgentOperationRequest {
   operation: 'switch' | 'dev' | 'verify' | 'save' | 'stage' | 'close' | 'release';
-  mode: 'dry_run' | 'read_only' | 'mutating';
+  mode: 'plan' | 'read_only' | 'mutating';
   taskId: string;
   workDayId?: string;
   agentSlug: string;
@@ -1534,7 +1534,7 @@ The API should expose:
 
 * operation permissions and grants;
 * operation event history;
-* operation dry-run/plan results when safe;
+* operation plan/plan results when safe;
 * active workday;
 * start/request workday;
 * task list;
@@ -1552,7 +1552,7 @@ Recommended API groups:
 ```text
 GET  /v1/projects/:projectId/operations/grants
 GET  /v1/projects/:projectId/operations/events
-POST /v1/projects/:projectId/operations/:operation/dry-run
+POST /v1/projects/:projectId/operations/:operation/plan
 GET  /v1/projects/:projectId/agents/status
 GET  /v1/projects/:projectId/workdays/current
 POST /v1/projects/:projectId/workdays/requests
@@ -1676,7 +1676,7 @@ Tasks:
 * Add operation capability grants by role/task/environment.
 * Add deterministic operation step schema to work packages.
 * Add task-event recording for operation invocations.
-* Add dry-run/read-only mode for safe inspection.
+* Add plan/read-only mode for safe inspection.
 * Add policy tests for `switch`, `dev`, `save`, `stage`, `close`, and `release`.
 
 Deliverables:

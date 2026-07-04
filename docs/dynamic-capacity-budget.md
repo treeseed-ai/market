@@ -1089,7 +1089,7 @@ codex_subscription:wall_minute
   confidence high
 ```
 
-`trsd capacity plan --provider local` remains the provider-runtime dry-run path and now includes a native budget-file summary when the provider budget file declares execution providers and native limits.
+`trsd capacity plan --provider local` remains the provider-runtime plan path and now includes a native budget-file summary when the provider budget file declares execution providers and native limits.
 
 ### `trsd capacity migrate --to-derived`
 
@@ -1109,7 +1109,7 @@ trsd capacity migrate --to-derived \
   --max-concurrent-workers 4 \
   --project project_123 \
   --portfolio-allocation-percent 100 \
-  --dry-run
+  --plan
 ```
 
 ## Phased Implementation Record

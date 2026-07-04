@@ -95,7 +95,7 @@ project_id
 --environment staging|prod
 --project-id <id>
 --preview-id <id>
---dry-run
+--plan
 ```
 
 and calls `runProjectPlatformAction`.
@@ -262,7 +262,7 @@ Allowed execution targets:
 ```text
 market_operations_runner
 github_actions
-cli local dry-run/test path
+cli local plan/test path
 ```
 
 ---
@@ -563,7 +563,7 @@ interface CreateProjectWebDeploymentRequest {
   reason?: string;
   idempotencyKey?: string;
   previewId?: string | null;
-  dryRun?: boolean;
+  planOnly?: boolean;
   confirmProduction?: boolean;
 }
 ```
@@ -610,7 +610,7 @@ interface ProjectWebDeploymentOperationPayload {
   workflowFile: 'deploy-web.yml';
   dispatchStrategy: 'runner_direct_github_dispatch' | 'market_hosted_project_workflow';
   previewId?: string | null;
-  dryRun?: boolean;
+  planOnly?: boolean;
 }
 ```
 
@@ -909,7 +909,7 @@ interface ProjectWebDeploymentOperationInput {
   workflowFile: 'deploy-web.yml';
   dispatchStrategy: 'runner_direct_github_dispatch' | 'market_hosted_project_workflow';
   previewId?: string | null;
-  dryRun?: boolean;
+  planOnly?: boolean;
 }
 ```
 
@@ -939,7 +939,7 @@ Required flags:
 --operation project:web_deployment
 --poll-interval-ms <number>
 --max-jobs <number>
---dry-run
+--plan
 --mock-external
 ```
 
@@ -1076,7 +1076,7 @@ interface ProjectPlatformActionResult {
   scope: 'staging' | 'prod';
   projectId: string | null;
   previewId: string | null;
-  dryRun: boolean;
+  planOnly: boolean;
   changed: boolean;
   urls: string[];
   resources: Array<{ kind: string; name: string; state: string; url?: string }>;
@@ -1478,7 +1478,7 @@ Deployment action commands support:
 --timeout-seconds <number>
 --poll-interval-ms <number>
 --json
---dry-run
+--plan
 --reason <text>
 --idempotency-key <key>
 --yes

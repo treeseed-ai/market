@@ -1257,8 +1257,8 @@ function providerOutput(completedTask) {
 
 function assertNoDryRun(output, projectName) {
 	const serialized = JSON.stringify(output);
-	if (/dry-run|Dry-run execution adapter/iu.test(serialized)) {
-		throw new Error(`Dry-run output detected for ${projectName}; refusing to accept the diagnostic.`);
+	if (/plan|Plan execution adapter/iu.test(serialized)) {
+		throw new Error(`Plan output detected for ${projectName}; refusing to accept the diagnostic.`);
 	}
 }
 

@@ -47,7 +47,7 @@ refresh -> plan -> validate -> apply -> refresh -> verify -> persist
 - `verify` evaluates required postconditions against fresh live state.
 - `persist` records lineage, desired hashes, last observed state, last applied state, last verified state, taints, retained resources, and blocked drift.
 
-Dry runs stop before mutation but still compile desired state, refresh live state where requested, and report the exact planned actions.
+Plans stop before mutation but still compile desired state, refresh live state where requested, and report the exact planned actions.
 
 ## Resource Graph
 
