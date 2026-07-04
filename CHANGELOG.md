@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.7.22] - 2026-07-04
+
+### Fixed
+
+- fix(release): sync package recovery heads (95b4c7cacabe)
+- fix(release): update TreeDX gate compatibility (053977dbf610)
+- fix(release): restore TreeDX release gate integration (455a8f02c96f)
+
+### Infrastructure
+
+- chore(release): refresh staging package refs (e13158ad93f2)
+
+### Dependencies
+
+- build(build): require trsd operations for project work (024d9ecdd5e9)
+- @treeseed/admin: 0.12.32
+- @treeseed/agent: 0.12.32
+- @treeseed/api: 0.6.31
+- @treeseed/cli: 0.12.32
+- @treeseed/core: 0.12.33
+- @treeseed/sdk: 0.12.36
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.30
+
 ## [0.7.21] - 2026-07-04
 
 ### Fixed
