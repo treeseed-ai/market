@@ -679,7 +679,6 @@
 
 ### Dependencies
 
-- build(deps): avoid live queue lookup during destroy dry runs (e56427021569)
 - build(deps): harden provider cleanup api calls for clean destroy (2e2e8e13da51)
 - build(deps): wait for delayed Railway service instances before (d42fba82760c)
 - Release @treeseed/market 0.6.20.

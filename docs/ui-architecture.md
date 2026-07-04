@@ -721,7 +721,7 @@ Progressive disclosure is a structural product rule.
 
 Easy mode shows readiness, connected systems, missing setup, current budget/capacity, summary allocation, deployment/readiness state, and next recommended action.
 
-Advanced mode shows hosts, capacity providers, keys, diagnostics, agent allocation, workday dry runs, execution traces, detailed usage, runtime tests, and detailed allocation trees.
+Advanced mode shows hosts, capacity providers, keys, diagnostics, agent allocation, workday planning, execution traces, detailed usage, runtime tests, and detailed allocation trees.
 
 Infrastructure and capacity must not dominate ordinary user flows. Ordinary users see status, readiness, and next actions. Advanced operators can drill down.
 
