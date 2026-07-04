@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.23] - 2026-07-04
+
+### Dependencies
+
+- build(deps): purge production web cache before release verification (91e7dedeed60)
+- @treeseed/admin: 0.12.33
+- @treeseed/agent: 0.12.33
+- @treeseed/api: 0.6.32
+- @treeseed/cli: 0.12.33
+- @treeseed/core: 0.12.34
+- @treeseed/sdk: 0.12.37
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.31
+
 ## [0.7.22] - 2026-07-04
 
 ### Fixed
