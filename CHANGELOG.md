@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.7.21] - 2026-07-04
+
+### Fixed
+
+- fix: use sdk railway git source repair (17c71ef2a947)
+- fix: preserve release operator links (86e122e51fc0)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.30
+- @treeseed/agent: 0.12.30
+- @treeseed/api: 0.6.29
+- @treeseed/cli: 0.12.30
+- @treeseed/core: 0.12.31
+- @treeseed/sdk: 0.12.34
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.28
+
 ## [0.7.20] - 2026-07-04
 
 ### Fixed
