@@ -1,5 +1,70 @@
 # Changelog
 
+## [0.7.20] - 2026-07-04
+
+### Changed
+
+- docs: prohibit dry-run behavior (9095027b80e9)
+
+### Fixed
+
+- chore: advance sdk test fix (d77ddb06dbda)
+- chore: update sdk publish gate ordering fix (76571e8c2f70)
+- chore: update sdk workflow gate failure fix (c0fd6ab0206c)
+- chore: update sdk release gate fix (e3206dcf4aeb)
+- chore: update api hosted sdk email acceptance fix (10a369b03fc4)
+- chore: update api acceptance nonce fix (8f46b94a8691)
+- chore: update api acceptance bypass fix (b1a7226b09c2)
+- chore: update api acceptance seed fix (d4e0cabcc61a)
+- fix: update api live credential propagation (7cbcade83363)
+- fix: gate release graph on api workflow failures (e3e42a1a57c3)
+- chore: update API live credential fix (16c9cb376bc9)
+- chore: update API staging workflow fix (92e4af782ad2)
+- chore: update api acceptance credential fix (d3a8cf08e6b6)
+- fix: retry market api workflow gate polling (521d92ec4682)
+- chore: update api sdk release fixes (c16e12ddc3bf)
+- fix: gate staging market deploys on API workflows (4150f853ab7b)
+- chore: update sdk release gate fix (6fec41b4bd71)
+
+### Infrastructure
+
+- chore: record release package versions (92bcab5f01f1)
+- chore: record release package versions (92bf8c16606f)
+- chore: record release package versions (8c18ab7a839c)
+- chore: record changelog cleanup pointers (dbbb42fcf18b)
+- chore: record release package versions (7b6ed27fd8f2)
+- chore: record release retry package pointers (fd3fb8003530)
+- chore: sync release package lock (ee9b1fa52597)
+- chore: record release package pointers (4fdfd0fea3dc)
+- chore: update sdk staging pointer (adebaa51483b)
+- Update release source policy package pointers (bf17db76abc3)
+- Advance release pointers after API deploy gate (e429a215bb04)
+- Advance release package pointers (66bfa05d4e9f)
+- Record published package release pointers (e73b9907931e)
+- Update API deploy workflow pointer (2beb2e65f3c1)
+- Update CLI release verification pointer (86b4a35fc0f3)
+- chore: advance sdk release reconciler (6ca6b31b70cf)
+- chore: advance release package pointers (93f91c393646)
+- chore: keep api ci in api package (194eb1715484)
+- chore: bound hosted web deploy workflow (08a36fa90284)
+- chore: update sdk deploy retry repair (4df3b532fb11)
+- 12 additional changes omitted from this summary.
+
+### Tests
+
+- chore: update api staging dependency test (d0bd0cac15b1)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.29
+- @treeseed/agent: 0.12.29
+- @treeseed/api: 0.6.28
+- @treeseed/cli: 0.12.29
+- @treeseed/core: 0.12.30
+- @treeseed/sdk: 0.12.33
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.27
+
 ## [0.7.11] - 2026-07-03
 
 ### Fixed
