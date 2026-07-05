@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.7.24] - 2026-07-05
+
+### Fixed
+
+- build(deps): bypass source page edge cache for production release (e1078b21f198)
+
+### Dependencies
+
+- build(deps): make live hosted env checks provider authoritative (1c3a43183a02)
+- build(deps): fail release on broken production web surface (d1f82ad947ab)
+- @treeseed/admin: 0.12.34
+- @treeseed/agent: 0.12.34
+- @treeseed/api: 0.6.33
+- @treeseed/cli: 0.12.34
+- @treeseed/core: 0.12.35
+- @treeseed/sdk: 0.12.38
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.32
+
 ## [0.7.23] - 2026-07-04
 
 ### Dependencies
