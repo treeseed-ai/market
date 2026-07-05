@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.25] - 2026-07-05
+
+### Fixed
+
+- build(deps): fix production source cache purge finalization (9f4061a3ea28)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.35
+- @treeseed/agent: 0.12.35
+- @treeseed/api: 0.6.34
+- @treeseed/cli: 0.12.35
+- @treeseed/core: 0.12.36
+- @treeseed/sdk: 0.12.39
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.33
+
 ## [0.7.24] - 2026-07-05
 
 ### Fixed
