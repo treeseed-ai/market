@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.7.27] - 2026-07-05
+
+### Added
+
+- feat(deps): harden container image release security (1b65e0ba3fe4)
+
+### Fixed
+
+- build(deps): fix Docker Hub attestation verification (d8ebd7b19e8a)
+
+### Dependencies
+
+- build(deps): add final production release guarantee gate (93212f2a72ad)
+- @treeseed/admin: 0.12.37
+- @treeseed/agent: 0.12.37
+- @treeseed/api: 0.6.36
+- @treeseed/cli: 0.12.37
+- @treeseed/core: 0.12.38
+- @treeseed/sdk: 0.12.41
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.34
+
 ## [0.7.25] - 2026-07-05
 
 ### Fixed
