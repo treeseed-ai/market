@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.7.28] - 2026-07-06
+
+### Fixed
+
+- build(deps): fix Railway Dockerfile hosted build command verification (08c323a9e05e)
+
+### Tests
+
+- build(deps): complete starter, api guarantee, and agent live (ce32aa860b05)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.38
+- @treeseed/agent: 0.12.38
+- @treeseed/api: 0.6.37
+- @treeseed/cli: 0.12.38
+- @treeseed/core: 0.12.39
+- @treeseed/sdk: 0.12.42
+- @treeseed/ui: 0.12.6
+- treedx: 0.2.35
+
 ## [0.7.27] - 2026-07-05
 
 ### Added
