@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.7.30] - 2026-07-06
+
+### Fixed
+
+- build(deps): sync release package locks after TreeDX security fix (2f16eb004ecd)
+
+### Dependencies
+
+- build(deps): sync starter and fixture submodule promotion with stage (6406fd880925)
+- @treeseed/admin: 0.12.40
+- @treeseed/agent: 0.12.40
+- @treeseed/api: 0.6.39
+- @treeseed/cli: 0.12.40
+- @treeseed/core: 0.12.41
+- @treeseed/sdk: 0.12.44
+- @treeseed/ui: 0.12.8
+- treedx: 0.2.37
+
 ## [0.7.28] - 2026-07-06
 
 ### Fixed
