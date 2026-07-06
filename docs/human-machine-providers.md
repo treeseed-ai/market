@@ -30,7 +30,7 @@ Human teams, deterministic workflows, and AI agents use the same control-plane l
 provider check-in -> next assignment -> lease renewal -> mode-run telemetry -> complete/return/fail -> usage settlement
 ```
 
-Handlers are provider-independent algorithms. Providers are execution mechanisms. First-party agents use the generic handler set `plan`, `research`, `act`, `review`, and `report`; project agent classes and `handlerConfig.domain` carry role semantics such as implementation, documentation review, release readiness, or codebase cartography. The same generic handlers can work across AI, deterministic automation, and human issue queues when their capability requirements match provider supply.
+Handlers are provider-independent algorithms. Providers are execution mechanisms. First-party agents use activity profiles over the clean handler set `writer`, `actor`, `estimate`, `releaser`, and `reporter`; project agent classes and profile contracts carry role semantics such as implementation, documentation review, release readiness, or codebase research. The same handlers can work across AI, deterministic automation, and human issue queues when their capability requirements match provider supply.
 
 TreeDX-backed content access is the default SDK and assignment runtime path. Execution provider invocations may include redacted `agent_tool` descriptors when the agent content definition allows those tools and the assignment has the required scoped handles. AI providers such as Codex use the catalog through assignment-scoped MCP configuration metadata; human issue queues such as GitHub Issues render safe route templates, allowed operations, allowed paths, and required header names into the issue body. Model-aware content tools expose generic `treeseed.content.*` commands plus generated model presets while sharing one SDK-backed renderer and validator. No execution provider prompt, issue, snapshot, log, or artifact should contain raw TreeDX credentials, provider API keys, GitHub tokens, or repository deploy keys.
 
@@ -43,8 +43,9 @@ The design goal is that it must be easy for capacity providers to orchestrate hu
 ## Core Principle
 
 ```text
-handler = the generic algorithm
-agent class/domain = what the work means
+activity profile = the bounded run contract
+handler = the provider-independent algorithm
+agent class = what the work means
 execution provider adapter = how and where the work runs
 capacity provider = who supplies execution capacity
 assignment = what Treeseed authorized now
@@ -53,9 +54,13 @@ assignment = what Treeseed authorized now
 Projects own work semantics:
 
 - agent MDX definitions
-- handler semantics
+- activity profiles
+- handler selection
 - prompts and persona
-- permissions
+- content access
+- tool permissions
+- branch policy
+- question policy
 - required capabilities
 - output contracts
 - planning and acting policy needs
@@ -93,7 +98,7 @@ Do use:
 - existing `ProviderAvailabilitySession`, `ProviderAssignment`, `ProviderAssignmentExplanation`, `AgentModeRun`, usage, reservation, and ledger records
 - existing AgentKernel execution boundary
 - existing project agent MDX definitions
-- existing semantic handlers
+- existing clean handlers and activity profiles
 - existing Admin and CLI inspection surfaces
 - existing capability handle and TreeDX proxy boundaries
 - existing `trsd capacity` lifecycle commands
@@ -110,9 +115,9 @@ Do not add:
 
 ## Current State
 
-Agent definitions are project content. In the root Market project they live under `src/content/agents` as MDX files. Their frontmatter is normalized into `AgentRuntimeSpec` from `@treeseed/sdk/types/agents`. The current execution config lives under the MDX `execution` frontmatter.
+Agent definitions are project content. In the root Market project they live under `src/content/agents` as MDX files. In package projects they live under `docs/src/content/agents`. Their frontmatter is normalized into SDK agent definition and runtime contracts. Runtime execution configuration lives under `activityProfiles.<activity>.execution`; top-level execution, tool, content, prompt, and output fields are legacy and should be rejected by authoring diagnostics.
 
-Agent definitions separate content access from tool access. `contentAccess` grants handler/runtime permission for content models, actions, relations, books, paths, and commit capability. `tools.allowed` grants execution-provider callable tools. A handler may use SDK content operations that `contentAccess` permits without exposing those operations to Codex, Copilot, GitHub Issues, or another execution provider.
+Agent definitions separate content access from tool access inside each activity profile. `contentAccess` grants handler/runtime permission for content models, actions, relations, books, paths, and commit capability. `tools.allowed` grants execution-provider callable tools. A handler may use SDK content operations that `contentAccess` permits without exposing those operations to Codex, Copilot, GitHub Issues, or another execution provider.
 
 The retired agent execution adapter was prompt-centric:
 
@@ -528,7 +533,7 @@ Handlers do not own:
 - raw TreeDX credentials
 - unassigned external task creation
 
-The migration should not introduce a generic `human_delegation` handler as the default path. Human teams should execute assignments produced by the same `plan`, `research`, `act`, `review`, and `report` handlers when their provider capabilities match the assignment; role semantics come from project agent class, domain config, prompts, and output contracts.
+The migration should not introduce a generic `human_delegation` handler as the default path. Human teams should execute assignments produced by the same activity-profile contracts and clean handlers (`writer`, `actor`, `estimate`, `releaser`, `reporter`) when their provider capabilities match the assignment; role semantics come from project agent class, prompts, content/tool permissions, branch policy, question policy, and output contracts.
 
 ## AgentKernel Integration
 

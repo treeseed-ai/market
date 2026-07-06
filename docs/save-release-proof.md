@@ -14,17 +14,17 @@ GitHub-hosted workflow results for exact branch and head SHA are the authoritati
 Local checks are still useful:
 
 - `verify:local` proves package-local behavior on the developer machine.
-- `verify:action` proves the workflow is not obviously broken under local `act` simulation.
+- `verify:action` proves the workflow is not obviously broken under local GitHub `act` simulation.
 - `github-hosted` proof proves release viability.
 
-`act` proof is advisory. It cannot satisfy an authoritative hosted proof requirement.
+GitHub `act` proof is advisory. It cannot satisfy an authoritative hosted proof requirement.
 
-## Why `act` Can Pass When GitHub Fails
+## Why GitHub `act` Can Pass When GitHub Fails
 
-`act` is a local simulation, not the GitHub Actions service. Important differences include:
+GitHub `act` is a local simulation, not the GitHub Actions service. Important differences include:
 
 - GitHub-hosted runners have different OS images, preinstalled tools, users, permissions, and filesystem layout.
-- GitHub workflow events include exact payloads, refs, environment protections, permissions, and tokens that `act` approximates.
+- GitHub workflow events include exact payloads, refs, environment protections, permissions, and tokens that GitHub `act` approximates.
 - Secrets and environment variables differ, especially protected `staging` and `production` environments.
 - `actions/checkout`, submodules, fetch depth, and Git credential behavior can differ.
 - Service containers and Docker networking differ.

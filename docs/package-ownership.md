@@ -227,3 +227,11 @@ READMEs are user/adopter/operator first. They should be task-oriented, include c
 Runbooks should contain operational steps, expected outputs, failure modes, and recovery commands.
 
 Design docs should capture intent, architecture, tradeoffs, and current-state notes when older implementation plans are superseded.
+
+## Starter Ownership
+
+The active first-party starter set is `engineering` and `research`. `information-hub` is not an active starter; its knowledge-pack packaging purpose is currently owned by the research starter. Starter catalog, release graph, and template validation must not reintroduce `information-hub` without a new product decision and distinct deterministic packaging workflow.
+
+## Guarantee Ownership
+
+`@treeseed/api` owns endpoint-family guarantees and route descriptor acceptance coverage for every active API endpoint. `@treeseed/admin` and Market UI guarantees should declare dependencies on those API guarantees through `dependsOnGuarantees`. `@treeseed/agent` owns mock and live execution-provider guarantees for provider runtime behavior.

@@ -310,3 +310,15 @@ npx trsd audit hosting --environment prod --live --json
 - If TreeDX provisioning stays queued, run runner smoke and verify the runner service before retrying bootstrap.
 - If `stage` or `release` is interrupted, use `npx trsd recover --json` and `npx trsd resume <run-id> --json` instead of retrying blindly.
 - Treat secret output as a bug. Reports should show presence and source only.
+
+## Endpoint Guarantee Coverage
+
+Every active API route must have a route descriptor with guarantee family metadata. Endpoint reliability guarantees live under `packages/api/guarantees/api/endpoints/` and are backed by `packages/api/test/acceptance/api.base.yaml` descriptor matrices plus explicit workflow cases for stateful flows. UI guarantees should depend on these API guarantees instead of duplicating route-level proof.
+
+Before staging API or endpoint changes, run:
+
+```bash
+npm -w packages/api test -- api-route-descriptors api-acceptance-framework
+npx trsd guarantees validate --owner-package @treeseed/api --json
+npx trsd guarantees run --owner-package @treeseed/api --environment local --json
+```

@@ -842,10 +842,10 @@ Everything in the application should orbit workdays.
 
 Users should not think in terms of:
 
-* planner agents,
-* reviewer agents,
-* notifier agents,
-* releaser agents.
+* specific agent implementation names,
+* handler names,
+* provider runner details,
+* notification plumbing.
 
 The UX should instead present:
 

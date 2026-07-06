@@ -55,4 +55,3 @@ packs:
       - src/overrides/pages/index.astro
       - src/content/templates/engineering.mdx
       - src/content/templates/research.mdx
-      - src/content/templates/information-hub.mdx

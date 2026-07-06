@@ -1,8 +1,8 @@
 # Agent Capacity Domain Model
 
-**Status:** Canonical domain model for the agent capacity rearchitecture  
-**Date:** 2026-06-16  
-**Audience:** SDK, API, agent runtime, Admin, CLI, and integration implementers  
+**Status:** Canonical domain model for activity-profile capacity execution
+**Date:** 2026-07-05
+**Audience:** SDK, API, agent runtime, Admin, CLI, and integration implementers
 
 This document defines the shared implementation vocabulary for Treeseed agent capacity. It describes the model that SDK contracts, API records, agent runtime inputs, Admin views, and CLI reports should converge on.
 
@@ -16,8 +16,13 @@ Project-owned examples:
 
 - project agents
 - agent classes
-- handlers
+- activity profiles
+- clean handler selection
 - prompts and configuration
+- TreeDX content access
+- allowed tools
+- branch policy
+- question policy
 - planning/acting permissions
 - output expectations
 - required execution capabilities
@@ -64,13 +69,50 @@ It includes:
 - project id
 - class id and slug
 - allowed modes, such as planning, acting, or both
-- eligible agent definitions and handlers
+- eligible agent definitions and activity profiles
 - required execution capabilities
 - output types
 - policy defaults
 - class-level allocation targets
 
 Provider capabilities are matched against class requirements, but providers do not define the project class vocabulary.
+
+## AgentDefinition
+
+An `AgentDefinition` is an Astro content model entry that binds a project-scoped agent identity to one or more activity profiles.
+
+Root Market agent definitions live in:
+
+```text
+src/content/agents/*.mdx
+```
+
+Package project agent definitions live in:
+
+```text
+docs/src/content/agents/*.mdx
+```
+
+The frontmatter must conform to SDK agent-definition contracts. The Markdown body describes the agent's project role for humans and execution providers. Agent definitions should not use legacy top-level runtime fields such as `handler`, `handlerConfig`, `systemPrompt`, `tools`, `contentAccess`, `context`, `execution`, `outputs`, or `requiresApprovedWork`; those concerns belong inside `activityProfiles`.
+
+## AgentActivityProfile
+
+An `AgentActivityProfile` is the runtime contract for one run purpose on one agent.
+
+It includes:
+
+- activity type: `planning`, `estimating`, `acting`, `reviewing`, or `reporting`
+- handler: `writer`, `actor`, `estimate`, `releaser`, or `reporter`
+- prompt configuration
+- TreeDX content access
+- allowed/denied tools
+- branch policy
+- question policy
+- execution-provider capability requirements
+- path constraints when repository mutation is allowed
+- output contracts
+
+Profiles are the source of prompt/tool/content variation. Handler id is implementation routing and cannot widen mode, tool, content, branch, or output scope.
 
 ## AgentKernelProfile
 
@@ -79,6 +121,7 @@ An `AgentKernelProfile` describes how a project agent can run inside the kernel.
 It includes:
 
 - agent id, slug, class id, and handler id
+- selected activity type and activity profile
 - supported modes
 - supported output contracts
 - required and optional capabilities
@@ -118,6 +161,7 @@ It includes:
 - planning/acting allowances
 - reserves and borrowing rules
 - current reservations and actual usage
+- mode split metadata for planning and acting
 
 Workdays are not provider calendars. Providers participate by checking in with availability sessions that may overlap all or part of a workday.
 
@@ -129,6 +173,7 @@ It includes:
 
 - project id and agent class
 - mode
+- activity type
 - budget units and native-unit hints
 - lease and reservation ids
 - provider and execution-provider ids
@@ -138,6 +183,8 @@ It includes:
 - fallback limits
 
 The kernel must not expand beyond the envelope. Actual usage is reported against the same envelope.
+
+Planning and acting assignments both require reservation-backed envelopes for new work. Planning reservations use `mode: planning` and include planning-source metadata, workday id, allocation set id, project agent class id, agent id, and mode-budget details. Acting reservations remain tied to accepted decision execution work and capacity-plan provenance.
 
 ## DecisionExecutionInput
 
@@ -154,6 +201,59 @@ It includes:
 - audit and trace references
 
 Planning inputs can target unresolved proposals, weak proposals, estimates, comparisons, and summaries. Acting inputs must be tied to approved work.
+
+## StructuredEstimate
+
+A `StructuredEstimate` is the machine-readable output of an `estimating` activity profile.
+
+It includes:
+
+- decision, proposal, or work-unit reference
+- agent class and agent id
+- expected, minimum, and maximum capacity units
+- confidence and risk level
+- required inputs
+- dependency declarations
+- expected outputs
+- acceptance criteria
+- completion evidence requirements
+- assumptions and blockers
+
+Estimate prose is allowed as rationale, but deterministic assignment synthesis must rely on structured fields.
+
+## DecisionAssignmentGraph
+
+A `DecisionAssignmentGraph` is the API-compiled execution graph for an approved decision.
+
+It is derived from:
+
+- the approved decision
+- accepted structured estimates
+- dependency declarations
+- deliverable contracts and manifests
+- project agent class capability metadata
+- capacity policy and readiness rules
+
+Agents may propose dependencies and deliverables. The API owns the executable graph, graph versions, ready-state evaluation, and assignment synthesis. Acting assignments are leased only when their upstream graph dependencies, required deliverables, readiness gates, and reservations are satisfied.
+
+## DeliverableContract And DeliverableManifest
+
+A `DeliverableContract` describes the required artifact type and acceptance contract without forcing exact file paths up front. Examples include architecture spec, API contract, test plan, implementation report, release notes, or review result.
+
+A `DeliverableManifest` is submitted when the producing agent finishes. It maps the contract to concrete TreeDX content refs, repository refs, or generated artifacts.
+
+This keeps authoring simple while preserving deterministic scheduling:
+
+```text
+Authoring shorthand:
+  engineer depends on architect
+
+Control-plane dependency:
+  engineer requires approved architecture_spec deliverable
+
+Runtime handoff:
+  architect submits a manifest with the concrete refs
+```
 
 ## DecisionPlanningStatus And PlanningInputRequest
 
@@ -292,3 +392,7 @@ Assignments may also carry a redacted `capabilityHandles` bundle. The bundle rec
 ## Fallback Output
 
 `AgentFallbackOutput` records bounded fallback outputs, such as planning documentation drafts or weakness proposal drafts. The record carries mode, fallback code, output payload, provenance, quota information, and duplicate/quota state. Product-specific fallback drafting remains handler/policy-owned; the capacity layer only records and gates it.
+
+## Execution Provider Proof Modes
+
+Capacity provider records may expose both live and deterministic execution providers. The local acceptance seed creates a Codex execution provider when Codex auth is detected and always creates a deterministic mock execution provider for CI/local fallback. Both advertise the same activity operation vocabulary: `planning`, `estimating`, `acting`, `reviewing`, `reporting`, and `release`.

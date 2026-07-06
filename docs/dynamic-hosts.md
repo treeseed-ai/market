@@ -38,11 +38,11 @@ adapters.
 Completed behavior:
 
 * `research` is the default launch/init template.
-* Product launch cards are limited to `research`,
-  `engineering`, and `information-hub`.
+* Product launch cards are limited to `research` and `engineering`.
+* The former `information-hub` starter is folded into `research` until knowledge-pack packaging has distinct deterministic workflow semantics.
 * The deprecated legacy basic template artifact has been removed rather than
   hidden.
-* The three active starter manifests and catalog entries carry normalized
+* The active starter manifests and catalog entries carry normalized
   `launchRequirements`.
 * `/app/projects/new` renders requirement-driven host cards from template data
   and submits canonical `hostBindings` plus legacy compatibility fields.
@@ -89,8 +89,8 @@ Current boundaries:
 
 The remainder of this document is retained as historical design context. When it
 conflicts with the implementation record above, the implementation record is the
-current source of truth. In particular, product launch is limited to the three
-active starter templates are `research`, `engineering`, and `information-hub`,
+current source of truth. In particular, product launch is limited to the active
+starter templates `research` and `engineering`,
 `market-control-plane` is hidden/draft, resource lifecycle remains outside
 standard project launch, and persistence remains metadata-first with no host
 binding database table.

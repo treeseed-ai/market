@@ -2606,3 +2606,15 @@ The implementation target is complete. Use this checklist before staging or rele
   * `git diff --check`
 * Run root `npm run verify:local` when package verifies pass and the local runtime cost is acceptable.
 * Keep production release human-gated: release may run only through an explicit human release approval.
+
+## Starter And Guarantee Defaults
+
+Engineering starters mirror the root Market activity-profile agent definitions. Research starters carry research, review, technical-writer, and deterministic reporter agents; knowledge-pack packaging belongs there until a separate information-hub starter has unique workflow semantics.
+
+Agent guarantee runs use `TREESEED_AGENT_GUARANTEE_EXECUTION_PROVIDER`:
+
+- `mock` for CI.
+- `auto` for local development.
+- `live-codex` for local/staging proof when live execution is required.
+
+Explicit live Codex runs must fail closed with `missing_codex_auth` if Codex auth is unavailable.

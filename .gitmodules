@@ -16,9 +16,6 @@
 [submodule "starters/engineering"]
 	path = starters/engineering
 	url = git@github.com:treeseed-templates/engineering.git
-[submodule "starters/information-hub"]
-	path = starters/information-hub
-	url = git@github.com:treeseed-templates/information-hub.git
 [submodule "packages/treedx"]
 	path = packages/treedx
 	url = git@github.com:treeseed-ai/treedx.git

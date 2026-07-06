@@ -1,9 +1,9 @@
 # TreeSeed Capacity Provider, Agent Execution, and Coordination Architecture
 
-**Status:** Architecture specification for next implementation iteration  
-**Date:** 2026-06-08  
-**Scope:** TreeSeed API/control plane, SDK capacity model, Market UI, project-bundled agents, capacity provider runtime, execution providers, provider managers/runners  
-**Audience:** TreeSeed architecture, SDK/API, agent runtime, provider runtime, Market UI, and CLI implementation teams  
+**Status:** Canonical coordination architecture for provider-initiated activity-profile execution
+**Date:** 2026-07-05
+**Scope:** TreeSeed API/control plane, SDK capacity model, Market UI, project-bundled agents, capacity provider runtime, execution providers, provider managers/runners
+**Audience:** TreeSeed architecture, SDK/API, agent runtime, provider runtime, Market UI, and CLI implementation teams
 
 **Important caveat:** This document refines the architecture in [agent_kernel_capacity_plan.md](agent_kernel_capacity_plan.md). It assumes capacity providers may be unreachable by inbound network calls and therefore coordinates through provider-initiated check-in and durable API records.
 
@@ -39,12 +39,12 @@ Agents are bundled with projects, not capacity providers.
 Capacity providers bundle execution providers, runners, native capacity, and availability.
 ```
 
-This means capacity providers do not bring TreeSeed work semantics such as "research", "writing", "implementation", "testing", or "security review". Those are project-owned agent definitions, project agent classes, generic handler selections, and project-specific domain mappings. A capacity provider brings runnable execution capacity, such as an OpenAI Pro subscription, an OpenRouter/OpenCode budget, a GitHub Copilot budget, a local model runner, a human review pool, or custom automation runners.
+This means capacity providers do not bring TreeSeed work semantics such as "research", "writing", "implementation", "testing", or "security review". Those are project-owned agent definitions, project agent classes, activity profiles, clean handler selections, and profile contracts. A capacity provider brings runnable execution capacity, such as an OpenAI Pro subscription, an OpenRouter/OpenCode budget, a GitHub Copilot budget, a local model runner, a human review pool, or custom automation runners.
 
 The TreeSeed API coordinates the match between:
 
 - project demand: objectives, proposals, approved decisions, planning inputs, capacity plans, and workday priorities;
-- project execution intent: agent classes, handlers, prompts/configuration, output types, and required execution capabilities;
+- project execution intent: agent classes, activity profiles, handlers, prompts/configuration, output types, and required execution capabilities;
 - provider supply: execution providers, native limits, runner concurrency, availability windows, grants, and recent observations;
 - policy envelopes: team workday schedules, portfolio allocation, project agent-class allocation, planning/acting splits, reserves, soft caps, hard caps, and borrowing rules.
 
@@ -57,11 +57,11 @@ The TreeSeed API coordinates the match between:
 3. **Providers initiate contact through outbound check-in.** The API must not require inbound network reachability to local laptops, firewalled hosts, or self-hosted provider networks.
 4. **Providers are authoritative for native capacity, local runner availability, and provider-local constraints.** TreeSeed can derive and summarize availability, but providers can always report pressure, reject work, return work, or reduce supply when native conditions change.
 5. **TreeSeed is authoritative for team/project demand, governance, decisions, allocation policies, reservations, and ledger settlement.** Providers cannot approve proposals, create executable decisions, mutate allocation policies, or decide cross-provider team priorities.
-6. **Projects own agent definitions and work semantics.** Project content/configuration defines agent classes, agent definitions, handlers, prompts, class-to-handler mappings, output expectations, and required execution capabilities.
+6. **Projects own agent definitions and work semantics.** Project Astro content defines agent classes, agent definitions, activity profiles, handler selections, prompts, TreeDX content access, allowed tools, branch/question policy, output expectations, and required execution capabilities.
 7. **Capacity providers own execution surfaces and runner mechanics.** They bundle execution providers, runner pools, native quota/spend limits, local availability, and provider-local enforcement.
 8. **Workdays are TreeSeed-side coordination/accounting windows, not provider-owned calendars.** A provider may participate in all, part, or none of a TreeSeed workday.
 9. **Provider availability windows constrain participation in a workday.** Provider sessions and assignment leases must fit the provider's reported availability and grant policy.
-10. **Planning and acting remain separate execution modes.** Planning prepares estimates, comparisons, summaries, and proposal drafts. Acting executes approved, capacity-planned work.
+10. **Planning and acting remain separate capacity modes.** Activity profiles refine the purpose inside those modes. Planning prepares estimates, comparisons, summaries, questions, proposal drafts, and reviews. Acting executes approved, capacity-planned work.
 11. **Human allocation policies create budgets and targets, not hard task prescriptions unless explicitly configured.** Allocation slices are target envelopes by default. Soft caps and hard caps must be explicit.
 12. **All execution must be traceable.** Every reservation, assignment, mode run, and usage actual must be traceable to project, decision/proposal context, agent class, mode, provider, execution provider, lease/reservation, and ledger entry.
 
@@ -626,7 +626,7 @@ type ProjectAgentAssignmentContext = {
 
 The assignment context should also carry provenance references such as decision IDs, proposal IDs, objective/question chain references, capacity plan IDs, and workday IDs when applicable.
 
-Provider runners should execute the assignment's project-bundled handler/config. They should not substitute a provider-owned agent taxonomy. Provider-local routing can choose which execution provider, model, or runner instance satisfies the assignment, but the project owns the agent identity and handler semantics.
+Provider runners should execute the assignment's project-bundled agent definition and selected activity profile. They should not substitute a provider-owned agent taxonomy. Provider-local routing can choose which execution provider, model, or runner instance satisfies the assignment, but the project owns the agent identity, activity-profile semantics, and handler selection.
 
 ---
 
@@ -788,7 +788,7 @@ Output:
 Selection rules:
 
 1. Only assign work for grants included in provider check-in.
-2. Only assign work whose project agent/handler requirements match provider execution capabilities.
+2. Only assign work whose project agent class, activity profile, handler, and capability requirements match provider execution capabilities.
 3. Respect provider availability window.
 4. Respect team workday allowance.
 5. Respect project portfolio remaining allowance.
@@ -834,6 +834,8 @@ Dynamic adjustment can happen inside configured bounds:
 - record auto-shifts as policy-derived events.
 
 Planning mode should never perform binding work. Acting mode should never run without the required decision, readiness, capacity plan, capability, environment, and reservation gates.
+
+Approved decisions become executable through API-owned graph compilation, not direct agent-to-agent scheduling. Agents submit structured estimates, dependency declarations, and deliverable manifests. The API validates those records, versions the decision assignment graph, and leases ready assignments only when upstream graph dependencies, required deliverables, readiness gates, and mode reservations are satisfied.
 
 ---
 
@@ -1358,3 +1360,7 @@ The architecture is successful when:
 - Leases expire unless renewed.
 - One central capacity ledger remains the source for settlement and summaries.
 - The generic pie component should stay domain-neutral and be adapted by TreeSeed UI wrappers.
+
+## Local And CI Execution Providers
+
+Provider capability discovery advertises activity operations rather than old handler names. The default first-party provider capability includes `codex` and `mock` execution models. CI guarantee runs use the deterministic mock execution provider; local and staging proof can require live Codex and must fail closed if Codex auth is missing.

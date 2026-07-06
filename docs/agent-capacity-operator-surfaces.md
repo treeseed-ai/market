@@ -1,8 +1,8 @@
 # Agent Capacity Operator Surfaces
 
-**Status:** Canonical Admin and CLI surface reference; read-only capacity runtime and gap-closure inspection surfaces implemented
-**Date:** 2026-06-16  
-**Audience:** Admin, CLI, SDK/API, and agent runtime implementers  
+**Status:** Canonical Admin and CLI surface reference for activity-profile capacity runtime inspection
+**Date:** 2026-07-05
+**Audience:** Admin, CLI, SDK/API, and agent runtime implementers
 
 Admin and CLI expose agent capacity state to humans and automation. They do not own scheduling, assignment selection, provider runtime internals, or ledger settlement.
 
@@ -32,6 +32,8 @@ Admin should provide:
 - provider registration and grants
 - provider availability sessions
 - assignment queue and lease status
+- assignment activity type and selected agent activity profile
+- planning and acting reservation state
 - mode-run timeline
 - usage and ledger settlement views
 - blockers, returned assignments, and failed assignments
@@ -85,6 +87,16 @@ Phase H extends existing inspection commands without adding scheduler commands:
 - `trsd capacity mode-runs --json` includes `executionVisibility` on each mode-run record.
 - `trsd capacity assignment-explanation --json` includes an `executionCapabilityMatch` summary derived from the assignment explanation gates.
 
+Activity-profile era operator surfaces should also show:
+
+- agent slug and project agent class
+- assignment mode and activity type
+- selected handler (`writer`, `actor`, `estimate`, `releaser`, or `reporter`)
+- planning/acting reservation id and reserved credits
+- TreeDX content models and tool ids exposed to the run
+- branch policy and assignment worktree/branch when applicable
+- question policy and unresolved human/team input requirements
+
 Phase 5 live proof is invoked through `trsd reconcile test-live`, not through hidden scheduling behavior in `trsd capacity`. The proof creates diagnostic assignments and mode runs tagged with the live-test run id, so operators can inspect them with the existing assignment and mode-run commands after local or hosted acceptance.
 
 ## Explanation Requirements
@@ -96,6 +108,7 @@ When an assignment is selected, deferred, or blocked, operator surfaces should b
 - provider session used
 - capability matches and mismatches
 - budget/reservation result
+- planning or acting reservation id
 - lease status
 - fallback or return reason
 - usage actuals after completion
@@ -139,3 +152,7 @@ The operator surface work is complete when:
 - a developer can debug a local provider without reading provider-local state files directly
 - Admin and CLI display configuration, live observation, runtime records, and reconciliation lifecycle as separate concepts
 - no UI or CLI command becomes a hidden scheduler or provider orchestration path
+
+## Guarantee Observability
+
+API endpoint reliability is represented by endpoint-family guarantees backed by route descriptor matrices. UI/Admin guarantees should depend on API endpoint guarantees through `dependsOnGuarantees` instead of duplicating endpoint proof. Agent guarantee output must identify the selected execution-provider mode (`mock`, `live-codex`, or `auto`) and whether local dev/acceptance seed preflight was used.

@@ -1028,9 +1028,9 @@ Implemented:
 
 Implemented:
 
-* bounded planning agents
-* DAG proposal outputs
-* downstream estimate synthesis
+* bounded planning activity for every eligible project agent
+* proposal and decision-assignment graph outputs
+* downstream structured estimate synthesis
 * progressive admission
 
 ---

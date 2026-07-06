@@ -45,7 +45,7 @@ non-parity if detected by `parity-plan`.
 TreeSeed already has most of the lower-level ingredients needed for this system:
 
 * agent runtime exports for kernel, registry, runtime providers, handlers, workday manager, worker loop, workday start/report, runtime readiness, research-knowledge workdays, context processing, Codex docs mutation lifecycle, agent worktrees, and knowledge pipeline serialization;
-* generic handlers for `plan`, `research`, `act`, `review`, and `report`, with project-specific behavior supplied by agent class, `handlerConfig.domain`, prompts, context queries, execution requirements, and output contracts;
+* activity-profile driven handlers for `writer`, `actor`, `estimate`, `releaser`, and `reporter`, with project-specific behavior supplied by agent class, activity prompts, TreeDX content access, allowed tools, execution requirements, branch policy, question policy, and output contracts;
 * a research-to-knowledge pipeline that can produce research notes, knowledge drafts, optimization reports, and serialized content;
 * a dogfood harness that generates platform knowledge artifacts from seeded TreeSeed questions;
 * worktree mutation infrastructure with allowed/forbidden path enforcement;
@@ -323,13 +323,13 @@ Each agent page should include:
 Suggested file:
 
 ```text
-src/content/agents/treeseed-docs-planner.mdx
+src/content/agents/architect.mdx
 ```
 
 Runtime slug:
 
 ```text
-treeseed-docs-planner
+architect
 ```
 
 Handler:
@@ -377,13 +377,13 @@ Governance:
 Suggested file:
 
 ```text
-src/content/agents/treeseed-codebase-cartographer.mdx
+src/content/agents/researcher.mdx
 ```
 
 Runtime slug:
 
 ```text
-treeseed-codebase-cartographer
+researcher
 ```
 
 Handler:
@@ -450,13 +450,13 @@ Governance:
 Suggested file:
 
 ```text
-src/content/agents/treeseed-knowledge-generator.mdx
+src/content/agents/technical-writer.mdx
 ```
 
 Runtime slug:
 
 ```text
-treeseed-knowledge-generator
+technical-writer
 ```
 
 Handler:
@@ -502,13 +502,13 @@ Governance:
 Suggested file:
 
 ```text
-src/content/agents/treeseed-knowledge-optimizer.mdx
+src/content/agents/reviewer.mdx
 ```
 
 Runtime slug:
 
 ```text
-treeseed-knowledge-optimizer
+reviewer
 ```
 
 Handler:
@@ -557,20 +557,20 @@ Score dimensions:
 Governance:
 
 * promotion requires threshold score and source-map presence;
-* low-score drafts must route back to the relevant `report` or `plan` agent configuration.
+* low-score drafts must route back through the relevant `reporting`, `reviewing`, or `planning` activity profile for follow-up notes, questions, or proposal revisions.
 
 ### 5. TreeSeed Documentation Engineer
 
 Suggested file:
 
 ```text
-src/content/agents/treeseed-docs-engineer.mdx
+src/content/agents/engineer.mdx
 ```
 
 Runtime slug:
 
 ```text
-treeseed-docs-engineer
+engineer
 ```
 
 Handler:
@@ -644,13 +644,13 @@ Governance:
 Suggested file:
 
 ```text
-src/content/agents/treeseed-docs-reviewer.mdx
+src/content/agents/reviewer.mdx
 ```
 
 Runtime slug:
 
 ```text
-treeseed-docs-reviewer
+reviewer
 ```
 
 Handler:
@@ -755,13 +755,13 @@ Governance:
 Suggested file:
 
 ```text
-src/content/agents/treeseed-workday-reporter.mdx
+src/content/agents/reporter.mdx
 ```
 
 Runtime slug:
 
 ```text
-treeseed-workday-reporter
+reporter
 ```
 
 Handler:
@@ -808,13 +808,13 @@ Governance:
 Suggested file:
 
 ```text
-src/content/agents/treeseed-releaser.mdx
+src/content/agents/releaser.mdx
 ```
 
 Runtime slug:
 
 ```text
-treeseed-releaser
+releaser
 ```
 
 Handler:
@@ -860,84 +860,74 @@ Use a shared shape like this for each top-level Market agent:
 
 ```mdx
 ---
-name: TreeSeed Documentation Planner
-slug: treeseed-docs-planner
-handler: plan
-projectAgentClassId: planning
-projectAgentClassSlug: planning
-handlerConfig:
-  domain: documentation_planning
+name: Architect
+slug: architect
+agentClass: architecture
+projectAgentClassId: architecture
+projectAgentClassSlug: architecture
 enabled: true
-description: Plans TreeSeed documentation work from codebase evidence, objectives, and knowledge gaps.
-summary: Maintains the documentation backlog and seeds research tasks without directly mutating canonical knowledge.
+description: Defines architecture, objectives, standards, and decision-aligned knowledge.
+summary: Maintains staged architecture and objective content through activity-scoped TreeDX tools.
 operator: TreeSeed platform
 runtimeStatus: active
 capabilities:
-  - planning
-  - documentation backlog
-  - knowledge gap detection
-  - task seeding
+  - id: architecture.planning
+    produces: [question, note, proposal_feedback]
+  - id: architecture.execute
+    produces: [architecture_spec, objective_update, knowledge_update]
 tags:
   - agent
-  - documentation
-  - governance
-systemPrompt: |
-  You are the TreeSeed Documentation Planner. Keep documentation work grounded in current TreeSeed code, existing knowledge, objectives, and governance policy. Prefer small traceable tasks over broad undocumented mutation. Create research tasks when evidence is missing. Do not mutate canonical content directly.
-persona: Careful, prioritizing, source-grounded, and governance-aware.
-triggers:
-  - type: startup
-  - type: schedule
-    cron: "*/30 * * * *"
-  - type: message
-    messageTypes:
-      - objective_priority_updated
-      - knowledge_gap_detected
-      - review_failed
-permissions:
-  - model: objective
-    operations: [search, get, create]
-  - model: question
-    operations: [search, get, create]
-  - model: note
-    operations: [search, get, create]
-  - model: knowledge
-    operations: [search, get]
-  - model: task
-    operations: [create]
-  - model: message
-    operations: [create]
-execution:
-  maxConcurrency: 1
-  timeoutSeconds: 900
-  cooldownSeconds: 60
-  leaseSeconds: 300
-  retryLimit: 3
-  branchPrefix: docs-planner
-tools:
-  allowed:
-    - treedx.build_context
-    - treedx.search_workspace
-    - treedx.read_workspace_file
-    - treeseed.status
-outputs:
-  messageTypes:
-    - documentation_gap_detected
-    - research_task_requested
-    - documentation_plan_updated
-    - task_waiting
-  modelMutations:
-    - question:create
-    - objective:create
-    - note:create
-    - task:create
-    - message:create
-governance:
-  mutationClass: planning_only
-  decisionRequiredForCanonicalContent: true
-  decisionRequiredForCode: true
+  - engineering-team
+identity:
+  purpose: Defines project architecture and decision-aligned knowledge.
+  responsibilities:
+    - Participate in planning.
+    - Submit structured estimates.
+    - Execute assigned architecture work.
+  durableInstructions: Use TreeDX-backed content tools for all content access and mutation.
+activityProfiles:
+  planning:
+    enabled: true
+    handler: writer
+    prompt:
+      system: Plan architecture work using TreeDX-backed content tools.
+    branchPolicy:
+      kind: staging-content
+      base: staging
+    tools:
+      allowed: [treeseed.content.query, treeseed.content.read, treeseed.content.create, treeseed.content.update, treeseed.content.link]
+    outputs:
+      messageTypes: []
+      modelMutations: [question:create, note:create, proposal_feedback:create]
+  estimating:
+    enabled: true
+    handler: estimate
+    prompt:
+      system: Produce structured estimates and dependency declarations.
+    branchPolicy:
+      kind: read-only
+      base: main
+    tools:
+      allowed: [treeseed.content.query, treeseed.content.read]
+    outputs:
+      messageTypes: []
+      modelMutations: [estimate:create, dependency_declaration:create]
+  acting:
+    enabled: true
+    handler: writer
+    prompt:
+      system: Execute assigned architecture deliverables only.
+    branchPolicy:
+      kind: staging-content
+      base: staging
+    tools:
+      allowed: [treeseed.content.query, treeseed.content.read, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.commit]
+    outputs:
+      messageTypes: []
+      modelMutations: [architecture_spec:create, objective_update:create, knowledge_update:create]
 ---
 
-The planning agent keeps background documentation automation focused on the highest-value, evidence-backed work.
+The Markdown body describes the agent's role for humans. The frontmatter is the executable agent definition contract.
 ```
 
 ---
@@ -1509,8 +1499,8 @@ Add a project workday timeline:
 workday opened
 manager lease acquired
 graph refreshed
-planning agent seeded tasks
-research task started/completed
+planning activity seeded project tasks
+research question started/completed
 knowledge draft generated
 optimization completed
 approval requested
@@ -1822,15 +1812,15 @@ Make the top-level Market project define documentation automation agents as firs
 
 ### Tasks
 
-1. Add `src/content/agents/treeseed-docs-planner.mdx`.
-2. Add `src/content/agents/treeseed-codebase-cartographer.mdx`.
-3. Add `src/content/agents/treeseed-knowledge-generator.mdx`.
-4. Add `src/content/agents/treeseed-knowledge-optimizer.mdx`.
-5. Add `src/content/agents/treeseed-docs-engineer.mdx`.
-6. Add `src/content/agents/treeseed-docs-reviewer.mdx`.
+1. Add `src/content/agents/architect.mdx`.
+2. Add `src/content/agents/researcher.mdx`.
+3. Add `src/content/agents/technical-writer.mdx`.
+4. Add `src/content/agents/reviewer.mdx`.
+5. Add `src/content/agents/engineer.mdx`.
+6. Add `src/content/agents/reviewer.mdx`.
 7. Add `src/content/agents/treeseed-governance-steward.mdx`.
-8. Add `src/content/agents/treeseed-workday-reporter.mdx`.
-9. Add `src/content/agents/treeseed-releaser.mdx`.
+8. Add `src/content/agents/reporter.mdx`.
+9. Add `src/content/agents/releaser.mdx`.
 10. Ensure content config validates all agent frontmatter fields.
 11. Ensure the agent spec loader can read these top-level documentation automation agents.
 
@@ -1896,7 +1886,7 @@ Research tasks should retrieve code context, existing docs, and prior generated 
 
 1. Extend context query contracts to support code scopes.
 2. Add package/module/flow context pack builders.
-3. Add source-map generation to `research` outputs.
+3. Add source-map generation to researcher planning/review outputs.
 4. Seed initial TreeSeed platform documentation questions.
 5. Add top-level Market questions for each major package and flow.
 6. Ensure research notes include implementation evidence and uncertainty.
@@ -1920,7 +1910,7 @@ How does the Core Knowledge Hub render and publish content?
 
 * Research notes include source maps.
 * Research notes can cite code and existing knowledge.
-* Research tasks are seeded from `plan`/gap outputs.
+* Research tasks are seeded from planning activity outputs and detected knowledge gaps.
 * Research output is visible in UI artifact list.
 
 ---
@@ -1933,10 +1923,10 @@ Turn research notes into reviewable, structured knowledge drafts.
 
 ### Tasks
 
-1. Ensure the `report` handler domain `knowledge_draft` accepts code-aware research notes.
+1. Ensure the `writer` handler activity profile for knowledge drafting accepts code-aware research notes.
 2. Ensure drafts include required frontmatter.
 3. Ensure drafts include required body sections.
-4. Ensure the `report` handler domain `knowledge_optimization` scores drafts.
+4. Ensure the reviewer/reporting activity profile scores drafts.
 5. Add promotion recommendation thresholds.
 6. Add draft rewrite loop when score is low.
 7. Persist draft and optimization artifacts.
@@ -2438,8 +2428,8 @@ Mitigation:
 
 Mitigation:
 
-* planning agents own taxonomy proposals;
-* review agents check book/section fit;
+* project agents create taxonomy proposals through planning activity profiles;
+* reviewer activity profiles check book/section fit;
 * taxonomy changes require approval;
 * decisions record accepted structure.
 

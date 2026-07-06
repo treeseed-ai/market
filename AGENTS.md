@@ -42,6 +42,16 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 - `@treeseed/cli`: operator and developer CLI workflows
 - `packages/treedx`: TreeDX implementation and Docker Hub release image used by Treeseed-hosted TreeDX bootstrap and related platform workflows
 
+## TreeSeed Content Model Rule
+
+Agent definitions, questions, objectives, notes, proposals, and decisions are Astro content models. They must be Markdown/MDX entries with SDK-contract frontmatter and content bodies. Root Market content lives under `src/content/**`; package project content lives under `docs/src/content/**`.
+
+Agent definitions must live in `src/content/agents/` for the root Market project and `docs/src/content/agents/` for package projects.
+
+Notes linked to other content must live under `src/content/notes/{classification}/` or `docs/src/content/notes/{classification}/` and must link to their subject through SDK-supported frontmatter fields such as `about`, `relatedObjectives`, `relatedQuestions`, `relatedProposals`, or `relatedDecisions`.
+
+Agents and operations must use TreeDX-backed content operations for real content access and mutation. Do not add direct local-content reads or writes for agent work except fixture inspection that proves a TreeDX-backed operation.
+
 ## Package Integration Manifests
 
 - Checked-out package repositories should declare package-local Treeseed metadata in `treeseed.package.yaml`.
@@ -353,3 +363,13 @@ Common failure patterns:
 - package-only verification missing a required injected package surface
 - stale export maps after moving code between packages
 - accidental cross-package imports that violate the package boundaries above
+
+## Starter And Guarantee Rules
+
+- The active first-party starters are `engineering` and `research`.
+- `information-hub` is folded into `research`; do not re-add it to catalogs, release graphs, starter tests, or submodules without a new product decision and distinct deterministic knowledge-pack packaging workflow.
+- Engineering starter agents should mirror the root Market activity-profile agent definitions.
+- Research starter active agents are research/review/writer oriented: researcher, reviewer, technical-writer, and deterministic reporter.
+- API endpoint reliability belongs to `@treeseed/api` endpoint-family guarantees backed by complete route descriptor matrices.
+- UI/Admin guarantees should use `dependsOnGuarantees` to depend on API endpoint guarantees instead of duplicating endpoint reliability checks.
+- Agent guarantee runs must support deterministic mock execution for CI and live Codex proof for local/staging. Explicit live Codex runs must fail closed with `missing_codex_auth` when Codex auth is unavailable.

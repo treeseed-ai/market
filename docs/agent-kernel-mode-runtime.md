@@ -1,18 +1,50 @@
 # Agent Kernel Mode Runtime
 
-**Status:** Canonical runtime design and implemented Phase 3 runtime boundary for planning and acting modes
-**Date:** 2026-06-16  
-**Audience:** Agent runtime, SDK/API contract, provider runtime, Admin, and CLI implementers  
+**Status:** Canonical runtime design for activity-profile execution, planning reservations, and planning/acting mode boundaries
+**Date:** 2026-07-05
+**Audience:** Agent runtime, SDK/API contract, provider runtime, Admin, and CLI implementers
 
 The AgentKernel is owned by `@treeseed/agent`. SDK owns portable contracts used by the kernel, and API owns durable assignment, mode-run, and usage records. Core remains the reusable web runtime and must not own agent scheduling or provider execution.
 
-The human-machine execution provider architecture extends this runtime boundary so handlers build provider-neutral work packages and execution provider adapters perform or coordinate the work across AI, deterministic automation, and human issue queues. The kernel still validates assignment mode, readiness, capability coverage, scoped handles, and output contracts before provider-assigned work can complete. See [Human-Machine Execution Providers](./human-machine-providers.md).
+The human-machine execution provider architecture extends this runtime boundary so handlers build provider-neutral work packages and execution provider adapters perform or coordinate the work across AI, deterministic automation, and human issue queues. The kernel still validates assignment mode, reservation capacity, readiness, capability coverage, scoped handles, activity-profile configuration, and output contracts before provider-assigned work can complete. See [Human-Machine Execution Providers](./human-machine-providers.md).
+
+## Current Architecture Snapshot
+
+Project agent definitions are Astro content models. Root Market agents live in `src/content/agents/*.mdx`; package project agents live in `docs/src/content/agents/*.mdx`. Agent content frontmatter is the project-owned source of truth for:
+
+- stable agent identity and project agent class mapping
+- activity profiles
+- profile-specific prompt configuration
+- profile-specific TreeDX content access
+- profile-specific allowed tools
+- profile-specific branch policy
+- profile-specific question policy
+- profile-specific output contracts
+- required execution-provider capabilities
+
+The clean first-party handler set is:
+
+- `writer`: TreeDX-backed planning, writing, research, knowledge, and review content work
+- `actor`: scoped repository or test mutation through assignment-feature branches
+- `estimate`: structured estimate and dependency declaration production
+- `releaser`: staging-to-release verification and release execution
+- `reporter`: deterministic workday, assignment, graph, capacity, and tool-telemetry reports
+
+The supported activity types are:
+
+- `planning`: autonomous project-agent work inside a planning reservation
+- `estimating`: structured estimates that feed decision execution graphs
+- `acting`: approved decision/work-unit execution inside an acting reservation
+- `reviewing`: validation, feedback, quality gates, and arbitration
+- `reporting`: deterministic summaries and operator-facing audit artifacts
+
+Handler id is implementation routing, not governance authority. Activity profile, assignment mode, reservation, readiness, and allowed tools decide what a run may do.
 
 ## Runtime Goal
 
-Every bounded agent execution is either planning or acting.
+Every bounded agent execution is either planning or acting at the capacity-accounting boundary. Activity types refine the run purpose inside that boundary.
 
-Planning mode prepares work:
+Planning mode prepares work through `planning`, `estimating`, `reviewing`, and some `reporting` activity profiles:
 
 - estimates approved decisions
 - compares approaches
@@ -21,7 +53,7 @@ Planning mode prepares work:
 - identifies missing inputs
 - improves agent-local documentation when primary planning work is exhausted
 
-Acting mode executes approved work:
+Acting mode executes approved work through `acting`, `reviewing`, `reporting`, and release-oriented activity profiles:
 
 - performs decision-linked changes
 - runs verification or release work
@@ -29,7 +61,7 @@ Acting mode executes approved work:
 - reports blockers
 - creates weakness proposals when assigned acting work is exhausted
 
-Handlers do not choose whether they are planning or acting. In the implemented Phase 3 runtime, the provider runner leases an existing `ProviderAssignment`, then calls `AgentKernel.runAssignment`. The kernel validates the mode-bounded scope and invokes the project-owned handler with optional capacity context on `AgentContext`.
+Handlers do not choose whether they are planning or acting. The provider runner leases an existing `ProviderAssignment`, then calls `AgentKernel.runAssignment`. The kernel validates the mode-bounded scope and invokes the project-owned handler selected by the activity profile with capacity context on `AgentContext`.
 
 ## Kernel Input
 
@@ -40,7 +72,7 @@ The kernel receives:
 - `DecisionExecutionInput`
 - `AgentKernelProfile` when available from the project agent class
 - `AgentKernelPolicy` when available from the project agent class
-- project agent definition and handler mapping
+- project agent definition, selected activity profile, and handler mapping
 - provider execution context
 - TreeDX proxy handle when assignment workspace context provides one
 
@@ -56,6 +88,8 @@ Execution provider invocations carry a redacted `agent_tool` catalog derived fro
 
 Agent tool availability is fail-closed. `tools.allowed` is the source of truth for execution-provider callable tools, but a listed tool is exposed only when its runtime requirements are present. TreeDX tools require a scoped proxy handle; model-aware content tools also require matching `contentAccess` model/action policy; worktree tools require a prepared assignment worktree; SDK dispatch tools require a dispatch-capable SDK context. Missing requirements omit the tool from the callable catalog and are recorded in `agentToolCatalog.omitted` metadata. MCP calls validate tool input before execution and emit assignment-scoped tool-call telemetry.
 
+Questions are created through TreeDX/content tools, not through a special structured return field. Provider-local MCP/tool runtimes must capture tool operation parameters, operation outputs, and derived events such as `question_created`, `content_created`, and `branch_staged`. Handlers use those captured tool events to decide whether an execution provider added questions, staged content, or needs human/team input before continuing.
+
 Agent content access is separate from provider tool access. `contentAccess.read`, `contentAccess.write`, and `contentAccess.commit.allowed` define which content models and actions an agent or handler may use. Handlers can call SDK content operations when `contentAccess` allows them without exposing those operations to the execution provider. Execution providers receive only the intersection of `tools.allowed`, `contentAccess`, and assignment runtime handles.
 
 Codex and other AI-focused execution providers should receive assignment-scoped tools directly where their harness supports tool calling. A handler should not require a magic output string to ask the runtime for a tool; missing capability is reported as a structured blocked result. Provider runners capture execution-provider messages, usage, and artifacts as assignment/mode-run telemetry so UI surfaces can follow long-running agent work.
@@ -67,10 +101,10 @@ Mode selection is API- and kernel-coordinated:
 - API selects eligible demand and issues an assignment with a target mode.
 - `ModeScheduler`, `QueueObserver`, and `PriorityResolver` provide the kernel-local decision point for planning, acting, fallback, or idle behavior within the assignment envelope.
 - Kernel validates that the project agent profile supports the mode.
-- Kernel maps assignment context into a bounded handler invocation.
+- Kernel maps assignment context into a bounded activity-profile handler invocation.
 - Kernel applies fallback only within the assignment's allowed mode and output types.
 
-If the assignment is invalid, unsupported, expired, missing acting reservation capacity, outside provider capability, or past retry policy, the kernel returns a structured bounded result instead of widening scope. Provider runner maps retryable bounded results to assignment return when the provider client supports return semantics, and maps non-retryable results to assignment failure.
+If the assignment is invalid, unsupported, expired, missing planning or acting reservation capacity, outside provider capability, or past retry policy, the kernel returns a structured bounded result instead of widening scope. Provider runner maps retryable bounded results to assignment return when the provider client supports return semantics, and maps non-retryable results to assignment failure.
 
 ## Planning Budget
 
@@ -85,6 +119,8 @@ Planning budget can be used for:
 - agent-local documentation improvements when configured by policy
 
 Planning outputs do not approve work. They feed proposal governance, immutable decisions, allocation policy, and later capacity plans.
+
+Planning assignments are reservation-backed. New planning assignments must carry a planning `reservationId`, positive `reservedCredits`, workday/allocation metadata when applicable, and mode-budget explanation metadata. Deterministic system reports may be explicitly marked as reservation-exempt only when they are reporting existing control-plane state and do not consume project planning budget.
 
 ## Acting Budget
 
@@ -104,7 +140,7 @@ The kernel must enforce:
 
 - mode
 - budget
-- reserved acting capacity
+- reserved planning or acting capacity
 - lease window
 - output contract
 - capability grants and assignment eligibility metadata
@@ -170,6 +206,7 @@ Every bounded attempt emits an `AgentModeRun` record with:
 - mode
 - selected input
 - handler id
+- activity type
 - output references
 - trace references
 - status
@@ -191,3 +228,13 @@ Runtime verification should continue to prove:
 - expired leases stop or renew before continuing
 - fallback paths are bounded and visible
 - usage actuals settle against the assignment and mode run
+
+## Guarantee Execution Providers
+
+Agent guarantee runs support three execution-provider modes:
+
+- `mock`: deterministic CI-safe provider that runs through the provider manager, runner, kernel, tool telemetry, assignment, and reporting path without a live model account.
+- `live-codex`: live Codex execution provider; local and staging runs must fail closed with `missing_codex_auth` when `~/.codex/auth.json` or `TREESEED_CODEX_AUTH_FILE` is unavailable.
+- `auto`: local default; selects live Codex when auth is detected and otherwise selects the deterministic mock provider.
+
+CI should use `TREESEED_AGENT_GUARANTEE_EXECUTION_PROVIDER=mock`. Staging proof should use live Codex.
