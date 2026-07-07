@@ -14,7 +14,7 @@ Organizations use TreeSeed to coordinate AI-assisted operational work without lo
 
 TreeSeed is delivered as a hosted market/admin platform and as a package-based system:
 
-- Market is the Treeseed-operated public site, buyer marketplace, content surface, and Commons participant layer.
+- Market is the Treeseed-operated public site, public content surface, authenticated operational marketplace, and Commons participant layer.
 - Admin is the distributable organization portal for teams, projects, hosts, work, knowledge, and operations.
 - API is the backend control plane and operations runner.
 - Agent runs external capacity providers.
@@ -334,14 +334,14 @@ Never lead with prompting, code generation spectacle, or fake agent conversation
 
 ## Current completion status
 
-The UI migration has completed its numbered phases:
+The UI architecture has settled into the current operational model:
 
-* Phase 1 simplified navigation around the five primary app sections.
-* Phase 2 made workday detail the canonical operational surface.
-* Phase 3 elevated Governance into a first-class review system.
-* Phase 4 unified Knowledge as operational memory.
-* Phase 5 isolated Infrastructure as advanced operator tooling.
-* Phase 6 stayed documentation-only for demo rehearsal.
-* Phase 7 polished the operational visual identity and accessibility layer.
+* Navigation is organized around the primary authenticated app sections.
+* Workday detail is the canonical operational surface.
+* Governance is a first-class review system.
+* Knowledge is unified as operational memory.
+* Infrastructure remains advanced operator tooling.
+* Demo rehearsal remains documentation-driven.
+* The operational visual identity and accessibility layer are part of the shared UI architecture.
 
 There is no compatibility route layer for deprecated section-first app navigation. Future product work should extend the operational IA rather than reviving the old section model.

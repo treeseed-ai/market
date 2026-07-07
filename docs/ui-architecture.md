@@ -6,7 +6,7 @@ This document is the timeless canonical architecture for TreeSeed human-facing U
 
 It governs UI shape, page anatomy, reusable components, layout shells, page templates, capability metadata, UI resource schemas, policy display states, accessibility, performance, and design governance. Machine/API endpoints are out of scope except where UI view models, action forms, content proxies, or service controllers consume them to render or mutate a human-facing page.
 
-Implementation sequencing belongs in [UI Migration](./ui-migration.md). Package boundaries belong in [Package Ownership](./package-ownership.md). Design tokens and reusable component ownership are also supported by [TreeSeed UI Theme And Components](./ui-components.md). Control-console product IA context remains in [TreeSeed Control App UI Specification](./market_ui_spec.md), but future UI architecture decisions must align with this document.
+Architecture conformance is tracked by the generated [UI Architecture Inventory](./ui-architecture-inventory.md). Package boundaries belong in [Package Ownership](./package-ownership.md). Design tokens and reusable component ownership are also supported by [TreeSeed UI Theme And Components](./ui-components.md). Control-console product IA context remains in [TreeSeed Control App UI Specification](./market_ui_spec.md), but future UI architecture decisions must align with this document.
 
 Focused operational specs define cross-cutting runtime details:
 
@@ -70,7 +70,7 @@ Allowed dependencies: SDK/API public contracts, package-owned route metadata, UI
 
 Forbidden responsibilities: fetching live page data, rendering UI, mutating providers, or becoming one giant global map that every package edits directly.
 
-Explicit route controllers remain preferred during early migration. `PageFromCapability` is a later optimization after three to five similar resources prove the same loading, policy, error, cache, hydration, and rendering shape.
+Explicit route controllers remain preferred while capability families are still proving their loading, policy, error, cache, hydration, and rendering shape. `PageFromCapability` is a later optimization after three to five similar resources prove the same architecture.
 
 ### Route Context
 
@@ -148,11 +148,11 @@ TreeSeed has five surface contexts. They are not separate apps. They are context
 
 Purpose: anonymous browsing, public profiles, public projects, public books, marketplace listings, discoverable knowledge, and public pages inside private projects.
 
-Examples: `/`, `/market`, `/market/templates`, `/market/knowledge-packs`, `/u/:userSlug`, `/t/:teamSlug`, public content routes, future `/explore`, future `/search`.
+Examples: `/`, `/auth/**`, `/u/:userSlug`, `/t/:teamSlug`, `/p/:projectSlug`, public content routes, public books, Knowledge Hub pages, future `/explore`, future `/search`, and explicit marketing pages.
 
 Users must understand: what they are viewing, why it is credible, what they can inspect, and what public action is available.
 
-Navigation behavior: `PublicShell`, public navigation, discovery/search entry, sign-in/register prompts when useful.
+Navigation behavior: public single-column shell with stacked sections, public navigation, discovery/search entry, and sign-in/register prompts when useful.
 
 Access behavior: anonymous visitors can read public content and public listings; signed-in users receive contextual actions such as open in Manager, import, install, save, follow, or edit if policy allows.
 
@@ -164,7 +164,7 @@ Examples: `/app`, `/me`, `/app/account`, future personal dashboard, future saved
 
 Users must understand: who they are signed in as, what needs attention, which teams/projects are available, and what changed recently.
 
-Navigation behavior: `ProductShell` with personal/account entries, command palette, notifications, context switcher, and account menu.
+Navigation behavior: authenticated app shell with site/user controls, team operations, account entries, and a control surface.
 
 Access behavior: signed-in principal only.
 
@@ -176,7 +176,7 @@ Examples: `/app/teams`, `/app/teams/:teamId/...`, future `/t/:teamSlug/...`.
 
 Users must understand: active team, team role, team readiness, team projects, team notifications, allocation summary, and team-level actions.
 
-Navigation behavior: `ProductShell`, team switcher, generated team navigation, contextual side nav.
+Navigation behavior: authenticated app shell, team switcher, generated team operations, and contextual control-surface tabs/actions.
 
 Access behavior: signed-in team members see team-scoped content; team owners/admins receive management actions through policy resolution.
 
@@ -200,9 +200,9 @@ Examples: `/market`, `/marketplace`, `/market/products/:productId`, `/cart`, `/c
 
 Users must understand: what the asset is, who produced it, what it costs or requires, whether they are entitled to it, and how to use it.
 
-Navigation behavior: `PublicShell` for public market discovery; `ProductShell` for seller and authenticated management surfaces.
+Navigation behavior: operational market shell for checkout/cart/capacity/services/Commons/catalog acquisition routes; authenticated app shell for seller and team commerce management; public single-column shell only for non-mutating marketing or educational pages.
 
-Access behavior: anonymous visitors can inspect public listings; install/download/import/seller actions are entitlement- and policy-aware.
+Access behavior: anonymous visitors can inspect explicitly public marketing, profile, book, and Knowledge Hub content. Operational market routes require authentication and preserve `returnTo`; install/download/import/checkout/service/capacity/Commons actions are entitlement- and policy-aware.
 
 ## Commerce, Commons, And Platform Stewardship Capability Families
 
@@ -210,33 +210,36 @@ Ecommerce, Commons governance, and platform stewardship are first-class capabili
 
 ### Commerce Capability Family
 
-Commerce spans public buyer discovery, checkout, scoped services, capacity inquiries, ProductShell seller readiness, and platform steward review.
+Commerce spans public buyer marketing, authenticated marketplace acquisition, checkout, scoped services, capacity inquiries, authenticated app seller readiness, and platform steward review.
 
-Canonical public routes use `PublicShell` through the TreeSeed public layout:
+Canonical operational market routes use the authenticated operational market shell through `TreeseedOperationalMarketLayout`:
 
 - `/marketplace` renders a marketplace dashboard and listing collection.
 - `/market/products/:productId` renders a product detail page with buyer-visible offers, ownership, stewardship, and resolved actions.
 - `/cart` and `/checkout/:checkoutId` render checkout dashboards/details. Stripe.js is allowed only in the tiny payment-confirmation helper after the server has resolved checkout and payment group state.
 - `/capacity`, `/capacity/:listingId`, `/services/new`, `/services/:requestId`, and `/services/:requestId/checkout` render through collection, detail, and settings templates with API-authoritative service/capacity state.
+- `/market`, `/market/templates`, and `/market/knowledge-packs` render operational acquisition surfaces when they expose install/import/download or account-dependent actions.
 
-Canonical authenticated routes use `ProductShell`:
+Canonical authenticated app routes use `TreeseedAppLayout`:
 
 - `/app/market/seller` renders the seller dashboard.
 - `/app/teams/:teamId/commerce` renders team seller readiness, Stripe status, ownership evidence, marketplace governance, and required next actions.
+
+Public marketing variants may use the public single-column shell only when they do not expose purchase, checkout, service request, team, project, account, or entitlement functionality.
 
 Commerce view models may display seller readiness, entitlement state, checkout/payment group state, ownership/stewardship summaries, service quote state, capacity inquiry state, and audit/status timelines. The UI never trusts client-provided seller, price, amount, connected account, entitlement, fulfillment, or ownership terms. Mutations use resolved action states such as `requiresSignIn`, `requiresEntitlement`, `requiresSetup`, `readOnly`, `disabledWithReason`, and `allowed`, then submit to API-authoritative endpoints.
 
 ### Commons Governance Capability Family
 
-Commons governance spans anonymous public reading, signed-in participant actions, and steward ProductShell operations.
+Commons governance spans signed-in participant actions and steward authenticated app operations.
 
-Canonical public routes use `PublicShell`:
+Canonical participant routes use the authenticated operational market shell:
 
 - `/commons` renders Commons dashboard signal.
 - `/commons/proposals/:proposalId` renders proposal detail, vote/backing signal, timeline, and policy-safe actions.
 - `/commons/proposals/new` and `/commons/questions/new` render settings/form templates whose submissions flow through route controllers and API authority.
 
-Canonical steward routes use `ProductShell`:
+Canonical steward routes use `TreeseedAppLayout`:
 
 - `/app/commons` renders the steward dashboard for participant questions, proposals, voting signal, decisions, and governance events.
 
@@ -244,7 +247,7 @@ Commons participation is advisory governance. It is not legal membership, payout
 
 ### Platform Stewardship Capability Family
 
-Platform stewardship covers deliberate review of seller readiness, public listings, release/distribution state, Commons decisions, capacity inquiries, service disputes, entitlement exceptions, and operational safety concerns. Steward actions are ProductShell dashboards/details/settings with audit timelines and policy snapshots. They must be deliberate review actions, never hidden browser mutations or role checks embedded in templates.
+Platform stewardship covers deliberate review of seller readiness, public listings, release/distribution state, Commons decisions, capacity inquiries, service disputes, entitlement exceptions, and operational safety concerns. Steward actions are authenticated app dashboards/details/settings with audit timelines and policy snapshots. They must be deliberate review actions, never hidden browser mutations or role checks embedded in templates.
 
 ## Canonical Shells
 
@@ -270,15 +273,15 @@ Rules:
 - Auth pages must preserve selected appearance and security messaging.
 - Auth forms must use reusable form primitives and standard error/loading states.
 
-### `PublicShell`
+### Public Single-Column Shell
 
-Used by anonymous and public-facing surfaces.
+Used by anonymous and public-facing marketing, profile, book, and Knowledge Hub surfaces. In UI this is composed from `PublicSingleColumnShell`, `PublicStack`, `PublicSection`, `PublicHeroSection`, `PublicProfileHeader`, and `PublicKnowledgeSection`. `PublicShell` remains a compatibility wrapper for one migration cycle.
 
 Required regions:
 
 - public navigation
 - search/discovery entry
-- public profile/listing/project/page rendering
+- public profile/project/page rendering
 - contextual help action
 - global feedback action
 - call-to-action area
@@ -288,35 +291,53 @@ Required regions:
 
 Rules:
 
-- Public pages must use `PublicShell` unless rendered by Core public content layouts normalized under public shell behavior.
+- Public pages must use the public single-column shell unless rendered by Core public content layouts normalized under public shell behavior.
 - Public pages must not duplicate product app navigation.
 - Public calls to action must be resolved through policy/action state when the action depends on identity or entitlement.
 
-### `ProductShell`
+### Authenticated App Shell
 
-Used by authenticated app surfaces.
+Used by authenticated `/app/**` surfaces. In UI this is composed from `ShellFrame`, `ShellHeader`, `SiteUserControls`, `TeamOperationsPanel`, `TeamOperationsDrawer`, and `ControlSurface` through Admin's `TreeseedAppLayout`. `ProductShell`, `RailNav`, and `BottomNav` remain compatibility/deprecated wrappers and should not be used directly for new pages.
 
 Required regions:
 
 - app navigation
 - context switcher
 - breadcrumbs
-- command palette
-- search
+- team operations
 - contextual help action
-- notifications
 - global feedback action
-- account/team switcher
-- contextual side navigation
-- mobile drawer or bottom navigation
+- account/team controls
+- mobile team operations drawer
 - main content region
-- optional right-side context rail
+- optional control-surface tabs/actions
 
 Rules:
 
-- Authenticated product pages must use `ProductShell`.
-- Product shell variants must be configuration, not separate shell implementations.
+- Authenticated app pages must use `TreeseedAppLayout`.
+- App shell variants must be configuration, not separate shell implementations.
 - Team, project, seller, and platform admin modes must come from context and policy, not independent app shells.
+
+### Operational Market Shell
+
+Used by authenticated market, checkout, cart, capacity, services, Commons participant, and acquisition routes. It uses the same app shell primitives as the authenticated app shell, but its team operations panel is market-oriented and composed by `TreeseedOperationalMarketLayout`.
+
+Rules:
+
+- Operational market pages must use `TreeseedOperationalMarketLayout`.
+- Operational market pages must not use public single-column chrome.
+- Signed-out users redirect to `/auth/sign-in?returnTo=...`.
+- Public marketing or educational variants must be separate public single-column pages.
+
+### Surface Tabs
+
+`SurfaceTabs` is the canonical tab primitive inside `ControlSurface` tab slots.
+
+Rules:
+
+- Routed subpages use link mode with `aria-current="page"`.
+- In-page tab panels use panel mode with `role="tablist"`, keyboard arrow navigation, and persisted active state where needed.
+- Raw `.ts-tabs`, page-local tab scripts, `ProjectControlNav`, and `WorkContentNav` are compatibility/delegating surfaces.
 
 ## Canonical Page Templates
 
@@ -418,7 +439,7 @@ Routes migrate incrementally. A legacy route does not need to jump directly to f
 - **Level 9:** Work operating loop, allocation, agents, workdays, review queues, blockers, failures, approvals, and audit timelines.
 - **Level 10:** Knowledge and capability distribution, marketplace acquisition, seller readiness, entitlement-aware delivery, release review, and overlay bootstrap boundaries.
 
-New pages must target the highest practical level for their capability. The completed migration reference implementation is Level 10 where a surface belongs to knowledge distribution, marketplace acquisition, or overlay-capable readers; lower levels remain valid only for active surfaces whose capability does not include those later-phase concerns.
+New pages must target the highest practical level for their capability. Level 10 is the current reference architecture where a surface belongs to knowledge distribution, marketplace acquisition, or overlay-capable readers; lower levels remain valid only for active surfaces whose capability does not include those concerns.
 
 ## UI Package Layering
 
@@ -462,7 +483,7 @@ Patterns own reusable UX behavior, not route-specific data access.
 
 ### `/layouts`
 
-Structural shells and layout primitives: `AuthShell`, `PublicShell`, `ProductShell`, `TwoPaneLayout`, `ThreePaneLayout`, `ReaderLayout`, `SettingsLayout`, and `WizardLayout`.
+Structural shells and layout primitives: `AuthShell`, `ShellFrame`, `ShellHeader`, `SiteUserControls`, `TeamOperationsPanel`, `TeamOperationsDrawer`, `ControlSurface`, `SurfaceTabs`, public single-column components, and compatibility/deprecated `PublicShell`/`ProductShell` wrappers.
 
 Most pages must not define layout manually.
 
@@ -944,8 +965,8 @@ TreeSeed must provide integrated contextual help across user-facing pages. Help 
 
 The contextual help action must be shell-level:
 
-- `PublicShell` exposes public help topics without loading authenticated product chrome.
-- `ProductShell` exposes contextual help in the app navigation/help/action area.
+- Public single-column shell behavior exposes public help topics without loading authenticated product chrome.
+- Authenticated app and operational market shells expose contextual help in the site/user controls and control-surface context.
 - `AuthShell` exposes help/recovery topics for sign-in, registration, device approval, and account recovery.
 - Core Knowledge Hub pages use the same help contract through public shell behavior and runtime reader context.
 
@@ -992,8 +1013,8 @@ TreeSeed must provide a global feedback action across user-facing pages. Feedbac
 
 The feedback action must be shell-level:
 
-- `PublicShell` exposes feedback without loading authenticated product chrome.
-- `ProductShell` exposes feedback in the app navigation/help/action area.
+- Public single-column shell behavior exposes feedback without loading authenticated product chrome.
+- Authenticated app and operational market shells expose feedback in the site/user controls and control-surface context.
 - `AuthShell` exposes a lightweight help or feedback path for auth blockers.
 - Core Knowledge Hub pages use the same feedback contract through public shell behavior.
 
@@ -1073,14 +1094,14 @@ Accessibility failures are architecture failures, not polish.
 
 ## Performance Budgets
 
-Performance budgets are part of the architecture because TreeSeed includes public reader surfaces, authenticated product shells, rich editors, overlays, and dashboards.
+Performance budgets are part of the architecture because TreeSeed includes public reader surfaces, authenticated app and operational market shells, rich editors, overlays, and dashboards.
 
 Budget categories:
 
 - public homepage JavaScript
 - anonymous public content page JavaScript
 - public reader JavaScript
-- authenticated product shell JavaScript
+- authenticated app and operational market shell JavaScript
 - contextual help bundle and help search bundle
 - editor overlay bundle
 - feedback dialog and screenshot capture bundle
@@ -1134,12 +1155,12 @@ Architecture rules must become enforceable. Required enforcement categories:
 Enforcement ownership:
 
 - `@treeseed/ui` owns component examples, token/theme audits, accessibility fixtures, visual regression for primitives/components/templates, and bundle surfaces for reusable UI.
-- `@treeseed/admin` owns ProductShell route checks, admin view-model boundaries, policy/action display tests, and route-controller/template integration tests.
-- `@treeseed/core` owns PublicShell/reader integration, Starlight-style runtime navigation checks, help/content runtime integration, and public/anonymous bundle behavior.
+- `@treeseed/admin` owns authenticated app and operational market route checks, admin view-model boundaries, policy/action display tests, and route-controller/template integration tests.
+- `@treeseed/core` owns public layout/reader integration, Starlight-style runtime navigation checks, help/content runtime integration, and public/anonymous bundle behavior.
 - root `@treeseed/market` owns tenant overrides, public acquisition pages, marketplace presentation checks, and production tenant composition.
 - `@treeseed/api` and `@treeseed/sdk` own authoritative authorization, public contracts, and backend/security behavior consumed by UI tests.
 
-Minimum enforcement gates before broad migration:
+Minimum enforcement gates before broad architecture reuse:
 
 - route inventory exists and records maturity, shell, template, data source, policy needs, and reusable components
 - `npm run audit:ui` or successor blocks raw color systems, retired tokens, disallowed page-local style systems, and unsafe inline styles outside approved dynamic CSS-variable cases
@@ -1150,7 +1171,7 @@ Minimum enforcement gates before broad migration:
 - public/private R2 security tests prove public cache eligibility and private no-leak behavior
 - bundle checks prove expensive help/search/editor/screenshot bundles lazy-load only after explicit user intent
 
-This document defines the required enforcement targets. The concrete tools and CI wiring are implementation work tracked by [UI Migration](./ui-migration.md).
+This document defines the required enforcement targets. The concrete route, shell, template, and documentation checks are enforced by `npm run check:ui-architecture` and summarized in [UI Architecture Inventory](./ui-architecture-inventory.md).
 
 ## Enforcement Rules
 

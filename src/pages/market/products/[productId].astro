@@ -1,5 +1,5 @@
 ---
-import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import TreeseedOperationalMarketLayout from '@treeseed/admin/layouts/TreeseedOperationalMarketLayout.astro';
 import DetailTemplate from '@treeseed/ui/components/astro/templates/DetailTemplate.astro';
 import Panel from '@treeseed/ui/components/astro/surface/Panel.astro';
 import CommerceOwnershipSummary from '@treeseed/ui/components/astro/commerce/CommerceOwnershipSummary.astro';
@@ -24,7 +24,7 @@ const page = await loadMarketplaceProductPage(Astro, productId);
 const product = page.data.product;
 ---
 
-<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
+<TreeseedOperationalMarketLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-commerce-page">
 		<DetailTemplate title={page.title} description={page.description} eyebrow={label(product?.kind, 'Marketplace product')} metadata={page.data.metadata} actions={page.actions}>
 			{actionError ? <p class="ts-commerce-error">{actionError}</p> : null}
@@ -72,4 +72,4 @@ const product = page.data.product;
 			)}
 		</DetailTemplate>
 	</main>
-</TreeseedPublicLayout>
+</TreeseedOperationalMarketLayout>

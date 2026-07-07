@@ -37,14 +37,14 @@ The frontend must never be authoritative for Stripe price IDs, seller IDs, amoun
 
 Commerce is integrated into the canonical UI architecture as a capability family, not a standalone frontend app.
 
-Public buyer routes are server-loaded TreeSeed market routes rendered through `PublicShell` and canonical templates:
+Operational buyer routes are server-loaded TreeSeed market routes rendered through `TreeseedOperationalMarketLayout` and canonical templates:
 
-- `/marketplace`: `DashboardTemplate` plus `CollectionTemplate` for public listings.
+- `/marketplace`: `DashboardTemplate` plus `CollectionTemplate` for marketplace listings.
 - `/market/products/:productId`: `DetailTemplate` for product, offer, ownership, and stewardship context.
 - `/cart` and `/checkout/:checkoutId`: dashboard/detail checkout views. Stripe.js is limited to explicit payment confirmation after the API has resolved checkout and payment group state.
 - `/capacity/*` and `/services/*`: collection/detail/settings templates for trust-gated capacity and scoped service flows.
 
-Authenticated seller and steward routes are ProductShell routes rendered through admin-owned view models:
+Authenticated seller and steward routes are app-shell routes rendered through `TreeseedAppLayout` and admin-owned view models:
 
 - `/app/market/seller`: seller dashboard and distribution state.
 - `/app/teams/:teamId/commerce`: seller readiness, Stripe status, products/offers/sales/services/capacity, ownership/stewardship, and required next actions.
@@ -1381,12 +1381,12 @@ For `capacity_listing` products, Phase 9 allows only discovery offer modes:
 
 `scoped_contract` remains quote-driven through Phase 8 scoped services and cannot be checked out through generic cart or capacity listing flows. `one_time`, `one_time_current_version`, `subscription`, `subscription_updates`, `professional_hosting`, and legacy `paid` are not valid capacity listing offer modes in Phase 9.
 
-Public capacity pages live in the root hosted market layer:
+Capacity discovery pages live in the root hosted market layer as authenticated operational market surfaces:
 
 - `/capacity`
 - `/capacity/[listingId]`
 
-Public pages expose only approved, buyer-visible listing fields: service type summaries, runtime isolation, human/AI involvement, data and secret access posture, risk summary, support policy, availability, and cooperative ownership/stewardship transparency. They do not expose seller private notes, governance evidence, provider credentials, raw secrets, KYC data, payment controls, or backend implementation details.
+These pages expose only approved, buyer-visible listing fields: service type summaries, runtime isolation, human/AI involvement, data and secret access posture, risk summary, support policy, availability, and cooperative ownership/stewardship transparency. They do not expose seller private notes, governance evidence, provider credentials, raw secrets, KYC data, unauthorized payment controls, or backend implementation details.
 
 Admin capacity pages are seller operations and governance only:
 
@@ -1423,7 +1423,9 @@ Do not implement these in the foundational phase:
 
 ## Marketplace UI And Operations Experience
 
-The closure pass after Phase 9 makes the buyer and seller surfaces easier to understand without changing the architecture. The root `@treeseed/market` app owns buyer marketplace discovery, cart review, grouped vendor checkout, service request views, service contract checkout, and capacity discovery/inquiry pages. `@treeseed/admin` owns seller setup, seller operations, governance, fulfillment, refunds, readiness, and monitoring. `@treeseed/ui` owns reusable, Stripe-free, theme-native commerce components and styles that both surfaces can consume.
+The closure pass after Phase 9 makes the buyer and seller surfaces easier to understand without changing the architecture. The root `@treeseed/market` app owns authenticated operational marketplace discovery, cart review, grouped vendor checkout, service request views, service contract checkout, capacity discovery/inquiry pages, and public marketing/knowledge pages. `@treeseed/admin` owns seller setup, seller operations, governance, fulfillment, refunds, readiness, and monitoring. `@treeseed/ui` owns reusable, Stripe-free, theme-native commerce components and styles that both surfaces can consume.
+
+Operational buyer routes such as `/marketplace`, `/market/products/:productId`, `/cart`, `/checkout/:checkoutId`, `/capacity/*`, `/services/*`, and `/commons/*` use the authenticated operational market shell. Public single-column pages may market or explain commerce, services, capacity, Commons, and Knowledge Hub offerings, but they must not expose purchase, checkout, service request, capacity inquiry, entitlement, team, project, or account functionality.
 
 Root marketplace pages use public-safe marketplace aggregation:
 
@@ -1478,7 +1480,7 @@ The current release treats the 9 documented phases plus the Marketplace UI and O
 The completed platform is intentionally split by owner:
 
 - `@treeseed/api` owns persistent marketplace state, route orchestration, PostgreSQL migrations, Stripe server integration, webhooks, refunds, fulfillment, seller monitoring, scoped services, capacity listings/inquiries, and Commons governance records.
-- root `@treeseed/market` owns buyer-facing marketplace discovery, cart, checkout, service request/contract views, capacity inquiry, and Commons participant pages.
+- root `@treeseed/market` owns authenticated buyer-facing marketplace discovery, cart, checkout, service request/contract views, capacity inquiry, Commons participant pages, and public single-column marketing/knowledge content.
 - `@treeseed/admin` owns seller operations, readiness, governance, fulfillment, refunds, capacity trust gates, service workflows, monitoring, and Commons steward operations.
 - `@treeseed/ui` owns reusable, Stripe-free, theme-native commerce and governance components.
 - `@treeseed/core` remains web runtime composition only and does not own API, PostgreSQL, migrations, operations-runner, Stripe, or ecommerce backend behavior.
@@ -1495,7 +1497,7 @@ Registration creates a Commons governance identity and read-only TreeSeed team m
 
 Commons governance records are separate from ecommerce orders, entitlements, Stripe payments, refunds, services, and capacity listing workflows. They add participant signal and transparent decision evidence without adding commissions, application fees, payout ledgers, revenue splits, benefit payout allocation, capacity billing, token credits, or legal member ledgers.
 
-The Admin surface at `/app/commons` is steward operations only. Public/root Commons pages under `/commons` are participant-facing and use HTTP API surfaces only.
+The Admin surface at `/app/commons` is steward operations only. Root Commons pages under `/commons` are participant-facing authenticated operational market pages and use HTTP API surfaces only.
 
 Required test scenarios:
 

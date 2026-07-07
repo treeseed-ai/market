@@ -49,13 +49,8 @@ describe('app and public shell conversion', () => {
 	});
 
 	it('installs the dev reload client through shared core shells', () => {
-		for (const path of [
-			'@treeseed/ui/components/astro/shell/ProductShell.astro',
-			'@treeseed/ui/components/astro/shell/PublicShell.astro',
-		]) {
-			const contents = source(path);
-			expect(contents, path).toContain('ClientRouter');
-		}
+		expect(source('@treeseed/ui/components/astro/shell/ProductShell.astro')).toContain('ShellFrame');
+		expect(source('@treeseed/ui/components/astro/shell/PublicShell.astro')).toContain('PublicSingleColumnShell');
 
 		const mainLayout = source('@treeseed/ui/components/astro/layouts/MainLayout.astro');
 		expect(mainLayout).not.toContain('DevWatchReload');

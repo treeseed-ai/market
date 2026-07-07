@@ -4,7 +4,7 @@
 
 This document specifies TreeSeed's runtime content delivery model for public Knowledge Hubs, public pages inside private projects, private content, contextual help content, preview overlays, generated books, generated knowledge packs, and distributed reusable capabilities.
 
-It supports [TreeSeed UI Architecture](./ui-architecture.md) and is implemented incrementally through [UI Migration](./ui-migration.md).
+It supports [TreeSeed UI Architecture](./ui-architecture.md) and is checked against the current shell/content boundaries through [UI Architecture Inventory](./ui-architecture-inventory.md).
 
 ## Core Rule
 
@@ -184,7 +184,7 @@ The content manifest for a book or book page must be able to reference:
 
 Public packs may use CDN-backed URLs. Private, paid, entitlement-gated, or team-only packs must use authenticated download routes or short-lived signed URLs after policy evaluation.
 
-Phase 10 UI implementation reflects this boundary: app knowledge and public marketplace routes render entitlement and delivery state through view models before any install, import, or download action is exposed. Route templates do not render raw R2 keys, direct private artifact URLs, or editor bundles. Overlay status is display-only until an authorized edit intent lazy-loads the overlay bootstrap.
+Knowledge distribution UI reflects this boundary: app knowledge and public marketplace routes render entitlement and delivery state through view models before any install, import, or download action is exposed. Route templates do not render raw R2 keys, direct private artifact URLs, or editor bundles. Overlay status is display-only until an authorized edit intent lazy-loads the overlay bootstrap.
 
 Commerce and Commons UI reuse this runtime boundary when listings reference generated packs, templates, capabilities, service deliverables, or capacity artifacts. Public pages may describe buyer-visible delivery posture, but entitlement-gated or private artifact access must resolve through the Market/API policy path before URLs or download actions are exposed.
 

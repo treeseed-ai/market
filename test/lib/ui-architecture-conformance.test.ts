@@ -16,22 +16,22 @@ const convertedMarketPages = [
 ];
 
 const publicCommerceGovernancePages = [
-	['src/pages/marketplace/index.astro', ['TreeseedPublicLayout', 'DashboardTemplate', 'CollectionTemplate', 'helpContext', 'feedbackContext', 'loadMarketplacePage']],
-	['src/pages/market/products/[productId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'helpContext', 'feedbackContext', 'loadMarketplaceProductPage']],
-	['src/pages/cart.astro', ['TreeseedPublicLayout', 'DashboardTemplate', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'createCheckoutFromOffer']],
-	['src/pages/checkout/[checkoutId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'CommercePaymentGroupPanel', 'helpContext', 'feedbackContext', 'commerce-checkout']],
-	['src/pages/capacity/index.astro', ['TreeseedPublicLayout', 'CollectionTemplate', 'helpContext', 'feedbackContext', 'loadCapacityListingsPage']],
-	['src/pages/capacity/[listingId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'helpContext', 'feedbackContext', 'submitCapacityInquiry']],
-	['src/pages/services/new.astro', ['TreeseedPublicLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitServiceRequest']],
-	['src/pages/services/[requestId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'ServiceQuotePanel', 'ServiceRequestTimeline', 'helpContext', 'feedbackContext']],
-	['src/pages/services/[requestId]/checkout.astro', ['TreeseedPublicLayout', 'DetailTemplate', 'CommercePaymentGroupPanel', 'helpContext', 'feedbackContext', 'commerce-checkout']],
-	['src/pages/commons/index.astro', ['TreeseedPublicLayout', 'DashboardTemplate', 'helpContext', 'feedbackContext', 'loadCommonsPage']],
-	['src/pages/commons/proposals/[proposalId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'CommonsVoteSummary', 'CommonsDecisionTimeline', 'helpContext', 'feedbackContext']],
-	['src/pages/commons/proposals/new.astro', ['TreeseedPublicLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitCommonsProposal']],
-	['src/pages/commons/questions/new.astro', ['TreeseedPublicLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitCommonsQuestion']],
+	['src/pages/marketplace/index.astro', ['TreeseedOperationalMarketLayout', 'DashboardTemplate', 'CollectionTemplate', 'helpContext', 'feedbackContext', 'loadMarketplacePage']],
+	['src/pages/market/products/[productId].astro', ['TreeseedOperationalMarketLayout', 'DetailTemplate', 'helpContext', 'feedbackContext', 'loadMarketplaceProductPage']],
+	['src/pages/cart.astro', ['TreeseedOperationalMarketLayout', 'DashboardTemplate', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'createCheckoutFromOffer']],
+	['src/pages/checkout/[checkoutId].astro', ['TreeseedOperationalMarketLayout', 'DetailTemplate', 'CommercePaymentGroupPanel', 'helpContext', 'feedbackContext', 'commerce-checkout']],
+	['src/pages/capacity/index.astro', ['TreeseedOperationalMarketLayout', 'CollectionTemplate', 'helpContext', 'feedbackContext', 'loadCapacityListingsPage']],
+	['src/pages/capacity/[listingId].astro', ['TreeseedOperationalMarketLayout', 'DetailTemplate', 'helpContext', 'feedbackContext', 'submitCapacityInquiry']],
+	['src/pages/services/new.astro', ['TreeseedOperationalMarketLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitServiceRequest']],
+	['src/pages/services/[requestId].astro', ['TreeseedOperationalMarketLayout', 'DetailTemplate', 'ServiceQuotePanel', 'ServiceRequestTimeline', 'helpContext', 'feedbackContext']],
+	['src/pages/services/[requestId]/checkout.astro', ['TreeseedOperationalMarketLayout', 'DetailTemplate', 'CommercePaymentGroupPanel', 'helpContext', 'feedbackContext', 'commerce-checkout']],
+	['src/pages/commons/index.astro', ['TreeseedOperationalMarketLayout', 'DashboardTemplate', 'helpContext', 'feedbackContext', 'loadCommonsPage']],
+	['src/pages/commons/proposals/[proposalId].astro', ['TreeseedOperationalMarketLayout', 'DetailTemplate', 'CommonsVoteSummary', 'CommonsDecisionTimeline', 'helpContext', 'feedbackContext']],
+	['src/pages/commons/proposals/new.astro', ['TreeseedOperationalMarketLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitCommonsProposal']],
+	['src/pages/commons/questions/new.astro', ['TreeseedOperationalMarketLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitCommonsQuestion']],
 ] as const;
 
-describe('UI migration completion', () => {
+describe('UI architecture completion', () => {
 	it('converts market catalogue pages to core primitives without inline styling', () => {
 		for (const path of convertedMarketPages) {
 			const contents = source(path);
@@ -60,7 +60,7 @@ describe('UI migration completion', () => {
 		expect(existsSync(resolve(process.cwd(), 'packages/admin/src/pages/templates/[slug].astro'))).toBe(false);
 	});
 
-	it('integrates public ecommerce and Commons routes into canonical templates', () => {
+	it('integrates operational ecommerce and Commons routes into canonical templates', () => {
 		for (const [path, markers] of publicCommerceGovernancePages) {
 			const contents = source(path);
 			for (const marker of markers) expect(contents, path).toContain(marker);
@@ -79,7 +79,7 @@ describe('UI migration completion', () => {
 		expect(checkoutHelper).toContain('/v1/commerce/payment-groups/');
 	});
 
-	it('integrates ProductShell commerce and Commons stewardship dashboards', () => {
+	it('integrates authenticated app commerce and Commons stewardship dashboards', () => {
 		for (const [path, markers] of [
 			['packages/admin/src/pages/app/commons/index.astro', ['TreeseedAppLayout', 'DashboardTemplate', 'loadCommonsGovernanceDashboard', 'helpContext', 'feedbackContext']],
 			['packages/admin/src/pages/app/teams/[teamId]/commerce.astro', ['TreeseedAppLayout', 'DashboardTemplate', 'buildTeamCommerceDashboard', 'helpContext', 'feedbackContext']],
@@ -153,7 +153,8 @@ describe('UI migration completion', () => {
 	it('routes standalone and docs chrome through shared shell components', () => {
 		const mainLayout = source('packages/ui/src/astro/layouts/MainLayout.astro');
 		expect(mainLayout).toContain('PublicShell');
-		expect(source('packages/ui/src/astro/shell/PublicShell.astro')).toContain('PublicFooter');
+		expect(source('packages/ui/src/astro/shell/PublicShell.astro')).toContain('PublicSingleColumnShell');
+		expect(source('packages/ui/src/astro/public/PublicSingleColumnShell.astro')).toContain('PublicFooter');
 		expect(mainLayout).not.toContain('<header');
 		expect(mainLayout).not.toContain('<footer');
 

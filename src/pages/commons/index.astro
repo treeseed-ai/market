@@ -1,5 +1,5 @@
 ---
-import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import TreeseedOperationalMarketLayout from '@treeseed/admin/layouts/TreeseedOperationalMarketLayout.astro';
 import DashboardTemplate from '@treeseed/ui/components/astro/templates/DashboardTemplate.astro';
 import CommonsProposalCard from '@treeseed/ui/components/astro/governance/CommonsProposalCard.astro';
 import '@treeseed/ui/styles/governance.css';
@@ -8,7 +8,7 @@ import { loadCommonsPage } from '../../lib/market-public-view-models';
 const page = await loadCommonsPage(Astro);
 ---
 
-<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
+<TreeseedOperationalMarketLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-governance-page">
 		<DashboardTemplate viewModel={page.data.dashboard} actions={page.actions}>
 			{page.data.proposals.length ? (
@@ -22,4 +22,4 @@ const page = await loadCommonsPage(Astro);
 			) : null}
 		</DashboardTemplate>
 	</main>
-</TreeseedPublicLayout>
+</TreeseedOperationalMarketLayout>

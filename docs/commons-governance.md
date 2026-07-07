@@ -43,7 +43,7 @@ Money can add signal only if a future policy explicitly models it, but it must n
 
 The API persists Commons participants, questions, proposals, backings, votes, delegations, decisions, weight snapshots, and governance events.
 
-Admin owns steward operations under `/app/commons`. Root market owns participant-facing Commons pages under `/commons`.
+Admin owns steward operations under `/app/commons`. Root market owns participant-facing Commons pages under `/commons`; these pages are authenticated operational market surfaces because asking questions, submitting proposals, backing, and voting require a principal.
 
 The Commons layer reuses existing team membership, authentication, route descriptors, API acceptance metadata, and UI package components. It does not create a new ecommerce subsystem and does not change marketplace order, entitlement, Stripe, refund, service, or capacity behavior.
 
@@ -51,13 +51,13 @@ The Commons layer reuses existing team membership, authentication, route descrip
 
 Commons governance follows the canonical shell/template/view-model/action model.
 
-Public participant routes use `PublicShell`:
+Authenticated participant routes use `TreeseedOperationalMarketLayout`:
 
 - `/commons` renders a `DashboardTemplate` with participant counts, active proposals, open questions, accepted decisions, and recent governance events.
 - `/commons/proposals/:proposalId` renders a `DetailTemplate` with proposal body, vote/backing signal, decision timeline, and resolved participant actions.
 - `/commons/proposals/new` and `/commons/questions/new` render `SettingsTemplate` forms. Form submissions go through route controllers and API-authoritative endpoints.
 
-Authenticated steward routes use `ProductShell`:
+Authenticated steward routes use `TreeseedAppLayout`:
 
 - `/app/commons` renders a `DashboardTemplate` shaped by an admin-owned governance view model.
 - Steward detail/review routes render proposal, decision, participant, and event state through canonical templates and reusable governance components.

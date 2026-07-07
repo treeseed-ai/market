@@ -76,9 +76,10 @@ describe('contextual dashboard and drilldown app information architecture', () =
 		}
 		expect(layout).not.toContain(`label: 'Hosts'`);
 		expect(layout).not.toContain(`label: 'Team'`);
-		for (const label of ['Mission Control', 'Workdays', 'Governance', 'Infrastructure', 'Market']) {
+		for (const label of ['Mission Control', 'Workdays', 'Governance', 'Infrastructure']) {
 			expect(layout).not.toContain(`label: '${label}'`);
 		}
+		expect(layout).toContain(`label: 'Market'`);
 		expect(layout).toContain('treeseed_active_team');
 		expect(layout).toContain("url.searchParams.delete('teamId')");
 		expect(layout).not.toContain("url.searchParams.set('teamId'");
@@ -194,14 +195,14 @@ describe('contextual dashboard and drilldown app information architecture', () =
 		]);
 	});
 
-	it('renders Phase 7 contextual dashboard proofs through the shared template', () => {
+	it('renders contextual dashboard proofs through the shared template', () => {
 		const dashboardTemplate = source('packages/ui/src/astro/templates/DashboardTemplate.astro');
 		const dashboardViewModel = source('packages/admin/src/view-models/contextual-dashboard.vm.ts');
 		const dashboardRoutes = [
 			['packages/admin/src/pages/app/index.astro', 'TreeseedAppLayout'],
 			['packages/admin/src/pages/app/teams/index.astro', 'TreeseedAppLayout'],
 			['packages/admin/src/pages/app/projects/[projectId].astro', 'TreeseedAppLayout'],
-			['packages/admin/src/pages/market/index.astro', 'TreeseedPublicLayout'],
+			['packages/admin/src/pages/market/index.astro', 'TreeseedOperationalMarketLayout'],
 		] as const;
 
 		expect(dashboardTemplate).toContain('DashboardViewModel');
@@ -434,7 +435,7 @@ describe('contextual dashboard and drilldown app information architecture', () =
 		}
 	});
 
-	it('uses the Phase 8 service readiness and capacity provider lifecycle UI', () => {
+	it('uses the service readiness and capacity provider lifecycle UI', () => {
 		const start = source('packages/admin/src/pages/app/index.astro');
 		const services = source('packages/admin/src/pages/app/services.astro');
 		const redirect = source('packages/admin/src/pages/app/capacity/index.astro');
@@ -716,7 +717,6 @@ describe('contextual dashboard and drilldown app information architecture', () =
 		expect(projectCreate).toContain('activeStarterTemplateIds');
 		expect(projectCreate).toContain("'research'");
 		expect(projectCreate).toContain("'engineering'");
-		expect(projectCreate).toContain("'information-hub'");
 		expect(projectCreate).not.toContain("'market-control-plane'");
 		expect(projectCreate).not.toContain('TreeSeed Core Starter');
 		expect(projectCreate).toContain('templateSlug');

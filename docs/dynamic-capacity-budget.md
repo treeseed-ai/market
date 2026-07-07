@@ -1315,12 +1315,12 @@ Portfolio reserve is preserved unless explicitly borrowed.
 Emergency override can borrow from reserve only when enabled on the grant and requested by the route.
 ```
 
-### Phase 7: UI Migration
+### Phase 7: UI Architecture
 
 Implementation status:
 
 ```text
-Implemented as a UI-only migration over the Phase 1-6 API and SDK behavior.
+Implemented as a UI-only architecture update over the existing API and SDK behavior.
 Provider setup and edit screens prioritize native provider facts: provider kind, native unit, reset window, quota visibility, concurrency, and reserve buffers.
 Capacity provider pages explain native limits, active native reservations, learned conversion confidence, derived credits, and portfolio allocation.
 Allocation controls live inside the provider workflow instead of restoring standalone grant pages.
@@ -1675,7 +1675,7 @@ Route using derived provider availability, reserve native units, and settle nati
 
 Implemented percent-of-derived-capacity allocation through capacity grant metadata and SDK routing.
 
-### PR 9: UI Migration
+### PR 9: UI Architecture
 
 Implemented provider setup/edit native inputs, embedded portfolio allocation controls, and project/workday native usage plus derived balance views.
 

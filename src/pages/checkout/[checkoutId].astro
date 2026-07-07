@@ -1,5 +1,5 @@
 ---
-import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import TreeseedOperationalMarketLayout from '@treeseed/admin/layouts/TreeseedOperationalMarketLayout.astro';
 import DetailTemplate from '@treeseed/ui/components/astro/templates/DetailTemplate.astro';
 import CommerceEntitlementList from '@treeseed/ui/components/astro/commerce/CommerceEntitlementList.astro';
 import CommercePaymentGroupPanel from '@treeseed/ui/components/astro/commerce/CommercePaymentGroupPanel.astro';
@@ -10,7 +10,7 @@ const checkoutId = Astro.params.checkoutId ?? '';
 const page = await loadCheckoutPage(Astro, checkoutId);
 ---
 
-<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
+<TreeseedOperationalMarketLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-commerce-page">
 		<DetailTemplate title="Grouped vendor checkout" description={page.description} eyebrow="Checkout" metadata={page.data.metadata} actions={page.actions}>
 			{page.data.error ? <p class="ts-commerce-error">{page.data.error}</p> : null}
@@ -42,4 +42,4 @@ const page = await loadCheckoutPage(Astro, checkoutId);
 	</main>
 	<script is:inline src="https://js.stripe.com/v3/" async></script>
 	<script src="../../scripts/commerce-checkout.ts"></script>
-</TreeseedPublicLayout>
+</TreeseedOperationalMarketLayout>

@@ -4,7 +4,7 @@
 
 This document specifies TreeSeed notification scopes, preferences, digest behavior, policy filtering, and UI presentation.
 
-It supports [TreeSeed UI Architecture](./ui-architecture.md) and [UI Migration](./ui-migration.md).
+It supports [TreeSeed UI Architecture](./ui-architecture.md) and the generated [UI Architecture Inventory](./ui-architecture-inventory.md).
 
 ## Core Rule
 

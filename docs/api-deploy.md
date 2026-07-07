@@ -6,7 +6,7 @@ This runbook is the operator path for deploying the current Treeseed Market arch
 
 The current deployment shape is:
 
-- root Market repo: Cloudflare web UI, knowledge hub, public content, Treeseed messaging, page overrides, buyer marketplace/Commons pages, and `/v1/*` proxy/client only
+- root Market repo: Cloudflare web UI, knowledge hub, public content, Treeseed messaging, page overrides, authenticated operational marketplace/Commons pages, public marketing/profile/knowledge pages, and `/v1/*` proxy/client only
 - `packages/admin`: admin routes, middleware, auth/session UI, API client facades, and admin view models layered into the root web app
 - `packages/ui`: reusable components and styles consumed by Market/Admin/Core
 - `packages/api`: Railway API plus Treeseed operations runner

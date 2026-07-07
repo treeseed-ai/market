@@ -4,7 +4,7 @@
 
 This document specifies the authenticated Knowledge Hub content management overlay.
 
-It supports [TreeSeed UI Architecture](./ui-architecture.md), [Content Runtime Architecture](./content-runtime-architecture.md), [Auth And Content Proxy](./auth-and-content-proxy.md), and [UI Migration](./ui-migration.md).
+It supports [TreeSeed UI Architecture](./ui-architecture.md), [UI Architecture Inventory](./ui-architecture-inventory.md), [Content Runtime Architecture](./content-runtime-architecture.md), and [Auth And Content Proxy](./auth-and-content-proxy.md).
 
 ## Core Rule
 
@@ -155,7 +155,7 @@ Implementations must add tests proving:
 - non-team users do not receive overlay bootstrap data
 - authorized team members can load the overlay
 
-Phase 10 adds the first shared UI display contract for that proof: `OverlayStatus` can show policy-safe overlay state on canonical distribution/reader surfaces, and `overlay-loader.ts` dynamically imports the overlay session only after explicit authorized intent. Shells and anonymous public readers must not statically import editor, search, or overlay bundles.
+The shared UI display contract for that proof is `OverlayStatus`: it can show policy-safe overlay state on canonical distribution/reader surfaces, and `overlay-loader.ts` dynamically imports the overlay session only after explicit authorized intent. Shells and anonymous public readers must not statically import editor, search, or overlay bundles.
 - save draft writes through an approved path
 - browser code cannot write directly to R2
 - denied states do not leak private metadata

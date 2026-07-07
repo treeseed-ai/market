@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, relative, resolve } from 'node:path';
-import { componentInventory, routeInventory, type MigrationDebt } from './ui-migration/inventory.ts';
+import { componentInventory, routeInventory, type ArchitectureDebt } from './ui-architecture/inventory.ts';
 
 const root = process.cwd();
 const args = process.argv.slice(2);
@@ -49,11 +49,11 @@ const localStyleAllowlist = new Set([
 	'packages/ui/src/astro/theme/ThemeScript.astro',
 ]);
 
-function pathHasDebt(path: string, debt: MigrationDebt): boolean {
+function pathHasDebt(path: string, debt: ArchitectureDebt): boolean {
 	const route = routeInventory.find((entry) => entry.sourcePath === path);
-	if (route?.migrationDebt.includes(debt)) return true;
+	if (route?.architectureDebt.includes(debt)) return true;
 	return componentInventory.some((entry) => {
-		if (!entry.migrationDebt.includes(debt)) return false;
+		if (!entry.architectureDebt.includes(debt)) return false;
 		return path === entry.sourcePath || path.startsWith(`${entry.sourcePath}/`);
 	});
 }

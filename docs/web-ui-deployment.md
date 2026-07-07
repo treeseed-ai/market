@@ -14,7 +14,7 @@ Current architecture note:
 - backend deployment state lives in `@treeseed/api`
 - CLI parity lives in `@treeseed/cli`
 - reconciliation logic lives in `@treeseed/sdk`
-- root market owns buyer marketplace, checkout, service, capacity, Commons participant, and business-facing pages, not generic admin deployment UI
+- root market owns authenticated operational marketplace/cart/checkout/service/capacity/Commons participant pages plus public marketing/profile/knowledge pages, not generic admin deployment UI
 - Railway builds API and runner from `packages/api`
 - hosted readiness is checked through `npx trsd ready <environment> --json`
 - targeted hosting repair uses `npx trsd hosting plan/apply/verify --environment <environment> --service <api|operationsRunner> --json`

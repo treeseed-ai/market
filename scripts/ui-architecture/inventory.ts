@@ -2,7 +2,14 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 
 export type PackageOwner = 'market' | 'admin' | 'core' | 'ui';
 export type SurfaceContext = 'auth' | 'public' | 'personal' | 'team' | 'project' | 'market' | 'content' | 'system';
-export type ShellName = 'AuthShell' | 'PublicShell' | 'ProductShell' | 'CoreContentLayout' | 'CoreReaderLayout' | 'Standalone';
+export type ShellName =
+	| 'AuthShell'
+	| 'PublicSingleColumnShell'
+	| 'AuthenticatedAppShell'
+	| 'OperationalMarketShell'
+	| 'CoreContentLayout'
+	| 'CoreReaderLayout'
+	| 'Standalone';
 export type TargetTemplate =
 	| 'auth-form'
 	| 'collection'
@@ -13,8 +20,8 @@ export type TargetTemplate =
 	| 'settings'
 	| 'workspace'
 	| 'wizard';
-export type LegacyStatus = 'active' | 'wrapped' | 'replaced' | 'deleted';
-export type MigrationDebt = 'page-local-css' | 'inline-dynamic-style' | 'raw-color-fallback' | 'route-local-script';
+export type ImplementationStatus = 'active' | 'wrapped' | 'replaced' | 'deleted';
+export type ArchitectureDebt = 'page-local-css' | 'inline-dynamic-style' | 'raw-color-fallback' | 'route-local-script';
 
 export interface RouteInventoryEntry {
 	owner: PackageOwner;
@@ -31,16 +38,16 @@ export interface RouteInventoryEntry {
 	pageLocalCss: 'none' | 'present';
 	reusableComponentsUsed: string[];
 	maturityLevel: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
-	migrationDifficulty: 'low' | 'medium' | 'high';
+	architectureComplexity: 'low' | 'medium' | 'high';
 	userValue: 'low' | 'medium' | 'high';
 	risk: 'low' | 'medium' | 'high';
-	legacyStatus: LegacyStatus;
+	implementationStatus: ImplementationStatus;
 	compatibilityWrapperPath: string | null;
-	deletionBlocker: string;
-	requiredTestsBeforeDeletion: string[];
-	targetDeletionPhase: string;
-	firstSliceCandidate: string | null;
-	migrationDebt: MigrationDebt[];
+	architectureNotes: string;
+	requiredArchitectureChecks: string[];
+	architectureStage: string;
+	architectureProof: string | null;
+	architectureDebt: ArchitectureDebt[];
 }
 
 export interface ComponentInventoryEntry {
@@ -49,13 +56,13 @@ export interface ComponentInventoryEntry {
 	sourcePath: string;
 	currentUse: string;
 	targetPackage: '@treeseed/ui' | '@treeseed/admin' | '@treeseed/core' | '@treeseed/market';
-	migrationTarget: string;
+	architectureTarget: string;
 	maturityLevel: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
-	legacyStatus: LegacyStatus;
+	implementationStatus: ImplementationStatus;
 	replacementBlocker: string;
-	requiredTestsBeforeDeletion: string[];
-	targetDeletionPhase: string;
-	migrationDebt: MigrationDebt[];
+	requiredArchitectureChecks: string[];
+	architectureStage: string;
+	architectureDebt: ArchitectureDebt[];
 }
 
 const adminProductRoutePaths = [
@@ -172,6 +179,7 @@ const adminPublicRoutePaths = [
 	'packages/admin/src/pages/market/knowledge-packs/index.astro',
 	'packages/admin/src/pages/market/templates/[slug].astro',
 	'packages/admin/src/pages/market/templates/index.astro',
+	'packages/admin/src/pages/p/[project].astro',
 	'packages/admin/src/pages/t/[name].astro',
 	'packages/admin/src/pages/team-invites/[token]/accept.astro',
 	'packages/admin/src/pages/u/[username].astro',
@@ -247,9 +255,9 @@ function detectPageLocalComponents(sourcePath: string): string[] {
 	return [...new Set(matches)].sort();
 }
 
-function detectDebt(sourcePath: string): MigrationDebt[] {
+function detectDebt(sourcePath: string): ArchitectureDebt[] {
 	const source = readSource(sourcePath);
-	const debt = new Set<MigrationDebt>();
+	const debt = new Set<ArchitectureDebt>();
 	if (/<style(?:\s|>)/u.test(source)) debt.add('page-local-css');
 	if (/\sstyle=/u.test(source)) debt.add('inline-dynamic-style');
 	if (/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/u.test(source)) debt.add('raw-color-fallback');
@@ -300,16 +308,16 @@ function route(sourcePath: string, overrides: Partial<RouteInventoryEntry> = {})
 				: isCore
 					? 'content'
 					: 'public';
-	const defaultTargetShell: ShellName = isAuth ? 'AuthShell' : isProduct ? 'ProductShell' : 'PublicShell';
+	const defaultTargetShell: ShellName = isAuth ? 'AuthShell' : isProduct ? 'AuthenticatedAppShell' : 'PublicSingleColumnShell';
 	const defaultCurrentShell: ShellName = isAuth
 		? 'AuthShell'
 		: isProduct
-			? 'ProductShell'
+			? 'AuthenticatedAppShell'
 			: isCore
 				? isReader
 					? 'CoreReaderLayout'
 					: 'CoreContentLayout'
-				: 'PublicShell';
+				: 'PublicSingleColumnShell';
 	const defaultDataSource = isProduct
 		? 'Market API, admin view models, and local seed store'
 		: isCore
@@ -332,16 +340,16 @@ function route(sourcePath: string, overrides: Partial<RouteInventoryEntry> = {})
 		pageLocalCss: debt.includes('page-local-css') ? 'present' : 'none',
 		reusableComponentsUsed: detectReusableComponents(sourcePath),
 		maturityLevel: sourcePath.startsWith('packages/core/') ? 1 : defaultTargetShell === defaultCurrentShell ? 1 : 0,
-		migrationDifficulty: debt.length > 1 || routePattern.includes('/capacity/') ? 'high' : isProduct ? 'medium' : 'low',
+		architectureComplexity: debt.length > 1 || routePattern.includes('/capacity/') ? 'high' : isProduct ? 'medium' : 'low',
 		userValue: routePattern.includes('/questions') || routePattern.includes('/projects') || routePattern.includes('/docs-runtime') ? 'high' : 'medium',
 		risk: isProduct || routePattern.includes('/auth') || routePattern.includes('/docs-runtime') ? 'medium' : 'low',
-		legacyStatus: 'active',
+		implementationStatus: 'active',
 		compatibilityWrapperPath: null,
-		deletionBlocker: 'Replacement vertical slice has not passed its required acceptance tests.',
-		requiredTestsBeforeDeletion: ['route renders', 'policy state coverage', 'accessibility smoke', 'UI migration guard'],
-		targetDeletionPhase: 'none while active; reassess when replacement reaches acceptance',
-		firstSliceCandidate: null,
-		migrationDebt: debt,
+		architectureNotes: 'Replacement vertical slice has not passed its required acceptance tests.',
+		requiredArchitectureChecks: ['route renders', 'policy state coverage', 'accessibility smoke', 'UI architecture guard'],
+		architectureStage: 'none while active; reassess when replacement reaches acceptance',
+		architectureProof: null,
+		architectureDebt: debt,
 		...overrides,
 	};
 }
@@ -370,7 +378,7 @@ function inferResourceType(routePattern: string): string {
 	if (routePattern.includes('/knowledge')) return 'knowledge-artifact';
 	if (routePattern.includes('/books') || routePattern.includes('/docs-runtime')) return 'book-page';
 	if (routePattern.includes('/agents')) return 'agent';
-	if (routePattern.includes('/people') || routePattern.startsWith('/u/') || routePattern.startsWith('/t/')) return 'profile';
+	if (routePattern.includes('/people') || routePattern.startsWith('/u/') || routePattern.startsWith('/t/') || routePattern.startsWith('/p/')) return 'profile';
 	if (routePattern.includes('/auth')) return 'auth-session';
 	return 'page';
 }
@@ -387,7 +395,7 @@ function inferPolicyNeeds(routePattern: string, surfaceContext: SurfaceContext):
 }
 
 export const routeInventory: RouteInventoryEntry[] = [
-	...marketRoutePaths.map((sourcePath) => route(sourcePath, { firstSliceCandidate: 'public shell baseline' })),
+	...marketRoutePaths.map((sourcePath) => route(sourcePath, { architectureProof: 'public layout baseline' })),
 	...adminAuthRoutePaths.map((sourcePath) => route(sourcePath)),
 	...adminPublicRoutePaths.map((sourcePath) => route(sourcePath)),
 	...adminProductRoutePaths.map((sourcePath) => route(sourcePath)),
@@ -409,8 +417,8 @@ export const routeInventory: RouteInventoryEntry[] = [
 		const isForm = entry.routePattern.endsWith('/new') || entry.routePattern.endsWith('/checkout') || entry.routePattern.endsWith('/governance');
 		return {
 			...entry,
-			currentShell: isAdmin ? 'ProductShell' : 'PublicShell',
-			targetShell: isAdmin ? 'ProductShell' : 'PublicShell',
+			currentShell: isAdmin ? 'AuthenticatedAppShell' : 'OperationalMarketShell',
+			targetShell: isAdmin ? 'AuthenticatedAppShell' : 'OperationalMarketShell',
 			targetTemplate: isForm
 				? 'settings'
 				: isDetail
@@ -418,21 +426,21 @@ export const routeInventory: RouteInventoryEntry[] = [
 					: entry.routePattern === '/cart' || entry.routePattern === '/marketplace' || entry.routePattern.endsWith('/commerce')
 						? 'dashboard'
 						: 'collection',
-			surfaceContext: isAdmin ? 'team' : entry.routePattern.startsWith('/commons') ? 'market' : 'market',
+			surfaceContext: isAdmin ? 'team' : 'market',
 			maturityLevel: 10,
-			migrationDifficulty: 'medium',
+			architectureComplexity: 'medium',
 			userValue: 'high',
 			risk: entry.routePattern.includes('/checkout') || entry.sourcePath.includes('/commerce') ? 'high' : 'medium',
-			firstSliceCandidate: 'Phase 10 marketplace acquisition, seller operations, and Commons governance sweep',
-			deletionBlocker: 'Phase 10 route is current active marketplace/Commons implementation; replacement must preserve public/private policy, entitlement or governance state, shell help/feedback, and no compatibility redirects.',
-			requiredTestsBeforeDeletion: ['UI migration guard', 'Phase 10 commerce/Commons route guards', 'marketplace action-state tests', 'policy-safe rendering tests'],
-			targetDeletionPhase: 'none while active; reassess after commerce capability registry reaches acceptance',
+			architectureProof: 'Marketplace acquisition, seller operations, and Commons governance proof',
+			architectureNotes: 'knowledge distribution route is current active marketplace/Commons implementation; replacement must preserve public/private policy, entitlement or governance state, shell help/feedback, and no compatibility redirects.',
+			requiredArchitectureChecks: ['UI architecture guard', 'commerce/Commons route guards', 'marketplace action-state tests', 'policy-safe rendering tests'],
+			architectureStage: 'none while active; reassess after commerce capability registry reaches acceptance',
 			dataSource: isAdmin
 				? 'Market API commerce and Commons governance projections mapped through admin route view models'
-				: 'public marketplace, checkout, service, capacity, and Commons projections from Market API facades',
+				: 'authenticated marketplace, checkout, service, capacity, and Commons projections from Market API facades',
 			policyNeeds: isAdmin
 				? ['team membership', 'seller/governance authority', 'resolved commerce actions', 'shell help/feedback policy']
-				: ['public read', 'anonymous-safe checkout or participation', 'entitlement/governance-aware action resolution'],
+				: ['signed-in principal', 'team operation context', 'entitlement/governance-aware action resolution', 'shell help/feedback policy'],
 		};
 	}
 	if (
@@ -442,15 +450,15 @@ export const routeInventory: RouteInventoryEntry[] = [
 		|| entry.sourcePath.startsWith('packages/admin/src/pages/market/knowledge-packs/')
 		|| entry.sourcePath.startsWith('packages/admin/src/pages/market/templates/')
 	) {
-		const isPublic = entry.sourcePath.startsWith('packages/admin/src/pages/market/');
+		const isMarketRoute = entry.sourcePath.startsWith('packages/admin/src/pages/market/');
 		const isDashboard = entry.routePattern === '/app/knowledge' || entry.routePattern === '/app/market/seller';
 		const isSettings = entry.routePattern === '/app/knowledge/publish' || entry.routePattern.endsWith('/review');
 		const isDetail = entry.routePattern.includes('/:');
 		return {
 			...entry,
-			currentShell: isPublic ? 'PublicShell' : 'ProductShell',
-			targetShell: isPublic ? 'PublicShell' : 'ProductShell',
-			targetTemplate: isPublic
+			currentShell: isMarketRoute ? 'OperationalMarketShell' : 'AuthenticatedAppShell',
+			targetShell: isMarketRoute ? 'OperationalMarketShell' : 'AuthenticatedAppShell',
+			targetTemplate: isMarketRoute
 				? isDetail
 					? 'public-acquisition'
 					: 'collection'
@@ -461,20 +469,20 @@ export const routeInventory: RouteInventoryEntry[] = [
 						: isDetail
 							? 'detail'
 							: 'collection',
-			surfaceContext: isPublic ? 'market' : entry.routePattern === '/app/market/seller' ? 'market' : 'team',
+			surfaceContext: isMarketRoute || entry.routePattern === '/app/market/seller' ? 'market' : 'team',
 			maturityLevel: 10,
-			migrationDifficulty: 'low',
-			firstSliceCandidate: 'Phase 10 knowledge and capability distribution sweep',
-			deletionBlocker: 'Phase 10 route is current active distribution implementation; replacement must preserve entitlement resolution, delivery policy, shell help/feedback, overlay gating, audit/action state, and no compatibility redirects.',
-			requiredTestsBeforeDeletion: ['UI migration guard', 'Phase 10 route/source guards', 'distribution view-model tests', 'UI distribution component tests', 'entitlement/action resolution coverage'],
-			targetDeletionPhase: 'none while active; reassess after distribution capability registry reaches acceptance',
-			dataSource: isPublic
-				? 'public marketplace catalog projections mapped through acquisition view models'
+			architectureComplexity: 'low',
+			architectureProof: 'Knowledge and capability distribution proof',
+			architectureNotes: 'knowledge distribution route is current active distribution implementation; replacement must preserve entitlement resolution, delivery policy, shell help/feedback, overlay gating, audit/action state, and no compatibility redirects.',
+			requiredArchitectureChecks: ['UI architecture guard', 'knowledge distribution route/source guards', 'distribution view-model tests', 'UI distribution component tests', 'entitlement/action resolution coverage'],
+			architectureStage: 'none while active; reassess after distribution capability registry reaches acceptance',
+			dataSource: isMarketRoute
+				? 'authenticated marketplace catalog projections mapped through acquisition view models'
 				: 'Market API/store knowledge projections and admin distribution view models',
-			policyNeeds: isPublic
-				? ['public read', 'entitlement-aware action resolution', 'anonymous-safe feedback', 'policy-resolved delivery']
+			policyNeeds: isMarketRoute
+				? ['signed-in principal', 'team operation context', 'entitlement-aware action resolution', 'policy-resolved delivery']
 				: ['team membership', 'distribution action resolution', 'entitlement-aware delivery', 'shell help/feedback policy', 'overlay bootstrap policy'],
-			resourceType: isPublic
+			resourceType: isMarketRoute
 				? entry.routePattern.includes('templates') ? 'market-template' : 'market-knowledge-pack'
 				: entry.routePattern === '/app/market/seller' ? 'seller'
 					: entry.routePattern.includes('/books') ? 'book-page'
@@ -484,7 +492,7 @@ export const routeInventory: RouteInventoryEntry[] = [
 									: entry.routePattern.includes('/templates') ? 'template'
 										: entry.routePattern.includes('/packs') ? 'knowledge-pack'
 											: 'knowledge-artifact',
-			risk: isPublic ? 'medium' : 'high',
+			risk: isMarketRoute ? 'medium' : 'high',
 		};
 	}
 	if (
@@ -509,8 +517,8 @@ export const routeInventory: RouteInventoryEntry[] = [
 		const isForm = entry.routePattern.endsWith('/new') || entry.routePattern.endsWith('/edit');
 		return {
 			...entry,
-			currentShell: 'ProductShell',
-			targetShell: 'ProductShell',
+			currentShell: 'AuthenticatedAppShell',
+			targetShell: 'AuthenticatedAppShell',
 			targetTemplate: isDashboard
 				? 'dashboard'
 				: isReview
@@ -524,11 +532,11 @@ export const routeInventory: RouteInventoryEntry[] = [
 							: 'collection',
 			surfaceContext: isAgent || isWorkday ? 'project' : 'team',
 			maturityLevel: 9,
-			migrationDifficulty: 'low',
-			firstSliceCandidate: 'Phase 9 allocation and workday operating loop sweep',
-			deletionBlocker: 'Phase 9 route is current active operating-loop implementation; replacement must preserve explicit controller loading, resolved actions, shell help/feedback, allocation state, workday/review queues, and no provider scheduling/orchestration in Admin templates.',
-			requiredTestsBeforeDeletion: ['UI migration guard', 'Phase 9 route/source guards', 'operating-loop view-model tests', 'UI operating component tests'],
-			targetDeletionPhase: 'none while active; reassess after operating-loop capability registry reaches acceptance',
+			architectureComplexity: 'low',
+			architectureProof: 'Allocation and workday operating loop proof',
+			architectureNotes: 'operating-loop architecture route is current active operating-loop implementation; replacement must preserve explicit controller loading, resolved actions, shell help/feedback, allocation state, workday/review queues, and no provider scheduling/orchestration in Admin templates.',
+			requiredArchitectureChecks: ['UI architecture guard', 'operating-loop route/source guards', 'operating-loop view-model tests', 'UI operating component tests'],
+			architectureStage: 'none while active; reassess after operating-loop capability registry reaches acceptance',
 			dataSource: isAllocation
 				? 'Market API/store allocation and capacity summaries mapped through operating-loop view models'
 				: isWorkday
@@ -544,15 +552,15 @@ export const routeInventory: RouteInventoryEntry[] = [
 	if (entry.sourcePath === 'packages/admin/src/pages/app/work/questions.astro') {
 		return {
 			...entry,
-			currentShell: 'ProductShell',
-			targetShell: 'ProductShell',
+			currentShell: 'AuthenticatedAppShell',
+			targetShell: 'AuthenticatedAppShell',
 			targetTemplate: 'collection',
 			maturityLevel: 6,
-			migrationDifficulty: 'low',
-			firstSliceCandidate: 'Phase 1 proof route, Phase 2 first direction resource vertical, and Phase 6 authenticated contextual help proof',
-			deletionBlocker: 'Phase 6 route is current active implementation for questions and authenticated contextual help; later generic factory work must prove equivalent route/help behavior before replacement.',
-			requiredTestsBeforeDeletion: ['UI migration guard', 'questions vertical route coverage', 'foundation template typecheck', 'policy state coverage', 'contextual help source guard'],
-			targetDeletionPhase: 'none while active; reassess after generic capability factory reaches acceptance',
+			architectureComplexity: 'low',
+			architectureProof: 'Direction resource collection and authenticated contextual help proof',
+			architectureNotes: 'Knowledge runtime reader route is current active implementation for questions and authenticated contextual help; later generic factory work must prove equivalent route/help behavior before replacement.',
+			requiredArchitectureChecks: ['UI architecture guard', 'questions vertical route coverage', 'foundation template typecheck', 'policy state coverage', 'contextual help source guard'],
+			architectureStage: 'none while active; reassess after generic capability factory reaches acceptance',
 		};
 	}
 	if (
@@ -565,23 +573,23 @@ export const routeInventory: RouteInventoryEntry[] = [
 		const isProjectDashboard = entry.sourcePath === 'packages/admin/src/pages/app/projects/[projectId].astro';
 		return {
 			...entry,
-			currentShell: isMarketDashboard ? 'PublicShell' : 'ProductShell',
-			targetShell: isMarketDashboard ? 'PublicShell' : 'ProductShell',
+			currentShell: isMarketDashboard ? 'OperationalMarketShell' : 'AuthenticatedAppShell',
+			targetShell: isMarketDashboard ? 'OperationalMarketShell' : 'AuthenticatedAppShell',
 			targetTemplate: 'dashboard',
 			maturityLevel: isProjectDashboard ? 8 : 7,
-			migrationDifficulty: 'low',
-			firstSliceCandidate: isMarketDashboard
-				? 'Phase 7 market contextual dashboard proof'
+			architectureComplexity: 'low',
+			architectureProof: isMarketDashboard
+				? 'contextual dashboard architecture market contextual dashboard proof'
 				: isProjectDashboard
-					? 'Phase 8 project service readiness dashboard projection'
-					: 'Phase 7 personal/team contextual dashboard proof',
-			deletionBlocker: isProjectDashboard
-				? 'Phase 8 project dashboard consumes the services readiness summary; replacement must preserve the compact project service status, shell help/feedback, and advanced-detail links.'
-				: 'Phase 7 dashboard route is current active implementation; broader dashboard reuse must prove equivalent context, actions, help, feedback, and no page-local dashboard systems before replacement.',
-			requiredTestsBeforeDeletion: isProjectDashboard
-				? ['UI migration guard', 'contextual dashboard source guard', 'services readiness view-model tests', 'DashboardTemplate coverage', 'shell help/feedback coverage']
-				: ['UI migration guard', 'contextual dashboard source guard', 'DashboardTemplate coverage', 'shell help/feedback coverage'],
-			targetDeletionPhase: 'none while active; reassess after contextual dashboard registry or factory reaches acceptance',
+					? 'service readiness architecture project service readiness dashboard projection'
+					: 'Personal/team contextual dashboard proof',
+			architectureNotes: isProjectDashboard
+				? 'service readiness architecture project dashboard consumes the services readiness summary; replacement must preserve the compact project service status, shell help/feedback, and advanced-detail links.'
+				: 'contextual dashboard architecture dashboard route is current active implementation; broader dashboard reuse must prove equivalent context, actions, help, feedback, and no page-local dashboard systems before replacement.',
+			requiredArchitectureChecks: isProjectDashboard
+				? ['UI architecture guard', 'contextual dashboard source guard', 'services readiness view-model tests', 'DashboardTemplate coverage', 'shell help/feedback coverage']
+				: ['UI architecture guard', 'contextual dashboard source guard', 'DashboardTemplate coverage', 'shell help/feedback coverage'],
+			architectureStage: 'none while active; reassess after contextual dashboard registry or factory reaches acceptance',
 			dataSource: isMarketDashboard
 				? 'market catalog projection and public route data mapped through contextual dashboard view model'
 				: 'Market API, admin view models, and local seed store mapped through contextual dashboard view model',
@@ -595,15 +603,15 @@ export const routeInventory: RouteInventoryEntry[] = [
 	if (entry.sourcePath === 'packages/admin/src/pages/app/projects/new.astro') {
 		return {
 			...entry,
-			currentShell: 'ProductShell',
-			targetShell: 'ProductShell',
+			currentShell: 'AuthenticatedAppShell',
+			targetShell: 'AuthenticatedAppShell',
 			targetTemplate: 'wizard',
 			maturityLevel: 8,
-			migrationDifficulty: 'medium',
-			firstSliceCandidate: 'Phase 8 project launch service readiness projection',
-			deletionBlocker: 'Phase 8 launch route is current active project creation implementation; replacement must preserve service readiness projection, template launch requirements, credential safeguards, and sensitive value handling.',
-			requiredTestsBeforeDeletion: ['UI migration guard', 'project launch source guard', 'services readiness view-model tests', 'credential form tests'],
-			targetDeletionPhase: 'none while active; reassess after launch capability registry reaches acceptance',
+			architectureComplexity: 'medium',
+			architectureProof: 'Project launch service readiness proof',
+			architectureNotes: 'service readiness architecture launch route is current active project creation implementation; replacement must preserve service readiness projection, template launch requirements, credential safeguards, and sensitive value handling.',
+			requiredArchitectureChecks: ['UI architecture guard', 'project launch source guard', 'services readiness view-model tests', 'credential form tests'],
+			architectureStage: 'none while active; reassess after launch capability registry reaches acceptance',
 			dataSource: 'Market API/store service readiness and template launch requirement view models',
 			policyNeeds: ['team membership', 'service readiness projection', 'credential handling safeguards', 'shell help/feedback policy'],
 			resourceType: 'project',
@@ -624,16 +632,16 @@ export const routeInventory: RouteInventoryEntry[] = [
 		const isSettings = entry.sourcePath.endsWith('/settings.astro');
 		return {
 			...entry,
-			currentShell: 'ProductShell',
-			targetShell: 'ProductShell',
+			currentShell: 'AuthenticatedAppShell',
+			targetShell: 'AuthenticatedAppShell',
 			targetTemplate: isDashboard ? 'dashboard' : isCollection ? 'collection' : isSettings ? 'settings' : 'detail',
 			surfaceContext: 'team',
 			maturityLevel: 8,
-			migrationDifficulty: 'low',
-			firstSliceCandidate: 'Phase 8 services and capacity readiness vertical',
-			deletionBlocker: 'Phase 8 route is current active service readiness implementation; replacement must preserve shell help/feedback, readiness summaries, sensitive filtering, and no scheduler/provider orchestration logic.',
-			requiredTestsBeforeDeletion: ['UI migration guard', 'services readiness route coverage', 'service readiness view-model tests', 'sensitive details source guard'],
-			targetDeletionPhase: 'none while active; reassess after services capability registry reaches acceptance',
+			architectureComplexity: 'low',
+			architectureProof: 'Services and capacity readiness proof',
+			architectureNotes: 'service readiness architecture route is current active service readiness implementation; replacement must preserve shell help/feedback, readiness summaries, sensitive filtering, and no scheduler/provider orchestration logic.',
+			requiredArchitectureChecks: ['UI architecture guard', 'services readiness route coverage', 'service readiness view-model tests', 'sensitive details source guard'],
+			architectureStage: 'none while active; reassess after services capability registry reaches acceptance',
 			dataSource: 'Market API/store service readiness view models over hosts, capacity providers, TreeDX binding, diagnostics, and project readiness',
 			policyNeeds: ['team membership', 'service-sensitive details filtering', 'resolved actions', 'shell help/feedback policy'],
 			resourceType: isDashboard ? 'service-readiness' : entry.resourceType,
@@ -643,44 +651,44 @@ export const routeInventory: RouteInventoryEntry[] = [
 	if (entry.sourcePath === 'packages/admin/src/pages/app/work/questions/[slug].astro') {
 		return {
 			...entry,
-			currentShell: 'ProductShell',
-			targetShell: 'ProductShell',
+			currentShell: 'AuthenticatedAppShell',
+			targetShell: 'AuthenticatedAppShell',
 			targetTemplate: 'detail',
 			maturityLevel: 6,
-			migrationDifficulty: 'low',
-			firstSliceCandidate: 'Phase 2 first direction resource vertical and Phase 6 authenticated contextual help proof',
-			requiredTestsBeforeDeletion: ['UI migration guard', 'questions detail route coverage', 'policy state coverage', 'contextual help source guard'],
-			targetDeletionPhase: 'none while active; reassess after generic capability factory reaches acceptance',
+			architectureComplexity: 'low',
+			architectureProof: 'Direction resource detail/form and authenticated contextual help proof',
+			requiredArchitectureChecks: ['UI architecture guard', 'questions detail route coverage', 'policy state coverage', 'contextual help source guard'],
+			architectureStage: 'none while active; reassess after generic capability factory reaches acceptance',
 		};
 	}
 	if (entry.sourcePath === 'packages/admin/src/pages/app/work/questions/new.astro' || entry.sourcePath === 'packages/admin/src/pages/app/work/questions/[slug]/edit.astro') {
 		return {
 			...entry,
-			currentShell: 'ProductShell',
-			targetShell: 'ProductShell',
+			currentShell: 'AuthenticatedAppShell',
+			targetShell: 'AuthenticatedAppShell',
 			targetTemplate: 'settings',
 			maturityLevel: 6,
-			migrationDifficulty: 'low',
-			firstSliceCandidate: 'Phase 2 first direction resource vertical and Phase 6 authenticated contextual help proof',
-			requiredTestsBeforeDeletion: ['UI migration guard', 'questions form route coverage', 'policy state coverage', 'local-content operation smoke', 'contextual help source guard'],
-			targetDeletionPhase: 'none while active; reassess after generic capability factory reaches acceptance',
+			architectureComplexity: 'low',
+			architectureProof: 'Direction resource detail/form and authenticated contextual help proof',
+			requiredArchitectureChecks: ['UI architecture guard', 'questions form route coverage', 'policy state coverage', 'local-content operation smoke', 'contextual help source guard'],
+			architectureStage: 'none while active; reassess after generic capability factory reaches acceptance',
 		};
 	}
 	if (entry.sourcePath === 'packages/admin/src/pages/app/projects/[projectId]/guidance.astro') {
-		return { ...entry, firstSliceCandidate: 'Phase 2 project-scoped direction companion' };
+		return { ...entry, architectureProof: 'Project-scoped direction companion proof' };
 	}
 	if (entry.sourcePath === 'packages/admin/src/pages/app/projects/[projectId]/knowledge.astro' || entry.sourcePath === 'packages/admin/src/pages/app/projects/[projectId]/knowledge/[...slug].astro') {
 		return {
 			...entry,
-			currentShell: 'ProductShell',
-			targetShell: 'ProductShell',
+			currentShell: 'AuthenticatedAppShell',
+			targetShell: 'AuthenticatedAppShell',
 			targetTemplate: 'reader',
 			maturityLevel: 5,
-			migrationDifficulty: 'low',
-			firstSliceCandidate: 'Phase 4 private Knowledge Hub reader proof',
-			deletionBlocker: 'Phase 4 route is current active implementation for private project knowledge reading; private packs, artifacts, help, and signed downloads require separate acceptance before reuse.',
-			requiredTestsBeforeDeletion: ['UI migration guard', 'private reader helper tests', 'private access/audit tests', 'private cache/no-key-leak source guard'],
-			targetDeletionPhase: 'none while active; reassess after private content proxy generalization acceptance',
+			architectureComplexity: 'low',
+			architectureProof: 'Private Knowledge Hub reader proof',
+			architectureNotes: 'Private Knowledge Hub reader route is current active implementation for private project knowledge reading; private packs, artifacts, help, and signed downloads require separate acceptance before reuse.',
+			requiredArchitectureChecks: ['UI architecture guard', 'private reader helper tests', 'private access/audit tests', 'private cache/no-key-leak source guard'],
+			architectureStage: 'none while active; reassess after private content proxy generalization acceptance',
 			dataSource: 'Market API project access contract plus private project R2 manifest',
 			policyNeeds: ['Market session validation', 'team/project membership', 'private content no-leak policy', 'audit event'],
 			risk: 'high',
@@ -689,15 +697,15 @@ export const routeInventory: RouteInventoryEntry[] = [
 	if (entry.sourcePath.startsWith('packages/core/src/pages/docs-runtime/')) {
 		return {
 			...entry,
-			currentShell: 'PublicShell',
-			targetShell: 'PublicShell',
+			currentShell: 'PublicSingleColumnShell',
+			targetShell: 'PublicSingleColumnShell',
 			targetTemplate: 'reader',
 			maturityLevel: 6,
-			migrationDifficulty: 'low',
-			firstSliceCandidate: 'Phase 3 public runtime reader equivalent and Phase 6 public contextual help proof',
-			deletionBlocker: 'Phase 6 route is current active implementation for /knowledge runtime reader and public help; broader content-route migration must prove cache, purge, failure-state, and help behavior first.',
-			requiredTestsBeforeDeletion: ['UI migration guard', 'runtime reader helper tests', 'published runtime no-local-fallback test', 'ReaderTemplate source guard', 'contextual help source guard'],
-			targetDeletionPhase: 'none while active; reassess after public runtime reader generalization acceptance',
+			architectureComplexity: 'low',
+			architectureProof: 'Public runtime reader and public contextual help proof',
+			architectureNotes: 'Knowledge runtime reader route is current active implementation for /knowledge runtime reader and public help; broader content-route architecture consolidation must prove cache, purge, failure-state, and help behavior first.',
+			requiredArchitectureChecks: ['UI architecture guard', 'runtime reader helper tests', 'published runtime no-local-fallback test', 'ReaderTemplate source guard', 'contextual help source guard'],
+			architectureStage: 'none while active; reassess after public runtime reader generalization acceptance',
 		};
 	}
 	return entry;
@@ -705,59 +713,60 @@ export const routeInventory: RouteInventoryEntry[] = [
 
 export const componentInventory: ComponentInventoryEntry[] = [
 	component('ui', 'Auth primitives', 'packages/ui/src/astro/auth', 'Auth forms and session pages', 'canonical reusable auth shell and cards', 2),
-	component('ui', 'Product shell primitives', 'packages/ui/src/astro/shell', 'Admin product and public shells', 'canonical shells for Phase 1', 2),
+	component('ui', 'Shell primitives', 'packages/ui/src/astro/shell', 'Authenticated app, operational market, and compatibility shell primitives', 'canonical current shell primitives with deprecated compatibility wrappers', 2),
 	component('ui', 'UI foundation contracts', 'packages/ui/src/lib/foundation/contracts.ts', 'Shell, template, action, help, feedback, capability, and page view-model contracts', 'canonical typed foundation contract', 6),
-	component('ui', 'UI foundation templates', 'packages/ui/src/astro/templates', 'Collection/detail/reader/settings template components', 'canonical Phase 1 reusable templates', 2),
-	component('ui', 'Dashboard template', 'packages/ui/src/astro/templates/DashboardTemplate.astro', 'Phase 7 contextual dashboard rendering for personal, team, project, and market surfaces', 'canonical DashboardTemplate proof', 7),
-	component('ui', 'Service readiness summary', 'packages/ui/src/astro/service/ReadinessSummary.astro', 'Phase 8 service readiness summary rendering for dashboards and detail pages', 'canonical service readiness primitive', 8),
-	component('ui', 'Operating-loop components', 'packages/ui/src/astro/operating', 'Phase 9 allocation, queue, legend, and timeline rendering', 'canonical operating-loop primitives', 9),
-	component('ui', 'Workspace template', 'packages/ui/src/astro/templates/WorkspaceTemplate.astro', 'Phase 9 workday and agent workspace rendering', 'canonical operating workspace template', 9),
-	component('ui', 'Distribution components', 'packages/ui/src/astro/distribution', 'Phase 10 distribution summary and overlay status rendering', 'canonical distribution and overlay display primitives', 10),
-	component('ui', 'Distribution overlay loader', 'packages/ui/src/lib/distribution/overlay-loader.ts', 'Phase 10 lazy overlay editor bootstrap after explicit authorized intent', 'canonical lazy overlay bootstrap helper', 10),
+	component('ui', 'UI foundation templates', 'packages/ui/src/astro/templates', 'Collection/detail/reader/settings template components', 'canonical reusable templates', 2),
+	component('ui', 'Dashboard template', 'packages/ui/src/astro/templates/DashboardTemplate.astro', 'Contextual dashboard rendering for personal, team, project, and market surfaces', 'canonical DashboardTemplate proof', 7),
+	component('ui', 'Service readiness summary', 'packages/ui/src/astro/service/ReadinessSummary.astro', 'Service readiness summary rendering for dashboards and detail pages', 'canonical service readiness primitive', 8),
+	component('ui', 'Operating-loop components', 'packages/ui/src/astro/operating', 'Allocation, queue, legend, and timeline rendering', 'canonical operating-loop primitives', 9),
+	component('ui', 'Workspace template', 'packages/ui/src/astro/templates/WorkspaceTemplate.astro', 'Workday and agent workspace rendering', 'canonical operating workspace template', 9),
+	component('ui', 'Distribution components', 'packages/ui/src/astro/distribution', 'Distribution summary and overlay status rendering', 'canonical distribution and overlay display primitives', 10),
+	component('ui', 'Distribution overlay loader', 'packages/ui/src/lib/distribution/overlay-loader.ts', 'Lazy overlay editor bootstrap after explicit authorized intent', 'canonical lazy overlay bootstrap helper', 10),
 	component('ui', 'UI foundation action and resource components', 'packages/ui/src/astro/layout/ActionBar.astro', 'Resolved action rendering for shells and templates', 'canonical action rendering primitive', 2),
 	component('ui', 'UI foundation resource cards', 'packages/ui/src/astro/surface/ResourceCard.astro', 'Compact resource summaries for collection templates', 'canonical resource summary primitive', 2),
 	component('ui', 'UI foundation permission boundary', 'packages/ui/src/astro/patterns/PermissionBoundary.astro', 'Allowed/read-only/denied/setup-required permission displays', 'canonical permission boundary primitive', 2),
-	component('ui', 'Shell feedback components', 'packages/ui/src/astro/feedback', 'Phase 5 shell-level feedback triggers, dialog, and redaction boundary', 'canonical feedback trigger/dialog foundation', 5),
-	component('ui', 'Shell feedback client controller', 'packages/ui/src/lib/feedback/dialog.ts', 'Phase 5 feedback payload assembly and submit behavior', 'canonical lazy feedback client controller', 5),
-	component('ui', 'Feedback DOM capture helper', 'packages/ui/src/lib/feedback/dom-capture.ts', 'Phase 5 opt-in redacted DOM screenshot proof', 'lazy screenshot helper until broader capture workflow is proven', 5),
-	component('ui', 'Shell contextual help components', 'packages/ui/src/astro/help', 'Phase 6 shell-level help trigger, drawer, panel, topic links, and action explanations', 'canonical contextual help foundation', 6),
-	component('ui', 'Shell contextual help client controller', 'packages/ui/src/lib/help/drawer.ts', 'Phase 6 help drawer behavior and lazy search loading', 'canonical lazy contextual help controller', 6),
-	component('ui', 'Contextual help search helper', 'packages/ui/src/lib/help/search.ts', 'Phase 6 scoped client search over policy-safe help context', 'lazy scoped search helper until broader help search is proven', 6),
+	component('ui', 'Shell feedback components', 'packages/ui/src/astro/feedback', 'Shell-level feedback triggers, dialog, and redaction boundary', 'canonical feedback trigger/dialog foundation', 5),
+	component('ui', 'Shell feedback client controller', 'packages/ui/src/lib/feedback/dialog.ts', 'Feedback payload assembly and submit behavior', 'canonical lazy feedback client controller', 5),
+	component('ui', 'Feedback DOM capture helper', 'packages/ui/src/lib/feedback/dom-capture.ts', 'Opt-in redacted DOM screenshot proof', 'lazy screenshot helper until broader capture workflow is proven', 5),
+	component('ui', 'Shell contextual help components', 'packages/ui/src/astro/help', 'Shell-level help trigger, drawer, panel, topic links, and action explanations', 'canonical contextual help foundation', 6),
+	component('ui', 'Shell contextual help client controller', 'packages/ui/src/lib/help/drawer.ts', 'Help drawer behavior and lazy search loading', 'canonical lazy contextual help controller', 6),
+	component('ui', 'Contextual help search helper', 'packages/ui/src/lib/help/search.ts', 'Scoped client search over policy-safe help context', 'lazy scoped search helper until broader help search is proven', 6),
 	component('ui', 'Form primitives', 'packages/ui/src/astro/forms', 'Auth, project, host, and work forms', 'canonical form controls', 2),
 	component('ui', 'Data primitives', 'packages/ui/src/astro/data', 'Metrics, status, key/value, tables, and actions', 'canonical data display components', 2),
 	component('ui', 'Surface primitives', 'packages/ui/src/astro/surface', 'Panels, cards, and empty states', 'canonical surface components', 2),
 	component('ui', 'App controls', 'packages/ui/src/astro/app/controls', 'Route-local admin controls already promoted to UI', 'candidate PageHeader/ActionBar/resource controls', 2),
 	component('ui', 'Operations panels', 'packages/ui/src/astro/app/operations', 'Deployment, governance, repository, and capacity panels', 'future deployment/workday templates', 2),
-	component('ui', 'Docs reader components', 'packages/ui/src/astro/docs', 'Current book/docs reader UI', 'Phase 3 ReaderTemplate ingredients', 1, ['page-local-css']),
+	component('ui', 'Docs reader components', 'packages/ui/src/astro/docs', 'Current book/docs reader UI', 'ReaderTemplate ingredients', 1, ['page-local-css']),
 	component('ui', 'Core bridge components', 'packages/ui/src/astro/core', 'Core site title and dev bridge helpers', 'Core-safe reusable bridge primitives', 1, ['page-local-css']),
-	component('ui', 'Site content components', 'packages/ui/src/astro/site', 'Core public content pages', 'PublicShell and content collection/detail templates', 2),
-	component('ui', 'Layout components', 'packages/ui/src/astro/layouts', 'Core content layout wrappers', 'Phase 1 shells/templates review', 1),
+	component('ui', 'Site content components', 'packages/ui/src/astro/site', 'Core public content pages', 'public layout and content collection/detail templates', 2),
+	component('ui', 'Layout components', 'packages/ui/src/astro/layouts', 'Core content layout wrappers', 'Shells/templates architecture review', 1),
 	component('ui', 'Market cards', 'packages/ui/src/astro/market', 'Marketplace listings and public acquisition routes', 'public acquisition template ingredients', 2),
 	component('ui', 'Theme utilities', 'packages/ui/src/astro/theme', 'ThemeScript, ThemeSelector, and swatches', 'canonical YAML-backed theme system', 3, ['inline-dynamic-style']),
 	component('ui', 'React form controls', 'packages/ui/src/react/form-controls', 'Reusable hydrated form fields', 'canonical React form primitives', 2),
 	component('ui', 'React charts', 'packages/ui/src/react/charts', 'Monitoring and project activity charts', 'dashboard chart primitives', 1, ['inline-dynamic-style']),
-	component('ui', 'Dynamic allocation input', 'packages/ui/src/react/pie-allocation', 'Capacity allocation panels', 'Phase 9 allocation input primitive', 2, ['inline-dynamic-style', 'raw-color-fallback']),
-	component('ui', 'Dynamic allocation styles', 'packages/ui/src/styles/pie-allocation.css', 'Capacity allocation panels', 'Phase 9 allocation style primitive', 2, ['raw-color-fallback']),
+	component('ui', 'Dynamic allocation input', 'packages/ui/src/react/pie-allocation', 'Capacity allocation panels', 'allocation input primitive', 2, ['inline-dynamic-style', 'raw-color-fallback']),
+	component('ui', 'Dynamic allocation styles', 'packages/ui/src/styles/pie-allocation.css', 'Capacity allocation panels', 'allocation style primitive', 2, ['raw-color-fallback']),
 	component('ui', 'Rich Markdown editor', 'packages/ui/src/react/editors', 'Work content and overlay editing candidates', 'overlay editing editor primitive', 2),
-	component('admin', 'Admin app layout wrapper', 'packages/admin/src/layouts/TreeseedAppLayout.astro', 'TreeSeed-specific ProductShell composition', '@treeseed/ui shell configuration or thin wrapper', 1, ['route-local-script']),
-	component('admin', 'Admin public layout wrapper', 'packages/admin/src/layouts/TreeseedPublicLayout.astro', 'TreeSeed-specific PublicShell composition', '@treeseed/ui shell configuration or thin wrapper', 1),
-	component('admin', 'Question capability metadata', 'packages/admin/src/capabilities/questions.ts', 'Phase 2 project questions capability, resource schema, actions, and filters', 'future admin capability registry entry', 5),
-	component('admin', 'Question vertical form', 'packages/admin/src/components/work/QuestionForm.astro', 'Phase 2 question create/edit form composition', 'future reusable direction-resource form pattern after repeated resources', 5),
-	component('admin', 'Question help and feedback view model context', 'packages/admin/src/view-models/ui-foundation/questions.vm.ts', 'Phase 6 ProductShell contextual help and feedback context for canonical question routes', 'route-local view-model context until help/feedback registry composition is proven', 6),
-	component('admin', 'Contextual dashboard view models', 'packages/admin/src/view-models/contextual-dashboard.vm.ts', 'Phase 7 personal, team, project, and market dashboard view models', 'route-local dashboard mappers until broader capability registry composition is proven', 7),
-	component('admin', 'Service readiness view models', 'packages/admin/src/view-models/service-readiness.vm.ts', 'Phase 8 services dashboard, host collection/detail, and capacity provider collection/detail view models', 'route-local service readiness mappers until broader capability registry composition is proven', 8),
-	component('admin', 'Operating-loop view models', 'packages/admin/src/view-models/operating-loop.vm.ts', 'Phase 9 Work, allocation, workday, agent, and review queue view models', 'route-local operating-loop mappers until broader capability registry composition is proven', 9),
-	component('admin', 'Operating-loop client helpers', 'packages/admin/src/lib/market/operating-loop-client.ts', 'Phase 9 allocation, workday, agent, and direction form action binding', 'small route-scoped client helpers until broader action registry composition is proven', 9, ['route-local-script']),
-	component('admin', 'Knowledge distribution view models', 'packages/admin/src/view-models/knowledge-distribution.vm.ts', 'Phase 10 app knowledge, marketplace acquisition, seller, release, import, and capability view models', 'route-local distribution mappers until broader capability registry composition is proven', 10),
-	component('admin', 'Knowledge distribution client helper', 'packages/admin/src/lib/knowledge-distribution/publish-client.ts', 'Phase 10 publish/package action binding through existing API operation routes', 'small route-scoped client helper until broader action registry composition is proven', 10, ['route-local-script']),
-	component('admin', 'Route-local profile pages', 'packages/admin/src/pages/u/[username].astro', 'Public profile detail page with local styles', 'PublicShell detail/profile template', 1, ['page-local-css']),
-	component('admin', 'Route-local team profile pages', 'packages/admin/src/pages/t/[name].astro', 'Public team detail page with local styles', 'PublicShell detail/profile template', 1, ['page-local-css']),
-	component('admin', 'Route-local capacity runtime panel', 'packages/admin/src/pages/app/capacity/runtime.astro', 'Capacity diagnostics page-local panel CSS', 'Phase 8 service readiness template', 1, ['page-local-css', 'raw-color-fallback']),
-	component('core', 'Core runtime reader routes', 'packages/core/src/pages/docs-runtime', 'Phase 6 /knowledge public runtime reader and contextual help routes', 'ReaderTemplate and PublicShell help proof before broader content migration', 6),
-	component('core', 'Core public runtime reader view model', 'packages/core/src/utils/runtime-reader.ts', 'Phase 6 /knowledge runtime reader source, feedback, and help view model', 'public runtime reader/help proof before broader content migration', 6),
-	component('core', 'Core feedback forwarding endpoint', 'packages/core/src/pages/api/feedback/submit.ts', 'Phase 5 Knowledge Hub feedback forwarding to Market/API', 'dynamic feedback forwarding route until broader hub feedback config is proven', 5),
-	component('admin', 'Private project knowledge reader routes', 'packages/admin/src/pages/app/projects/[projectId]/knowledge.astro', 'Phase 4 private project Knowledge Hub reader route', 'private content proxy proof before private packs/artifacts/help reuse', 5),
-	component('admin', 'Private project knowledge reader slug route', 'packages/admin/src/pages/app/projects/[projectId]/knowledge/[...slug].astro', 'Phase 4 private project Knowledge Hub reader slug route', 'private content proxy proof before private packs/artifacts/help reuse', 5),
+	component('admin', 'Admin app layout wrapper', 'packages/admin/src/layouts/TreeseedAppLayout.astro', 'TreeSeed-specific authenticated app shell composition', '@treeseed/ui shell configuration or thin wrapper', 1, ['route-local-script']),
+	component('admin', 'Admin operational market layout wrapper', 'packages/admin/src/layouts/TreeseedOperationalMarketLayout.astro', 'TreeSeed-specific authenticated operational market shell composition', '@treeseed/ui shell configuration or thin wrapper', 1),
+	component('admin', 'Admin public layout wrapper', 'packages/admin/src/layouts/TreeseedPublicLayout.astro', 'TreeSeed-specific public single-column shell composition', '@treeseed/ui shell configuration or thin wrapper', 1),
+	component('admin', 'Question capability metadata', 'packages/admin/src/capabilities/questions.ts', 'Project questions capability, resource schema, actions, and filters', 'future admin capability registry entry', 5),
+	component('admin', 'Question vertical form', 'packages/admin/src/components/work/QuestionForm.astro', 'Question create/edit form composition', 'future reusable direction-resource form pattern after repeated resources', 5),
+	component('admin', 'Question help and feedback view model context', 'packages/admin/src/view-models/ui-foundation/questions.vm.ts', 'Auth authenticated app contextual help and feedback context for canonical question routes', 'route-local view-model context until help/feedback registry composition is proven', 6),
+	component('admin', 'Contextual dashboard view models', 'packages/admin/src/view-models/contextual-dashboard.vm.ts', 'Personal, team, project, and market dashboard view models', 'route-local dashboard mappers until broader capability registry composition is proven', 7),
+	component('admin', 'Service readiness view models', 'packages/admin/src/view-models/service-readiness.vm.ts', 'Services dashboard, host collection/detail, and capacity provider collection/detail view models', 'route-local service readiness mappers until broader capability registry composition is proven', 8),
+	component('admin', 'Operating-loop view models', 'packages/admin/src/view-models/operating-loop.vm.ts', 'Work, allocation, workday, agent, and review queue view models', 'route-local operating-loop mappers until broader capability registry composition is proven', 9),
+	component('admin', 'Operating-loop client helpers', 'packages/admin/src/lib/market/operating-loop-client.ts', 'Allocation, workday, agent, and direction form action binding', 'small route-scoped client helpers until broader action registry composition is proven', 9, ['route-local-script']),
+	component('admin', 'Knowledge distribution view models', 'packages/admin/src/view-models/knowledge-distribution.vm.ts', 'App knowledge, marketplace acquisition, seller, release, import, and capability view models', 'route-local distribution mappers until broader capability registry composition is proven', 10),
+	component('admin', 'Knowledge distribution client helper', 'packages/admin/src/lib/knowledge-distribution/publish-client.ts', 'Publish/package action binding through existing API operation routes', 'small route-scoped client helper until broader action registry composition is proven', 10, ['route-local-script']),
+	component('admin', 'Route-local profile pages', 'packages/admin/src/pages/u/[username].astro', 'Public profile detail page with local styles', 'public single-column detail/profile template', 1, ['page-local-css']),
+	component('admin', 'Route-local team profile pages', 'packages/admin/src/pages/t/[name].astro', 'Public team detail page with local styles', 'public single-column detail/profile template', 1, ['page-local-css']),
+	component('admin', 'Route-local capacity runtime panel', 'packages/admin/src/pages/app/capacity/runtime.astro', 'Capacity diagnostics page-local panel CSS', 'service readiness template', 1, ['page-local-css', 'raw-color-fallback']),
+	component('core', 'Core runtime reader routes', 'packages/core/src/pages/docs-runtime', 'Knowledge Hub public runtime reader and contextual help routes', 'ReaderTemplate and public shell behavior proof before broader content-route consolidation', 6),
+	component('core', 'Core public runtime reader view model', 'packages/core/src/utils/runtime-reader.ts', 'Knowledge Hub runtime reader source, feedback, and help view model', 'public runtime reader/help proof before broader content-route consolidation', 6),
+	component('core', 'Core feedback forwarding endpoint', 'packages/core/src/pages/api/feedback/submit.ts', 'feedback architecture Knowledge Hub feedback forwarding to Market/API', 'dynamic feedback forwarding route until broader hub feedback config is proven', 5),
+	component('admin', 'Private project knowledge reader routes', 'packages/admin/src/pages/app/projects/[projectId]/knowledge.astro', 'Private project Knowledge Hub reader route', 'private content proxy proof before private packs/artifacts/help reuse', 5),
+	component('admin', 'Private project knowledge reader slug route', 'packages/admin/src/pages/app/projects/[projectId]/knowledge/[...slug].astro', 'Private project Knowledge Hub reader slug route', 'private content proxy proof before private packs/artifacts/help reuse', 5),
 ];
 
 function component(
@@ -765,9 +774,9 @@ function component(
 	name: string,
 	sourcePath: string,
 	currentUse: string,
-	migrationTarget: string,
+	architectureTarget: string,
 	maturityLevel: ComponentInventoryEntry['maturityLevel'],
-	migrationDebt: MigrationDebt[] = [],
+	architectureDebt: ArchitectureDebt[] = [],
 ): ComponentInventoryEntry {
 	return {
 		owner,
@@ -775,13 +784,13 @@ function component(
 		sourcePath,
 		currentUse,
 		targetPackage: owner === 'admin' ? '@treeseed/admin' : owner === 'core' ? '@treeseed/core' : '@treeseed/ui',
-		migrationTarget,
+		architectureTarget,
 		maturityLevel,
-		legacyStatus: 'active',
+		implementationStatus: 'active',
 		replacementBlocker: 'Active implementation remains in use until a later vertical slice proves the replacement.',
-		requiredTestsBeforeDeletion: ['route renders', 'visual or component coverage', 'UI migration guard'],
-		targetDeletionPhase: 'none while active; reassess when replacement reaches acceptance',
-		migrationDebt,
+		requiredArchitectureChecks: ['route renders', 'visual or component coverage', 'UI architecture guard'],
+		architectureStage: 'none while active; reassess when replacement reaches acceptance',
+		architectureDebt,
 	};
 }
 

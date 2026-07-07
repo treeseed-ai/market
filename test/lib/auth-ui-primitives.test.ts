@@ -26,9 +26,10 @@ describe('auth and account UI primitive conversion', () => {
 		}
 
 		const shell = source('packages/ui/src/astro/auth/AuthShell.astro');
-		expect(shell).toContain('ClientRouter');
-		expect(shell).toContain('ThemeMenu');
-		expect(shell).toContain('auth-shell__appearance');
+		expect(shell).toContain('ShellFrame');
+		expect(shell).toContain('SiteUserControls');
+		expect(shell).toContain('helpContext');
+		expect(shell).toContain('feedbackContext');
 		expect(shell).toContain('DevWatchReload');
 		expect(shell).toContain('treeseed:auth-form:');
 		expect(shell).toContain("document.querySelectorAll('form.auth-form')");

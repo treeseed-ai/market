@@ -55,7 +55,7 @@ Use `status: planned` or `status: backlog` for promises that are not implemented
 
 ## Ownership
 
-- root Market owns public buyer marketplace, checkout, service, capacity discovery, Commons participant, and public profile guarantees.
+- root Market owns authenticated operational marketplace, checkout, service, capacity discovery, Commons participant, public profile, marketing, and knowledge guarantees.
 - `@treeseed/admin` owns admin/control-plane UI guarantees.
 - `@treeseed/api` owns durable backend, commerce, Commons, capacity leases, workday records, audit, operations, and TreeDX routing guarantees.
 - `@treeseed/agent` owns provider runtime, provider manager/runner, AgentKernel, assignment execution, and mode-run guarantees.

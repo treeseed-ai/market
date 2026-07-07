@@ -14,7 +14,7 @@ Project topology reconciliation uses the logical model in [Project Architecture 
 - `@treeseed/cli` exposes the command surface that invokes SDK reconciliation.
 - `@treeseed/core` contributes web runtime and web-only desired state.
 - `@treeseed/admin` contributes site/plugin/runtime/admin surfaces, routes, middleware, and env schema; it does not own hosted infrastructure and has no package-local `treeseed.site.yaml`.
-- root `@treeseed/market` owns the real hostable `treeseed.site.yaml`, public content, page overrides, buyer marketplace pages, Commons participant pages, and business policy.
+- root `@treeseed/market` owns the real hostable `treeseed.site.yaml`, public content, page overrides, authenticated operational marketplace/cart/checkout/service/capacity/Commons participant pages, public marketing/profile/knowledge pages, and business policy.
 - `@treeseed/api` owns the package-local backend `treeseed.site.yaml`, API, operations runner, PostgreSQL, backend route descriptors, public TreeDX federation app desired state, capacity-provider service bindings, and durable capacity coordination records such as provider sessions, assignments, mode runs, reservations, and usage settlement.
 - `@treeseed/agent` owns capacity-provider runtime artifacts, provider desired state, provider manager/runner behavior, AgentKernel execution, and provider-local lifecycle.
 - `packages/treedx` owns the TreeDX image/service artifact; API hosting consumes selected TreeDX images.

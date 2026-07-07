@@ -1,5 +1,5 @@
 ---
-import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import TreeseedOperationalMarketLayout from '@treeseed/admin/layouts/TreeseedOperationalMarketLayout.astro';
 import DashboardTemplate from '@treeseed/ui/components/astro/templates/DashboardTemplate.astro';
 import SettingsTemplate from '@treeseed/ui/components/astro/templates/SettingsTemplate.astro';
 import '@treeseed/ui/styles/commerce.css';
@@ -21,7 +21,7 @@ if (Astro.request.method === 'POST') {
 const page = loadCartPage(Astro, actionError);
 ---
 
-<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
+<TreeseedOperationalMarketLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-commerce-page">
 		<DashboardTemplate viewModel={page.data.dashboard} actions={page.actions} />
 		<SettingsTemplate title="Direct checkout" description="Use an approved offer id. The API resolves seller, price, amount, and entitlement scope." actions={[]}>
@@ -34,4 +34,4 @@ const page = loadCartPage(Astro, actionError);
 			</form>
 		</SettingsTemplate>
 	</main>
-</TreeseedPublicLayout>
+</TreeseedOperationalMarketLayout>

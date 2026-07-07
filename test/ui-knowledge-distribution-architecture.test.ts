@@ -1,13 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { routeInventory, componentInventory } from '../scripts/ui-migration/inventory.js';
+import { routeInventory, componentInventory } from '../scripts/ui-architecture/inventory.js';
 
 function source(path: string) {
 	return readFileSync(resolve(process.cwd(), path), 'utf8');
 }
 
-describe('Phase 10 knowledge and capability distribution', () => {
+describe('knowledge and capability distribution architecture', () => {
 	it('registers and inventories canonical distribution routes without compatibility redirects', () => {
 		const routes = source('packages/admin/src/routes.ts');
 		for (const route of [
@@ -53,7 +53,7 @@ describe('Phase 10 knowledge and capability distribution', () => {
 		}
 	});
 
-	it('renders marketplace acquisition routes through public templates and entitlement-aware view models', () => {
+	it('renders marketplace acquisition routes through operational market templates and entitlement-aware view models', () => {
 		for (const path of [
 			'packages/admin/src/pages/market/knowledge-packs/index.astro',
 			'packages/admin/src/pages/market/knowledge-packs/[slug].astro',
@@ -61,7 +61,7 @@ describe('Phase 10 knowledge and capability distribution', () => {
 			'packages/admin/src/pages/market/templates/[slug].astro',
 		]) {
 			const contents = source(path);
-			expect(contents, path).toContain('TreeseedPublicLayout');
+			expect(contents, path).toContain('TreeseedOperationalMarketLayout');
 			expect(contents, path).toContain('DistributionSummary');
 			expect(contents, path).toContain('helpContext');
 			expect(contents, path).toContain('feedbackContext');

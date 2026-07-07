@@ -4,7 +4,7 @@
 
 This document specifies how Core-based Knowledge Hubs authenticate against the configured Market and how private content is served through the content proxy.
 
-It supports [TreeSeed UI Architecture](./ui-architecture.md), [Content Runtime Architecture](./content-runtime-architecture.md), and [UI Migration](./ui-migration.md).
+It supports [TreeSeed UI Architecture](./ui-architecture.md), [UI Architecture Inventory](./ui-architecture-inventory.md), and [Content Runtime Architecture](./content-runtime-architecture.md).
 
 ## Market As Auth Authority
 
@@ -84,7 +84,7 @@ Feedback from Core-based Knowledge Hubs must follow the same Market trust model.
 
 Public anonymous feedback may be accepted by a small dynamic form endpoint, but connected hubs must forward or record it through the configured Market/API feedback surface so platform feedback remains centralized.
 
-Authenticated feedback from private projects, private Knowledge Hubs, team pages, project pages, or ProductShell routes must:
+Authenticated feedback from private projects, private Knowledge Hubs, team pages, project pages, authenticated app routes, or operational market routes must:
 
 - validate the shared Market session
 - resolve the submitting principal
@@ -121,9 +121,9 @@ Public help may explain that sign-in or membership is required. It must not reve
 
 If a private artifact requires direct transfer, the proxy may mint a short-lived signed URL after policy evaluation.
 
-Phase 10 distribution UI depends on this rule for marketplace install/import/download actions. Public listings may describe CDN-backed delivery, but private, paid, team-only, or entitlement-gated artifacts must resolve through the Market/API policy path before a content proxy URL or short-lived signed URL is exposed. UI templates receive the resolved action and entitlement state only; they do not construct artifact URLs.
+Knowledge distribution UI depends on this rule for marketplace install/import/download actions. Public listings may describe CDN-backed delivery, but private, paid, team-only, or entitlement-gated artifacts must resolve through the Market/API policy path before a content proxy URL or short-lived signed URL is exposed. UI templates receive the resolved action and entitlement state only; they do not construct artifact URLs.
 
-Commerce checkout and service/capacity actions follow the same authority boundary. Public pages may render buyer-visible seller readiness, payment group state, service quote state, capacity inquiry state, and Commons governance signal, but seller identity, payment amount, connected-account handling, entitlement activation, private artifact delivery, and steward authority are resolved by the Market/API path before the UI renders or submits an action.
+Commerce checkout and service/capacity actions follow the same authority boundary. Operational market pages may render buyer-visible seller readiness, payment group state, service quote state, capacity inquiry state, and Commons governance signal after authentication, but seller identity, payment amount, connected-account handling, entitlement activation, private artifact delivery, and steward authority are resolved by the Market/API path before the UI renders or submits an action. Public single-column pages may describe these flows, but they must not expose checkout, service request, capacity inquiry, project, team, account, or entitlement actions.
 
 Signed URLs must:
 

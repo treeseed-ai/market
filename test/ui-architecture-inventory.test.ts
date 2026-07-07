@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { extname, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { componentInventory, pathExistsForInventory, routeInventory } from '../scripts/ui-migration/inventory';
+import { componentInventory, pathExistsForInventory, routeInventory } from '../scripts/ui-architecture/inventory';
 
 const routeRoots = ['src/pages', 'packages/admin/src/pages', 'packages/core/src/pages'];
 
@@ -27,7 +27,7 @@ function routePatternFromPath(sourcePath: string): string {
 	return `/${normalized}`.replace(/\/$/u, '') || '/';
 }
 
-describe('UI migration Phase 0 inventory', () => {
+describe('UI architecture inventory', () => {
 	it('covers every human-facing Astro route', () => {
 		const discovered = routeRoots.flatMap(walk).filter((path) => extname(path) === '.astro').sort();
 		const inventoried = routeInventory.map((entry) => entry.sourcePath).sort();
@@ -40,26 +40,26 @@ describe('UI migration Phase 0 inventory', () => {
 			expect(entry.routePattern).toBe(routePatternFromPath(entry.sourcePath));
 			expect(entry.policyNeeds.length, `${entry.sourcePath} policy needs`).toBeGreaterThan(0);
 			expect(entry.dataSource, `${entry.sourcePath} data source`).toBeTruthy();
-			expect(entry.requiredTestsBeforeDeletion.length, `${entry.sourcePath} deletion tests`).toBeGreaterThan(0);
-			expect(entry.deletionBlocker, `${entry.sourcePath} deletion blocker`).toBeTruthy();
-			expect(entry.targetDeletionPhase, `${entry.sourcePath} target deletion phase`).toBeTruthy();
-			expect(entry.legacyStatus, `${entry.sourcePath} legacy status`).toBe('active');
+			expect(entry.requiredArchitectureChecks.length, `${entry.sourcePath} architecture checks`).toBeGreaterThan(0);
+			expect(entry.architectureNotes, `${entry.sourcePath} architecture notes`).toBeTruthy();
+			expect(entry.architectureStage, `${entry.sourcePath} architecture stage`).toBeTruthy();
+			expect(entry.implementationStatus, `${entry.sourcePath} implementation status`).toBe('active');
 		}
 	});
 
-	it('identifies the first vertical-slice candidates required by the migration plan', () => {
-		const candidates = routeInventory.filter((entry) => entry.firstSliceCandidate);
-		expect(candidates.some((entry) => entry.firstSliceCandidate?.includes('Phase 2 first direction resource vertical'))).toBe(true);
-		expect(candidates.some((entry) => entry.firstSliceCandidate?.includes('Phase 3 public runtime reader equivalent'))).toBe(true);
+	it('identifies canonical architecture proof surfaces', () => {
+		const candidates = routeInventory.filter((entry) => entry.architectureProof);
+		expect(candidates.some((entry) => entry.architectureProof?.includes('Direction resource'))).toBe(true);
+		expect(candidates.some((entry) => entry.architectureProof?.includes('Public runtime reader'))).toBe(true);
 	});
 
 	it('keeps component inventory entries actionable', () => {
 		for (const entry of componentInventory) {
 			expect(pathExistsForInventory(entry.sourcePath), `${entry.sourcePath} should exist`).toBe(true);
 			expect(entry.currentUse, `${entry.sourcePath} current use`).toBeTruthy();
-			expect(entry.migrationTarget, `${entry.sourcePath} migration target`).toBeTruthy();
-			expect(entry.requiredTestsBeforeDeletion.length, `${entry.sourcePath} tests`).toBeGreaterThan(0);
-			expect(entry.legacyStatus, `${entry.sourcePath} legacy status`).toBe('active');
+			expect(entry.architectureTarget, `${entry.sourcePath} architecture target`).toBeTruthy();
+			expect(entry.requiredArchitectureChecks.length, `${entry.sourcePath} tests`).toBeGreaterThan(0);
+			expect(entry.implementationStatus, `${entry.sourcePath} implementation status`).toBe('active');
 		}
 	});
 });

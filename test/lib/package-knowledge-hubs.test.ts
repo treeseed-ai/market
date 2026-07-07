@@ -16,16 +16,15 @@ const packageSlugs = [
 	'treedx',
 ] as const;
 
-const agentSuffixes = [
-	'codebase-cartographer',
-	'docs-engineer',
-	'docs-planner',
-	'docs-reviewer',
-	'governance-steward',
-	'knowledge-generator',
-	'knowledge-optimizer',
+const agentSlugs = [
+	'architect',
+	'engineer',
 	'releaser',
-	'workday-reporter',
+	'reporter',
+	'researcher',
+	'reviewer',
+	'technical-writer',
+	'tester',
 ] as const;
 
 describe('first-party package knowledge hubs', () => {
@@ -55,14 +54,12 @@ describe('first-party package knowledge hubs', () => {
 			expect(readFileSync(resolve(contentRoot, 'objectives/core.md'), 'utf8')).toContain('Core Objective');
 
 			const agentFiles = readdirSync(resolve(contentRoot, 'agents')).filter((file) => file.endsWith('.mdx')).sort();
-			expect(agentFiles, slug).toEqual(agentSuffixes.map((suffix) => `${slug}-${suffix}.mdx`).sort());
-			for (const suffix of agentSuffixes) {
-				const source = readFileSync(resolve(contentRoot, 'agents', `${slug}-${suffix}.mdx`), 'utf8');
-				expect(source).toContain(`slug: ${slug}-${suffix}`);
-				expect(source).toContain('package Knowledge Hub');
-				if (suffix === 'docs-engineer' || suffix === 'workday-reporter') {
-					expect(source).toContain('docs/src/content');
-				}
+			expect(agentFiles, slug).toEqual(agentSlugs.map((agentSlug) => `${agentSlug}.mdx`).sort());
+			for (const agentSlug of agentSlugs) {
+				const source = readFileSync(resolve(contentRoot, 'agents', `${agentSlug}.mdx`), 'utf8');
+				expect(source).toContain(`slug: ${agentSlug}`);
+				expect(source).toContain('TreeSeed project');
+				expect(source).toContain('TreeDX-backed content');
 			}
 		}
 	});

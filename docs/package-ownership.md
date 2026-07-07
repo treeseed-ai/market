@@ -26,10 +26,10 @@ First-party package repositories declare their future project shape in `treeseed
 
 | Package | Audience-Level Purpose | Implementation Ownership |
 | --- | --- | --- |
-| `@treeseed/market` | Treeseed-operated public site, buyer marketplace, hosted tenant, docs/content, and Commons participant surfaces | Root app, `treeseed.site.yaml`, content, public messaging, overrides, buyer marketplace/cart/checkout/service/capacity/Commons pages |
-| `@treeseed/admin` | Distributable AGPLv3 administration portal for organizations | Admin routes, auth/session glue, middleware, API client facades, admin view models, catalog display, secret-manager UI/contracts |
-| `@treeseed/ui` | Reusable Treeseed UI system | Layout-down Astro/React components, shells, forms, controls, cards, dashboards, CSS/theme primitives |
-| `@treeseed/core` | Installable Astro/Starlight Treeseed web runtime | Site layering, content/runtime integration, tenant config loading, plugin hooks, web-only runtime composition, foreground dev entrypoint delegation; does not own agent scheduling or provider execution |
+| `@treeseed/market` | Treeseed-operated public site, authenticated operational marketplace, hosted tenant, docs/content, and Commons participant surfaces | Root app, `treeseed.site.yaml`, content, public messaging, overrides, operational marketplace/cart/checkout/service/capacity/Commons pages, and public single-column marketing/profile/knowledge pages |
+| `@treeseed/admin` | Distributable AGPLv3 administration portal for organizations | Admin routes, auth/session glue, middleware, API client facades, admin view models, operational market layout wrapper, public profile pages, catalog display, secret-manager UI/contracts |
+| `@treeseed/ui` | Reusable Treeseed UI system | Layout-down Astro/React components, current shell primitives, public stacked-section components, tabs, forms, controls, cards, dashboards, CSS/theme primitives |
+| `@treeseed/core` | Installable Astro/Starlight Treeseed web runtime | Site layering, public content/runtime integration through UI public layouts, tenant config loading, plugin hooks, web-only runtime composition, foreground dev entrypoint delegation; does not own authenticated app chrome, agent scheduling, or provider execution |
 | `@treeseed/sdk` | Programmatic platform substrate | Config, reconciliation, workflow engine, hosting graph, package workflow discovery, SDK-managed local dev supervisor, shared contracts, graph/content APIs, model-aware content operation contracts/rendering/validation, TreeDX client integration, portable agent-capacity contracts. SDK owns save/update/stage/close/release/recover/worktree safety; `stage` must merge staging down before mutation, preserve failed feature branches/worktrees, and clean up only after staging refs are verified. |
 | `@treeseed/api` | Deployed backend control-plane API | Hono API, package-local backend `treeseed.site.yaml`, PostgreSQL adapter/migrations, backend auth, operation lifecycle, operations runner, route descriptors, provider sessions, assignment leases, mode-run persistence, capacity ledger coordination |
 | `@treeseed/cli` | Human/operator command surface | `treeseed`/`trsd` command parsing, help, command handlers, terminal reporting, workflow entrypoints over SDK/Core/Agent. CLI exposes stage options and reporting but must not reimplement SDK-owned save/stage/release orchestration. |
@@ -110,12 +110,13 @@ TreeDX is not an ordinary web dev process. It is run through TreeDX service work
 | New Functionality | Owner |
 | --- | --- |
 | Treeseed public messaging, product pages, docs content, marketplace business pages | root market |
-| Buyer marketplace, cart, grouped checkout UI, service checkout UI, capacity discovery/inquiry pages, Commons participant pages | root market |
+| Authenticated operational marketplace, cart, grouped checkout UI, service checkout UI, capacity discovery/inquiry pages, Commons participant pages | root market |
+| Public homepage, marketing pages, public user/team/project profiles, books, and Knowledge Hub content | root market and `@treeseed/core` by route ownership |
 | Commerce backend records, route orchestration, Stripe server calls, webhooks, refunds, fulfillment, seller monitoring, Commons governance APIs | `@treeseed/api` |
 | Theme-native commerce/governance panels, cards, timelines, and status components | `@treeseed/ui` |
 | Generic admin pages, host/project/team/work/knowledge screens, admin middleware | `@treeseed/admin` |
 | Admin reusable visual components once they are generic | `@treeseed/ui` |
-| Theme tokens, app shell controls, cards, form controls, charts, status panels | `@treeseed/ui` |
+| Theme tokens, app shell controls, public stacked sections, `SurfaceTabs`, cards, form controls, charts, status panels | `@treeseed/ui` |
 | Site runtime, plugin loading, Astro/Starlight integration, content model wiring | `@treeseed/core` |
 | Reconciliation, package workflows, config, hosting graph, provider adapters, managed local dev supervision | `@treeseed/sdk` |
 | Backend persistence, API routes, auth backend, operations runner, migrations | `@treeseed/api` |
@@ -168,7 +169,7 @@ Public npm package publish tokens belong in the package repository GitHub `produ
 
 The completed ecommerce architecture is split by surface:
 
-- root market owns buyer-facing marketplace discovery, cart review, Stripe Elements checkout, service request views, service checkout, capacity discovery/inquiry, and Commons participant pages.
+- root market owns authenticated buyer-facing marketplace discovery, cart review, Stripe Elements checkout, service request views, service checkout, capacity discovery/inquiry, Commons participant pages, and public single-column marketing/knowledge/profile pages.
 - `@treeseed/api` owns backend ecommerce and Commons state: vendors, products, offers, prices, ownership, stewardship, contributions, governance policies, orders, payment groups, subscriptions, entitlements, refunds, fulfillment, scoped services, capacity listings/inquiries, marketplace aggregation, seller monitoring, webhooks, and governance events.
 - `@treeseed/admin` owns seller setup, seller operations, governance, readiness, monitoring, fulfillment, refunds, capacity trust gates, service operations, and Commons steward operations through HTTP/API facades.
 - `@treeseed/ui` owns reusable, Stripe-free, theme-native commerce and governance components.

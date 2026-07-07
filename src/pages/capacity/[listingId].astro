@@ -1,5 +1,5 @@
 ---
-import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import TreeseedOperationalMarketLayout from '@treeseed/admin/layouts/TreeseedOperationalMarketLayout.astro';
 import DetailTemplate from '@treeseed/ui/components/astro/templates/DetailTemplate.astro';
 import Panel from '@treeseed/ui/components/astro/surface/Panel.astro';
 import '@treeseed/ui/styles/commerce.css';
@@ -22,7 +22,7 @@ const page = await loadCapacityListingPage(Astro, listingId, actionError);
 const listing = page.data.listing;
 ---
 
-<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
+<TreeseedOperationalMarketLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-commerce-page">
 		<DetailTemplate title={page.title} description={page.description} eyebrow="Capacity listing" metadata={page.data.metadata} actions={page.actions}>
 			<div class="ts-commerce-two-column">
@@ -58,4 +58,4 @@ const listing = page.data.listing;
 			</div>
 		</DetailTemplate>
 	</main>
-</TreeseedPublicLayout>
+</TreeseedOperationalMarketLayout>

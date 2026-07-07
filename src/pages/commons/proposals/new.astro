@@ -1,5 +1,5 @@
 ---
-import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import TreeseedOperationalMarketLayout from '@treeseed/admin/layouts/TreeseedOperationalMarketLayout.astro';
 import SettingsTemplate from '@treeseed/ui/components/astro/templates/SettingsTemplate.astro';
 import '@treeseed/ui/styles/governance.css';
 import { loadCommonsProposalFormPage, submitCommonsProposal } from '../../../lib/market-public-view-models';
@@ -15,7 +15,7 @@ if (Astro.request.method === 'POST') {
 const page = loadCommonsProposalFormPage(Astro, actionError);
 ---
 
-<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
+<TreeseedOperationalMarketLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-governance-page">
 		<SettingsTemplate title={page.title} description={page.description} actions={page.actions}>
 			<form class="ts-governance-panel" method="post">
@@ -27,4 +27,4 @@ const page = loadCommonsProposalFormPage(Astro, actionError);
 			</form>
 		</SettingsTemplate>
 	</main>
-</TreeseedPublicLayout>
+</TreeseedOperationalMarketLayout>

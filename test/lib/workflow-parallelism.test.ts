@@ -11,15 +11,11 @@ describe('CI/CD parallelism workflows', () => {
 		const deploy = workflow('.github/workflows/deploy.yml');
 		const deployWeb = workflow('.github/workflows/deploy-web.yml');
 		expect(deploy.jobs).toHaveProperty('preflight');
-		expect(deploy.jobs).toHaveProperty('api-package-gate');
-		expect(deploy.jobs.preflight.needs).toEqual(['classify', 'api-package-gate']);
-		expect(deploy.jobs.preflight.if).toContain("needs.api-package-gate.result == 'success'");
-		expect(deploy.jobs['deploy-web'].needs).toEqual(['classify', 'preflight', 'api-package-gate']);
-		expect(deploy.jobs['api-package-gate'].steps).toEqual(expect.arrayContaining([
-			expect.objectContaining({ name: 'Wait for API package CI/CD' }),
-		]));
-		expect(deploy.jobs['api-package-gate'].steps.find((step: any) => step.name === 'Wait for API package CI/CD')?.run).toContain('TreeSeed API Deploy');
-		expect(deploy.jobs['deploy-web'].if).toContain("needs.api-package-gate.result == 'success'");
+		expect(deploy.jobs).not.toHaveProperty('api-package-gate');
+		expect(deploy.jobs.preflight.needs).toEqual(['classify']);
+		expect(deploy.jobs['deploy-web'].needs).toEqual(['classify', 'preflight']);
+		expect(deploy.jobs['deploy-web'].if).toContain("needs.preflight.result == 'success'");
+		expect(JSON.stringify(deploy)).toContain('Backend/API package changes are released by the API package workflow');
 		expect(deployWeb.jobs.web.steps).toEqual(expect.arrayContaining([
 			expect.objectContaining({ name: 'Restore package dist cache' }),
 			expect.objectContaining({ name: 'Build package artifacts' }),

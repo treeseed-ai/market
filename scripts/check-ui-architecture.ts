@@ -7,12 +7,12 @@ import {
 	routeInventory,
 	type ComponentInventoryEntry,
 	type RouteInventoryEntry,
-} from './ui-migration/inventory.ts';
+} from './ui-architecture/inventory.ts';
 
 const root = process.cwd();
 const args = new Set(process.argv.slice(2));
 const shouldWrite = args.has('--write');
-const docsPath = 'docs/ui-migration-inventory.md';
+const docsPath = 'docs/ui-architecture-inventory.md';
 const routeRoots = ['src/pages', 'packages/admin/src/pages', 'packages/core/src/pages'];
 const buildableSourceRoots = ['src', 'packages/admin/src', 'packages/core/src', 'packages/ui/src'];
 const uiFoundationSourceRoots = [
@@ -73,13 +73,13 @@ function requiredRouteValues(entry: RouteInventoryEntry): Array<[string, unknown
 		['pageLocalCss', entry.pageLocalCss],
 		['reusableComponentsUsed', entry.reusableComponentsUsed],
 		['maturityLevel', entry.maturityLevel],
-		['migrationDifficulty', entry.migrationDifficulty],
+		['architectureComplexity', entry.architectureComplexity],
 		['userValue', entry.userValue],
 		['risk', entry.risk],
-		['legacyStatus', entry.legacyStatus],
-		['deletionBlocker', entry.deletionBlocker],
-		['requiredTestsBeforeDeletion', entry.requiredTestsBeforeDeletion],
-		['targetDeletionPhase', entry.targetDeletionPhase],
+		['implementationStatus', entry.implementationStatus],
+		['architectureNotes', entry.architectureNotes],
+		['requiredArchitectureChecks', entry.requiredArchitectureChecks],
+		['architectureStage', entry.architectureStage],
 	];
 }
 
@@ -90,12 +90,12 @@ function requiredComponentValues(entry: ComponentInventoryEntry): Array<[string,
 		['sourcePath', entry.sourcePath],
 		['currentUse', entry.currentUse],
 		['targetPackage', entry.targetPackage],
-		['migrationTarget', entry.migrationTarget],
+		['architectureTarget', entry.architectureTarget],
 		['maturityLevel', entry.maturityLevel],
-		['legacyStatus', entry.legacyStatus],
+		['implementationStatus', entry.implementationStatus],
 		['replacementBlocker', entry.replacementBlocker],
-		['requiredTestsBeforeDeletion', entry.requiredTestsBeforeDeletion],
-		['targetDeletionPhase', entry.targetDeletionPhase],
+		['requiredArchitectureChecks', entry.requiredArchitectureChecks],
+		['architectureStage', entry.architectureStage],
 	];
 }
 
@@ -190,7 +190,125 @@ function findPrivateReaderRouteViolations(): string[] {
 	return failures;
 }
 
-function findFeedbackPhase5Violations(): string[] {
+function findRouteShellPolicyViolations(): string[] {
+	const failures: string[] = [];
+	const humanRouteFiles = discoverHumanRouteFiles().filter((path) => path.endsWith('.astro'));
+	const marketOperationalRoots = [
+		'src/pages/capacity/',
+		'src/pages/checkout/',
+		'src/pages/commons/',
+		'src/pages/market/products/',
+		'src/pages/services/',
+	];
+	const corePublicLayouts = [
+		'MainLayout',
+		'AuthoredEntryLayout',
+		'BookLayout',
+		'BridgeLayout',
+		'ContentLayout',
+		'ProfileLayout',
+		'RouteNotFound',
+	];
+
+	function containsAny(contents: string, markers: string[]) {
+		return markers.some((marker) => contents.includes(marker));
+	}
+
+	for (const path of humanRouteFiles) {
+		const contents = readFileSync(resolve(root, path), 'utf8');
+		const isRedirectOnly = /return\s+Astro\.redirect\s*\(/u.test(contents) && !/<[A-Z][A-Za-z0-9]*/u.test(contents);
+		if (isRedirectOnly) continue;
+		if (path.startsWith('packages/admin/src/pages/app/')) {
+			if (!contents.includes('TreeseedAppLayout')) failures.push(`${path}: Admin /app route must use TreeseedAppLayout`);
+			if (contents.includes('TreeseedPublicLayout') || contents.includes('TreeseedOperationalMarketLayout')) {
+				failures.push(`${path}: Admin /app route must not use public or operational market layout`);
+			}
+			continue;
+		}
+		if (path.startsWith('packages/admin/src/pages/auth/')) {
+			if (!contents.includes('AuthShell')) failures.push(`${path}: auth route must use AuthShell`);
+			if (contents.includes('TreeseedAppLayout') || contents.includes('TreeseedPublicLayout') || contents.includes('TreeseedOperationalMarketLayout')) {
+				failures.push(`${path}: auth route must not use app, public, or operational market layouts`);
+			}
+			continue;
+		}
+		if (path.startsWith('packages/admin/src/pages/market/')) {
+			if (!contents.includes('TreeseedOperationalMarketLayout')) failures.push(`${path}: Admin market route must use TreeseedOperationalMarketLayout`);
+			if (contents.includes('TreeseedPublicLayout')) failures.push(`${path}: Admin market route must not use TreeseedPublicLayout`);
+			continue;
+		}
+		if (path === 'src/pages/cart.astro' || path === 'src/pages/marketplace/index.astro' || marketOperationalRoots.some((prefix) => path.startsWith(prefix))) {
+			if (!contents.includes('TreeseedOperationalMarketLayout')) failures.push(`${path}: Market operational route must use TreeseedOperationalMarketLayout`);
+			if (contents.includes('TreeseedPublicLayout')) failures.push(`${path}: Market operational route must not use TreeseedPublicLayout`);
+			continue;
+		}
+		if (
+			path === 'src/pages/index.astro'
+			|| /^packages\/admin\/src\/pages\/[utp]\//u.test(path)
+			|| path.startsWith('packages/admin/src/pages/team-invites/')
+		) {
+			if (!contents.includes('TreeseedPublicLayout')) failures.push(`${path}: public Market/Admin route must use TreeseedPublicLayout`);
+			if (contents.includes('TreeseedAppLayout') || contents.includes('TreeseedOperationalMarketLayout')) {
+				failures.push(`${path}: public Market/Admin route must not use authenticated layouts`);
+			}
+			continue;
+		}
+		if (path.startsWith('packages/core/src/pages/')) {
+			if (!containsAny(contents, corePublicLayouts)) failures.push(`${path}: Core public route must use a UI public layout or public UI frame`);
+			if (contents.includes('ProductShell') || contents.includes('TreeseedAppLayout') || contents.includes('TreeseedOperationalMarketLayout') || contents.includes('AuthShell')) {
+				failures.push(`${path}: Core public route must not use authenticated or auth shells`);
+			}
+		}
+	}
+	return failures;
+}
+
+function findDocumentationShellDriftViolations(): string[] {
+	const failures: string[] = [];
+	const livingDocs = [
+		'docs/ui-architecture.md',
+		'docs/ui-components.md',
+		'docs/market_ui_spec.md',
+		'docs/commons-governance.md',
+		'docs/auth-and-content-proxy.md',
+		'docs/ecommerce.md',
+		'docs/package-ownership.md',
+		'packages/ui/README.md',
+		'packages/admin/README.md',
+		'packages/core/README.md',
+		'src/content/books/market-architecture.mdx',
+	].filter((path) => existsSync(resolve(root, path)));
+	const forbiddenCanonicalPatterns: Array<[RegExp, string]> = [
+		[/ProductShell[^.\n]*(?:canonical|current|must use|used by authenticated|authenticated product pages)/iu, 'ProductShell described as current/canonical authenticated shell'],
+		[/(?:canonical|current|must use|used by authenticated|authenticated product pages)[^.\n]*ProductShell/iu, 'ProductShell described as current/canonical authenticated shell'],
+		[/PublicShell[^.\n]*(?:canonical|current|must use|used by anonymous|public pages must use)/iu, 'PublicShell described as current/canonical public shell'],
+		[/(?:canonical|current|must use|used by anonymous|public pages must use)[^.\n]*PublicShell/iu, 'PublicShell described as current/canonical public shell'],
+		[/Public commerce and Commons pages[^.\n]*PublicShell/iu, 'operational commerce/Commons documented as public shell'],
+		[/Public participant routes use `PublicShell`/iu, 'Commons participant routes documented as public shell'],
+		[/Authenticated steward routes use `ProductShell`/iu, 'Commons steward routes documented as ProductShell'],
+		[/\/(?:marketplace|cart|checkout|capacity|services|commons)[^.\n]*PublicShell/iu, 'operational market route documented as PublicShell'],
+		[/checkout[^.\n]*PublicShell/iu, 'checkout documented as PublicShell'],
+		[/cart[^.\n]*PublicShell/iu, 'cart documented as PublicShell'],
+		[/commons[^.\n]*PublicShell/iu, 'Commons documented as PublicShell'],
+	];
+	const compatibilityAllowed = /\b(?:compatibility|compatibility-era|deprecated|wrapper|wrappers|historical|legacy|remain exported|one migration cycle)\b/iu;
+	for (const path of livingDocs) {
+		const lines = readFileSync(resolve(root, path), 'utf8').split(/\r?\n/u);
+		lines.forEach((line, index) => {
+			for (const [pattern, label] of forbiddenCanonicalPatterns) {
+				if (pattern.test(line) && !compatibilityAllowed.test(line)) {
+					failures.push(`${path}:${index + 1}: ${label}`);
+				}
+			}
+			if (/\b(?:RailNav|BottomNav)\b/u.test(line) && !compatibilityAllowed.test(line)) {
+				failures.push(`${path}:${index + 1}: RailNav/BottomNav mention must be compatibility/deprecated`);
+			}
+		});
+	}
+	return failures;
+}
+
+function findFeedbackArchitectureViolations(): string[] {
 	const failures: string[] = [];
 	const shellFiles = [
 		'packages/ui/src/astro/shell/ProductShell.astro',
@@ -252,7 +370,7 @@ function findFeedbackPhase5Violations(): string[] {
 	return failures;
 }
 
-function findContextualHelpPhase6Violations(): string[] {
+function findContextualHelpArchitectureViolations(): string[] {
 	const failures: string[] = [];
 	const shellFiles = [
 		'packages/ui/src/astro/shell/ProductShell.astro',
@@ -311,7 +429,7 @@ function findContextualHelpPhase6Violations(): string[] {
 	return failures;
 }
 
-function findContextualDashboardPhase7Violations(): string[] {
+function findContextualDashboardArchitectureViolations(): string[] {
 	const failures: string[] = [];
 	const dashboardTemplatePath = 'packages/ui/src/astro/templates/DashboardTemplate.astro';
 	if (!existsSync(resolve(root, dashboardTemplatePath))) {
@@ -333,7 +451,7 @@ function findContextualDashboardPhase7Violations(): string[] {
 		{ path: 'packages/admin/src/pages/app/index.astro', shell: 'TreeseedAppLayout', route: '/app/' },
 		{ path: 'packages/admin/src/pages/app/teams/index.astro', shell: 'TreeseedAppLayout', route: '/app/teams' },
 		{ path: 'packages/admin/src/pages/app/projects/[projectId].astro', shell: 'TreeseedAppLayout', route: '/app/projects/[projectId]' },
-		{ path: 'packages/admin/src/pages/market/index.astro', shell: 'TreeseedPublicLayout', route: '/market' },
+		{ path: 'packages/admin/src/pages/market/index.astro', shell: 'TreeseedOperationalMarketLayout', route: '/market' },
 	];
 	for (const { path, shell, route } of routeExpectations) {
 		const contents = readFileSync(resolve(root, path), 'utf8');
@@ -361,7 +479,7 @@ function findContextualDashboardPhase7Violations(): string[] {
 	return failures;
 }
 
-function findServiceReadinessPhase8Violations(): string[] {
+function findServiceReadinessArchitectureViolations(): string[] {
 	const failures: string[] = [];
 	const layout = readFileSync(resolve(root, 'packages/admin/src/layouts/TreeseedAppLayout.astro'), 'utf8');
 	if (!layout.includes("label: 'Services'") || !layout.includes("href: '/app/services'")) {
@@ -423,7 +541,7 @@ function findServiceReadinessPhase8Violations(): string[] {
 	return failures;
 }
 
-function findOperatingLoopPhase9Violations(): string[] {
+function findOperatingLoopArchitectureViolations(): string[] {
 	const failures: string[] = [];
 	const layout = readFileSync(resolve(root, 'packages/admin/src/layouts/TreeseedAppLayout.astro'), 'utf8');
 	if (!layout.includes("label: 'Work'") || !layout.includes("href: '/app/work'")) {
@@ -483,13 +601,13 @@ function findOperatingLoopPhase9Violations(): string[] {
 		for (const marker of required) {
 			if (!contents.includes(marker)) failures.push(`${path}: missing ${marker}`);
 		}
-		if (/<style(?:\s|>)/u.test(contents)) failures.push(`${path}: Phase 9 route contains page-local CSS`);
-		if (/\bfetch\s*\(/u.test(contents)) failures.push(`${path}: Phase 9 route contains direct fetch`);
+		if (/<style(?:\s|>)/u.test(contents)) failures.push(`${path}: operating-loop architecture route contains page-local CSS`);
+		if (/\bfetch\s*\(/u.test(contents)) failures.push(`${path}: operating-loop architecture route contains direct fetch`);
 		if (/\b(?:roles|role|permissions)\s*\??\.\s*(?:includes|some|has)\s*\(/u.test(contents)) {
-			failures.push(`${path}: Phase 9 route contains raw role/permission checks`);
+			failures.push(`${path}: operating-loop architecture route contains raw role/permission checks`);
 		}
 		if (/scheduler|provider manager|assignment function|runnerToken|RAILWAY_API_TOKEN|TREESEED_RAILWAY|privateObjectUrl|rawR2|r2:\/\//iu.test(contents)) {
-			failures.push(`${path}: Phase 9 route risks scheduler/provider/private identifier leakage`);
+			failures.push(`${path}: operating-loop architecture route risks scheduler/provider/private identifier leakage`);
 		}
 	}
 	const uiPackage = readFileSync(resolve(root, 'packages/ui/package.json'), 'utf8');
@@ -510,7 +628,7 @@ function findOperatingLoopPhase9Violations(): string[] {
 	return failures;
 }
 
-function findKnowledgeDistributionPhase10Violations(): string[] {
+function findKnowledgeDistributionArchitectureViolations(): string[] {
 	const failures: string[] = [];
 	const routes = readFileSync(resolve(root, 'packages/admin/src/routes.ts'), 'utf8');
 	for (const forbidden of [
@@ -560,23 +678,23 @@ function findKnowledgeDistributionPhase10Violations(): string[] {
 		['packages/admin/src/pages/app/market/seller.astro', ['TreeseedAppLayout', 'DashboardTemplate', 'DistributionSummary', 'helpContext', 'feedbackContext']],
 	];
 	const publicExpectations: Array<[string, string[]]> = [
-		['packages/admin/src/pages/market/knowledge-packs/index.astro', ['TreeseedPublicLayout', 'CollectionTemplate', 'DistributionSummary', 'helpContext', 'feedbackContext']],
-		['packages/admin/src/pages/market/knowledge-packs/[slug].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'DistributionSummary', 'helpContext', 'feedbackContext']],
-		['packages/admin/src/pages/market/templates/index.astro', ['TreeseedPublicLayout', 'CollectionTemplate', 'DistributionSummary', 'helpContext', 'feedbackContext']],
-		['packages/admin/src/pages/market/templates/[slug].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'DistributionSummary', 'helpContext', 'feedbackContext']],
+		['packages/admin/src/pages/market/knowledge-packs/index.astro', ['TreeseedOperationalMarketLayout', 'CollectionTemplate', 'DistributionSummary', 'helpContext', 'feedbackContext']],
+		['packages/admin/src/pages/market/knowledge-packs/[slug].astro', ['TreeseedOperationalMarketLayout', 'DetailTemplate', 'DistributionSummary', 'helpContext', 'feedbackContext']],
+		['packages/admin/src/pages/market/templates/index.astro', ['TreeseedOperationalMarketLayout', 'CollectionTemplate', 'DistributionSummary', 'helpContext', 'feedbackContext']],
+		['packages/admin/src/pages/market/templates/[slug].astro', ['TreeseedOperationalMarketLayout', 'DetailTemplate', 'DistributionSummary', 'helpContext', 'feedbackContext']],
 	];
 	for (const [path, markers] of [...appExpectations, ...publicExpectations]) {
 		const contents = readFileSync(resolve(root, path), 'utf8');
 		for (const marker of markers) {
 			if (!contents.includes(marker)) failures.push(`${path}: missing ${marker}`);
 		}
-		if (/<style(?:\s|>)/u.test(contents)) failures.push(`${path}: Phase 10 route contains page-local CSS`);
-		if (/\bfetch\s*\(/u.test(contents)) failures.push(`${path}: Phase 10 route contains direct fetch`);
+		if (/<style(?:\s|>)/u.test(contents)) failures.push(`${path}: knowledge distribution route contains page-local CSS`);
+		if (/\bfetch\s*\(/u.test(contents)) failures.push(`${path}: knowledge distribution route contains direct fetch`);
 		if (/\b(?:roles|role|permissions)\s*\??\.\s*(?:includes|some|has)\s*\(/u.test(contents)) {
-			failures.push(`${path}: Phase 10 route contains raw role/permission checks`);
+			failures.push(`${path}: knowledge distribution route contains raw role/permission checks`);
 		}
 		if (/objectKey|rawR2|r2:\/\/|privateObjectUrl|runnerToken|providerToken|secret|credential/iu.test(contents)) {
-			failures.push(`${path}: Phase 10 route risks private identifier, credential, or raw artifact delivery leakage`);
+			failures.push(`${path}: knowledge distribution route risks private identifier, credential, or raw artifact delivery leakage`);
 		}
 	}
 	const shellAndReaderFiles = [
@@ -606,22 +724,22 @@ function findKnowledgeDistributionPhase10Violations(): string[] {
 	return failures;
 }
 
-function findCommerceGovernancePhase10Violations(): string[] {
+function findCommerceGovernanceArchitectureViolations(): string[] {
 	const failures: string[] = [];
 	const publicExpectations: Array<[string, string[]]> = [
-		['src/pages/marketplace/index.astro', ['TreeseedPublicLayout', 'DashboardTemplate', 'CollectionTemplate', 'helpContext', 'feedbackContext', 'loadMarketplacePage']],
-		['src/pages/market/products/[productId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'helpContext', 'feedbackContext', 'loadMarketplaceProductPage']],
-		['src/pages/cart.astro', ['TreeseedPublicLayout', 'DashboardTemplate', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'createCheckoutFromOffer']],
-		['src/pages/checkout/[checkoutId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'CommercePaymentGroupPanel', 'helpContext', 'feedbackContext', 'commerce-checkout']],
-		['src/pages/capacity/index.astro', ['TreeseedPublicLayout', 'CollectionTemplate', 'helpContext', 'feedbackContext', 'loadCapacityListingsPage']],
-		['src/pages/capacity/[listingId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'helpContext', 'feedbackContext', 'submitCapacityInquiry']],
-		['src/pages/services/new.astro', ['TreeseedPublicLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitServiceRequest']],
-		['src/pages/services/[requestId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'ServiceQuotePanel', 'ServiceRequestTimeline', 'helpContext', 'feedbackContext']],
-		['src/pages/services/[requestId]/checkout.astro', ['TreeseedPublicLayout', 'DetailTemplate', 'CommercePaymentGroupPanel', 'helpContext', 'feedbackContext', 'commerce-checkout']],
-		['src/pages/commons/index.astro', ['TreeseedPublicLayout', 'DashboardTemplate', 'helpContext', 'feedbackContext', 'loadCommonsPage']],
-		['src/pages/commons/proposals/[proposalId].astro', ['TreeseedPublicLayout', 'DetailTemplate', 'CommonsVoteSummary', 'CommonsDecisionTimeline', 'helpContext', 'feedbackContext']],
-		['src/pages/commons/proposals/new.astro', ['TreeseedPublicLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitCommonsProposal']],
-		['src/pages/commons/questions/new.astro', ['TreeseedPublicLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitCommonsQuestion']],
+		['src/pages/marketplace/index.astro', ['TreeseedOperationalMarketLayout', 'DashboardTemplate', 'CollectionTemplate', 'helpContext', 'feedbackContext', 'loadMarketplacePage']],
+		['src/pages/market/products/[productId].astro', ['TreeseedOperationalMarketLayout', 'DetailTemplate', 'helpContext', 'feedbackContext', 'loadMarketplaceProductPage']],
+		['src/pages/cart.astro', ['TreeseedOperationalMarketLayout', 'DashboardTemplate', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'createCheckoutFromOffer']],
+		['src/pages/checkout/[checkoutId].astro', ['TreeseedOperationalMarketLayout', 'DetailTemplate', 'CommercePaymentGroupPanel', 'helpContext', 'feedbackContext', 'commerce-checkout']],
+		['src/pages/capacity/index.astro', ['TreeseedOperationalMarketLayout', 'CollectionTemplate', 'helpContext', 'feedbackContext', 'loadCapacityListingsPage']],
+		['src/pages/capacity/[listingId].astro', ['TreeseedOperationalMarketLayout', 'DetailTemplate', 'helpContext', 'feedbackContext', 'submitCapacityInquiry']],
+		['src/pages/services/new.astro', ['TreeseedOperationalMarketLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitServiceRequest']],
+		['src/pages/services/[requestId].astro', ['TreeseedOperationalMarketLayout', 'DetailTemplate', 'ServiceQuotePanel', 'ServiceRequestTimeline', 'helpContext', 'feedbackContext']],
+		['src/pages/services/[requestId]/checkout.astro', ['TreeseedOperationalMarketLayout', 'DetailTemplate', 'CommercePaymentGroupPanel', 'helpContext', 'feedbackContext', 'commerce-checkout']],
+		['src/pages/commons/index.astro', ['TreeseedOperationalMarketLayout', 'DashboardTemplate', 'helpContext', 'feedbackContext', 'loadCommonsPage']],
+		['src/pages/commons/proposals/[proposalId].astro', ['TreeseedOperationalMarketLayout', 'DetailTemplate', 'CommonsVoteSummary', 'CommonsDecisionTimeline', 'helpContext', 'feedbackContext']],
+		['src/pages/commons/proposals/new.astro', ['TreeseedOperationalMarketLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitCommonsProposal']],
+		['src/pages/commons/questions/new.astro', ['TreeseedOperationalMarketLayout', 'SettingsTemplate', 'helpContext', 'feedbackContext', 'submitCommonsQuestion']],
 	];
 	const appExpectations: Array<[string, string[]]> = [
 		['packages/admin/src/pages/app/commons/index.astro', ['TreeseedAppLayout', 'DashboardTemplate', 'loadCommonsGovernanceDashboard', 'helpContext', 'feedbackContext']],
@@ -676,36 +794,36 @@ function generateDocs(): string {
 		entry.resourceType,
 		`L${entry.maturityLevel}`,
 		entry.risk,
-		entry.legacyStatus,
-		entry.firstSliceCandidate ?? 'none',
-		markdownList(entry.migrationDebt),
+		entry.implementationStatus,
+		entry.architectureProof ?? 'none',
+		markdownList(entry.architectureDebt),
 	].join(' | '));
 	const componentRows = components.map((entry) => [
 		entry.owner,
 		entry.name,
 		`\`${entry.sourcePath}\``,
 		entry.targetPackage,
-		entry.migrationTarget,
+		entry.architectureTarget,
 		`L${entry.maturityLevel}`,
-		entry.legacyStatus,
-		markdownList(entry.migrationDebt),
+		entry.implementationStatus,
+		markdownList(entry.architectureDebt),
 	].join(' | '));
 
-	return `# UI Migration Phase 0 Inventory
+	return `# UI Architecture Inventory
 
-This board is generated from \`scripts/ui-migration/inventory.ts\`. Update the typed inventory first, then run \`npm run check:ui-migration -- --write\` to refresh this reviewer-facing view.
+This architecture inventory is generated from \`scripts/ui-architecture/inventory.ts\`. Update the typed inventory first, then run \`npm run check:ui-architecture -- --write\` to refresh this reviewer-facing view.
 
-The typed inventory is canonical. Current active routes are not deprecated. Any future replaced or deleted entry must have no remaining imported implementation.
+The typed inventory is canonical for human-facing route shells, templates, policy needs, architecture maturity, and reusable UI component ownership. Current active routes are not deprecated. Any future replaced or deleted entry must have no remaining imported implementation.
 
 ## Route Inventory
 
-| Owner | Route | Source | Context | Current shell | Target shell | Target template | Resource | Maturity | Risk | Status | First slice | Migration debt |
+| Owner | Route | Source | Context | Current shell | Target shell | Target template | Resource | Maturity | Risk | Status | Architecture proof | Architecture debt |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 ${routeRows.map((row) => `| ${row} |`).join('\n')}
 
 ## Component Inventory
 
-| Owner | Component/candidate | Source | Target package | Migration target | Maturity | Status | Migration debt |
+| Owner | Component/candidate | Source | Target package | Architecture target | Maturity | Status | Architecture debt |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 ${componentRows.map((row) => `| ${row} |`).join('\n')}
 `;
@@ -729,18 +847,18 @@ for (const entry of routeInventory) {
 		if (isMissing(value)) failures.push(`${entry.sourcePath}: missing required route field ${field}`);
 	}
 	if (entry.policyNeeds.length === 0) failures.push(`${entry.sourcePath}: policyNeeds must name at least one policy need`);
-	if (entry.requiredTestsBeforeDeletion.length === 0) failures.push(`${entry.sourcePath}: requiredTestsBeforeDeletion must name at least one test`);
-	if ((entry.legacyStatus === 'wrapped' || entry.compatibilityWrapperPath) && (
+	if (entry.requiredArchitectureChecks.length === 0) failures.push(`${entry.sourcePath}: requiredArchitectureChecks must name at least one test`);
+	if ((entry.implementationStatus === 'wrapped' || entry.compatibilityWrapperPath) && (
 		!entry.compatibilityWrapperPath
-		|| !entry.deletionBlocker
-		|| entry.requiredTestsBeforeDeletion.length === 0
-		|| !entry.targetDeletionPhase
+		|| !entry.architectureNotes
+		|| entry.requiredArchitectureChecks.length === 0
+		|| !entry.architectureStage
 		|| !entry.resourceType
 	)) {
 		failures.push(`${entry.sourcePath}: compatibility wrapper lacks required replacement/blocker/tests/phase metadata`);
 	}
-	if ((entry.legacyStatus === 'replaced' || entry.legacyStatus === 'deleted') && existsSync(resolve(root, entry.sourcePath))) {
-		failures.push(`${entry.sourcePath}: ${entry.legacyStatus} inventory entry still has source implementation`);
+	if ((entry.implementationStatus === 'replaced' || entry.implementationStatus === 'deleted') && existsSync(resolve(root, entry.sourcePath))) {
+		failures.push(`${entry.sourcePath}: ${entry.implementationStatus} inventory entry still has source implementation`);
 	}
 }
 
@@ -749,9 +867,9 @@ for (const entry of componentInventory) {
 	for (const [field, value] of requiredComponentValues(entry)) {
 		if (isMissing(value)) failures.push(`${entry.sourcePath}: missing required component field ${field}`);
 	}
-	if (entry.requiredTestsBeforeDeletion.length === 0) failures.push(`${entry.sourcePath}: requiredTestsBeforeDeletion must name at least one test`);
-	if ((entry.legacyStatus === 'replaced' || entry.legacyStatus === 'deleted') && existsSync(resolve(root, entry.sourcePath))) {
-		failures.push(`${entry.sourcePath}: ${entry.legacyStatus} component entry still has source implementation`);
+	if (entry.requiredArchitectureChecks.length === 0) failures.push(`${entry.sourcePath}: requiredArchitectureChecks must name at least one test`);
+	if ((entry.implementationStatus === 'replaced' || entry.implementationStatus === 'deleted') && existsSync(resolve(root, entry.sourcePath))) {
+		failures.push(`${entry.sourcePath}: ${entry.implementationStatus} component entry still has source implementation`);
 	}
 }
 
@@ -760,7 +878,7 @@ for (const path of findForbiddenSourceDirectories()) {
 }
 
 for (const path of findLegacyImports()) {
-	failures.push(`Canonical source imports from legacy boundary: ${path}`);
+	failures.push(`Canonical source imports from retired boundary: ${path}`);
 }
 
 for (const path of findTemplateDataAccessViolations()) {
@@ -775,48 +893,56 @@ for (const path of findPrivateReaderRouteViolations()) {
 	failures.push(`Private reader route guard violation: ${path}`);
 }
 
-for (const path of findFeedbackPhase5Violations()) {
-	failures.push(`Feedback Phase 5 guard violation: ${path}`);
+for (const path of findRouteShellPolicyViolations()) {
+	failures.push(`Route shell policy violation: ${path}`);
 }
 
-for (const path of findContextualHelpPhase6Violations()) {
-	failures.push(`Contextual help Phase 6 guard violation: ${path}`);
+for (const path of findDocumentationShellDriftViolations()) {
+	failures.push(`Documentation shell drift violation: ${path}`);
 }
 
-for (const path of findContextualDashboardPhase7Violations()) {
-	failures.push(`Contextual dashboard Phase 7 guard violation: ${path}`);
+for (const path of findFeedbackArchitectureViolations()) {
+	failures.push(`Feedback architecture guard violation: ${path}`);
 }
 
-for (const path of findServiceReadinessPhase8Violations()) {
-	failures.push(`Service readiness Phase 8 guard violation: ${path}`);
+for (const path of findContextualHelpArchitectureViolations()) {
+	failures.push(`Contextual help architecture guard violation: ${path}`);
 }
 
-for (const path of findOperatingLoopPhase9Violations()) {
-	failures.push(`Operating loop Phase 9 guard violation: ${path}`);
+for (const path of findContextualDashboardArchitectureViolations()) {
+	failures.push(`Contextual dashboard architecture guard violation: ${path}`);
 }
 
-for (const path of findKnowledgeDistributionPhase10Violations()) {
-	failures.push(`Knowledge distribution Phase 10 guard violation: ${path}`);
+for (const path of findServiceReadinessArchitectureViolations()) {
+	failures.push(`Service readiness architecture guard violation: ${path}`);
 }
 
-for (const path of findCommerceGovernancePhase10Violations()) {
-	failures.push(`Commerce/governance Phase 10 guard violation: ${path}`);
+for (const path of findOperatingLoopArchitectureViolations()) {
+	failures.push(`Operating loop architecture guard violation: ${path}`);
+}
+
+for (const path of findKnowledgeDistributionArchitectureViolations()) {
+	failures.push(`Knowledge distribution architecture guard violation: ${path}`);
+}
+
+for (const path of findCommerceGovernanceArchitectureViolations()) {
+	failures.push(`Commerce/governance architecture guard violation: ${path}`);
 }
 
 const docs = generateDocs();
 if (shouldWrite) {
 	writeFileSync(resolve(root, docsPath), docs);
 } else if (!existsSync(resolve(root, docsPath))) {
-	failures.push(`${docsPath} is missing; run npm run check:ui-migration -- --write`);
+	failures.push(`${docsPath} is missing; run npm run check:ui-architecture -- --write`);
 } else {
 	const currentDocs = readFileSync(resolve(root, docsPath), 'utf8');
-	if (currentDocs !== docs) failures.push(`${docsPath} is out of date; run npm run check:ui-migration -- --write`);
+	if (currentDocs !== docs) failures.push(`${docsPath} is out of date; run npm run check:ui-architecture -- --write`);
 }
 
 if (failures.length > 0) {
-	console.error('UI migration Phase 0 check failed:');
+	console.error('UI architecture conformance check failed:');
 	for (const failure of failures) console.error(`- ${failure}`);
 	process.exit(1);
 }
 
-console.log(`UI migration Phase 0 check passed (${routeInventory.length} routes, ${componentInventory.length} component groups).`);
+console.log(`UI architecture conformance check passed (${routeInventory.length} routes, ${componentInventory.length} component groups).`);

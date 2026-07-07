@@ -1,5 +1,5 @@
 ---
-import TreeseedPublicLayout from '@treeseed/admin/layouts/TreeseedPublicLayout.astro';
+import TreeseedOperationalMarketLayout from '@treeseed/admin/layouts/TreeseedOperationalMarketLayout.astro';
 import DetailTemplate from '@treeseed/ui/components/astro/templates/DetailTemplate.astro';
 import Panel from '@treeseed/ui/components/astro/surface/Panel.astro';
 import ServiceQuotePanel from '@treeseed/ui/components/astro/commerce/ServiceQuotePanel.astro';
@@ -20,7 +20,7 @@ const page = await loadServiceRequestPage(Astro, requestId, actionError);
 const request = page.data.request;
 ---
 
-<TreeseedPublicLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
+<TreeseedOperationalMarketLayout title={page.title} description={page.description} currentPath={Astro.url.pathname} helpContext={page.helpContext} feedbackContext={page.feedbackContext}>
 	<main class="ts-commerce-page">
 		<DetailTemplate title="Review request and quotes" description={page.description} eyebrow="Scoped service" metadata={page.data.metadata} actions={page.actions}>
 			{page.data.error ? <p class="ts-commerce-error">{page.data.error}</p> : null}
@@ -57,4 +57,4 @@ const request = page.data.request;
 			<ServiceRequestTimeline events={page.data.events} />
 		</DetailTemplate>
 	</main>
-</TreeseedPublicLayout>
+</TreeseedOperationalMarketLayout>

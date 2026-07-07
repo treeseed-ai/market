@@ -5,7 +5,7 @@ function source(path: string) {
 	return readFileSync(path, 'utf8');
 }
 
-describe('Phase 5 shell-level feedback', () => {
+describe('shell-level feedback architecture', () => {
 	it('replaces shell feedback placeholders with the shared feedback components', () => {
 		for (const path of [
 			'packages/ui/src/astro/shell/ProductShell.astro',
@@ -35,7 +35,7 @@ describe('Phase 5 shell-level feedback', () => {
 		expect(capture).not.toMatch(/R2|objectKey|privateUrl|token/iu);
 	});
 
-	it('wires ProductShell and Core Knowledge Hub proof routes through shell feedback context', () => {
+	it('wires authenticated app and Core Knowledge Hub proof routes through shell feedback context', () => {
 		expect(source('packages/admin/src/view-models/ui-foundation/questions.vm.ts')).toContain("submissionEndpoint: '/v1/feedback'");
 		for (const path of [
 			'packages/core/src/pages/docs-runtime/index.astro',

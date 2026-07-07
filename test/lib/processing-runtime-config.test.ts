@@ -11,12 +11,14 @@ describe('processing runtime config', () => {
 		expect(rootConfig).not.toContain('marketDatabase:');
 		expect(config).toContain('dockerfilePath: /Dockerfile.api');
 		expect(config).toContain('dockerfilePath: /Dockerfile.operations-runner');
+		expect(config).toContain('sourceMode: git');
+		expect(config).toContain('buildCommand: npm run build');
 		expect(config).toContain('startCommand: npm run start:api');
+		expect(config).toContain('startCommand: npm run start:runner');
 		expect(config).toContain('healthcheckTimeoutSeconds: 120');
 		expect(config).not.toContain('workdayManager:');
 		expect(config).not.toContain('workerRunner:');
 		expect(config).not.toContain('treeseed-processing');
-		expect(config).not.toContain('buildCommand: npm run build');
 		expect(config).not.toContain('startCommand: npm run build &&');
 		expect(config).not.toContain('startCommand: node ./node_modules/@treeseed/agent/dist/services/worker.js');
 	});
