@@ -117,5 +117,6 @@ jobs:
             .treeseed/artifacts/packages/**
             .treeseed/workflow/stage-candidates/**
             .treeseed/guarantees/**
+            .treeseed/scenes/**
           if-no-files-found: error
           retention-days: 30

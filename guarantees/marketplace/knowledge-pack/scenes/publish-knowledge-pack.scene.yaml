@@ -9,7 +9,7 @@ journey:
   kind: service
   proves:
     - Publish Knowledge Pack opens the canonical @treeseed/market record action workflow.
-    - Publish Knowledge Pack exercises a service journey instead of only loading /market/knowledge-packs.
+    - Publish Knowledge Pack exercises a service journey instead of only loading an obsolete knowledge-pack route.
     - Publish Knowledge Pack records reviewable evidence for the visible result before activation.
   minimumSteps: 2
   requiresInteractiveAction: true
@@ -60,15 +60,15 @@ workflow:
   - id: open-entry-route
     title: Open Publish Knowledge Pack
     action:
-      goto: /market/knowledge-packs
+      goto: /market/products/seed-product
     expect:
-      urlIncludes: /market/knowledge-packs
+      urlIncludes: /market/products
   - id: inspect-service-surface
     title: Inspect Publish Knowledge Pack service surface
     action:
       keyboard: Tab
     expect:
-      urlIncludes: /market/knowledge-packs
+      urlIncludes: /market/products
 chapters: []
 overlays: []
 diagrams: []

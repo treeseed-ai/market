@@ -9,7 +9,7 @@ journey:
   kind: service
   proves:
     - Acquire Knowledge Pack opens the canonical @treeseed/market dashboard read model workflow.
-    - Acquire Knowledge Pack exercises a service journey instead of only loading /market/knowledge-packs/seed-pack.
+    - Acquire Knowledge Pack exercises a service journey instead of only loading an obsolete knowledge-pack route.
     - Acquire Knowledge Pack records reviewable evidence for the visible result before activation.
   minimumSteps: 2
   requiresInteractiveAction: true

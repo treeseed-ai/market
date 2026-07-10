@@ -9,7 +9,7 @@ journey:
   kind: service
   proves:
     - Acquire Template opens the canonical @treeseed/market dashboard read model workflow.
-    - Acquire Template exercises a service journey instead of only loading /market/templates/engineering.
+    - Acquire Template exercises a service journey instead of only loading an obsolete template route.
     - Acquire Template records reviewable evidence for the visible result before activation.
   minimumSteps: 2
   requiresInteractiveAction: true

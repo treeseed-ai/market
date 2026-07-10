@@ -9,7 +9,7 @@ journey:
   kind: service
   proves:
     - Publish Template opens the canonical @treeseed/market record action workflow.
-    - Publish Template exercises a service journey instead of only loading /market/templates.
+    - Publish Template exercises a service journey instead of only loading an obsolete template route.
     - Publish Template records reviewable evidence for the visible result before activation.
   minimumSteps: 2
   requiresInteractiveAction: true
@@ -60,15 +60,15 @@ workflow:
   - id: open-entry-route
     title: Open Publish Template
     action:
-      goto: /market/templates
+      goto: /market/products/seed-product
     expect:
-      urlIncludes: /market/templates
+      urlIncludes: /market/products
   - id: inspect-service-surface
     title: Inspect Publish Template service surface
     action:
       keyboard: Tab
     expect:
-      urlIncludes: /market/templates
+      urlIncludes: /market/products
 chapters: []
 overlays: []
 diagrams: []
