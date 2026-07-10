@@ -60,15 +60,15 @@ workflow:
   - id: open-entry-route
     title: Open Acquire Knowledge Pack
     action:
-      goto: /market/knowledge-packs/seed-pack
+      goto: /market/products/seed-product
     expect:
-      urlIncludes: /market/knowledge-packs
+      urlIncludes: /market/products
   - id: inspect-service-surface
     title: Inspect Acquire Knowledge Pack service surface
     action:
       keyboard: Tab
     expect:
-      urlIncludes: /market/knowledge-packs
+      urlIncludes: /market/products
 chapters: []
 overlays: []
 diagrams: []
