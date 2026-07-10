@@ -167,6 +167,7 @@ const adminAuthRoutePaths = [
 	'packages/admin/src/pages/auth/confirm-email.astro',
 	'packages/admin/src/pages/auth/device/approve.astro',
 	'packages/admin/src/pages/auth/forgot-password.astro',
+	'packages/admin/src/pages/auth/logout.astro',
 	'packages/admin/src/pages/auth/register.astro',
 	'packages/admin/src/pages/auth/reset-password.astro',
 	'packages/admin/src/pages/auth/sign-in.astro',

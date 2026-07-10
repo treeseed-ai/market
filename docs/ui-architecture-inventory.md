@@ -106,6 +106,7 @@ The typed inventory is canonical for human-facing route shells, templates, polic
 | admin | `/auth/confirm-email` | `packages/admin/src/pages/auth/confirm-email.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | none |
 | admin | `/auth/device/approve` | `packages/admin/src/pages/auth/device/approve.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | none |
 | admin | `/auth/forgot-password` | `packages/admin/src/pages/auth/forgot-password.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | none |
+| admin | `/auth/logout` | `packages/admin/src/pages/auth/logout.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | none |
 | admin | `/auth/register` | `packages/admin/src/pages/auth/register.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | route-local-script |
 | admin | `/auth/reset-password` | `packages/admin/src/pages/auth/reset-password.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | none |
 | admin | `/auth/sign-in` | `packages/admin/src/pages/auth/sign-in.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | none |
