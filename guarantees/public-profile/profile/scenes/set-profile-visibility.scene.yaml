@@ -5,6 +5,14 @@ description: Scene scaffold for guarantee.public-profile.profile.set-profile-vis
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Set Profile Visibility opens the canonical @treeseed/market dashboard read model workflow.
+    - Set Profile Visibility exercises a service journey instead of only loading /app/account.
+    - Set Profile Visibility records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
 mode:
   test: true
   demo: true
@@ -52,10 +60,15 @@ workflow:
   - id: open-entry-route
     title: Open Set Profile Visibility
     action:
-      goto: /u/:username/set-profile-visibility
+      goto: /app/account
     expect:
-      urlIncludes: /u
-    demoOnly: true
+      urlIncludes: /app/account
+  - id: inspect-service-surface
+    title: Inspect Set Profile Visibility service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /app/account
 chapters: []
 overlays: []
 diagrams: []

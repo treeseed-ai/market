@@ -79,6 +79,30 @@ packages/admin/guarantees/project/question/scenes/ask-question.scene.yaml
 
 Acceptance scenes should use stable `data-scene` or `testId` selectors, include expectations for every non-demo-only step, and capture trace, video, screenshots, console, network, timeline, and app logs. Scene videos can be rendered as demo or training artifacts from the same workflow evidence.
 
+Active scene-backed guarantees must prove service journeys, not entry page loads. A service scene declares:
+
+```yaml
+journey:
+  kind: service
+  proves:
+    - user can complete the promised workflow
+  minimumSteps: 2
+  requiresInteractiveAction: true
+```
+
+An active service scene must include at least one `goto`, at least one interactive action such as `click`, `fill`, `select`, `keyboard`, `mailpitConfirmLatest`, or `waitForOperation`, and assertions on every acceptance step. Page-only scenes are allowed only for planned, backlog, blocked, visual audit, or explicit read-only route contracts.
+
+Guarantee runs capture full-page screenshots after every executed scene step and include those step screenshots directly in the guarantee result evidence. Viewport screenshots may still exist as internal debug/render fallback artifacts, but they are not primary guarantee or reviewer evidence.
+
+Audit scene-backed journeys with:
+
+```bash
+npx trsd guarantees audit-journeys --json
+npx trsd guarantees audit-journeys --owner-package @treeseed/admin --write-report .treeseed/guarantees/audit/journeys.json --json
+```
+
+The audit fails when active scene-backed guarantees have weak page-only scenes, missing product routes, or missing stable selectors.
+
 ## API And Verifier References
 
 Guarantees reference verifier IDs instead of embedding endpoint details:
@@ -135,6 +159,12 @@ npx trsd guarantees run --type project --subtype agent --environment local --jso
 ```
 
 By default, `run` executes only `active` guarantees and expands dependencies. Use `--include-planned` to include planned/backlog entries in the report as skipped records, and `--no-dependencies` for narrow local diagnostics.
+
+Dependency planning expands `dependencies.guarantees`, `dependencies.journeys`, `dependsOnGuarantees`, and implicit auth dependencies for authenticated `/app/**` scenes. Plans are topologically ordered so prerequisites execute before dependents. If a prerequisite fails, blocks, or is skipped, dependent guarantees are reported as `blocked` with a `guarantee.dependency_failed` diagnostic and their scenes/verifiers are not executed. Runs also write run-local shared state metadata to:
+
+```text
+.treeseed/guarantees/runs/<run-id>/state.json
+```
 
 Export generated reports:
 

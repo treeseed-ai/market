@@ -6,7 +6,7 @@ subtype: decision
 journey: Record Commons Steward Decision
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Record Commons Steward Decision.
-status: planned
+status: active
 dependencies:
   journeys:
     - 136
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /commons/decision/record-commons-steward-decision
-  componentContract: record-action guarantee harness
+  entryRoute: /commons/proposals/seed-proposal
+  componentContract: record-action service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.commons.decision.record-commons-steward-decision.api
+    - market.commons.decision.record-commons-steward-decision.api
 content:
   required: true
   verifierRefs:
-    - todo.commons.decision.record-commons-steward-decision.content
+    - market.commons.decision.record-commons-steward-decision.content
 audit:
   required: true
   verifierRefs:
-    - todo.commons.decision.record-commons-steward-decision.audit
+    - market.commons.decision.record-commons-steward-decision.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: anonymous_user
     verifierRefs:
-      - todo.commons.decision.record-commons-steward-decision.negative
+      - market.commons.decision.record-commons-steward-decision.negative
 evidence:
   required:
     - playwright_trace

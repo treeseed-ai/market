@@ -6,7 +6,7 @@ subtype: knowledge-pack
 journey: Publish Knowledge Pack
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Publish Knowledge Pack.
-status: planned
+status: active
 dependencies:
   journeys:
     - 32
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /marketplace/publish-knowledge-pack
-  componentContract: full-page-form guarantee harness
+  entryRoute: /market/knowledge-packs
+  componentContract: full-page-form service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.marketplace.knowledge-pack.publish-knowledge-pack.api
+    - market.marketplace.knowledge-pack.publish-knowledge-pack.api
 content:
   required: true
   verifierRefs:
-    - todo.marketplace.knowledge-pack.publish-knowledge-pack.content
+    - market.marketplace.knowledge-pack.publish-knowledge-pack.content
 audit:
   required: true
   verifierRefs:
-    - todo.marketplace.knowledge-pack.publish-knowledge-pack.audit
+    - market.marketplace.knowledge-pack.publish-knowledge-pack.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.marketplace.knowledge-pack.publish-knowledge-pack.negative
+      - market.marketplace.knowledge-pack.publish-knowledge-pack.negative
 evidence:
   required:
     - playwright_trace

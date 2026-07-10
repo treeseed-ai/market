@@ -6,7 +6,7 @@ subtype: comment
 journey: Create Comment
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Create Comment.
-status: planned
+status: active
 dependencies:
   journeys:
     - 131
@@ -37,8 +37,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /feedback/create-comment
-  componentContract: inline-form/search-panel guarantee harness
+  entryRoute: /
+  componentContract: inline-form/search-panel service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -48,20 +48,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.feedback.comment.create-comment.api
+    - market.feedback.comment.create-comment.api
 content:
   required: false
   verifierRefs:
-    - todo.feedback.comment.create-comment.content
+    - market.feedback.comment.create-comment.content
 audit:
   required: true
   verifierRefs:
-    - todo.feedback.comment.create-comment.audit
+    - market.feedback.comment.create-comment.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: anonymous_user
     verifierRefs:
-      - todo.feedback.comment.create-comment.negative
+      - market.feedback.comment.create-comment.negative
 evidence:
   required:
     - playwright_trace

@@ -1,11 +1,30 @@
-# Treeseed Save And Release Proof
+# Treeseed Save, Stage, And Release Proof
 
-Treeseed save has two different jobs:
+Treeseed uses three deliberately separate workflow boundaries:
 
-- Fast checkpointing keeps development moving.
-- Release proof decides whether exact refs are viable for staging or production.
+- `trsd save` creates a fast, coherent checkpoint across the independent repositories.
+- `trsd stage` promotes one immutable candidate and waits for its hosted staging attestation.
+- `trsd release` dispatches production promotion for the latest attested candidate.
 
-The fast save lane should stay fast. Promotion proof must be incremental, reusable, and tied to the actual hosted systems that will release the software.
+Guarantees are authoritative promotion evidence. They do not run during a routine save, and the complete collection runs once for an exact deployed staging candidate.
+
+## Save Contract
+
+Save discovers the dirty repository closure, commits repositories in dependency order, updates exact internal refs and submodule pointers, validates lock metadata without a network install, and pushes only after the complete local graph is coherent. It does not deploy, wait for hosted workflows, delete caches, prune Docker, or delete guarantee evidence.
+
+Use `--verify local` when a checkpoint also needs package-local verification. An interrupted save records its journal as interrupted and reports the exact `trsd resume <run-id>` command.
+
+## Stage Contract
+
+Stage requires a clean pushed task branch. It merges current staging down before promotion, resolves generated internal-reference and lock metadata conflicts, and stops with file-level diagnostics for source conflicts. Package refs are promoted with expected-head protection and the Market staging ref moves last.
+
+The root `staging-candidate.yml` workflow owns staging proof. It builds and verifies the integrated graph, creates exact-source package tarballs without rerunning package lifecycle scripts, reconciles API and web staging, and runs all 208 guarantees once. Its attestation records the candidate hash, root and submodule SHAs, guarantee run id, and pass/fail counts. `trsd stage` downloads and validates that exact workflow-run artifact before returning. `trsd stage --async` is the explicit exception that returns while hosted proof is pending.
+
+## Release Contract
+
+Live `trsd release` dispatches `production-release.yml`; local execution is plan-only. The hosted workflow hydrates the exact staging attestation, rejects source or count drift, and invokes the resumable SDK release engine. Published package and image work remains ordered by the dependency graph. Production runs reconciliation verification and the smoke guarantee subset, reusing the immutable 208/208 staging proof instead of rerunning the complete collection.
+
+Reviewer is a local-only package. It participates in save, verification, artifact, and publication ordering, but its manifest forbids hosted deployment.
 
 ## CI/CD Truth
 
@@ -53,10 +72,22 @@ Plan release proof:
 npx trsd proof plan --target staging --json
 ```
 
-Run authoritative hosted proof:
+Promote and prove an immutable staging candidate:
 
 ```bash
-npx trsd proof run --target staging --driver github-hosted --json
+npx trsd stage --json
+```
+
+Deliberately return before hosted proof finishes:
+
+```bash
+npx trsd stage --async --json
+```
+
+Release the latest successful candidate through GitHub Actions:
+
+```bash
+npx trsd release --patch --json
 ```
 
 Inspect failures:
@@ -82,3 +113,5 @@ Proof records live under:
 They are keyed by subject, driver, and input hash. A passed proof is reusable only when the subject, driver, and inputs still match.
 
 Failed, pending, blocked, skipped, and advisory records do not satisfy authoritative release proof.
+
+Candidate manifests and attestations live under `.treeseed/workflow/stage-candidates/`. Workflow journals live under `.treeseed/workflow/runs/`. Save, stage, release, and routine cleanup never delete these records or `.treeseed/guarantees/` evidence.

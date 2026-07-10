@@ -6,7 +6,7 @@ subtype: fulfillment
 journey: Review Service Fulfillment
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Review Service Fulfillment.
-status: planned
+status: active
 dependencies:
   journeys:
     - 125
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /services/review-service-fulfillment
-  componentContract: dashboard/read-model guarantee harness
+  entryRoute: /services/seed-request
+  componentContract: dashboard/read-model service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.service.fulfillment.review-service-fulfillment.api
+    - market.service.fulfillment.review-service-fulfillment.api
 content:
   required: false
   verifierRefs:
-    - todo.service.fulfillment.review-service-fulfillment.content
+    - market.service.fulfillment.review-service-fulfillment.content
 audit:
   required: true
   verifierRefs:
-    - todo.service.fulfillment.review-service-fulfillment.audit
+    - market.service.fulfillment.review-service-fulfillment.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.service.fulfillment.review-service-fulfillment.negative
+      - market.service.fulfillment.review-service-fulfillment.negative
 evidence:
   required:
     - playwright_trace

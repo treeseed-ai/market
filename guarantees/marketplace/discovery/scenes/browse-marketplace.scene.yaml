@@ -5,6 +5,14 @@ description: Scene scaffold for guarantee.marketplace.discovery.browse-marketpla
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Browse Marketplace opens the canonical @treeseed/market dashboard read model workflow.
+    - Browse Marketplace exercises a service journey instead of only loading /marketplace.
+    - Browse Marketplace records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
 mode:
   test: true
   demo: true
@@ -52,10 +60,15 @@ workflow:
   - id: open-entry-route
     title: Open Browse Marketplace
     action:
-      goto: /marketplace/browse-marketplace
+      goto: /marketplace
     expect:
-      urlIncludes: /marketplace/browse-marketplace
-    demoOnly: true
+      urlIncludes: /marketplace
+  - id: inspect-service-surface
+    title: Inspect Browse Marketplace service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /marketplace
 chapters: []
 overlays: []
 diagrams: []

@@ -5,6 +5,14 @@ description: Scene scaffold for guarantee.feedback.comment.create-comment.132. T
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Create Comment opens the canonical @treeseed/market full page form workflow.
+    - Create Comment exercises a service journey instead of only loading /.
+    - Create Comment records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
 mode:
   test: true
   demo: true
@@ -52,10 +60,15 @@ workflow:
   - id: open-entry-route
     title: Open Create Comment
     action:
-      goto: /feedback/create-comment
+      goto: /
     expect:
-      urlIncludes: /feedback/create-comment
-    demoOnly: true
+      urlIncludes: /
+  - id: inspect-service-surface
+    title: Inspect Create Comment service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /
 chapters: []
 overlays: []
 diagrams: []

@@ -6,7 +6,7 @@ subtype: proposal
 journey: Create Commons Proposal
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Create Commons Proposal.
-status: planned
+status: active
 dependencies:
   journeys:
     - 133
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /commons/proposal/create-commons-proposal
-  componentContract: full-page-form guarantee harness
+  entryRoute: /commons/proposals/new
+  componentContract: full-page-form service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.commons.proposal.create-commons-proposal.api
+    - market.commons.proposal.create-commons-proposal.api
 content:
   required: true
   verifierRefs:
-    - todo.commons.proposal.create-commons-proposal.content
+    - market.commons.proposal.create-commons-proposal.content
 audit:
   required: true
   verifierRefs:
-    - todo.commons.proposal.create-commons-proposal.audit
+    - market.commons.proposal.create-commons-proposal.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: anonymous_user
     verifierRefs:
-      - todo.commons.proposal.create-commons-proposal.negative
+      - market.commons.proposal.create-commons-proposal.negative
 evidence:
   required:
     - playwright_trace

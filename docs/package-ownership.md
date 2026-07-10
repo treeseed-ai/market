@@ -14,6 +14,7 @@ The root `@treeseed/market` app is the hosted Treeseed-operated site. It compose
 - `@treeseed/api` over HTTP/proxy surfaces for backend control-plane state
 - `@treeseed/sdk` through package-owned public APIs for platform primitives
 - `@treeseed/agent` through capacity-provider workflows, not in-process runtime imports
+- `@treeseed/reviewer` as a local-only operator tool, not a hosted runtime
 - `packages/treedx` through SDK/API integration, not product-specific UI code
 
 The root market app owns the real hostable web tenant `treeseed.site.yaml` in this workspace. Deployable package apps may own package-local hostable manifests when they operate an independently released runtime surface; today `packages/api/treeseed.site.yaml` owns the API, operations runner, Treeseed PostgreSQL, capacity-provider service bindings, and public TreeDX federation topology. SDK/CLI workflows compose the root and package manifests into one integrated desired-state graph, but the web and API release pipelines remain independently deployable.
@@ -33,6 +34,7 @@ First-party package repositories declare their future project shape in `treeseed
 | `@treeseed/sdk` | Programmatic platform substrate | Config, reconciliation, workflow engine, hosting graph, package workflow discovery, SDK-managed local dev supervisor, shared contracts, graph/content APIs, model-aware content operation contracts/rendering/validation, TreeDX client integration, portable agent-capacity contracts. SDK owns save/update/stage/close/release/recover/worktree safety; `stage` must merge staging down before mutation, preserve failed feature branches/worktrees, and clean up only after staging refs are verified. |
 | `@treeseed/api` | Deployed backend control-plane API | Hono API, package-local backend `treeseed.site.yaml`, PostgreSQL adapter/migrations, backend auth, operation lifecycle, operations runner, route descriptors, provider sessions, assignment leases, mode-run persistence, capacity ledger coordination |
 | `@treeseed/cli` | Human/operator command surface | `treeseed`/`trsd` command parsing, help, command handlers, terminal reporting, workflow entrypoints over SDK/Core/Agent. CLI exposes stage options and reporting but must not reimplement SDK-owned save/stage/release orchestration. |
+| `@treeseed/reviewer` | Local guarantee run review and AI workplan packaging | Standalone local web app, guarantee run selection/review UI, reviewer notes, evidence browsing, copied local evidence bundles, directive/workplan schemas, and Codex-ready handoff packages. It invokes existing CLI guarantee commands and must not own guarantee execution or release gating. |
 | `@treeseed/agent` | Capacity-provider and agent runtime | Provider manager/runner runtime, AgentKernel execution, mode scheduling, execution-provider adapters, assignment-scoped agent tool catalogs, model-aware content tool serving over TreeDX proxy handles, provider-local capacity enforcement, runtime images/templates |
 | `packages/treedx` | Generic repository data/index/query service consumed by Treeseed | TreeDX API, storage, Git/repository graph/indexing, federation, Docker image, language SDKs; no Treeseed product semantics |
 
@@ -48,6 +50,7 @@ admin -> core + sdk + ui
 market -> admin + core + ui + HTTP/API client surfaces
 api -> sdk
 cli -> sdk + core + selected public agent surfaces
+reviewer -> cli + sdk + ui
 agent -> sdk
 treedx -> consumed through sdk clients and api hosting
 ```
@@ -61,6 +64,7 @@ Boundary rules:
 - `market` may consume public exports from `admin`, `core`, `ui`, and `sdk`, and may call the API through HTTP/proxy/client surfaces. It must not import backend implementation from `api`.
 - `api` may depend on `sdk`; it must not own web UI, admin routes, or reusable component primitives.
 - `cli` may depend on `sdk`, `core`, and narrow public `agent` surfaces where command execution requires them.
+- `reviewer` may depend on `cli`, `sdk`, and `ui`; it must remain local-only and must not become a release gate or hosted control plane.
 - `agent` may depend on `sdk`; it must not depend on `core`, `admin`, root market, or API implementation.
 - TreeDX must remain product-neutral and must not encode Treeseed market/admin/agent semantics.
 
@@ -121,6 +125,7 @@ TreeDX is not an ordinary web dev process. It is run through TreeDX service work
 | Reconciliation, package workflows, config, hosting graph, provider adapters, managed local dev supervision | `@treeseed/sdk` |
 | Backend persistence, API routes, auth backend, operations runner, migrations | `@treeseed/api` |
 | CLI commands, help, terminal reports, workflow command entrypoints | `@treeseed/cli` |
+| Local guarantee review, screenshot/log triage, reviewer notes, and AI workplan packaging | `@treeseed/reviewer` |
 | Capacity provider manager/runner runtime, AgentKernel execution, mode scheduling, and provider images | `@treeseed/agent` |
 | Generic repository storage, indexing, graph search, snapshots, artifacts | `packages/treedx` |
 
@@ -215,6 +220,7 @@ Infrastructure lifecycle and runtime assignment are separate concerns. `trsd cap
 | SDK workflow/reconciliation | `npm -w packages/sdk run verify:local`, focused workflow tests |
 | API backend/runner | `npm -w packages/api run verify:local` |
 | CLI command behavior | `npm -w packages/cli run verify:local` |
+| Reviewer local app/workplan packaging | `npm -w packages/reviewer run verify:local` |
 | Agent/provider runtime | `npm -w packages/agent run verify:local`, capacity provider runtime tests |
 | TreeDX service/image | TreeDX package release gate or targeted TreeDX runbook commands |
 | Cross-package integration | affected package verifies plus `npm run check`, `npm run build`, `npx trsd ready local --json` |
@@ -235,4 +241,4 @@ The active first-party starter set is `engineering` and `research`. `information
 
 ## Guarantee Ownership
 
-`@treeseed/api` owns endpoint-family guarantees and route descriptor acceptance coverage for every active API endpoint. `@treeseed/admin` and Market UI guarantees should declare dependencies on those API guarantees through `dependsOnGuarantees`. `@treeseed/agent` owns mock and live execution-provider guarantees for provider runtime behavior.
+`@treeseed/api` owns endpoint-family guarantees and route descriptor acceptance coverage for every active API endpoint. `@treeseed/admin` and Market UI guarantees should declare dependencies on those API guarantees through `dependsOnGuarantees`. `@treeseed/agent` owns mock and live execution-provider guarantees for provider runtime behavior. `@treeseed/reviewer` owns local reviewer guarantees for loading guarantee run artifacts, attaching human notes, copying local evidence, and producing agent-ready workplans.

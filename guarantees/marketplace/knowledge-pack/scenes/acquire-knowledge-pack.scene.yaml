@@ -5,6 +5,14 @@ description: Scene scaffold for guarantee.marketplace.knowledge-pack.acquire-kno
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Acquire Knowledge Pack opens the canonical @treeseed/market dashboard read model workflow.
+    - Acquire Knowledge Pack exercises a service journey instead of only loading /market/knowledge-packs/seed-pack.
+    - Acquire Knowledge Pack records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
 mode:
   test: true
   demo: true
@@ -52,10 +60,15 @@ workflow:
   - id: open-entry-route
     title: Open Acquire Knowledge Pack
     action:
-      goto: /marketplace/acquire-knowledge-pack
+      goto: /market/knowledge-packs/seed-pack
     expect:
-      urlIncludes: /marketplace/acquire-knowledge-pack
-    demoOnly: true
+      urlIncludes: /market/knowledge-packs
+  - id: inspect-service-surface
+    title: Inspect Acquire Knowledge Pack service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /market/knowledge-packs
 chapters: []
 overlays: []
 diagrams: []

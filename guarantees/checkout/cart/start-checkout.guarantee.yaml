@@ -6,7 +6,7 @@ subtype: cart
 journey: Start Checkout
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Start Checkout.
-status: planned
+status: active
 dependencies:
   journeys:
     - 115
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /checkout/start-checkout
-  componentContract: record-action guarantee harness
+  entryRoute: /cart
+  componentContract: record-action service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.checkout.cart.start-checkout.api
+    - market.checkout.cart.start-checkout.api
 content:
   required: false
   verifierRefs:
-    - todo.checkout.cart.start-checkout.content
+    - market.checkout.cart.start-checkout.content
 audit:
   required: true
   verifierRefs:
-    - todo.checkout.cart.start-checkout.audit
+    - market.checkout.cart.start-checkout.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.checkout.cart.start-checkout.negative
+      - market.checkout.cart.start-checkout.negative
 evidence:
   required:
     - playwright_trace

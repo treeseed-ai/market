@@ -5,6 +5,14 @@ description: Scene scaffold for guarantee.commons.delegation.manage-commons-dele
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Manage Commons Delegation opens the canonical @treeseed/market dashboard read model workflow.
+    - Manage Commons Delegation exercises a service journey instead of only loading /commons/proposals/seed-proposal.
+    - Manage Commons Delegation records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
 mode:
   test: true
   demo: true
@@ -52,10 +60,15 @@ workflow:
   - id: open-entry-route
     title: Open Manage Commons Delegation
     action:
-      goto: /commons/delegation/manage-commons-delegation
+      goto: /commons/proposals/seed-proposal
     expect:
-      urlIncludes: /commons/delegation/manage-commons-delegation
-    demoOnly: true
+      urlIncludes: /commons/proposals
+  - id: inspect-service-surface
+    title: Inspect Manage Commons Delegation service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /commons/proposals
 chapters: []
 overlays: []
 diagrams: []

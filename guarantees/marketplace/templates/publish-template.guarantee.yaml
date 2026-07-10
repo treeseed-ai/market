@@ -6,7 +6,7 @@ subtype: templates
 journey: Publish Template
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Publish Template.
-status: planned
+status: active
 dependencies:
   journeys:
     - 32
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /marketplace/publish-template
-  componentContract: full-page-form guarantee harness
+  entryRoute: /market/templates
+  componentContract: full-page-form service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.marketplace.templates.publish-template.api
+    - market.marketplace.templates.publish-template.api
 content:
   required: true
   verifierRefs:
-    - todo.marketplace.templates.publish-template.content
+    - market.marketplace.templates.publish-template.content
 audit:
   required: true
   verifierRefs:
-    - todo.marketplace.templates.publish-template.audit
+    - market.marketplace.templates.publish-template.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.marketplace.templates.publish-template.negative
+      - market.marketplace.templates.publish-template.negative
 evidence:
   required:
     - playwright_trace

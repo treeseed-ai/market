@@ -6,7 +6,7 @@ subtype: discovery
 journey: View Marketplace Listing
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for View Marketplace Listing.
-status: planned
+status: active
 dependencies:
   journeys:
     - 99
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /marketplace/view-marketplace-listing
-  componentContract: dashboard/read-model guarantee harness
+  entryRoute: /market/products/seed-product
+  componentContract: dashboard/read-model service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.marketplace.discovery.view-marketplace-listing.api
+    - market.marketplace.discovery.view-marketplace-listing.api
 content:
   required: false
   verifierRefs:
-    - todo.marketplace.discovery.view-marketplace-listing.content
+    - market.marketplace.discovery.view-marketplace-listing.content
 audit:
   required: true
   verifierRefs:
-    - todo.marketplace.discovery.view-marketplace-listing.audit
+    - market.marketplace.discovery.view-marketplace-listing.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.marketplace.discovery.view-marketplace-listing.negative
+      - market.marketplace.discovery.view-marketplace-listing.negative
 evidence:
   required:
     - playwright_trace

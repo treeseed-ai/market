@@ -5,6 +5,17 @@ description: Scene scaffold for guarantee.capacity-discovery.inquiry.review-capa
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Review Capacity Inquiry opens the canonical @treeseed/market record operations workflow.
+    - Review Capacity Inquiry exercises a service journey instead of only loading /capacity/seed-capacity-provider.
+    - Review Capacity Inquiry records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
+  consumesState:
+    - key: capacity-provider.primary
+      kind: capacity-provider
 mode:
   test: true
   demo: true
@@ -52,10 +63,15 @@ workflow:
   - id: open-entry-route
     title: Open Review Capacity Inquiry
     action:
-      goto: /capacity/review-capacity-inquiry
+      goto: /capacity/seed-capacity-provider
     expect:
-      urlIncludes: /capacity/review-capacity-inquiry
-    demoOnly: true
+      urlIncludes: /capacity/seed-capacity-provider
+  - id: inspect-service-surface
+    title: Inspect Review Capacity Inquiry service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /capacity/seed-capacity-provider
 chapters: []
 overlays: []
 diagrams: []

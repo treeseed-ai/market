@@ -6,7 +6,7 @@ subtype: delegation
 journey: Manage Commons Delegation
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Manage Commons Delegation.
-status: planned
+status: active
 dependencies:
   journeys: []
   guarantees: []
@@ -35,8 +35,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /commons/delegation/manage-commons-delegation
-  componentContract: full-page-form guarantee harness
+  entryRoute: /commons/proposals/seed-proposal
+  componentContract: full-page-form service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -46,20 +46,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.commons.delegation.manage-commons-delegation.api
+    - market.commons.delegation.manage-commons-delegation.api
 content:
   required: false
   verifierRefs:
-    - todo.commons.delegation.manage-commons-delegation.content
+    - market.commons.delegation.manage-commons-delegation.content
 audit:
   required: true
   verifierRefs:
-    - todo.commons.delegation.manage-commons-delegation.audit
+    - market.commons.delegation.manage-commons-delegation.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: anonymous_user
     verifierRefs:
-      - todo.commons.delegation.manage-commons-delegation.negative
+      - market.commons.delegation.manage-commons-delegation.negative
 evidence:
   required:
     - playwright_trace

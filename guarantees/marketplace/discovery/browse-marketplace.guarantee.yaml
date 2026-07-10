@@ -6,7 +6,7 @@ subtype: discovery
 journey: Browse Marketplace
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Browse Marketplace.
-status: planned
+status: active
 dependencies:
   journeys: []
   guarantees: []
@@ -35,8 +35,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /marketplace/browse-marketplace
-  componentContract: dashboard/read-model guarantee harness
+  entryRoute: /marketplace
+  componentContract: dashboard/read-model service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -46,20 +46,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.marketplace.discovery.browse-marketplace.api
+    - market.marketplace.discovery.browse-marketplace.api
 content:
   required: false
   verifierRefs:
-    - todo.marketplace.discovery.browse-marketplace.content
+    - market.marketplace.discovery.browse-marketplace.content
 audit:
   required: true
   verifierRefs:
-    - todo.marketplace.discovery.browse-marketplace.audit
+    - market.marketplace.discovery.browse-marketplace.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.marketplace.discovery.browse-marketplace.negative
+      - market.marketplace.discovery.browse-marketplace.negative
 evidence:
   required:
     - playwright_trace

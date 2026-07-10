@@ -5,6 +5,22 @@ description: Scene scaffold for guarantee.checkout.billing.view-billing-state.12
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - View Billing State opens the canonical @treeseed/market full page form workflow.
+    - View Billing State exercises a service journey instead of only loading /checkout/seed-checkout.
+    - View Billing State records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
+  producesState:
+    - key: billing.primary
+      kind: custom
+  consumesState:
+    - key: team.primary
+      kind: team
+    - key: subscription.primary
+      kind: custom
 mode:
   test: true
   demo: true
@@ -52,10 +68,15 @@ workflow:
   - id: open-entry-route
     title: Open View Billing State
     action:
-      goto: /checkout/view-billing-state
+      goto: /checkout/seed-checkout
     expect:
-      urlIncludes: /checkout/view-billing-state
-    demoOnly: true
+      urlIncludes: /checkout/seed-checkout
+  - id: inspect-service-surface
+    title: Inspect View Billing State service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /checkout/seed-checkout
 chapters: []
 overlays: []
 diagrams: []

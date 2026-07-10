@@ -6,7 +6,7 @@ subtype: knowledge-pack
 journey: Acquire Knowledge Pack
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Acquire Knowledge Pack.
-status: planned
+status: active
 dependencies:
   journeys:
     - 100
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /marketplace/acquire-knowledge-pack
-  componentContract: record-action guarantee harness
+  entryRoute: /market/knowledge-packs/seed-pack
+  componentContract: record-action service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.marketplace.knowledge-pack.acquire-knowledge-pack.api
+    - market.marketplace.knowledge-pack.acquire-knowledge-pack.api
 content:
   required: true
   verifierRefs:
-    - todo.marketplace.knowledge-pack.acquire-knowledge-pack.content
+    - market.marketplace.knowledge-pack.acquire-knowledge-pack.content
 audit:
   required: true
   verifierRefs:
-    - todo.marketplace.knowledge-pack.acquire-knowledge-pack.audit
+    - market.marketplace.knowledge-pack.acquire-knowledge-pack.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.marketplace.knowledge-pack.acquire-knowledge-pack.negative
+      - market.marketplace.knowledge-pack.acquire-knowledge-pack.negative
 evidence:
   required:
     - playwright_trace

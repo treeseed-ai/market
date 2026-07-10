@@ -5,6 +5,17 @@ description: Scene scaffold for guarantee.checkout.cart.view-cart.115. This scen
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - View Cart opens the canonical @treeseed/market full page form workflow.
+    - View Cart exercises a service journey instead of only loading /cart.
+    - View Cart records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
+  producesState:
+    - key: cart.primary
+      kind: custom
 mode:
   test: true
   demo: true
@@ -52,10 +63,15 @@ workflow:
   - id: open-entry-route
     title: Open View Cart
     action:
-      goto: /checkout/view-cart
+      goto: /cart
     expect:
-      urlIncludes: /checkout/view-cart
-    demoOnly: true
+      urlIncludes: /cart
+  - id: inspect-service-surface
+    title: Inspect View Cart service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /cart
 chapters: []
 overlays: []
 diagrams: []

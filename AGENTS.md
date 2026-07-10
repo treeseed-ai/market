@@ -40,6 +40,7 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 - `@treeseed/agent`: processing runtime, provider API, provider manager, provider runner, worker runtime, AgentKernel execution, mode scheduling, built-in handlers, agent testing harnesses, provider-local capacity enforcement, runtime images/templates, and runtime support modules
 - `@treeseed/api`: Treeseed backend API, package-local backend `treeseed.site.yaml`, Treeseed PostgreSQL adapter, migrations, operation lifecycle, route descriptors, and Treeseed operations runner
 - `@treeseed/cli`: operator and developer CLI workflows
+- `@treeseed/reviewer`: local-only guarantee run review UI, screenshot/log triage, reviewer notes, evidence bundling, and AI-agent workplan generation
 - `packages/treedx`: TreeDX implementation and Docker Hub release image used by Treeseed-hosted TreeDX bootstrap and related platform workflows
 
 ## TreeSeed Content Model Rule
@@ -75,6 +76,7 @@ Agents and operations must use TreeDX-backed content operations for real content
 - `market` may consume public exports from `admin`, `core`, `ui`, and `sdk`, and may call API behavior through HTTP/proxy/client surfaces; it must not import backend implementation from `api`.
 - `api` may depend on `sdk`; it must not import root/admin/core UI implementation.
 - `cli` may depend on `sdk`, `core`, and narrow public surfaces from `agent` when command execution requires them.
+- `reviewer` may depend on `cli`, `sdk`, and `ui`; it must remain local-only and must not own guarantee execution, scene execution, release gates, provider orchestration, or hosted control-plane behavior.
 - `agent` may depend on `sdk`; it must not depend on `core`, `admin`, root market, or `api` implementation.
 - `treedx` remains product-neutral and must not encode Treeseed product semantics.
 - Shared fixture references do not imply package ownership.

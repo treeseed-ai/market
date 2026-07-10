@@ -6,7 +6,7 @@ subtype: subscription
 journey: Manage Subscription
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Manage Subscription.
-status: planned
+status: active
 dependencies:
   journeys:
     - 118
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /checkout/manage-subscription
-  componentContract: record-operations guarantee harness
+  entryRoute: /checkout/seed-checkout
+  componentContract: record-operations service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.checkout.subscription.manage-subscription.api
+    - market.checkout.subscription.manage-subscription.api
 content:
   required: false
   verifierRefs:
-    - todo.checkout.subscription.manage-subscription.content
+    - market.checkout.subscription.manage-subscription.content
 audit:
   required: true
   verifierRefs:
-    - todo.checkout.subscription.manage-subscription.audit
+    - market.checkout.subscription.manage-subscription.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.checkout.subscription.manage-subscription.negative
+      - market.checkout.subscription.manage-subscription.negative
 evidence:
   required:
     - playwright_trace

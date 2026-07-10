@@ -6,7 +6,7 @@ subtype: request
 journey: View Service Request
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for View Service Request.
-status: planned
+status: active
 dependencies:
   journeys:
     - 121
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /services/view-service-request
-  componentContract: dashboard/read-model guarantee harness
+  entryRoute: /services/seed-request
+  componentContract: dashboard/read-model service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.service.request.view-service-request.api
+    - market.service.request.view-service-request.api
 content:
   required: false
   verifierRefs:
-    - todo.service.request.view-service-request.content
+    - market.service.request.view-service-request.content
 audit:
   required: true
   verifierRefs:
-    - todo.service.request.view-service-request.audit
+    - market.service.request.view-service-request.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.service.request.view-service-request.negative
+      - market.service.request.view-service-request.negative
 evidence:
   required:
     - playwright_trace

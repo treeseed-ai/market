@@ -6,7 +6,7 @@ subtype: inquiry
 journey: Submit Capacity Inquiry
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Submit Capacity Inquiry.
-status: planned
+status: active
 dependencies:
   journeys:
     - 128
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /capacity/submit-capacity-inquiry
-  componentContract: full-page-form guarantee harness
+  entryRoute: /capacity/seed-capacity-provider
+  componentContract: full-page-form service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.capacity-discovery.inquiry.submit-capacity-inquiry.api
+    - market.capacity-discovery.inquiry.submit-capacity-inquiry.api
 content:
   required: false
   verifierRefs:
-    - todo.capacity-discovery.inquiry.submit-capacity-inquiry.content
+    - market.capacity-discovery.inquiry.submit-capacity-inquiry.content
 audit:
   required: true
   verifierRefs:
-    - todo.capacity-discovery.inquiry.submit-capacity-inquiry.audit
+    - market.capacity-discovery.inquiry.submit-capacity-inquiry.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.capacity-discovery.inquiry.submit-capacity-inquiry.negative
+      - market.capacity-discovery.inquiry.submit-capacity-inquiry.negative
 evidence:
   required:
     - playwright_trace

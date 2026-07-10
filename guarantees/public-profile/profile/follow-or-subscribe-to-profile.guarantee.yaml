@@ -6,7 +6,7 @@ subtype: profile
 journey: Follow Or Subscribe To Profile
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Follow Or Subscribe To Profile.
-status: planned
+status: active
 dependencies:
   journeys:
     - 95
@@ -37,8 +37,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /u/:username/follow-or-subscribe-to-profile
-  componentContract: record-action guarantee harness
+  entryRoute: /app/account
+  componentContract: record-action service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -48,20 +48,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.public-profile.profile.follow-or-subscribe-to-profile.api
+    - market.public-profile.profile.follow-or-subscribe-to-profile.api
 content:
   required: false
   verifierRefs:
-    - todo.public-profile.profile.follow-or-subscribe-to-profile.content
+    - market.public-profile.profile.follow-or-subscribe-to-profile.content
 audit:
   required: true
   verifierRefs:
-    - todo.public-profile.profile.follow-or-subscribe-to-profile.audit
+    - market.public-profile.profile.follow-or-subscribe-to-profile.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: anonymous_user
     verifierRefs:
-      - todo.public-profile.profile.follow-or-subscribe-to-profile.negative
+      - market.public-profile.profile.follow-or-subscribe-to-profile.negative
 evidence:
   required:
     - playwright_trace

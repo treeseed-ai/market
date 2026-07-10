@@ -5,6 +5,20 @@ description: Scene scaffold for guarantee.service.quote.approve-service-quote.12
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Approve Service Quote opens the canonical @treeseed/market record action workflow.
+    - Approve Service Quote exercises a service journey instead of only loading /services/seed-request.
+    - Approve Service Quote records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
+  producesState:
+    - key: service-quote.approved
+      kind: custom
+  consumesState:
+    - key: service-quote.primary
+      kind: custom
 mode:
   test: true
   demo: true
@@ -52,10 +66,15 @@ workflow:
   - id: open-entry-route
     title: Open Approve Service Quote
     action:
-      goto: /services/approve-service-quote
+      goto: /services/seed-request
     expect:
-      urlIncludes: /services/approve-service-quote
-    demoOnly: true
+      urlIncludes: /services/seed-request
+  - id: inspect-service-surface
+    title: Inspect Approve Service Quote service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /services/seed-request
 chapters: []
 overlays: []
 diagrams: []

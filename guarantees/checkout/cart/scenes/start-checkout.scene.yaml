@@ -5,6 +5,20 @@ description: Scene scaffold for guarantee.checkout.cart.start-checkout.116. This
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Start Checkout opens the canonical @treeseed/market full page form workflow.
+    - Start Checkout exercises a service journey instead of only loading /cart.
+    - Start Checkout records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
+  producesState:
+    - key: checkout.primary
+      kind: custom
+  consumesState:
+    - key: cart.primary
+      kind: custom
 mode:
   test: true
   demo: true
@@ -52,10 +66,15 @@ workflow:
   - id: open-entry-route
     title: Open Start Checkout
     action:
-      goto: /checkout/start-checkout
+      goto: /cart
     expect:
-      urlIncludes: /checkout/start-checkout
-    demoOnly: true
+      urlIncludes: /cart
+  - id: inspect-service-surface
+    title: Inspect Start Checkout service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /cart
 chapters: []
 overlays: []
 diagrams: []

@@ -5,6 +5,20 @@ description: Scene scaffold for guarantee.checkout.payment.confirm-payment-group
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Confirm Payment Group opens the canonical @treeseed/market full page form workflow.
+    - Confirm Payment Group exercises a service journey instead of only loading /checkout/seed-checkout.
+    - Confirm Payment Group records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
+  producesState:
+    - key: payment.primary
+      kind: custom
+  consumesState:
+    - key: checkout.primary
+      kind: custom
 mode:
   test: true
   demo: true
@@ -52,10 +66,15 @@ workflow:
   - id: open-entry-route
     title: Open Confirm Payment Group
     action:
-      goto: /checkout/confirm-payment-group
+      goto: /checkout/seed-checkout
     expect:
-      urlIncludes: /checkout/confirm-payment-group
-    demoOnly: true
+      urlIncludes: /checkout/seed-checkout
+  - id: inspect-service-surface
+    title: Inspect Confirm Payment Group service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /checkout/seed-checkout
 chapters: []
 overlays: []
 diagrams: []

@@ -6,7 +6,7 @@ subtype: profile
 journey: Set Profile Visibility
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Set Profile Visibility.
-status: planned
+status: active
 dependencies:
   journeys:
     - 95
@@ -37,8 +37,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /u/:username/set-profile-visibility
-  componentContract: full-page-form guarantee harness
+  entryRoute: /app/account
+  componentContract: full-page-form service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -48,20 +48,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.public-profile.profile.set-profile-visibility.api
+    - market.public-profile.profile.set-profile-visibility.api
 content:
   required: false
   verifierRefs:
-    - todo.public-profile.profile.set-profile-visibility.content
+    - market.public-profile.profile.set-profile-visibility.content
 audit:
   required: true
   verifierRefs:
-    - todo.public-profile.profile.set-profile-visibility.audit
+    - market.public-profile.profile.set-profile-visibility.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: anonymous_user
     verifierRefs:
-      - todo.public-profile.profile.set-profile-visibility.negative
+      - market.public-profile.profile.set-profile-visibility.negative
 evidence:
   required:
     - playwright_trace

@@ -1,0 +1,115 @@
+name: Treeseed Staging Candidate
+
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+
+concurrency:
+  group: treeseed-staging-candidate
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  prove-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: staging
+    env:
+      CI: "true"
+      TREESEED_WORKFLOW_ENVIRONMENT: staging
+      TREESEED_AGENT_GUARANTEE_EXECUTION_PROVIDER: mock
+      TREESEED_GITHUB_TOKEN: ${{ secrets.TREESEED_GITHUB_TOKEN }}
+      TREESEED_RAILWAY_API_TOKEN: ${{ secrets.TREESEED_RAILWAY_API_TOKEN }}
+      TREESEED_CLOUDFLARE_API_TOKEN: ${{ secrets.TREESEED_CLOUDFLARE_API_TOKEN }}
+      TREESEED_CLOUDFLARE_ACCOUNT_ID: ${{ vars.TREESEED_CLOUDFLARE_ACCOUNT_ID }}
+      TREESEED_ACCEPTANCE_SERVICE_ID: ${{ vars.TREESEED_ACCEPTANCE_SERVICE_ID || vars.TREESEED_WEB_SERVICE_ID || 'web' }}
+      TREESEED_ACCEPTANCE_SERVICE_SECRET: ${{ secrets.TREESEED_ACCEPTANCE_SERVICE_SECRET || secrets.TREESEED_WEB_SERVICE_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.12.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install integrated workspace
+        timeout-minutes: 20
+        run: |
+          npx --yes tsx ./.github/scripts/prepare-workspace-install.ts
+          npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build candidate packages
+        run: |
+          npm -w packages/sdk run build:dist
+          npm -w packages/ui run build:dist
+          npm -w packages/core run build:dist
+          npm -w packages/admin run build:dist
+          npm -w packages/agent run build:dist
+          npm -w packages/cli run build:dist
+          npm -w packages/reviewer run build:dist
+          npm -w packages/api run build:dist
+      - name: Verify candidate source
+        run: |
+          npm run check
+          npm run test:unit
+          node packages/cli/dist/cli/main.js guarantees validate --json
+          node packages/cli/dist/cli/main.js guarantees audit-journeys --json
+      - name: Build immutable npm artifacts
+        run: |
+          for package_dir in sdk ui core admin agent cli reviewer; do
+            node packages/cli/dist/cli/main.js package artifact build \
+              --package-root "packages/${package_dir}" \
+              --output ".treeseed/artifacts/packages/${package_dir}" \
+              --json
+          done
+      - name: Reconcile and verify staging
+        run: |
+          node packages/cli/dist/cli/main.js hosting plan --environment staging --app api --json
+          node packages/cli/dist/cli/main.js hosting apply --environment staging --app api --json
+          node packages/cli/dist/cli/main.js hosting verify --environment staging --app api --live --json
+          node packages/cli/dist/cli/main.js hosting plan --environment staging --app web --json
+          node packages/cli/dist/cli/main.js hosting apply --environment staging --app web --json
+          node packages/cli/dist/cli/main.js hosting verify --environment staging --app web --live --json
+      - name: Install scene browser
+        run: npx playwright install --with-deps chromium
+      - name: Run complete staging guarantees
+        run: |
+          mkdir -p .treeseed/workflow/stage-candidates
+          node packages/cli/dist/cli/main.js guarantees run \
+            --environment staging \
+            --scene-artifacts screenshots \
+            --json > .treeseed/workflow/stage-candidates/guarantee-run.json
+      - name: Write candidate attestation
+        run: |
+          node --input-type=module <<'NODE'
+          import {createHash} from 'node:crypto';
+          import {execFileSync} from 'node:child_process';
+          import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
+          const rootSha = execFileSync('git', ['rev-parse', 'HEAD'], {encoding: 'utf8'}).trim();
+          const paths = execFileSync('git', ['config', '--file', '.gitmodules', '--get-regexp', 'path'], {encoding: 'utf8'}).trim().split('\n').filter(Boolean).map((line) => line.trim().split(/\s+/).at(-1)).sort();
+          const submodules = paths.map((path) => `${path}:${execFileSync('git', ['rev-parse', `HEAD:${path}`], {encoding: 'utf8'}).trim()}`);
+          const candidateId = createHash('sha256').update(JSON.stringify({rootSha, submodules})).digest('hex');
+          const report = JSON.parse(readFileSync('.treeseed/workflow/stage-candidates/guarantee-run.json', 'utf8'));
+          const counts = report.payload?.counts ?? report.counts;
+          if (!counts || counts.passed !== 208 || counts.failed !== 0 || counts.blocked !== 0 || counts.skipped !== 0 || counts.releaseBlockingFailures !== 0) process.exit(1);
+          const attestation = {schemaVersion: 1, kind: 'treeseed.stage-candidate-attestation', candidateId, rootSha, submodules, createdAt: new Date().toISOString(), environment: 'staging', status: 'passed', guaranteeRunId: report.payload?.runId ?? report.runId, counts};
+          mkdirSync('.treeseed/workflow/stage-candidates', {recursive: true});
+          writeFileSync('.treeseed/workflow/stage-candidates/latest.attestation.json', `${JSON.stringify(attestation, null, 2)}\n`);
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: treeseed-staging-candidate-${{ github.sha }}
+          path: |
+            .treeseed/artifacts/packages/**
+            .treeseed/workflow/stage-candidates/**
+            .treeseed/guarantees/**
+          if-no-files-found: error
+          retention-days: 30

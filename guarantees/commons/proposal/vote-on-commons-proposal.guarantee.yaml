@@ -6,7 +6,7 @@ subtype: proposal
 journey: Vote On Commons Proposal
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Vote On Commons Proposal.
-status: planned
+status: active
 dependencies:
   journeys:
     - 135
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /commons/proposal/vote-on-commons-proposal
-  componentContract: record-action guarantee harness
+  entryRoute: /commons/proposals/seed-proposal
+  componentContract: record-action service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.commons.proposal.vote-on-commons-proposal.api
+    - market.commons.proposal.vote-on-commons-proposal.api
 content:
   required: true
   verifierRefs:
-    - todo.commons.proposal.vote-on-commons-proposal.content
+    - market.commons.proposal.vote-on-commons-proposal.content
 audit:
   required: true
   verifierRefs:
-    - todo.commons.proposal.vote-on-commons-proposal.audit
+    - market.commons.proposal.vote-on-commons-proposal.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: anonymous_user
     verifierRefs:
-      - todo.commons.proposal.vote-on-commons-proposal.negative
+      - market.commons.proposal.vote-on-commons-proposal.negative
 evidence:
   required:
     - playwright_trace

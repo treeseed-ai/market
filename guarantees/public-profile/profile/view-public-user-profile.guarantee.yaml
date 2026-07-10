@@ -6,7 +6,7 @@ subtype: profile
 journey: View Public User Profile
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for View Public User Profile.
-status: planned
+status: active
 dependencies:
   journeys: []
   guarantees: []
@@ -34,8 +34,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /u/:username/view-public-user-profile
-  componentContract: dashboard/read-model guarantee harness
+  entryRoute: /app/account
+  componentContract: dashboard/read-model service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -45,20 +45,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.public-profile.profile.view-public-user-profile.api
+    - market.public-profile.profile.view-public-user-profile.api
 content:
   required: false
   verifierRefs:
-    - todo.public-profile.profile.view-public-user-profile.content
+    - market.public-profile.profile.view-public-user-profile.content
 audit:
   required: true
   verifierRefs:
-    - todo.public-profile.profile.view-public-user-profile.audit
+    - market.public-profile.profile.view-public-user-profile.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: anonymous_user
     verifierRefs:
-      - todo.public-profile.profile.view-public-user-profile.negative
+      - market.public-profile.profile.view-public-user-profile.negative
 evidence:
   required:
     - playwright_trace

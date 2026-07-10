@@ -5,6 +5,22 @@ description: Scene scaffold for guarantee.service.checkout.checkout-service-cont
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Checkout Service Contract opens the canonical @treeseed/market full page form workflow.
+    - Checkout Service Contract exercises a service journey instead of only loading /services/seed-request/checkout.
+    - Checkout Service Contract records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
+  producesState:
+    - key: service-contract.primary
+      kind: custom
+  consumesState:
+    - key: service-quote.approved
+      kind: custom
+    - key: service-request.primary
+      kind: custom
 mode:
   test: true
   demo: true
@@ -52,10 +68,15 @@ workflow:
   - id: open-entry-route
     title: Open Checkout Service Contract
     action:
-      goto: /services/checkout-service-contract
+      goto: /services/seed-request/checkout
     expect:
-      urlIncludes: /services/checkout-service-contract
-    demoOnly: true
+      urlIncludes: /services/seed-request
+  - id: inspect-service-surface
+    title: Inspect Checkout Service Contract service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /services/seed-request
 chapters: []
 overlays: []
 diagrams: []

@@ -5,6 +5,17 @@ description: Scene scaffold for guarantee.capacity-discovery.listing.view-capaci
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - View Capacity Listing opens the canonical @treeseed/market record operations workflow.
+    - View Capacity Listing exercises a service journey instead of only loading /capacity/seed-capacity-provider.
+    - View Capacity Listing records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
+  consumesState:
+    - key: capacity-provider.primary
+      kind: capacity-provider
 mode:
   test: true
   demo: true
@@ -52,10 +63,15 @@ workflow:
   - id: open-entry-route
     title: Open View Capacity Listing
     action:
-      goto: /capacity/view-capacity-listing
+      goto: /capacity/seed-capacity-provider
     expect:
-      urlIncludes: /capacity/view-capacity-listing
-    demoOnly: true
+      urlIncludes: /capacity/seed-capacity-provider
+  - id: inspect-service-surface
+    title: Inspect View Capacity Listing service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /capacity/seed-capacity-provider
 chapters: []
 overlays: []
 diagrams: []

@@ -6,7 +6,7 @@ subtype: question
 journey: Answer Commons Question
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Answer Commons Question.
-status: planned
+status: active
 dependencies:
   journeys:
     - 133
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /commons/question/answer-commons-question
-  componentContract: inline-form/search-panel guarantee harness
+  entryRoute: /commons
+  componentContract: inline-form/search-panel service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.commons.question.answer-commons-question.api
+    - market.commons.question.answer-commons-question.api
 content:
   required: true
   verifierRefs:
-    - todo.commons.question.answer-commons-question.content
+    - market.commons.question.answer-commons-question.content
 audit:
   required: true
   verifierRefs:
-    - todo.commons.question.answer-commons-question.audit
+    - market.commons.question.answer-commons-question.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: anonymous_user
     verifierRefs:
-      - todo.commons.question.answer-commons-question.negative
+      - market.commons.question.answer-commons-question.negative
 evidence:
   required:
     - playwright_trace

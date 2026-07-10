@@ -6,7 +6,7 @@ subtype: payment
 journey: Confirm Payment Group
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Confirm Payment Group.
-status: planned
+status: active
 dependencies:
   journeys:
     - 116
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /checkout/confirm-payment-group
-  componentContract: record-action guarantee harness
+  entryRoute: /checkout/seed-checkout
+  componentContract: record-action service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.checkout.payment.confirm-payment-group.api
+    - market.checkout.payment.confirm-payment-group.api
 content:
   required: false
   verifierRefs:
-    - todo.checkout.payment.confirm-payment-group.content
+    - market.checkout.payment.confirm-payment-group.content
 audit:
   required: true
   verifierRefs:
-    - todo.checkout.payment.confirm-payment-group.audit
+    - market.checkout.payment.confirm-payment-group.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.checkout.payment.confirm-payment-group.negative
+      - market.checkout.payment.confirm-payment-group.negative
 evidence:
   required:
     - playwright_trace

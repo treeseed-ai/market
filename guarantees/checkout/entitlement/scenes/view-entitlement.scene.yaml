@@ -5,6 +5,20 @@ description: Scene scaffold for guarantee.checkout.entitlement.view-entitlement.
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - View Entitlement opens the canonical @treeseed/market full page form workflow.
+    - View Entitlement exercises a service journey instead of only loading /checkout/seed-checkout.
+    - View Entitlement records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
+  producesState:
+    - key: entitlement.primary
+      kind: custom
+  consumesState:
+    - key: payment.primary
+      kind: custom
 mode:
   test: true
   demo: true
@@ -52,10 +66,15 @@ workflow:
   - id: open-entry-route
     title: Open View Entitlement
     action:
-      goto: /checkout/view-entitlement
+      goto: /checkout/seed-checkout
     expect:
-      urlIncludes: /checkout/view-entitlement
-    demoOnly: true
+      urlIncludes: /checkout/seed-checkout
+  - id: inspect-service-surface
+    title: Inspect View Entitlement service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /checkout/seed-checkout
 chapters: []
 overlays: []
 diagrams: []

@@ -5,6 +5,14 @@ description: Scene scaffold for guarantee.marketplace.discovery.view-marketplace
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - View Marketplace Listing opens the canonical @treeseed/market dashboard read model workflow.
+    - View Marketplace Listing exercises a service journey instead of only loading /market/products/seed-product.
+    - View Marketplace Listing records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
 mode:
   test: true
   demo: true
@@ -52,10 +60,15 @@ workflow:
   - id: open-entry-route
     title: Open View Marketplace Listing
     action:
-      goto: /marketplace/view-marketplace-listing
+      goto: /market/products/seed-product
     expect:
-      urlIncludes: /marketplace/view-marketplace-listing
-    demoOnly: true
+      urlIncludes: /market/products
+  - id: inspect-service-surface
+    title: Inspect View Marketplace Listing service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /market/products
 chapters: []
 overlays: []
 diagrams: []

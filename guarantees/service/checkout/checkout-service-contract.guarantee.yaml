@@ -6,7 +6,7 @@ subtype: checkout
 journey: Checkout Service Contract
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Checkout Service Contract.
-status: planned
+status: active
 dependencies:
   journeys:
     - 124
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /services/checkout-service-contract
-  componentContract: record-action guarantee harness
+  entryRoute: /services/seed-request/checkout
+  componentContract: record-action service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.service.checkout.checkout-service-contract.api
+    - market.service.checkout.checkout-service-contract.api
 content:
   required: false
   verifierRefs:
-    - todo.service.checkout.checkout-service-contract.content
+    - market.service.checkout.checkout-service-contract.content
 audit:
   required: true
   verifierRefs:
-    - todo.service.checkout.checkout-service-contract.audit
+    - market.service.checkout.checkout-service-contract.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.service.checkout.checkout-service-contract.negative
+      - market.service.checkout.checkout-service-contract.negative
 evidence:
   required:
     - playwright_trace

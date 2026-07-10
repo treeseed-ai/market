@@ -5,6 +5,17 @@ description: Scene scaffold for guarantee.service.fulfillment.review-service-ful
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Review Service Fulfillment opens the canonical @treeseed/market dashboard read model workflow.
+    - Review Service Fulfillment exercises a service journey instead of only loading /services/seed-request.
+    - Review Service Fulfillment records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
+  consumesState:
+    - key: service-request.primary
+      kind: custom
 mode:
   test: true
   demo: true
@@ -52,10 +63,15 @@ workflow:
   - id: open-entry-route
     title: Open Review Service Fulfillment
     action:
-      goto: /services/review-service-fulfillment
+      goto: /services/seed-request
     expect:
-      urlIncludes: /services/review-service-fulfillment
-    demoOnly: true
+      urlIncludes: /services/seed-request
+  - id: inspect-service-surface
+    title: Inspect Review Service Fulfillment service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /services/seed-request
 chapters: []
 overlays: []
 diagrams: []

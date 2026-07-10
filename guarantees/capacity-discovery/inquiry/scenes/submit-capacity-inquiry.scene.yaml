@@ -5,6 +5,17 @@ description: Scene scaffold for guarantee.capacity-discovery.inquiry.submit-capa
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Submit Capacity Inquiry opens the canonical @treeseed/market record action workflow.
+    - Submit Capacity Inquiry exercises a service journey instead of only loading /capacity/seed-capacity-provider.
+    - Submit Capacity Inquiry records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
+  consumesState:
+    - key: capacity-provider.primary
+      kind: capacity-provider
 mode:
   test: true
   demo: true
@@ -52,10 +63,15 @@ workflow:
   - id: open-entry-route
     title: Open Submit Capacity Inquiry
     action:
-      goto: /capacity/submit-capacity-inquiry
+      goto: /capacity/seed-capacity-provider
     expect:
-      urlIncludes: /capacity/submit-capacity-inquiry
-    demoOnly: true
+      urlIncludes: /capacity/seed-capacity-provider
+  - id: inspect-service-surface
+    title: Inspect Submit Capacity Inquiry service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /capacity/seed-capacity-provider
 chapters: []
 overlays: []
 diagrams: []

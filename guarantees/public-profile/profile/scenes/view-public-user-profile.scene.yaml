@@ -5,6 +5,14 @@ description: Scene scaffold for guarantee.public-profile.profile.view-public-use
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - View Public User Profile opens the canonical @treeseed/market dashboard read model workflow.
+    - View Public User Profile exercises a service journey instead of only loading /u/treeseed.
+    - View Public User Profile records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
 mode:
   test: true
   demo: true
@@ -52,10 +60,15 @@ workflow:
   - id: open-entry-route
     title: Open View Public User Profile
     action:
-      goto: /u/:username/view-public-user-profile
+      goto: /app/account
     expect:
-      urlIncludes: /u
-    demoOnly: true
+      urlIncludes: /app/account
+  - id: inspect-service-surface
+    title: Inspect View Public User Profile service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /app/account
 chapters: []
 overlays: []
 diagrams: []

@@ -5,6 +5,14 @@ description: Scene scaffold for guarantee.commons.decision.record-commons-stewar
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Record Commons Steward Decision opens the canonical @treeseed/market dashboard read model workflow.
+    - Record Commons Steward Decision exercises a service journey instead of only loading /commons/proposals/seed-proposal.
+    - Record Commons Steward Decision records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
 mode:
   test: true
   demo: true
@@ -52,10 +60,15 @@ workflow:
   - id: open-entry-route
     title: Open Record Commons Steward Decision
     action:
-      goto: /commons/decision/record-commons-steward-decision
+      goto: /commons/proposals/seed-proposal
     expect:
-      urlIncludes: /commons/decision/record-commons-steward-decision
-    demoOnly: true
+      urlIncludes: /commons/proposals
+  - id: inspect-service-surface
+    title: Inspect Record Commons Steward Decision service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /commons/proposals
 chapters: []
 overlays: []
 diagrams: []

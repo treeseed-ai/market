@@ -6,7 +6,7 @@ subtype: entitlement
 journey: View Entitlement
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for View Entitlement.
-status: planned
+status: active
 dependencies:
   journeys:
     - 117
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /checkout/view-entitlement
-  componentContract: dashboard/read-model guarantee harness
+  entryRoute: /checkout/seed-checkout
+  componentContract: dashboard/read-model service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.checkout.entitlement.view-entitlement.api
+    - market.checkout.entitlement.view-entitlement.api
 content:
   required: false
   verifierRefs:
-    - todo.checkout.entitlement.view-entitlement.content
+    - market.checkout.entitlement.view-entitlement.content
 audit:
   required: true
   verifierRefs:
-    - todo.checkout.entitlement.view-entitlement.audit
+    - market.checkout.entitlement.view-entitlement.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.checkout.entitlement.view-entitlement.negative
+      - market.checkout.entitlement.view-entitlement.negative
 evidence:
   required:
     - playwright_trace

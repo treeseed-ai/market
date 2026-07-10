@@ -66,6 +66,8 @@ Local authenticated visual audits seed owner, admin, and member fixtures through
 
    Every run emits machine-readable and human-readable reports. Reports link failures to step id, selector, screenshot, trace segment, console logs, network events, app logs, and any relevant Treeseed operation id.
 
+   Guarantee-backed service journeys include full-page screenshots for every executed step in the guarantee result evidence. Viewport captures are debug/render fallback artifacts and should not be surfaced as primary reviewer screenshots.
+
 9. **No Provider Mutation Outside Canonical Systems**
 
    Scene setup may request local dev, seeds, auth, readiness checks, staging smoke, or operation polling through existing `trsd` workflows and SDK services. It must not directly mutate Railway, Cloudflare, GitHub, Docker, provider config, or secret state outside canonical Treeseed commands.
@@ -73,6 +75,10 @@ Local authenticated visual audits seed owner, admin, and member fixtures through
 10. **Video Rendering Is Downstream Of Evidence**
 
     Playwright execution emits a normalized timeline. Remotion consumes that timeline and selected media artifacts. Rendering must be reproducible without rerunning the browser workflow when artifacts are present.
+
+11. **Guarantee Dependencies Are Execution Semantics**
+
+    Guarantee planning uses a dependency graph, not a display sort. `dependencies.guarantees`, `dependencies.journeys`, verifier-based dependencies, implicit authenticated app dependencies, and scene state producer/consumer links order execution. Failed prerequisites block dependents before browser or verifier execution.
 
 ## Package Ownership
 

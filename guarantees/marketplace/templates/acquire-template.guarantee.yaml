@@ -6,7 +6,7 @@ subtype: templates
 journey: Acquire Template
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Acquire Template.
-status: planned
+status: active
 dependencies:
   journeys:
     - 100
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /marketplace/acquire-template
-  componentContract: record-action guarantee harness
+  entryRoute: /market/templates/engineering
+  componentContract: record-action service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.marketplace.templates.acquire-template.api
+    - market.marketplace.templates.acquire-template.api
 content:
   required: true
   verifierRefs:
-    - todo.marketplace.templates.acquire-template.content
+    - market.marketplace.templates.acquire-template.content
 audit:
   required: true
   verifierRefs:
-    - todo.marketplace.templates.acquire-template.audit
+    - market.marketplace.templates.acquire-template.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.marketplace.templates.acquire-template.negative
+      - market.marketplace.templates.acquire-template.negative
 evidence:
   required:
     - playwright_trace

@@ -5,6 +5,20 @@ description: Scene scaffold for guarantee.service.quote.create-service-quote.123
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Create Service Quote opens the canonical @treeseed/market full page form workflow.
+    - Create Service Quote exercises a service journey instead of only loading /services/seed-request.
+    - Create Service Quote records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
+  producesState:
+    - key: service-quote.primary
+      kind: custom
+  consumesState:
+    - key: service-request.primary
+      kind: custom
 mode:
   test: true
   demo: true
@@ -52,10 +66,15 @@ workflow:
   - id: open-entry-route
     title: Open Create Service Quote
     action:
-      goto: /services/create-service-quote
+      goto: /services/seed-request
     expect:
-      urlIncludes: /services/create-service-quote
-    demoOnly: true
+      urlIncludes: /services/seed-request
+  - id: inspect-service-surface
+    title: Inspect Create Service Quote service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /services/seed-request
 chapters: []
 overlays: []
 diagrams: []

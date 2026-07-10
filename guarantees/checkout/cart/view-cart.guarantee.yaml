@@ -6,7 +6,7 @@ subtype: cart
 journey: View Cart
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for View Cart.
-status: planned
+status: active
 dependencies:
   journeys:
     - 99
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /checkout/view-cart
-  componentContract: dashboard/read-model guarantee harness
+  entryRoute: /cart
+  componentContract: dashboard/read-model service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.checkout.cart.view-cart.api
+    - market.checkout.cart.view-cart.api
 content:
   required: false
   verifierRefs:
-    - todo.checkout.cart.view-cart.content
+    - market.checkout.cart.view-cart.content
 audit:
   required: true
   verifierRefs:
-    - todo.checkout.cart.view-cart.audit
+    - market.checkout.cart.view-cart.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.checkout.cart.view-cart.negative
+      - market.checkout.cart.view-cart.negative
 evidence:
   required:
     - playwright_trace

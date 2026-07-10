@@ -6,7 +6,7 @@ subtype: billing
 journey: View Billing State
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for View Billing State.
-status: planned
+status: active
 dependencies:
   journeys:
     - 118
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /checkout/view-billing-state
-  componentContract: dashboard/read-model guarantee harness
+  entryRoute: /checkout/seed-checkout
+  componentContract: dashboard/read-model service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.checkout.billing.view-billing-state.api
+    - market.checkout.billing.view-billing-state.api
 content:
   required: false
   verifierRefs:
-    - todo.checkout.billing.view-billing-state.content
+    - market.checkout.billing.view-billing-state.content
 audit:
   required: true
   verifierRefs:
-    - todo.checkout.billing.view-billing-state.audit
+    - market.checkout.billing.view-billing-state.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.checkout.billing.view-billing-state.negative
+      - market.checkout.billing.view-billing-state.negative
 evidence:
   required:
     - playwright_trace

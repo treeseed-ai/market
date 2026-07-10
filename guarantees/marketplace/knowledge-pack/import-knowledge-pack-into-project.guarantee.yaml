@@ -6,7 +6,7 @@ subtype: knowledge-pack
 journey: Import Knowledge Pack Into Project
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Import Knowledge Pack Into Project.
-status: planned
+status: active
 dependencies:
   journeys:
     - 104
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /marketplace/import-knowledge-pack-into-project
-  componentContract: full-page-form guarantee harness
+  entryRoute: /market/knowledge-packs/seed-pack
+  componentContract: full-page-form service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.marketplace.knowledge-pack.import-knowledge-pack-into-project.api
+    - market.marketplace.knowledge-pack.import-knowledge-pack-into-project.api
 content:
   required: true
   verifierRefs:
-    - todo.marketplace.knowledge-pack.import-knowledge-pack-into-project.content
+    - market.marketplace.knowledge-pack.import-knowledge-pack-into-project.content
 audit:
   required: true
   verifierRefs:
-    - todo.marketplace.knowledge-pack.import-knowledge-pack-into-project.audit
+    - market.marketplace.knowledge-pack.import-knowledge-pack-into-project.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.marketplace.knowledge-pack.import-knowledge-pack-into-project.negative
+      - market.marketplace.knowledge-pack.import-knowledge-pack-into-project.negative
 evidence:
   required:
     - playwright_trace

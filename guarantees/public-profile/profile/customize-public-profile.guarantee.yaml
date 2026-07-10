@@ -6,7 +6,7 @@ subtype: profile
 journey: Customize Public Profile
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Customize Public Profile.
-status: planned
+status: active
 dependencies:
   journeys:
     - 95
@@ -37,8 +37,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /u/:username/customize-public-profile
-  componentContract: full-page-form guarantee harness
+  entryRoute: /app/account
+  componentContract: full-page-form service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -48,20 +48,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.public-profile.profile.customize-public-profile.api
+    - market.public-profile.profile.customize-public-profile.api
 content:
   required: false
   verifierRefs:
-    - todo.public-profile.profile.customize-public-profile.content
+    - market.public-profile.profile.customize-public-profile.content
 audit:
   required: true
   verifierRefs:
-    - todo.public-profile.profile.customize-public-profile.audit
+    - market.public-profile.profile.customize-public-profile.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: anonymous_user
     verifierRefs:
-      - todo.public-profile.profile.customize-public-profile.negative
+      - market.public-profile.profile.customize-public-profile.negative
 evidence:
   required:
     - playwright_trace

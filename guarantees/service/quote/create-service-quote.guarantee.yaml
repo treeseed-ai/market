@@ -6,7 +6,7 @@ subtype: quote
 journey: Create Service Quote
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Create Service Quote.
-status: planned
+status: active
 dependencies:
   journeys:
     - 122
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /services/create-service-quote
-  componentContract: full-page-form guarantee harness
+  entryRoute: /services/seed-request
+  componentContract: full-page-form service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.service.quote.create-service-quote.api
+    - market.service.quote.create-service-quote.api
 content:
   required: false
   verifierRefs:
-    - todo.service.quote.create-service-quote.content
+    - market.service.quote.create-service-quote.content
 audit:
   required: true
   verifierRefs:
-    - todo.service.quote.create-service-quote.audit
+    - market.service.quote.create-service-quote.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.service.quote.create-service-quote.negative
+      - market.service.quote.create-service-quote.negative
 evidence:
   required:
     - playwright_trace

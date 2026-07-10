@@ -6,7 +6,7 @@ subtype: inquiry
 journey: Review Capacity Inquiry
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Review Capacity Inquiry.
-status: planned
+status: active
 dependencies:
   journeys:
     - 129
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /capacity/review-capacity-inquiry
-  componentContract: dashboard/read-model guarantee harness
+  entryRoute: /capacity/seed-capacity-provider
+  componentContract: dashboard/read-model service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.capacity-discovery.inquiry.review-capacity-inquiry.api
+    - market.capacity-discovery.inquiry.review-capacity-inquiry.api
 content:
   required: false
   verifierRefs:
-    - todo.capacity-discovery.inquiry.review-capacity-inquiry.content
+    - market.capacity-discovery.inquiry.review-capacity-inquiry.content
 audit:
   required: true
   verifierRefs:
-    - todo.capacity-discovery.inquiry.review-capacity-inquiry.audit
+    - market.capacity-discovery.inquiry.review-capacity-inquiry.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.capacity-discovery.inquiry.review-capacity-inquiry.negative
+      - market.capacity-discovery.inquiry.review-capacity-inquiry.negative
 evidence:
   required:
     - playwright_trace

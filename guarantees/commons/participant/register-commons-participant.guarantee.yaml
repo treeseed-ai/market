@@ -6,7 +6,7 @@ subtype: participant
 journey: Register Commons Participant
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Register Commons Participant.
-status: planned
+status: active
 dependencies:
   journeys: []
   guarantees: []
@@ -35,8 +35,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /commons/participant/register-commons-participant
-  componentContract: full-page-form guarantee harness
+  entryRoute: /commons
+  componentContract: full-page-form service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -46,20 +46,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.commons.participant.register-commons-participant.api
+    - market.commons.participant.register-commons-participant.api
 content:
   required: false
   verifierRefs:
-    - todo.commons.participant.register-commons-participant.content
+    - market.commons.participant.register-commons-participant.content
 audit:
   required: true
   verifierRefs:
-    - todo.commons.participant.register-commons-participant.audit
+    - market.commons.participant.register-commons-participant.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: anonymous_user
     verifierRefs:
-      - todo.commons.participant.register-commons-participant.negative
+      - market.commons.participant.register-commons-participant.negative
 evidence:
   required:
     - playwright_trace

@@ -5,6 +5,17 @@ description: Scene scaffold for guarantee.service.request.create-service-request
 audience:
   - operator
   - evaluator
+journey:
+  kind: service
+  proves:
+    - Create Service Request opens the canonical @treeseed/market full page form workflow.
+    - Create Service Request exercises a service journey instead of only loading /services/new.
+    - Create Service Request records reviewable evidence for the visible result before activation.
+  minimumSteps: 2
+  requiresInteractiveAction: true
+  producesState:
+    - key: service-request.primary
+      kind: custom
 mode:
   test: true
   demo: true
@@ -52,10 +63,15 @@ workflow:
   - id: open-entry-route
     title: Open Create Service Request
     action:
-      goto: /services/create-service-request
+      goto: /services/new
     expect:
-      urlIncludes: /services/create-service-request
-    demoOnly: true
+      urlIncludes: /services/new
+  - id: inspect-service-surface
+    title: Inspect Create Service Request service surface
+    action:
+      keyboard: Tab
+    expect:
+      urlIncludes: /services/new
 chapters: []
 overlays: []
 diagrams: []

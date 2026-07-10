@@ -6,7 +6,7 @@ subtype: listing
 journey: View Capacity Listing
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for View Capacity Listing.
-status: planned
+status: active
 dependencies:
   journeys:
     - 127
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /capacity/view-capacity-listing
-  componentContract: dashboard/read-model guarantee harness
+  entryRoute: /capacity/seed-capacity-provider
+  componentContract: dashboard/read-model service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.capacity-discovery.listing.view-capacity-listing.api
+    - market.capacity-discovery.listing.view-capacity-listing.api
 content:
   required: false
   verifierRefs:
-    - todo.capacity-discovery.listing.view-capacity-listing.content
+    - market.capacity-discovery.listing.view-capacity-listing.content
 audit:
   required: true
   verifierRefs:
-    - todo.capacity-discovery.listing.view-capacity-listing.audit
+    - market.capacity-discovery.listing.view-capacity-listing.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.capacity-discovery.listing.view-capacity-listing.negative
+      - market.capacity-discovery.listing.view-capacity-listing.negative
 evidence:
   required:
     - playwright_trace

@@ -2,8 +2,6 @@ name: Treeseed Market Deploy
 
 on:
   push:
-    branches:
-      - staging
     tags:
       - '*.*.*'
   workflow_dispatch:

@@ -6,7 +6,7 @@ subtype: request
 journey: Create Service Request
 ownerPackage: "@treeseed/market"
 summary: First-pass product guarantee for Create Service Request.
-status: planned
+status: active
 dependencies:
   journeys:
     - 99
@@ -38,8 +38,8 @@ scene:
     acceptance: true
     demo: true
     training: true
-  entryRoute: /services/create-service-request
-  componentContract: full-page-form guarantee harness
+  entryRoute: /services/new
+  componentContract: full-page-form service journey
   expectedEvidence:
     - playwright_trace
     - scene_video
@@ -49,20 +49,20 @@ scene:
 api:
   required: true
   verifierRefs:
-    - todo.service.request.create-service-request.api
+    - market.service.request.create-service-request.api
 content:
   required: false
   verifierRefs:
-    - todo.service.request.create-service-request.content
+    - market.service.request.create-service-request.content
 audit:
   required: true
   verifierRefs:
-    - todo.service.request.create-service-request.audit
+    - market.service.request.create-service-request.audit
 negativeCases:
   - id: unauthorized-actor-denied
     actor: unauthorized_user
     verifierRefs:
-      - todo.service.request.create-service-request.negative
+      - market.service.request.create-service-request.negative
 evidence:
   required:
     - playwright_trace
