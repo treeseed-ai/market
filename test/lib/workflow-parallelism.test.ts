@@ -9,18 +9,9 @@ function workflow(path: string) {
 describe('CI/CD parallelism workflows', () => {
 	it('keeps root deploy scoped to Cloudflare web and excludes backend API release jobs', () => {
 		const deploy = workflow('.github/workflows/deploy.yml');
-		const deployWeb = workflow('.github/workflows/deploy-web.yml');
-		expect(deploy.jobs).toHaveProperty('preflight');
-		expect(deploy.jobs).not.toHaveProperty('api-package-gate');
-		expect(deploy.jobs.preflight.needs).toEqual(['classify']);
-		expect(deploy.jobs['deploy-web'].needs).toEqual(['classify', 'preflight']);
-		expect(deploy.jobs['deploy-web'].if).toContain("needs.preflight.result == 'success'");
-		expect(JSON.stringify(deploy)).toContain('Backend/API package changes are released by the API package workflow');
-		expect(deployWeb.jobs.web.steps).toEqual(expect.arrayContaining([
-			expect.objectContaining({ name: 'Restore package dist cache' }),
-			expect.objectContaining({ name: 'Build package artifacts' }),
-		]));
-		expect(deployWeb.jobs.web.steps.find((step: any) => step.name === 'Build package artifacts')?.run).toContain('build:package-cache');
+		expect(Object.keys(deploy.jobs).sort()).toEqual(['deploy-production', 'deploy-staging', 'verify']);
+		expect(deploy.jobs['deploy-staging'].needs).toBe('verify');
+		expect(deploy.jobs['deploy-production'].needs).toBe('verify');
 		expect(deploy.jobs).not.toHaveProperty('runner-smoke');
 		expect(deploy.jobs).not.toHaveProperty('bootstrap-public-treedx');
 		expect(deploy.jobs).not.toHaveProperty('acceptance-prepare');
@@ -28,23 +19,20 @@ describe('CI/CD parallelism workflows', () => {
 		expect(JSON.stringify(deploy)).not.toContain('packages/api/scripts/api-acceptance.ts');
 		expect(JSON.stringify(deploy)).not.toContain('operations-runner-smoke.ts');
 		expect(JSON.stringify(deploy)).not.toContain('bootstrap-public-treedx.ts');
-		expect(deployWeb.jobs.web.env).not.toHaveProperty('RAILWAY_API_TOKEN');
-		expect(deployWeb.jobs.web.env).not.toHaveProperty('TREESEED_RAILWAY_WORKSPACE');
-		expect(deployWeb.jobs.web.env).not.toHaveProperty('TREESEED_RAILWAY_PROJECT_ID');
+		expect(JSON.stringify(deploy)).not.toContain('guarantees run');
+		expect(JSON.stringify(deploy)).not.toContain('TREESEED_RAILWAY_API_TOKEN');
 	});
 
-	it('builds deploy package artifacts in package dependency order before parallel leaf builds', () => {
-		const source = readFileSync('.github/workflows/deploy-web.yml', 'utf8');
-		expect(source).toContain('npm --prefix packages/sdk run build:dist');
-		expect(source).toContain('npm --prefix packages/ui run build:dist');
-		expect(source).toContain('npm --prefix packages/core run build:dist');
-		expect(source).toContain('npm --prefix packages/admin run build:dist');
-		expect(source).toContain('packages/ui/dist/astro/layouts/MainLayout.astro');
-		expect(source).toContain('packages/admin/dist/plugin.js');
-		expect(source).toContain('for dir in packages/cli packages/agent');
-		expect(source).toContain('pids["${dir}"]="$!"');
-		expect(source).toContain('wait "${pids[${dir}]}"');
-		expect(source).toContain('build:packages/cli-agent');
+	it('builds and verifies before either deployment target', () => {
+		const source = readFileSync('.github/workflows/deploy.yml', 'utf8');
+		expect(source).toContain('npm -w packages/sdk run build:dist');
+		expect(source).toContain('npm -w packages/ui run build:dist');
+		expect(source).toContain('npm -w packages/core run build:dist');
+		expect(source).toContain('npm -w packages/admin run build:dist');
+		expect(source).toContain('npm run check');
+		expect(source).toContain('npm run test:unit');
+		expect(source).toContain('hosting verify --environment staging --app web --live --json');
+		expect(source).toContain('hosting verify --environment prod --app web --live --json');
 	});
 
 	it('splits root verification into parallel jobs', () => {

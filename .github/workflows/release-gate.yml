@@ -1,0 +1,60 @@
+name: Verify TreeSeed Market UI Guarantees
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Live environment to verify
+        required: true
+        default: staging
+        type: choice
+        options: [staging, prod]
+
+permissions:
+  contents: read
+
+jobs:
+  guarantees:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: ${{ inputs.environment == 'prod' && 'production' || 'staging' }}
+    env:
+      CI: "true"
+      TREESEED_AGENT_GUARANTEE_EXECUTION_PROVIDER: mock
+      TREESEED_GITHUB_TOKEN: ${{ secrets.TREESEED_GITHUB_TOKEN }}
+      TREESEED_RAILWAY_API_TOKEN: ${{ secrets.TREESEED_RAILWAY_API_TOKEN }}
+      TREESEED_CLOUDFLARE_API_TOKEN: ${{ secrets.TREESEED_CLOUDFLARE_API_TOKEN }}
+      TREESEED_CLOUDFLARE_ACCOUNT_ID: ${{ vars.TREESEED_CLOUDFLARE_ACCOUNT_ID }}
+      TREESEED_WEB_SERVICE_SECRET: ${{ secrets.TREESEED_WEB_SERVICE_SECRET }}
+      TREESEED_ACCEPTANCE_SERVICE_ID: ${{ vars.TREESEED_ACCEPTANCE_SERVICE_ID || vars.TREESEED_WEB_SERVICE_ID || 'web' }}
+      TREESEED_ACCEPTANCE_SERVICE_SECRET: ${{ secrets.TREESEED_ACCEPTANCE_SERVICE_SECRET || secrets.TREESEED_WEB_SERVICE_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.environment == 'prod' && 'main' || 'staging' }}
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.12.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: |
+          npx --yes tsx ./.github/scripts/prepare-workspace-install.ts
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm -w packages/sdk run build:dist
+          npm -w packages/cli run build:dist
+          npx playwright install --with-deps chromium firefox webkit
+      - name: Run UI guarantees against live environment
+        run: |
+          mkdir -p .treeseed/workflow/release-gates
+          node packages/cli/dist/cli/main.js guarantees run --environment "${{ inputs.environment }}" --scene-backed --no-dependencies --scene-artifacts screenshots --json | tee .treeseed/workflow/release-gates/market-ui.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: market-ui-guarantees-${{ inputs.environment }}-${{ github.run_id }}
+          path: |
+            .treeseed/workflow/release-gates/**
+            .treeseed/guarantees/runs/**
+            .treeseed/scenes/runs/**
+          if-no-files-found: warn
+          retention-days: 30

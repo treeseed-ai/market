@@ -56,8 +56,8 @@ describe('web runtime boundaries', () => {
 
 		const deployWorkflow = readFileSync('.github/workflows/deploy.yml', 'utf8');
 		const verifyWorkflow = readFileSync('.github/workflows/verify.yml', 'utf8');
-		const hostedProjectWorkflow = readFileSync('.github/workflows/hosted-project.yml', 'utf8');
-		expect(`${deployWorkflow}\n${verifyWorkflow}\n${hostedProjectWorkflow}`).not.toMatch(/deploy-processing|processing-parity|deploy_processing/u);
+		expect(`${deployWorkflow}\n${verifyWorkflow}`).not.toMatch(/deploy-processing|processing-parity|deploy_processing/u);
+		expect(existsSync('.github/workflows/hosted-project.yml')).toBe(false);
 
 		const siteConfig = readFileSync('treeseed.site.yaml', 'utf8');
 		expect(siteConfig).not.toMatch(/\bworkdayManager:|\bworkerRunner:|treeseed-processing/u);

@@ -3,10 +3,10 @@
 Treeseed uses three deliberately separate workflow boundaries:
 
 - `trsd save` creates a fast, coherent checkpoint across the independent repositories.
-- `trsd stage` promotes one immutable candidate and waits for its hosted staging attestation.
-- `trsd release` dispatches production promotion for the latest attested candidate.
+- `trsd stage` promotes one immutable candidate and waits for exact-SHA verification and deployment workflows.
+- `trsd release` tags and promotes the staged repositories, then waits for tag-driven deployment workflows.
 
-Guarantees are authoritative promotion evidence. They do not run during a routine save, and the complete collection runs once for an exact deployed staging candidate.
+Guarantees are authoritative live acceptance evidence, but they do not run during routine save or deployment workflows. The manual API and Market release gates run focused live guarantee collections against staging or production.
 
 ## Save Contract
 
@@ -18,11 +18,11 @@ Use `--verify local` when a checkpoint also needs package-local verification. An
 
 Stage requires a clean pushed task branch. It merges current staging down before promotion, resolves generated internal-reference and lock metadata conflicts, and stops with file-level diagnostics for source conflicts. Package refs are promoted with expected-head protection and the Market staging ref moves last.
 
-The root `staging-candidate.yml` workflow owns staging proof. It builds and verifies the integrated graph, creates exact-source package tarballs without rerunning package lifecycle scripts, reconciles API and web staging, and runs all 208 guarantees once. Its attestation records the candidate hash, root and submodule SHAs, guarantee run id, and pass/fail counts. `trsd stage` downloads and validates that exact workflow-run artifact before returning. `trsd stage --async` is the explicit exception that returns while hosted proof is pending.
+Every promoted repository must pass `verify.yml` for its exact staging SHA. Market and each changed hostable package must also pass `deploy.yml` for that SHA. API deploys staging from Git source; Market deploys the web surface through TreeSeed reconciliation. `trsd stage` returns only after all required workflows succeed, then synchronizes every checkout to `staging`. `trsd stage --async` is the explicit exception that returns while hosted verification is pending.
 
 ## Release Contract
 
-Live `trsd release` dispatches `production-release.yml`; local execution is plan-only. The hosted workflow hydrates the exact staging attestation, rejects source or count drift, and invokes the resumable SDK release engine. Published package and image work remains ordered by the dependency graph. Production runs reconciliation verification and the smoke guarantee subset, reusing the immutable 208/208 staging proof instead of rerunning the complete collection.
+Live `trsd release` uses the resumable SDK release engine to promote and tag repositories in dependency order. Stable tag pushes trigger each package's publication workflow; hostable packages use `deploy.yml`. API publishes immutable versioned images before production reconciliation, and Market deploys the tagged web revision. Production completion requires those exact tag-driven workflows to succeed.
 
 Reviewer is a local-only package. It participates in save, verification, artifact, and publication ordering, but its manifest forbids hosted deployment.
 
@@ -72,7 +72,7 @@ Plan release proof:
 npx trsd proof plan --target staging --json
 ```
 
-Promote and prove an immutable staging candidate:
+Promote and verify an immutable staging candidate:
 
 ```bash
 npx trsd stage --json
@@ -84,7 +84,7 @@ Deliberately return before hosted proof finishes:
 npx trsd stage --async --json
 ```
 
-Release the latest successful candidate through GitHub Actions:
+Release the latest successful staged candidate:
 
 ```bash
 npx trsd release --patch --json
@@ -114,4 +114,4 @@ They are keyed by subject, driver, and input hash. A passed proof is reusable on
 
 Failed, pending, blocked, skipped, and advisory records do not satisfy authoritative release proof.
 
-Candidate manifests and attestations live under `.treeseed/workflow/stage-candidates/`. Workflow journals live under `.treeseed/workflow/runs/`. Save, stage, release, and routine cleanup never delete these records or `.treeseed/guarantees/` evidence.
+Candidate manifests live under `.treeseed/workflow/stage-candidates/`. Workflow journals live under `.treeseed/workflow/runs/`. Save, stage, release, and routine cleanup never delete these records or `.treeseed/guarantees/` evidence.
