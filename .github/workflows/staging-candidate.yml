@@ -84,6 +84,9 @@ jobs:
           node packages/cli/dist/cli/main.js hosting plan --environment staging --app api --json
           node packages/cli/dist/cli/main.js hosting apply --environment staging --app api --json
           node packages/cli/dist/cli/main.js hosting verify --environment staging --app api --live --json
+          node --import tsx packages/sdk/scripts/tenant-workflow-action.ts \
+            --action deploy_web \
+            --environment staging
           node packages/cli/dist/cli/main.js hosting plan --environment staging --app web --json
           node packages/cli/dist/cli/main.js hosting apply --environment staging --app web --json
           node packages/cli/dist/cli/main.js hosting verify --environment staging --app web --live --json
