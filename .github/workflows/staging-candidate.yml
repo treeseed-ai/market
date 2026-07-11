@@ -21,6 +21,7 @@ jobs:
     environment: staging
     env:
       CI: "true"
+      NODE_OPTIONS: "--max-old-space-size=6144"
       TREESEED_WORKFLOW_ENVIRONMENT: staging
       TREESEED_AGENT_GUARANTEE_EXECUTION_PROVIDER: mock
       TREESEED_GITHUB_TOKEN: ${{ secrets.TREESEED_GITHUB_TOKEN }}
