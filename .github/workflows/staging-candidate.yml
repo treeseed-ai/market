@@ -75,6 +75,10 @@ jobs:
               --output ".treeseed/artifacts/packages/${package_dir}" \
               --json
           done
+          node packages/cli/dist/cli/main.js package artifact hydrate \
+            --artifacts-root .treeseed/artifacts/packages \
+            --project-root . \
+            --json
       - name: Reconcile and verify staging
         run: |
           node packages/cli/dist/cli/main.js hosting plan --environment staging --app api --json
