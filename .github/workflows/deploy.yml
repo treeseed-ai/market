@@ -80,6 +80,9 @@ jobs:
           npx --yes tsx ./.github/scripts/prepare-workspace-install.ts
           npm ci --ignore-scripts --no-audit --no-fund
           npm -w packages/sdk run build:dist
+          npm -w packages/ui run build:dist
+          npm -w packages/core run build:dist
+          npm -w packages/admin run build:dist
           npm -w packages/cli run build:dist
       - name: Reconcile staging web
         env: &hosting_env
@@ -122,6 +125,9 @@ jobs:
           npx --yes tsx ./.github/scripts/prepare-workspace-install.ts
           npm ci --ignore-scripts --no-audit --no-fund
           npm -w packages/sdk run build:dist
+          npm -w packages/ui run build:dist
+          npm -w packages/core run build:dist
+          npm -w packages/admin run build:dist
           npm -w packages/cli run build:dist
       - name: Reconcile production web
         env: *hosting_env
