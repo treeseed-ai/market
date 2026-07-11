@@ -102,8 +102,8 @@ jobs:
           node packages/cli/dist/cli/main.js hosting plan --environment staging --app web --json
           node packages/cli/dist/cli/main.js hosting apply --environment staging --app web --json
           node packages/cli/dist/cli/main.js hosting verify --environment staging --app web --live --json
-      - name: Install scene browser
-        run: npx playwright install --with-deps chromium
+      - name: Install scene browsers
+        run: npx playwright install --with-deps chromium firefox webkit
       - name: Run complete staging guarantees
         run: |
           mkdir -p .treeseed/workflow/stage-candidates
