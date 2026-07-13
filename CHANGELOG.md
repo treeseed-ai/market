@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.45] - 2026-07-13
+
+### Fixed
+
+- build(deps): scope release validation to selected packages (77a31f324671)
+- build(deps): fix selective release metadata for verification-only (9daa44a0cabd)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.54
+- @treeseed/agent: 0.12.54
+- @treeseed/api: 0.6.53
+- @treeseed/cli: 0.12.54
+- @treeseed/core: 0.12.55
+- @treeseed/sdk: 0.12.58
+- @treeseed/ui: 0.12.16
+
 ## [0.7.43] - 2026-07-13
 
 ### Added
