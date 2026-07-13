@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.7.43] - 2026-07-13
+
+### Added
+
+- feat(deps): retain declared sibling operations runner resources (0036de6b551e)
+- feat(deps): discover Railway sibling identities without production (482d1f65bea4)
+- feat(deps): Retry transient GitHub job setup failures once (3b04a07c7d08)
+- feat(deps): Align CLI stage cleanup contract (b95ce018cc02)
+- feat(deps): Require explicit workflow resume and prevent stale (f1583a81a52b)
+
+### Fixed
+
+- build(deps): reattach production Railway domains to exact desired (8c4d87799842)
+- build(deps): Fix release readiness and merged branch cleanup (1e6eb4395fba)
+
+### Dependencies
+
+- build(deps): retain sibling Railway environments during production (6226e5eff9d2)
+- build(deps): Avoid repeated fetches during merged branch cleanup (c067d6ed7433)
+- build(deps): Delete merged feature branches after successful stage (07e5f550b5da)
+- build(deps): Permanently isolate Railway staging Git sources (654bd23dc2c8)
+- @treeseed/admin: 0.12.52
+- @treeseed/agent: 0.12.52
+- @treeseed/api: 0.6.51
+- @treeseed/cli: 0.12.52
+- @treeseed/core: 0.12.53
+- @treeseed/sdk: 0.12.56
+- @treeseed/ui: 0.12.16
+
 ## [0.7.40] - 2026-07-13
 
 ### Tests
