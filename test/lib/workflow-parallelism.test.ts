@@ -21,6 +21,7 @@ describe('CI/CD parallelism workflows', () => {
 		expect(JSON.stringify(deploy)).not.toContain('bootstrap-public-treedx.ts');
 		expect(JSON.stringify(deploy)).not.toContain('guarantees run');
 		expect(JSON.stringify(deploy)).not.toContain('TREESEED_RAILWAY_API_TOKEN');
+		expect(JSON.stringify(deploy)).not.toContain('tenant-workflow-action.ts');
 	});
 
 	it('builds and verifies before either deployment target', () => {

@@ -104,7 +104,6 @@ jobs:
           TREESEED_SMTP_REPLY_TO: ${{ vars.TREESEED_SMTP_REPLY_TO }}
           TREESEED_SMTP_SECURE: ${{ vars.TREESEED_SMTP_SECURE }}
         run: |
-          node --import tsx packages/sdk/scripts/tenant-workflow-action.ts --action deploy_web --environment staging
           node packages/cli/dist/cli/main.js hosting plan --environment staging --app web --json
           node packages/cli/dist/cli/main.js hosting apply --environment staging --app web --json
           node packages/cli/dist/cli/main.js hosting verify --environment staging --app web --live --json
@@ -132,7 +131,6 @@ jobs:
       - name: Reconcile production web
         env: *hosting_env
         run: |
-          node --import tsx packages/sdk/scripts/tenant-workflow-action.ts --action deploy_web --environment prod
           node packages/cli/dist/cli/main.js hosting plan --environment prod --app web --json
           node packages/cli/dist/cli/main.js hosting apply --environment prod --app web --json
           node packages/cli/dist/cli/main.js hosting verify --environment prod --app web --live --json
