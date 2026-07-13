@@ -1,5 +1,80 @@
 # Changelog
 
+## [0.7.39] - 2026-07-13
+
+### Added
+
+- feat(deps): support published SDK dependencies in API verification (16a6f83e286a)
+- feat(deps): Patch TreeDX Phoenix and Plug security advisories (42176432ce54)
+- feat(deps): Make TreeDX metrics test state-safe (3ac7d77b1251)
+- feat(deps): Restore verified Reviewer SDK artifact hydration (4eb932451142)
+- feat(deps): Build lock-pinned SDK during Reviewer verification (22fdb91e8062)
+- feat(deps): Use GitHub token fallback for Reviewer artifact hydration (2bb0a43a3c69)
+- feat(deps): Hydrate Reviewer SDK verification artifact (7beaa4e02705)
+- feat(deps): Verify API deployment CLI artifact hydration (c2320cb09441)
+- feat(deps): use deterministic seeded project IDs in scenes (80b7cadf77d9)
+- feat(deps): seed verified login fixture without browser session (a40c882cef38)
+- feat(deps): assert stable verification handoff heading (715d1c9b6ecf)
+- feat(deps): separate hosted email UI and delivery evidence (6d01822b1f19)
+- feat(deps): preserve dependency graph during artifact hydration (c06358ab4a94)
+- feat(deps): fix stage completion and API SMTP routing (649fcf27b888)
+- feat(deps): Bind hosted API SMTP settings from root staging registry (04d2c1935351)
+- feat(deps): Bind hosted API SMTP settings from root staging registry (e99122918536)
+- feat(deps): Fix staging guarantee scene routes and registration (30e191c370ee)
+- feat(deps): Expose API surface URLs to strict live staging checks (25ecdfb6204e)
+- feat(deps): Make hosted apply wait for transient HTTP readiness (d196ea9994ad)
+- feat(deps): make staging candidate retries resumable (8402ca1af237)
+- 3 additional changes omitted from this summary.
+
+### Changed
+
+- Adding a TreeSeed reviewer interface project. (eebc61600899)
+
+### Fixed
+
+- build(deps): bump version to 0.7.36 and update dependencies (64a3289728de)
+- ci(deps): Fix deployment build and CLI artifact closure (4f8cf954c830)
+- ci(deps): fix hosted scene fixtures routes and browsers (b642feeaa071)
+- ci(deps): hydrate exact candidate artifacts before staging deploy (b0a52bdecc74)
+- build(deps): fix staging candidate route inventory (f6faa8a6bf65)
+- build(deps): sync integrated package updates (5f1cfdde08c0)
+- build(deps): lock in UI shell architecture and test fixes (6a0c602d396a)
+
+### Tests
+
+- chore(reviewer): update submodule pointer (289b3f80816b)
+- build(deps): verify local-only reviewer through workspace links (3350424d6f63)
+- ci(deps): Run Market verification on staging pushes (80ac08d482f8)
+- ci(deps): Standardize verify release-gate and deploy workflows (19ea1f4e7883)
+- ci(deps): Propagate API web service secret through staging (7a8122316475)
+- ci(deps): Propagate control-plane secrets through staging reconciliation (81c537a517d1)
+- ci(deps): inject protected TreeDX secrets into staging reconciliation (cf3f18666fa1)
+- ci(deps): recover reliable save stage release workflow (667061f1ce48)
+
+### Dependencies
+
+- build(deps): update package dependencies and submodule pointers (3fb443ff3e72)
+- build(reviewer): update dependencies and bump version (35c6bef6475d)
+- build(root): bump version to 0.7.38 and update dependencies (32847cf8ffaa)
+- build(deps): sync integrated package updates (ae81891afacb)
+- build(deps): sync integrated package updates (b409881c7a45)
+- build(deps): sync integrated package updates (065150397f40)
+- build(deps): preserve registry dependency lock semantics (3e3e8b7aff8d)
+- build(deps): resume release after Hex credential rotation (3dcd6843e724)
+- build(deps): reuse exact staged candidate proof during release (8a1e042043b0)
+- build(deps): reuse staged package closure during release verification (c8dec57b0725)
+- build(deps): resolve managed release tooling and stale checkout adoption (f284065cd5b8)
+- build(deps): allow Railway deployments to settle before live (c14ece18b894)
+- build(deps): restore workspace links after release dependency hydration (6c096fcea069)
+- build(deps): hydrate missing package dependencies before release (1155a1582f52)
+- build(deps): avoid release tag collisions after partial publication (7178947f0bab)
+- build(deps): sync integrated package updates (a0c878d5dca6)
+- build(deps): sync integrated package updates (37fc74aa566a)
+- build(deps): update internal package versions and pointers (249e1150f435)
+- build(deps): sync integrated package updates (80e2edf36107)
+- build(deps): Exclude verification-only packages from release publication (c2b095148782)
+- 14 additional changes omitted from this summary.
+
 ## [0.7.30] - 2026-07-06
 
 ### Fixed
