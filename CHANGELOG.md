@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.40] - 2026-07-13
+
+### Tests
+
+- ci(deps): sync integrated package updates (a89291c3f2f5)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.49
+- @treeseed/agent: 0.12.49
+- @treeseed/cli: 0.12.49
+- @treeseed/core: 0.12.50
+- @treeseed/sdk: 0.12.53
+- @treeseed/ui: 0.12.16
+
 ## [0.7.39] - 2026-07-13
 
 ### Added
