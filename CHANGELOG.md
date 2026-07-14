@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.7.46] - 2026-07-14
+
+### Fixed
+
+- build(deps): fix release image state and atomic lockfiles (9fef252f5fb8)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.55
+- @treeseed/agent: 0.12.55
+- @treeseed/api: 0.6.54
+- @treeseed/cli: 0.12.55
+- @treeseed/core: 0.12.56
+- @treeseed/sdk: 0.12.59
+- @treeseed/ui: 0.12.16
+
 ## [0.7.45] - 2026-07-13
 
 ### Fixed
