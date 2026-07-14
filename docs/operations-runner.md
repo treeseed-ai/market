@@ -757,6 +757,11 @@ services:
       buildCommand: npm run build
       startCommand: npm run start:api
       healthcheckPath: /healthz
+    environments:
+      staging:
+        serviceName: treeseed-api-staging
+      prod:
+        serviceName: treeseed-api-production
 
   operationsRunner:
     enabled: true
@@ -770,6 +775,11 @@ services:
       healthcheckPath: /healthz
       runtimeMode: service
       volumeMountPath: /data
+    environments:
+      staging:
+        serviceName: treeseed-api-operations-runner-staging-01
+      prod:
+        serviceName: treeseed-api-operations-runner-production-01
 ```
 
 This is not a processing/agent service. It is a platform operations service.

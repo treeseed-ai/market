@@ -20,7 +20,8 @@ See [Package Ownership](./package-ownership.md) for the full system map.
 
 ```text
 api
-  Railway service name: treeseed-api
+  staging Railway service name: treeseed-api-staging
+  production Railway service name: treeseed-api-production
   staging sourceMode: git
   staging sourceRepo: treeseed-ai/api
   prod sourceMode: image
@@ -31,7 +32,8 @@ api
   runtimeMode: serverless
 
 operationsRunner
-  Railway service name: treeseed-api-operations-runner-01
+  staging Railway service name: treeseed-api-operations-runner-staging-01
+  production Railway service name: treeseed-api-operations-runner-production-01
   staging sourceMode: git
   staging sourceRepo: treeseed-ai/api
   prod sourceMode: image
@@ -64,7 +66,8 @@ capacityProviderRunner
   volumeMountPath: /data
 
 publicTreeDxNode
-  Railway service name: public-treedx-node-01
+  staging Railway service name: public-treedx-node-staging-01
+  production Railway service name: public-treedx-node-production-01
   staging sourceMode: git
   staging sourceRepo: treeseed-ai/treedx
   staging sourceRootDirectory: .

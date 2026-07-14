@@ -284,7 +284,7 @@ packages/sdk/test/utils/scenes-builtin-plugin-handlers.test.ts
 
 ## Remaining Work
 
-The repository is not yet at the requested final quality bar even though structural validation, journey audit, reviewer critical coverage, and the Market owner guarantee batch currently pass. The largest remaining gap is SDK critical coverage.
+The SDK and Reviewer critical coverage gates are complete. Remaining release work is operational reconfirmation: package regressions, guarantee validation and journey audit, and the final complete guarantee collection against the promoted environment.
 
 ### 1. Closure Verifier Replacement Completed
 
@@ -324,53 +324,24 @@ npm -w packages/api run test:unit -- test/lib/api-acceptance-framework.test.ts
 
 The workspace guard asserts no active guarantee uses `closure.*`, `todo.*`, `manualEvidence`, or an undefined verifier ref. The API guard asserts every workspace `apiAcceptanceCase` verifier maps to an expanded acceptance case.
 
-### 2. Finish SDK Critical 90% Coverage
+### 2. SDK Critical 90% Coverage Complete
 
-Reviewer coverage is complete. SDK guarantee-critical coverage is not.
-
-Latest SDK coverage command remains below the requested final 90% bar because branch coverage is still under threshold:
+Reviewer coverage remains complete, and SDK guarantee-critical coverage now passes the configured 90% gate for statements, branches, functions, and lines:
 
 ```bash
 npm -w packages/sdk run test:guarantees:coverage
 ```
 
-Latest observed coverage after this pass:
+Measured passing coverage on July 14, 2026:
 
 ```text
-statements: 90.38%  (2453/2714)
-branches:   76.67%  (2094/2731)
-functions:  91.44%  (438/479)
-lines:      91.84%  (2084/2269)
+statements: 95.46%  (2589/2712)
+branches:   90.01%  (2343/2603)
+functions:  95.20%  (457/480)
+lines:      95.77%  (2176/2272)
 ```
 
-Critical modules still below the current 90% threshold on at least one metric include:
-
-```text
-packages/sdk/src/guarantees/index.ts
-packages/sdk/src/scenes/runner.ts
-packages/sdk/src/scenes/schema.ts
-packages/sdk/src/scenes/builtin-plugins.ts
-packages/sdk/src/scenes/visual-audit-fixtures.ts
-packages/sdk/src/scenes/artifacts.ts
-packages/sdk/src/scenes/base-url.ts
-packages/sdk/src/scenes/device-matrix.ts
-packages/sdk/src/scenes/evidence.ts
-packages/sdk/src/scenes/planner.ts
-```
-
-Latest per-file low points:
-
-```text
-src/guarantees/index.ts             87.84% statements, 71.73% branches
-src/scenes/runner.ts                88.25% statements, 71.38% branches
-src/scenes/schema.ts                93.04% statements, 86.84% branches
-src/scenes/builtin-plugins.ts       96.88% statements, 80.92% branches
-src/scenes/visual-audit-fixtures.ts 83.96% statements, 62.88% branches
-src/scenes/planner.ts               97.05% statements, 67.10% branches
-src/scenes/base-url.ts              83.33% statements, 66.66% branches
-```
-
-Thresholds are now set to 90 for statements, branches, functions, and lines in `packages/sdk/vitest.guarantees.config.ts`. Do not lower the 90% branch threshold, add coverage ignore comments, or relax TypeScript settings. Add focused tests and refactor only where it improves real testability.
+Thresholds remain set to 90 in `packages/sdk/vitest.guarantees.config.ts`, and the critical-file include list remains intact. Do not lower the branch threshold, add coverage ignore comments, or relax TypeScript settings.
 
 Recommended SDK test expansion:
 
@@ -536,7 +507,7 @@ No true configuration blockers have been confirmed.
 The following are not configuration blockers and must be treated as implementation or test-completeness gaps:
 
 - any future `closure.*` structural verifier refs
-- SDK branch coverage below 90%
+- any future SDK critical coverage regression below 90%
 - missing browser-level reviewer proof due preview auth being unavailable
 - any future auth/session/selector/route/verifier/test harness failures
 
@@ -645,7 +616,7 @@ npx trsd guarantees run --owner-package @treeseed/market --environment local --s
 npx trsd guarantees run --owner-package @treeseed/reviewer --environment local --scene-artifacts screenshots --json
 ```
 
-6. Finish SDK 90% critical coverage:
+6. Reconfirm SDK 90% critical coverage:
 
 ```bash
 npm -w packages/sdk run test:guarantees:coverage

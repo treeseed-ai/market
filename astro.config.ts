@@ -3,6 +3,7 @@ import { createTreeseedAdminSite } from '@treeseed/admin/config';
 const config = createTreeseedAdminSite();
 const sodiumSumoPublicEntry = '\0treeseed-libsodium-sumo-public-entry';
 const viteWatchIgnored = [
+	'/.agent-worktrees/',
 	'/.treeseed/',
 	'/.fixtures/',
 	'/coverage/',
@@ -38,6 +39,7 @@ export default {
 							? [config.vite.server.watch.ignored]
 							: []),
 					isIgnoredWatchPath,
+					'**/.agent-worktrees/**',
 					'**/.treeseed/**',
 					'**/.fixtures/**',
 					'**/coverage/**',

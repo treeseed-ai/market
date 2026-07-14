@@ -70,12 +70,16 @@ Examples:
 - `web:cloudflare-pages`
 - `web:api-proxy`
 - `api:railway-project`
-- `api:railway-service:treeseed-api`
-- `api:railway-service:treeseed-api-operations-runner-01`
-- `api:railway-volume:treeseed-api-operations-runner-01-volume`
+- `api:railway-service:treeseed-api-staging`
+- `api:railway-service:treeseed-api-production`
+- `api:railway-service:treeseed-api-operations-runner-staging-01`
+- `api:railway-service:treeseed-api-operations-runner-production-01`
+- `api:railway-volume:treeseed-api-operations-runner-staging-01-volume`
+- `api:railway-volume:treeseed-api-operations-runner-production-01-volume`
 - `api:railway-postgres:treeseed-api-postgres`
-- `api:treedx-node:public-treedx-node-01`
-- `treedx:railway-source-build:public-treedx-node-01`
+- `api:treedx-node:public-treedx-node-staging-01`
+- `api:treedx-node:public-treedx-node-production-01`
+- `treedx:railway-source-build:public-treedx-node-staging-01`
 - `agent:capacity-provider:local-docker`
 
 The graph compiler is SDK-owned. Hosting graph APIs, config sync, dev orchestration, package image commands, capacity lifecycle commands, and release can expose specialized CLI surfaces, but they must consume the same compiled graph model. Legacy hosting graph apply is only a deprecated facade over `reconcileTreeseedTarget`; it must not call provider deploy helpers directly.

@@ -35,7 +35,8 @@ Expected Railway services:
 ```text
 api
   provider: railway
-  serviceName: treeseed-api
+  staging serviceName: treeseed-api-staging
+  prod serviceName: treeseed-api-production
   rootDir: packages/api
   buildCommand: npm run build
   startCommand: npm run start:api
@@ -44,7 +45,8 @@ api
 
 operationsRunner
   provider: railway
-  serviceName: treeseed-api-operations-runner-01
+  staging serviceName: treeseed-api-operations-runner-staging-01
+  prod serviceName: treeseed-api-operations-runner-production-01
   rootDir: packages/api
   buildCommand: npm run build
   startCommand: npm run start:runner
@@ -68,7 +70,7 @@ web
   hosts public content, knowledge hub, admin/auth UI contributed by @treeseed/admin, reusable UI from @treeseed/ui, and /v1/* proxy
 ```
 
-Do not rename existing Railway services during repair. Reconfigure them in place.
+Source-divergent Railway services must use separate environment-qualified identities. Adopt existing volumes before removing obsolete unsuffixed services.
 
 ## Required Configuration
 
@@ -227,8 +229,8 @@ The plan must show:
 
 - `packages/api` included when API package code changed
 - root submodule pointers included when package heads changed
-- API service still named `treeseed-api`
-- runner service still named `treeseed-api-operations-runner-01`
+- API services named `treeseed-api-staging` and `treeseed-api-production`
+- runner services named `treeseed-api-operations-runner-staging-01` and `treeseed-api-operations-runner-production-01`
 - API and runner both using `rootDir: packages/api`
 - API start command `npm run start:api`
 - runner start command `npm run start:runner`
