@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.7.47] - 2026-07-14
+
+### Added
+
+- feat(deps): prevent stale stage auto-resume after candidate heads (e7a31e29db4a)
+- feat(deps): allow retained production aliases during staging (d52b8b9abb99)
+
+### Fixed
+
+- build(deps): deduplicate Railway API services and enforce canonical (11c403a6e47c)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.56
+- @treeseed/agent: 0.12.56
+- @treeseed/api: 0.6.55
+- @treeseed/cli: 0.12.56
+- @treeseed/core: 0.12.57
+- @treeseed/sdk: 0.12.60
+- @treeseed/ui: 0.12.16
+
 ## [0.7.46] - 2026-07-14
 
 ### Fixed
