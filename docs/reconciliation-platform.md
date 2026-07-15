@@ -117,6 +117,8 @@ Canonical action kinds:
 - `rename`: rename a healthy noncanonical resource.
 - `reattach`: attach retained state, such as a volume, to its canonical service.
 - `retain`: intentionally preserve state outside active scale, such as scaled-down volumes.
+
+Railway volumes that are already queued for deletion are not reattachment candidates. Railway exposes restoration only through its provider-issued recovery link during the deletion recovery window. The reconciler must detect this state before planning provider changes, list the exact affected IDs, and stop without staging IaC changes, detaching volumes, creating replacements, or altering services. Reconciliation may resume only after a fresh live observation proves those same volume IDs are active. For an explicitly disposable environment, an operator may instead run `trsd hosting apply --replace-pending-volumes --yes`; the one-process override allows empty replacement, is never persisted, and is never inferred by stage or release.
 - `taint`: mark a resource for replacement on the next apply.
 - `blocked`: report required drift that cannot be resolved safely by this run.
 
