@@ -4,6 +4,20 @@ This repository is the unified development workspace for the Treeseed system and
 
 For the canonical current-state package map, see `docs/package-ownership.md`.
 
+## CRITICAL: Comprehensive Pre-Change Audit
+
+This is the highest-priority engineering rule in the workspace. Before creating an implementation plan or making any code, configuration, workflow, manifest, lockfile, infrastructure, or documentation edit, conduct a comprehensive audit of all related functionality.
+
+- Read the canonical architecture and ownership documentation, applicable `AGENTS.md` files, manifests, current implementation, tests, generated state contracts, and relevant recent history before deciding how the system works.
+- Trace the complete execution path across SDK, CLI, package, root orchestration, CI/CD, provider adapters, persistence, recovery, verification, and release consumers. Do not inspect only the file named in the request.
+- Inventory every existing implementation, compatibility path, helper, workflow, adapter, and recovery mechanism that overlaps the requested behavior. Explicitly identify duplicate, legacy, conflicting, or partially migrated paths before proposing changes.
+- Use read-only live observation when provider or remote state is relevant. Compare desired state, persisted state, and authoritative live state before planning any mutation.
+- Verify assumptions against executable tests and the actual dependency graph. Existing tests that only assert mocks, strings, or call order are not proof of end-to-end lifecycle behavior.
+- Do not create a new implementation alongside an existing path without first selecting the canonical owner and defining how the conflicting path will be removed or migrated.
+- Do not make incremental symptom patches when the audit shows a broken cross-system contract. Fix the owning abstraction and add regression coverage for interrupted, resumed, stale, partial, and repeated execution.
+- Record the audit findings and intended ownership boundary in the working update before editing. If the canonical owner or contract cannot be determined, stop and resolve that ambiguity before changing code.
+- After editing, repeat the audit against the resulting diff to confirm that no duplicate path, contradictory documentation, hidden mutation, or untested fallback remains.
+
 ## Independent Project Rule
 
 This workspace is an integrated development and verification environment, not a monorepo. Each project under `packages/` is its own package/repository and must remain independently buildable, testable, and releasable from its package checkout.
@@ -251,6 +265,8 @@ Hosting and capacity-provider runtime:
 - The root app deploys only the hosted web tenant: public site, knowledge hub, admin UI surfaces contributed by `@treeseed/admin`, reusable UI from `@treeseed/ui`, and `/v1/*` proxy/client surfaces.
 - `packages/api` deploys the API, Treeseed operations runner, Treeseed PostgreSQL service, and public TreeDX federation on Railway in the `treeseed-api` project. Source-divergent services must be environment-qualified: `treeseed-api-staging`, `treeseed-api-production`, `treeseed-api-operations-runner-staging-01`, `treeseed-api-operations-runner-production-01`, `public-treedx-node-staging-01`, and `public-treedx-node-production-01`. PostgreSQL remains `treeseed-api-postgres` because its source configuration is identical across environments. Stateful volumes must match their service name with a `-volume` suffix.
 - Railway source isolation is an absolute release invariant. Staging API, operations-runner, and public TreeDX services must always build from their exact GitHub `staging` commits and Dockerfiles and must never consume Docker Hub image refs, including as a temporary repair. Production API-owned services must use their separate `-production` identities and immutable released Docker Hub image tags; they must never share a Railway service identity with staging because Railway service source connections are project-wide. Apply this environment-qualified naming rule to every future service whose source, Dockerfile, image, builder, or build configuration differs by environment. Any observed staging image source, production Git source, wrong suffix, or shared staging/production source identity is blocking drift: fix desired state and reconcile through `trsd hosting`, then require live source-mode verification in both environments. Never report deployment success from mutation output alone.
+- Railway volumes are adopted and mounted directly by exact environment-specific identity. Never create volume migration, transfer, copy, helper, or temporary services. An existing active volume must be renamed to `<serviceName>-volume` when necessary and attached directly to that service at its declared mount path; reconciliation must fail rather than create an empty replacement when prior stateful lineage exists but cannot be adopted safely.
+- Provider subprocesses and mutating workflow steps must be bounded, heartbeat their owning workflow lock, terminate their process group on timeout or interruption, and automatically reclaim dead-process locks on the next operation. Never require manual lockfile deletion as normal recovery.
 - TreeDX container images are produced by tagged releases in `packages/treedx` and pushed to Docker Hub as `treeseed/treedx:<tag>`. Hosted TreeDX reconciliation should deploy an explicit tagged image when proving staging or production, not an unverified moving image.
 - TreeDX semantic release tags must only be cut from merges to `main`, matching the release discipline used by the other packages and projects. Do not create release tags from staging, feature, or repair branches.
 - TreeDX staging builds from source through Railway reconciliation and must not publish registry images for routine staging validation.
