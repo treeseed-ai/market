@@ -160,17 +160,29 @@ describe('web runtime boundaries', () => {
 			provider: 'railway',
 			rootDir: '.',
 			railway: {
-				serviceName: 'treeseed-api-operations-runner-01',
+				serviceName: 'treeseed-ops-01',
 				rootDir: '.',
 				dockerfilePath: '/Dockerfile.operations-runner',
 				startCommand: 'npm run start:runner',
 				volumeMountPath: '/data',
 				runnerPool: {
-					bootstrapCount: 1,
+					bootstrapCount: 2,
 					maxRunners: 4,
 					volumeMountPath: '/data',
 				},
 			},
+			environments: {
+				staging: {
+					serviceName: 'treeseed-ops-staging-01',
+				},
+				prod: {
+					serviceName: 'treeseed-ops-production-01',
+				},
+			},
+		});
+		expect(site.publicTreeDxFederation?.railway?.nodePool).toEqual({
+			bootstrapCount: 2,
+			maxNodes: 4,
 		});
 		const serialized = JSON.stringify(site.services?.operationsRunner ?? {});
 		expect(serialized).not.toMatch(/provider:|capacity|TREESEED_CAPACITY_PROVIDER_API_KEY|provider:tasks|provider:heartbeat/u);
