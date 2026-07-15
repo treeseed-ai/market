@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.7.48] - 2026-07-15
+
+### Added
+
+- feat(deps): archive stale stage resumes after repository heads (f763c7dec720)
+- feat(deps): wait for Railway deployments before live hosting (cf3bb0af0a82)
+- feat(deps): honor package deployment capabilities during staging (d216340a7e57)
+- feat(deps): sync integrated package updates (85651588ec94)
+- feat(deps): make API staging deployment safely retryable (e2fd4a6653b5)
+- feat(deps): align managed tool test fallback with SDK (7a4d545f8c5e)
+- feat(deps): fail fast on conclusive deployment CLI verification (89a59392ada5)
+- feat(deps): fix managed Railway CLI test environment (ae9b95f13ac0)
+- feat(deps): bound remote Git workflow probes (fc5cc53b308b)
+- feat(deps): handle orphaned Railway volume migration (5c1ac1442ba3)
+- feat(deps): use Railway SDK for environment patch operations (f408eaa04fc2)
+- feat(deps): classify stale Railway attachments from blocker records (f1b4660c9ccd)
+- feat(deps): scope Railway migration cleanup to target environment (9c3e1cbe5a3f)
+- feat(deps): resolve qualified Railway service from project inventory (6028db6f1578)
+- feat(deps): unblock exact inactive Railway migration attachment (ecc48f590bb5)
+- feat(deps): detach only known empty Railway migration volumes (6b9525d41745)
+- feat(deps): commit Railway restored volume patch (e8f00a445868)
+- feat(deps): restore Railway volumes through native source snapshots (88ebcc83cede)
+- feat(deps): retry Railway backup propagation safely (6996ea467b57)
+- feat(deps): treat Railway backup workflows as opaque (138ceb4e3091)
+- 2 additional changes omitted from this summary.
+
+### Fixed
+
+- test(deps): update scalable hosting boundary contract (abe7b03c69e9)
+- build(deps): sync integrated package updates (7d735f583c9e)
+- build(deps): isolate Railway staging and production service sources (10bd8e49f7c9)
+
+### Tests
+
+- chore(workspace): update submodules and documentation (6180dda0e26d)
+- build(deps): enforce SDK-first Railway reconciliation (a913df198550)
+
+### Dependencies
+
+- build(deps): wait for Railway volume detach propagation (41f5d21b6f5b)
+- @treeseed/admin: 0.12.57
+- @treeseed/agent: 0.12.57
+- @treeseed/api: 0.6.56
+- @treeseed/cli: 0.12.57
+- @treeseed/core: 0.12.58
+- @treeseed/sdk: 0.12.61
+- @treeseed/ui: 0.12.17
+
 ## [0.7.47] - 2026-07-14
 
 ### Added
