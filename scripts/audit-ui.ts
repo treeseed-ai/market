@@ -8,10 +8,6 @@ const args = process.argv.slice(2);
 
 const defaultRoots = [
 	'src/pages',
-	'src/pages/auth',
-	'src/pages/market',
-	'src/styles/auth.css',
-	'src/styles/treeseed.css',
 	'packages/admin/src/pages',
 	'packages/admin/src/layouts',
 	'packages/core/src/pages',
@@ -31,6 +27,8 @@ const localStylePattern = /<style(?:\s|>)/u;
 const rawColorAllowlist = new Set([
 	'packages/ui/src/styles/tokens.css',
 	'packages/ui/src/styles/sandbox.css',
+	'packages/ui/src/styles/pie-allocation.css',
+	'packages/ui/src/react/pie-allocation/DynamicPieAllocationInput.tsx',
 	'packages/ui/src/theme/index.ts',
 	'src/config.yaml',
 ]);
@@ -42,12 +40,17 @@ const rawColorAllowlistPrefixes = [
 const inlineStyleAllowlist = new Set([
 	'packages/ui/src/astro/data/MetricGrid.astro',
 	'packages/ui/src/astro/theme/ThemePreviewSwatch.astro',
+	'packages/ui/src/react/charts/MonitoringChart.tsx',
+	'packages/ui/src/react/charts/ProjectActivityChart.tsx',
+	'packages/ui/src/react/pie-allocation/DynamicPieAllocationInput.tsx',
 ]);
 const localStyleAllowlist = new Set([
 	'packages/ui/src/astro/app/controls/PlainTable.astro',
+	'packages/ui/src/astro/core/SiteTitle.astro',
 	'packages/ui/src/astro/layouts/MainLayout.astro',
 	'packages/ui/src/astro/theme/ThemeScript.astro',
 ]);
+const localStyleAllowlistPrefixes = ['packages/ui/src/astro/docs/'];
 
 function pathHasDebt(path: string, debt: ArchitectureDebt): boolean {
 	const route = routeInventory.find((entry) => entry.sourcePath === path);
@@ -100,6 +103,7 @@ for (const absolute of files) {
 	}
 	if (
 		!localStyleAllowlist.has(path)
+		&& !localStyleAllowlistPrefixes.some((prefix) => path.startsWith(prefix))
 		&& !pathHasDebt(path, 'page-local-css')
 		&& path.endsWith('.astro')
 		&& localStylePattern.test(contents)

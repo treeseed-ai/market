@@ -71,7 +71,6 @@ plugins:
   - package: "@treeseed/core/plugin-default"
   - package: "@treeseed/admin/plugin"
 providers:
-  forms: full_email
   agents:
     execution: codex
     mutation: local_branch

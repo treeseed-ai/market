@@ -54,9 +54,9 @@ describe('web runtime boundaries', () => {
 		expect(packageJson.scripts).not.toHaveProperty('test:processing-parity-local');
 		expect(packageJson.scripts).not.toHaveProperty('test:processing-parity-staging');
 
-		const deployWorkflow = readFileSync('.github/workflows/deploy.yml', 'utf8');
 		const verifyWorkflow = readFileSync('.github/workflows/verify.yml', 'utf8');
-		expect(`${deployWorkflow}\n${verifyWorkflow}`).not.toMatch(/deploy-processing|processing-parity|deploy_processing/u);
+		expect(existsSync('.github/workflows/deploy.yml')).toBe(false);
+		expect(verifyWorkflow).not.toMatch(/deploy-processing|processing-parity|deploy_processing/u);
 		expect(existsSync('.github/workflows/hosted-project.yml')).toBe(false);
 
 		const siteConfig = readFileSync('treeseed.site.yaml', 'utf8');
@@ -94,8 +94,6 @@ describe('web runtime boundaries', () => {
 
 		for (const allowedRootPath of [
 			'src/content',
-			'src/pages/api/form/submit.ts',
-			'src/styles/treeseed.css',
 			'src/config.yaml',
 			'src/env.yaml',
 			'src/manifest.yaml',
@@ -134,17 +132,7 @@ describe('web runtime boundaries', () => {
 		});
 
 		expect(adminPaymentOffenders).toEqual([]);
-		expect(existsSync('src/pages/checkout')).toBe(true);
-		expect(existsSync('src/pages/marketplace/index.astro')).toBe(true);
-		expect(existsSync('src/pages/market/products/[productId].astro')).toBe(true);
-		expect(existsSync('src/pages/services/[requestId]/checkout.astro')).toBe(true);
-		expect(existsSync('src/pages/services/new.astro')).toBe(true);
-		expect(existsSync('src/pages/capacity/index.astro')).toBe(true);
-		expect(existsSync('src/pages/capacity/[listingId].astro')).toBe(true);
-		expect(existsSync('src/pages/commons/index.astro')).toBe(true);
-		expect(existsSync('src/pages/commons/questions/new.astro')).toBe(true);
-		expect(existsSync('src/pages/commons/proposals/new.astro')).toBe(true);
-		expect(existsSync('src/pages/commons/proposals/[proposalId].astro')).toBe(true);
+		expect(files('src/pages')).toEqual([]);
 		expect(existsSync('src/pages/billing')).toBe(false);
 	});
 
@@ -252,10 +240,8 @@ describe('web runtime boundaries', () => {
 				|| path.startsWith('packages/admin/src/pages/v1/'))
 			.sort();
 		expect(endpointFiles).toEqual([
-			'packages/admin/src/pages/api/markdown/preview.ts',
 			'packages/admin/src/pages/auth/callback/[provider].ts',
 			'packages/admin/src/pages/v1/[...all].ts',
-			'src/pages/api/form/submit.ts',
 		]);
 
 		const runtimeFiles = [...files('src'), ...files('packages/admin/src')]

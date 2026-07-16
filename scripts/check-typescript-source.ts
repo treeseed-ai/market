@@ -3,6 +3,7 @@ import { join, relative } from 'node:path';
 
 const ignoredDirectories = new Set([
 	'.astro',
+	'.agent-worktrees',
 	'.git',
 	'.treeseed',
 	'.turbo',
@@ -24,7 +25,8 @@ const allowedDeclarationFiles = new Set([
 	'packages/core/template/content-module-types.d.ts',
 	'src/env.d.ts',
 	'src/types/cloudflare-sockets.d.ts',
-	'src/types/libsodium-wrappers-sumo.d.ts',
+	// TreeDX Rust SDK generator entrypoint is consumed directly by its independent package tooling.
+	'packages/treedx/packages/rust-sdk/scripts/check_treedx_generated_types.mjs',
 ]);
 
 function walk(root: string, directory: string, violations: string[]) {
@@ -32,12 +34,14 @@ function walk(root: string, directory: string, violations: string[]) {
 		const path = join(directory, entry.name);
 		const relativePath = relative(root, path).replace(/\\/gu, '/');
 		if (entry.isDirectory()) {
-			if (ignoredDirectories.has(entry.name)) continue;
+			if (ignoredDirectories.has(entry.name) || entry.name.startsWith('coverage-')) continue;
 			walk(root, path, violations);
 			continue;
 		}
 		if (!entry.isFile()) continue;
+		if (/^\.ts-run-.*\.mjs$/u.test(entry.name)) continue;
 		if (relativePath.endsWith('.js') || relativePath.endsWith('.mjs') || relativePath.endsWith('.cjs')) {
+			if (allowedDeclarationFiles.has(relativePath)) continue;
 			violations.push(`${relativePath}: checked-in JavaScript source is not allowed; use .ts and compile to dist.`);
 			continue;
 		}

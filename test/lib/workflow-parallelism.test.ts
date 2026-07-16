@@ -7,33 +7,9 @@ function workflow(path: string) {
 }
 
 describe('CI/CD parallelism workflows', () => {
-	it('keeps root deploy scoped to Cloudflare web and excludes backend API release jobs', () => {
-		const deploy = workflow('.github/workflows/deploy.yml');
-		expect(Object.keys(deploy.jobs).sort()).toEqual(['deploy-production', 'deploy-staging', 'verify']);
-		expect(deploy.jobs['deploy-staging'].needs).toBe('verify');
-		expect(deploy.jobs['deploy-production'].needs).toBe('verify');
-		expect(deploy.jobs).not.toHaveProperty('runner-smoke');
-		expect(deploy.jobs).not.toHaveProperty('bootstrap-public-treedx');
-		expect(deploy.jobs).not.toHaveProperty('acceptance-prepare');
-		expect(deploy.jobs).not.toHaveProperty('acceptance');
-		expect(JSON.stringify(deploy)).not.toContain('packages/api/scripts/api-acceptance.ts');
-		expect(JSON.stringify(deploy)).not.toContain('operations-runner-smoke.ts');
-		expect(JSON.stringify(deploy)).not.toContain('bootstrap-public-treedx.ts');
-		expect(JSON.stringify(deploy)).not.toContain('guarantees run');
-		expect(JSON.stringify(deploy)).not.toContain('TREESEED_RAILWAY_API_TOKEN');
-		expect(JSON.stringify(deploy)).not.toContain('tenant-workflow-action.ts');
-	});
-
-	it('builds and verifies before either deployment target', () => {
-		const source = readFileSync('.github/workflows/deploy.yml', 'utf8');
-		expect(source).toContain('npm -w packages/sdk run build:dist');
-		expect(source).toContain('npm -w packages/ui run build:dist');
-		expect(source).toContain('npm -w packages/core run build:dist');
-		expect(source).toContain('npm -w packages/admin run build:dist');
-		expect(source).toContain('npm run check');
-		expect(source).toContain('npm run test:unit');
-		expect(source).toContain('hosting verify --environment staging --app web --live --json');
-		expect(source).toContain('hosting verify --environment prod --app web --live --json');
+	it('keeps hosted deployment suspended', () => {
+		expect(() => readFileSync('.github/workflows/deploy.yml', 'utf8')).toThrow();
+		expect(readFileSync('.github/workflows/verify.yml', 'utf8')).not.toMatch(/hosting apply|railway up|wrangler deploy/u);
 	});
 
 	it('splits root verification into parallel jobs', () => {

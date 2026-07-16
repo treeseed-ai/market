@@ -1,11 +1,14 @@
 # TreeSeed Web UI Deployment and Monitoring Completion Plan
 
-**Status:** Historical completion plan plus current operational notes
+**Status:** Historical redesign target; no current Market/Admin deployment UI
 **Scope:** root market, `packages/admin`, `packages/ui`, `packages/api`, `packages/sdk`, `packages/cli`, `packages/core`
 **Primary goal:** Reach 100% working completion for project web deployment and monitoring through the Market web UI, API, Treeseed operations runner, SDK operations, and CLI.
 **Explicit non-goal:** Do not implement or require capacity providers, provider lanes, worker grants, provider budgets, or hosted processing/runtime deployment for this milestone.
 
 Current architecture note:
+
+- Project deployment and monitoring presentation routes were removed in the legacy UI cleanup. The API, SDK reconciliation, operations runner, and CLI capabilities described here remain active; UI route references below are historical redesign requirements.
+- See [Legacy Routes](./legacy-routes.md) for the retired presentation surface and [UI Redesign](./ui-redesign.md) for future direction.
 
 - the root Market repo is UI-only plus `/v1/*` proxy/client surfaces
 - admin pages and deployment UI live in `packages/admin/src/pages/...`
@@ -14,7 +17,7 @@ Current architecture note:
 - backend deployment state lives in `@treeseed/api`
 - CLI parity lives in `@treeseed/cli`
 - reconciliation logic lives in `@treeseed/sdk`
-- root market owns authenticated operational marketplace/cart/checkout/service/capacity/Commons participant pages plus public marketing/profile/knowledge pages, not generic admin deployment UI
+- root Market currently owns no route files; Core and the retained Admin identity/team surface compose the web tenant
 - Railway builds API and runner from `packages/api`
 - hosted readiness is checked through `npx trsd ready <environment> --json`
 - targeted hosting repair uses `npx trsd hosting plan/apply/verify --environment <environment> --service <api|operationsRunner> --json`

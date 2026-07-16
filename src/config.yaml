@@ -3,15 +3,13 @@ site:
     src: /logo.svg
     alt: TreeSeed Market logo
   name: TreeSeed Market
-  statement: A market built on the layered TreeSeed architecture
+  statement: The TreeSeed platform is preparing for a comprehensive UI redesign
   siteUrl: https://market.treeseed.ai
   githubRepository: https://github.com/treeseed-ai/market
   discordLink: https://discord.gg/example
   headerMenu:
-    - label: Market
+    - label: TreeSeed
       items:
-        - label: Templates
-          href: /market/templates/
         - label: Vision
           href: /vision/
         - label: Status
@@ -37,10 +35,8 @@ site:
         - label: People
           href: /people/
   footerMenu:
-    - label: Market
+    - label: TreeSeed
       items:
-        - label: Templates
-          href: /market/templates/
         - label: Status
           href: /status/
     - label: Project
@@ -51,21 +47,13 @@ site:
           href: /vision/
         - label: Handbook
           href: /knowledge/market/
-  forms:
-    apiBaseUrl: /api/form/submit
+  forms: {}
   emailNotifications:
-    contactRouting:
-      default:
-        - hello@treeseed.ai
-      issue:
-        - hello@treeseed.ai
-      collaboration:
-        - hello@treeseed.ai
-    subscribeRecipients:
-      - hello@treeseed.ai
-  summary: TreeSeed Market is the canonical marketplace site for template products built on TreeSeed itself.
-  projectStage: Working market
-  projectStageDetail: Site-first marketplace proving the layered TreeSeed architecture in production-like form.
+    contactRouting: {}
+    subscribeRecipients: []
+  summary: TreeSeed is retaining its identity and team foundation while its product UI is redesigned.
+  projectStage: UI redesign preparation
+  projectStageDetail: Authentication, accounts, teams, and Core content remain available while legacy Market and Admin product routes are retired.
   theme:
     defaultScheme: fern
     defaultMode: system

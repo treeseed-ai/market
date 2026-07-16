@@ -35,8 +35,7 @@ describe('shell-level feedback architecture', () => {
 		expect(capture).not.toMatch(/R2|objectKey|privateUrl|token/iu);
 	});
 
-	it('wires authenticated app and Core Knowledge Hub proof routes through shell feedback context', () => {
-		expect(source('packages/admin/src/view-models/ui-foundation/questions.vm.ts')).toContain("submissionEndpoint: '/v1/feedback'");
+	it('keeps Core Knowledge Hub proof routes wired through shell feedback context', () => {
 		for (const path of [
 			'packages/core/src/pages/docs-runtime/index.astro',
 			'packages/core/src/pages/docs-runtime/[...slug].astro',
@@ -62,7 +61,6 @@ describe('shell-level feedback architecture', () => {
 		expect(coreEndpoint).toContain("'cache-control': 'no-store'");
 		expect(coreEndpoint).not.toMatch(/create.*Store|recordAuditEvent|upsertTeamInboxItem/iu);
 		for (const path of [
-			'packages/admin/src/pages/app/work/questions.astro',
 			'packages/core/src/pages/docs-runtime/index.astro',
 			'packages/core/src/pages/docs-runtime/[...slug].astro',
 		]) {

@@ -1,94 +1,22 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-function source(path: string) {
-	const sourcePath = path.replace(/^@treeseed\/ui\/components\/astro\//u, 'packages/ui/src/astro/');
-	return readFileSync(resolve(process.cwd(), sourcePath), 'utf8');
-}
-
-describe('app and public shell conversion', () => {
-	it('adapts market app layout through core shell primitives', () => {
-		const contents = source('packages/admin/src/layouts/TreeseedAppLayout.astro');
-
-		expect(contents).toContain('ProductShell');
-		expect(contents).toContain('SensitiveDataUnlock');
-		expect(contents).toContain('slot="railContext"');
-		expect(contents).toContain('slot="headerAction"');
-		expect(contents).toContain('slot="sensitiveModal"');
-		expect(contents).toContain('showSensitiveUnlock');
-		expect(contents).toContain('Astro.url.pathname');
-		expect(contents).toContain('/app/hosts');
-		expect(contents).toContain('/app/services');
-		expect(contents).toContain('/app/projects/new');
-		expect(contents).toContain('resolveAuthenticatedThemePreference');
-		expect(contents).toContain('Start');
-		expect(contents).not.toContain(`label: 'Team'`);
-		expect(contents).toContain('Manage teams');
-		expect(contents).toContain('Services');
-		expect(contents).not.toContain(`label: 'Hosts'`);
-		expect(contents).toContain('Projects');
-		expect(contents).toContain('Capacity');
-		expect(contents).toContain('Work');
-		expect(contents).toContain('Knowledge');
-		expect(contents).toContain('reload: true');
-		expect(contents).not.toContain('Mission Control');
-		expect(contents).not.toContain('Workdays');
-		expect(contents).not.toContain('Infrastructure');
-		expect(contents).not.toContain('ProjectHeader');
-		expect(contents).not.toContain('projectTabs');
+describe('retained Admin shells', () => {
+	it('limits the authenticated shell to account and team work', () => {
+		const source = readFileSync('packages/admin/src/layouts/TreeseedAppLayout.astro', 'utf8');
+		expect(source).toContain('ProductShell');
+		expect(source).toContain('treeseed_active_team');
+		for (const target of ['/app/', '/app/account', '/app/teams', '/app/teams/new']) expect(source).toContain(target);
+		for (const target of ['/app/projects', '/app/services', '/app/capacity', '/app/work', '/app/knowledge']) expect(source).not.toContain(target);
+		expect(source).not.toContain('SensitiveDataUnlock');
+		expect(source).not.toContain('<style');
 	});
 
-	it('adapts market public layout through the core public shell', () => {
-		const contents = source('packages/admin/src/layouts/TreeseedPublicLayout.astro');
-
-		expect(contents).toContain('PublicShell');
-		expect(contents).toContain('resolveAnonymousThemePreference');
-		expect(contents).toContain('navItems={navItems}');
-		expect(contents).toContain('actions={actions}');
-	});
-
-	it('installs the dev reload client through shared core shells', () => {
-		expect(source('@treeseed/ui/components/astro/shell/ProductShell.astro')).toContain('ShellFrame');
-		expect(source('@treeseed/ui/components/astro/shell/PublicShell.astro')).toContain('PublicSingleColumnShell');
-
-		const mainLayout = source('@treeseed/ui/components/astro/layouts/MainLayout.astro');
-		expect(mainLayout).not.toContain('DevWatchReload');
-		expect(source('@treeseed/ui/components/astro/auth/AuthShell.astro')).toContain('DevWatchReload');
-		expect(source('@treeseed/ui/components/astro/docs/Footer.astro')).toContain('DevWatchReload');
-	});
-
-	it('keeps sensitive unlock behavior in the market component', () => {
-		const contents = source('@treeseed/ui/components/astro/app/sensitive/SensitiveDataUnlock.astro');
-
-		expect(contents).toContain('window.treeseedSensitiveUnlock');
-		expect(contents).toContain('data-sensitive-unlock-button');
-		expect(contents).toContain('data-sensitive-unlock-label');
-		expect(contents).toContain('data-sensitive-modal');
-		expect(contents).toContain('data-sensitive-modal-close');
-		expect(contents).toContain('data-sensitive-modal-mode-button');
-		expect(contents).toContain('data-sensitive-mode');
-		expect(contents).toContain('data-sensitive-lock-now');
-		expect(contents).toContain('data-astro-rerun');
-		expect(contents).toContain('__treeseedSensitiveUnlockState');
-		expect(contents).toContain('requestPassphrase()');
-		expect(contents).toContain('promptPassphrase()');
-		expect(contents).toContain('action="javascript:void(0)"');
-		expect(contents).toContain('submitUnlock: handleUnlockSubmit');
-		expect(contents).toContain("bindSensitiveEvent(currentUnlockForm(), 'submit', handleUnlockSubmit)");
-		expect(contents).toContain('pendingPassphraseRequests');
-		expect(contents).toContain('clearPagePassphrase');
-		expect(contents).toContain("'astro:before-swap'");
-		expect(contents).toContain("'pagehide'");
-		expect(contents).toContain('destroy()');
-	});
-
-	it('removes inline styling and retired tokens from converted layouts', () => {
-		for (const path of ['packages/admin/src/layouts/TreeseedAppLayout.astro', 'packages/admin/src/layouts/TreeseedPublicLayout.astro']) {
-			const contents = source(path);
-			expect(contents, path).not.toContain('<style');
-			expect(contents, path).not.toMatch(/\sstyle=/u);
-			expect(contents, path).not.toMatch(/--(?:site|kc)-/u);
-		}
+	it('keeps the public shell identity-only', () => {
+		const source = readFileSync('packages/admin/src/layouts/TreeseedPublicLayout.astro', 'utf8');
+		expect(source).toContain('PublicShell');
+		expect(source).toContain("label: 'Home'");
+		expect(source).toContain('Account and teams');
+		for (const target of ['/market', '/p/', '/knowledge-packs', '/templates']) expect(source).not.toContain(target);
 	});
 });

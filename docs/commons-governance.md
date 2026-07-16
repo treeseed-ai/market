@@ -43,7 +43,9 @@ Money can add signal only if a future policy explicitly models it, but it must n
 
 The API persists Commons participants, questions, proposals, backings, votes, delegations, decisions, weight snapshots, and governance events.
 
-Admin owns steward operations under `/app/commons`. Root market owns participant-facing Commons pages under `/commons`; these pages are authenticated operational market surfaces because asking questions, submitting proposals, backing, and voting require a principal.
+> UI status: the `/app/commons` and `/commons` presentation routes described below were removed during the legacy UI cleanup. Commons backend contracts and persistence remain active; these route descriptions are historical redesign requirements. See [Legacy Routes](./legacy-routes.md) and [UI Redesign](./ui-redesign.md).
+
+Historically, Admin owned steward operations under `/app/commons` and root Market owned participant-facing Commons pages under `/commons`.
 
 The Commons layer reuses existing team membership, authentication, route descriptors, API acceptance metadata, and UI package components. It does not create a new ecommerce subsystem and does not change marketplace order, entitlement, Stripe, refund, service, or capacity behavior.
 
@@ -51,13 +53,13 @@ The Commons layer reuses existing team membership, authentication, route descrip
 
 Commons governance follows the canonical shell/template/view-model/action model.
 
-Authenticated participant routes use `TreeseedOperationalMarketLayout`:
+The retired authenticated participant routes used `TreeseedOperationalMarketLayout`:
 
 - `/commons` renders a `DashboardTemplate` with participant counts, active proposals, open questions, accepted decisions, and recent governance events.
 - `/commons/proposals/:proposalId` renders a `DetailTemplate` with proposal body, vote/backing signal, decision timeline, and resolved participant actions.
 - `/commons/proposals/new` and `/commons/questions/new` render `SettingsTemplate` forms. Form submissions go through route controllers and API-authoritative endpoints.
 
-Authenticated steward routes use `TreeseedAppLayout`:
+The retired authenticated steward routes used `TreeseedAppLayout`:
 
 - `/app/commons` renders a `DashboardTemplate` shaped by an admin-owned governance view model.
 - Steward detail/review routes render proposal, decision, participant, and event state through canonical templates and reusable governance components.
@@ -73,7 +75,7 @@ Release and staging workflows should treat Commons changes like other cross-surf
 - SDK owns shared contracts and route metadata.
 - API owns persistence and steward/participant route behavior.
 - UI owns reusable governance components.
-- root market owns participant pages.
-- Admin owns steward operations.
+- root Market is the future owner for redesigned participant presentation.
+- Admin's legacy steward presentation was removed; backend behavior remains API-owned.
 
 No Commons release may add legal cooperative member ledgers, equity-like rights, patronage ledgers, payout allocation, revenue split behavior, token credits, or automatic roadmap authority.

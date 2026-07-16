@@ -1,149 +1,43 @@
-Section,Category,Route path,Source,Purpose and activities
-Public Site And Knowledge Hub,Public site,/,"Market, Core","Main TreeSeed landing surface. In Market it introduces workflow imports, private teams, public work, and marketplace entry points; in Core it serves the default project knowledge hub home."
-Public Site And Knowledge Hub,Public site,/404,Core,Not-found page shown when a requested UI route or content entry cannot be resolved.
-Public Site And Knowledge Hub,Public pages,/[slug],Core,Renders published page-model content by slug for project or tenant-owned informational pages.
-Public Site And Knowledge Hub,Public site,/contact,Core,Contact page for submitting inquiries through the configured TreeSeed contact form.
-Public Site And Knowledge Hub,Public UI reference,/ui,Core,"Internal UI foundation reference page for checking shared component styling, controls, cards, and layout primitives."
-Public Site And Knowledge Hub,Docs runtime,/docs-runtime,Core,Documentation runtime index for project docs content served through the Core site shell.
-Public Site And Knowledge Hub,Docs runtime,/docs-runtime/[...slug],Core,Documentation runtime detail route for nested docs pages.
-Public Content Collections,Agents,/agents,Core,Lists published TreeSeed agents for a project or tenant.
-Public Content Collections,Agents,/agents/[slug],Core,"Shows one published agent definition, role, responsibilities, and related context."
-Public Content Collections,Books,/books,Core,Lists published knowledge books.
-Public Content Collections,Books,/books/[slug],Core,Shows one book landing page and its assembled knowledge references.
-Public Content Collections,Decisions,/decisions,Core,Lists published decisions.
-Public Content Collections,Decisions,/decisions/[slug],Core,"Shows one decision record, rationale, and linked work context."
-Public Content Collections,Notes,/notes,Core,Lists published notes.
-Public Content Collections,Notes,/notes/[slug],Core,Shows one note and its linked subject matter.
-Public Content Collections,Objectives,/objectives,Core,Lists published objectives.
-Public Content Collections,Objectives,/objectives/[slug],Core,"Shows one objective, status, context, and linked work."
-Public Content Collections,People,/people,Core,Lists published people or contributors.
-Public Content Collections,People,/people/[slug],Core,Shows one contributor profile and related work.
-Public Content Collections,Proposals,/proposals,Core,Lists published proposals.
-Public Content Collections,Proposals,/proposals/[slug],Core,"Shows one proposal, discussion context, and decision state."
-Public Content Collections,Questions,/questions,Core,Lists published questions and answers.
-Public Content Collections,Questions,/questions/[slug],Core,"Shows one question, answers, and related context."
-Public Marketplace And Commerce,Marketplace,/marketplace,Market,"Buyer-facing marketplace for discovering governed digital products, services, and capacity offerings."
-Public Marketplace And Commerce,Marketplace,/market/products/[productId],Market,"Product detail page for reviewing buyer-visible terms, pricing, ownership, entitlements, and checkout actions."
-Public Marketplace And Commerce,Cart and checkout,/cart,Market,Cart surface for reviewing selected marketplace offers and starting checkout.
-Public Marketplace And Commerce,Cart and checkout,/checkout/[checkoutId],Market,Checkout review page for completing a marketplace checkout session.
-Public Marketplace And Commerce,Capacity marketplace,/capacity,Market,Public capacity listing index for reviewing buyer-visible execution posture and inquiry options.
-Public Marketplace And Commerce,Capacity marketplace,/capacity/[listingId],Market,"Capacity listing detail page for reviewing trust, availability, and submitting an inquiry."
-Public Marketplace And Commerce,Services,/services/new,Market,Service request form for creating a scoped buyer inquiry.
-Public Marketplace And Commerce,Services,/services/[requestId],Market,"Service request detail page for reviewing request status, seller quote state, and buyer decisions."
-Public Marketplace And Commerce,Services,/services/[requestId]/checkout,Market,Service checkout page for starting or completing checkout on an accepted service contract.
-Public Commons Governance,Commons,/commons,Market,"Public advisory governance hub for proposals, questions, participation signals, and steward activity."
-Public Commons Governance,Commons proposals,/commons/proposals/new,Market,Public proposal submission form for signed-in participants.
-Public Commons Governance,Commons proposals,/commons/proposals/[proposalId],Market,Public proposal detail page for reviewing proposal status and submitting governance actions such as votes.
-Public Commons Governance,Commons questions,/commons/questions/new,Market,Public question submission form for signed-in participants.
-Public Market Imports,Imports market,/market,Admin,Public market catalog for TreeSeed workflow imports.
-Public Market Imports,Knowledge packs,/market/knowledge-packs,Admin,Lists public knowledge packs available for import.
-Public Market Imports,Knowledge packs,/market/knowledge-packs/[slug],Admin,"Shows one public knowledge pack, its contents, and import context."
-Public Market Imports,Templates,/market/templates,Admin,Lists public project or workflow templates available for import.
-Public Market Imports,Templates,/market/templates/[slug],Admin,"Shows one public template, included content, and import context."
-Public Identity And Profile Pages,Team profile,/t/[name],Admin,Public team profile page.
-Public Identity And Profile Pages,Project profile,/p/[project],Admin,Public project profile page.
-Public Identity And Profile Pages,User profile,/u/[username],Admin,Public user profile page.
-Public Identity And Profile Pages,Team invitations,/team-invites/[token]/accept,Admin,Invitation acceptance page for joining a team.
-Authentication,Sign in,/auth/sign-in,Admin,Sign-in page for email or configured OAuth providers.
-Authentication,Registration,/auth/register,Admin,User registration page.
-Authentication,Email verification,/auth/check-email,Admin,Post-registration or sign-in page prompting the user to check email.
-Authentication,Email verification,/auth/confirm-email,Admin,Email confirmation page for completing account verification.
-Authentication,Password recovery,/auth/forgot-password,Admin,Starts password reset by collecting account email.
-Authentication,Password recovery,/auth/reset-password,Admin,Completes password reset using a reset token.
-Authentication,Username setup,/auth/username,Admin,Account username setup or correction page.
-Authentication,Device authorization,/auth/device/approve,Admin,Device approval page for authorizing a secondary sign-in flow.
-Authentication,Logout,/auth/logout,Admin,Logout confirmation and session termination page.
-App Dashboard And Account,App dashboard,/app,Admin,"Authenticated application home summarizing current team, work, projects, knowledge, capacity, and services."
-App Dashboard And Account,Account,/app/account,Admin,"Account management page for profile, preferences, sessions, notifications, API tokens, appearance, and deletion controls."
-App Dashboard And Account,Services,/app/services,Admin,Authenticated service operations overview.
-App Work Management,Work overview,/app/work,Admin,"Work hub for navigating objectives, questions, proposals, decisions, notes, and review queues."
-App Work Management,Review,/app/work/review,Admin,Review queue for pending or recently changed work records.
-App Work Management,Decisions,/app/work/decisions,Admin,Lists work decisions.
-App Work Management,Decisions,/app/work/decisions/new,Admin,Creates a decision record.
-App Work Management,Decisions,/app/work/decisions/[slug],Admin,Shows one decision and its related work.
-App Work Management,Decisions,/app/work/decisions/[slug]/edit,Admin,Edits an existing decision.
-App Work Management,Notes,/app/work/notes,Admin,Lists notes.
-App Work Management,Notes,/app/work/notes/new,Admin,Creates a linked note.
-App Work Management,Notes,/app/work/notes/[slug],Admin,Shows one note.
-App Work Management,Notes,/app/work/notes/[slug]/edit,Admin,Edits an existing note.
-App Work Management,Objectives,/app/work/objectives,Admin,Lists objectives.
-App Work Management,Objectives,/app/work/objectives/new,Admin,Creates an objective.
-App Work Management,Objectives,/app/work/objectives/[slug],Admin,Shows one objective and related progress.
-App Work Management,Objectives,/app/work/objectives/[slug]/edit,Admin,Edits an existing objective.
-App Work Management,Proposals,/app/work/proposals,Admin,Lists proposals.
-App Work Management,Proposals,/app/work/proposals/new,Admin,Creates a proposal.
-App Work Management,Proposals,/app/work/proposals/[slug],Admin,"Shows one proposal, review state, and linked decisions."
-App Work Management,Proposals,/app/work/proposals/[slug]/edit,Admin,Edits an existing proposal.
-App Work Management,Questions,/app/work/questions,Admin,Lists questions and answers.
-App Work Management,Questions,/app/work/questions/new,Admin,Asks a new question.
-App Work Management,Questions,/app/work/questions/[slug],Admin,Shows one question and answer context.
-App Work Management,Questions,/app/work/questions/[slug]/edit,Admin,Edits an existing question.
-App Commons Governance,Commons,/app/commons,Admin,Authenticated commons governance dashboard.
-App Commons Governance,Commons participants,/app/commons/participants,Admin,Reviews commons participants and participation signals.
-App Commons Governance,Commons proposals,/app/commons/proposals/[proposalId],Admin,Reviews a commons proposal in the authenticated app shell.
-App Projects,Projects,/app/projects,Admin,Lists projects available to the current user or team.
-App Projects,Projects,/app/projects/new,Admin,Creates a new project.
-App Projects,Projects,/app/projects/[projectId],Admin,Project profile and operational overview.
-App Projects,Project agents,/app/projects/[projectId]/agents,Admin,Lists agents configured for a project.
-App Projects,Project agents,/app/projects/[projectId]/agents/new,Admin,Creates a project agent.
-App Projects,Project agents,/app/projects/[projectId]/agents/[agentSlug],Admin,Views or edits a project agent configuration and runtime posture.
-App Projects,Project artifacts,/app/projects/[projectId]/artifacts,Admin,Reviews project artifacts produced by workdays or knowledge operations.
-App Projects,Project decisions,/app/projects/[projectId]/decisions,Admin,Reviews project-scoped decisions.
-App Projects,Project lifecycle,/app/projects/[projectId]/delete,Admin,Project deletion confirmation and blocking-record review.
-App Projects,Project deployment,/app/projects/[projectId]/deploy,Admin,Project deployment readiness and deploy controls.
-App Projects,Project deployment,/app/projects/deployment/[id],Admin,Deployment detail page for one deployment operation.
-App Projects,Project guidance,/app/projects/[projectId]/guidance,Admin,Project guidance and operating instructions.
-App Projects,Project hosts,/app/projects/[projectId]/hosts,Admin,Project host bindings and runtime host posture.
-App Projects,Project knowledge,/app/projects/[projectId]/knowledge,Admin,Project private knowledge index.
-App Projects,Project knowledge,/app/projects/[projectId]/knowledge/[...slug],Admin,Project private knowledge detail route for nested content.
-App Projects,Project settings,/app/projects/[projectId]/settings,Admin,Project settings and configuration controls.
-App Projects,Project workdays,/app/projects/[projectId]/workdays,Admin,Lists workdays for a project.
-App Projects,Project workdays,/app/projects/[projectId]/workdays/[workdayId],Admin,"Workday detail page with run context, artifacts, and outcomes."
-App Teams,Teams,/app/teams,Admin,Lists teams available to the current account and supports active team selection.
-App Teams,Teams,/app/teams/new,Admin,Creates a new team.
-App Teams,Team settings,/app/teams/[teamId]/edit,Admin,Edits team profile and settings.
-App Teams,Team settings,/app/teams/[teamId]/delete,Admin,Deletes a team when no blocking records prevent removal.
-App Teams,Team membership,/app/teams/[teamId]/members,Admin,"Invites, removes, and changes roles for team members."
-App Seller And Commerce Operations,Seller dashboard,/app/market/seller,Admin,Seller setup and marketplace readiness dashboard.
-App Seller And Commerce Operations,Seller readiness,/app/teams/[teamId]/commerce,Admin,Team-specific seller readiness and commerce governance overview.
-App Seller And Commerce Operations,Products,/app/teams/[teamId]/commerce/products,Admin,Reviews seller products.
-App Seller And Commerce Operations,Products,/app/teams/[teamId]/commerce/products/[productId]/governance,Admin,"Manages cooperative ownership, stewardship, attribution, transfer, and succession for one product."
-App Seller And Commerce Operations,Sales,/app/teams/[teamId]/commerce/sales,Admin,"Reviews sales, fulfillment, refunds, revocations, and seller operation state."
-App Seller And Commerce Operations,Services,/app/teams/[teamId]/commerce/services,Admin,Reviews service requests and seller scoping work.
-App Seller And Commerce Operations,Services,/app/teams/[teamId]/commerce/services/[requestId],Admin,"Manages one service request, quote, contract, and fulfillment state."
-App Seller And Commerce Operations,Capacity listings,/app/teams/[teamId]/commerce/capacity,Admin,Manages marketplace capacity listings and inquiries for a seller team.
-App Seller And Commerce Operations,Capacity listings,/app/teams/[teamId]/commerce/capacity/[listingId],Admin,"Reviews and updates one capacity listing's trust, transparency, and inquiry state."
-App Capacity Operations,Capacity overview,/app/capacity,Admin,"Capacity control surface for providers, allocation, runtime, and workday runs."
-App Capacity Operations,Allocation,/app/capacity/allocation,Admin,Team and project capacity allocation overview.
-App Capacity Operations,Allocation,/app/capacity/allocation/projects/[projectId],Admin,Project capacity allocation detail.
-App Capacity Operations,Allocation,/app/capacity/allocation/projects/[projectId]/modes/[modeId],Admin,Allocation controls for one project mode.
-App Capacity Operations,Allocation,/app/capacity/allocation/projects/[projectId]/agents/[agentSlug],Admin,Allocation controls for one project agent.
-App Capacity Operations,Runtime,/app/capacity/runtime,Admin,Provider runtime and local capacity execution state.
-App Capacity Operations,Workday runs,/app/capacity/workday-runs,Admin,Lists capacity-backed workday runs.
-App Capacity Operations,Workday runs,/app/capacity/workday-runs/[runId],Admin,Workday run detail page with mode-run and runtime diagnostics.
-App Capacity Operations,Providers,/app/capacity/providers,Admin,Lists capacity providers registered to the current scope.
-App Capacity Operations,Providers,/app/capacity/providers/new,Admin,Registers a new capacity provider.
-App Capacity Operations,Providers,/app/capacity/providers/[providerId],Admin,"Provider detail page for status, capabilities, and assignments."
-App Capacity Operations,Providers,/app/capacity/providers/[providerId]/settings,Admin,Provider settings and configuration controls.
-App Capacity Operations,Providers,/app/capacity/providers/[providerId]/keys,Admin,Provider registration key rotation and credential controls.
-App Hosts And Knowledge Distribution,Hosts,/app/hosts,Admin,Lists managed hosts and deployment targets.
-App Hosts And Knowledge Distribution,Hosts,/app/hosts/new,Admin,Creates a new host.
-App Hosts And Knowledge Distribution,Hosts,/app/hosts/[hostType]/new,Admin,Creates a new host of a selected host type.
-App Hosts And Knowledge Distribution,Hosts,/app/hosts/[hostType]/[hostId],Admin,Host detail page for runtime posture and linked resources.
-App Hosts And Knowledge Distribution,Hosts,/app/hosts/[hostType]/[hostId]/settings,Admin,Host settings and credential controls.
-App Hosts And Knowledge Distribution,Knowledge library,/app/hosts/knowledge-library,Admin,Host-facing knowledge library management surface.
-App Knowledge Management,Knowledge overview,/app/knowledge,Admin,"Authenticated knowledge dashboard for private content, distribution, imports, and releases."
-App Knowledge Management,Knowledge detail,/app/knowledge/[category]/[slug],Admin,Generic knowledge detail route for a category and slug.
-App Knowledge Management,Artifacts,/app/knowledge/artifacts,Admin,Reviews generated or imported knowledge artifacts.
-App Knowledge Management,Books,/app/knowledge/books,Admin,Lists private books.
-App Knowledge Management,Books,/app/knowledge/books/[slug],Admin,Shows one private book.
-App Knowledge Management,Capabilities,/app/knowledge/capabilities,Admin,Lists knowledge capabilities.
-App Knowledge Management,Capabilities,/app/knowledge/capabilities/[slug],Admin,Shows one knowledge capability.
-App Knowledge Management,Imports,/app/knowledge/imports,Admin,"Reviews imported templates, packs, or content bundles."
-App Knowledge Management,Imports,/app/knowledge/imports/[slug],Admin,Shows one import record.
-App Knowledge Management,Packs,/app/knowledge/packs,Admin,Lists private or managed knowledge packs.
-App Knowledge Management,Publish,/app/knowledge/publish,Admin,Publishing workflow for preparing knowledge distribution.
-App Knowledge Management,Releases,/app/knowledge/releases,Admin,Lists knowledge releases.
-App Knowledge Management,Releases,/app/knowledge/releases/[releaseId],Admin,Shows one knowledge release.
-App Knowledge Management,Releases,/app/knowledge/releases/[releaseId]/review,Admin,Review page for approving or checking one knowledge release.
-App Knowledge Management,Templates,/app/knowledge/templates,Admin,Lists private or managed templates.
+"owner","route","source","context","shell","template","resourceType","policyNeeds","dataSource"
+"admin","/app","packages/admin/src/pages/app/index.astro","personal","AuthenticatedAppShell","dashboard","account","signed-in principal","Admin auth/session and generic API facade"
+"admin","/app/account","packages/admin/src/pages/app/account.astro","personal","AuthenticatedAppShell","settings","account","signed-in principal","Admin auth/session and generic API facade"
+"admin","/app/teams","packages/admin/src/pages/app/teams/index.astro","team","AuthenticatedAppShell","collection","team-profile","signed-in principal; team membership and management role","Admin auth/session and generic API facade"
+"admin","/app/teams/:teamId/delete","packages/admin/src/pages/app/teams/[teamId]/delete.astro","team","AuthenticatedAppShell","detail","team-profile","signed-in principal; team membership and management role","Admin auth/session and generic API facade"
+"admin","/app/teams/:teamId/edit","packages/admin/src/pages/app/teams/[teamId]/edit.astro","team","AuthenticatedAppShell","detail","team-profile","signed-in principal; team membership and management role","Admin auth/session and generic API facade"
+"admin","/app/teams/:teamId/members","packages/admin/src/pages/app/teams/[teamId]/members.astro","team","AuthenticatedAppShell","detail","team-profile","signed-in principal; team membership and management role","Admin auth/session and generic API facade"
+"admin","/app/teams/new","packages/admin/src/pages/app/teams/new.astro","team","AuthenticatedAppShell","wizard","team-profile","signed-in principal; team membership and management role","Admin auth/session and generic API facade"
+"admin","/auth/check-email","packages/admin/src/pages/auth/check-email.astro","auth","AuthShell","auth-form","auth-session","anonymous-safe auth flow; safe return URL","Admin auth/session and generic API facade"
+"admin","/auth/confirm-email","packages/admin/src/pages/auth/confirm-email.astro","auth","AuthShell","auth-form","auth-session","anonymous-safe auth flow; safe return URL","Admin auth/session and generic API facade"
+"admin","/auth/device/approve","packages/admin/src/pages/auth/device/approve.astro","auth","AuthShell","auth-form","auth-session","anonymous-safe auth flow; safe return URL","Admin auth/session and generic API facade"
+"admin","/auth/forgot-password","packages/admin/src/pages/auth/forgot-password.astro","auth","AuthShell","auth-form","auth-session","anonymous-safe auth flow; safe return URL","Admin auth/session and generic API facade"
+"admin","/auth/logout","packages/admin/src/pages/auth/logout.astro","auth","AuthShell","auth-form","auth-session","anonymous-safe auth flow; safe return URL","Admin auth/session and generic API facade"
+"admin","/auth/register","packages/admin/src/pages/auth/register.astro","auth","AuthShell","auth-form","auth-session","anonymous-safe auth flow; safe return URL","Admin auth/session and generic API facade"
+"admin","/auth/reset-password","packages/admin/src/pages/auth/reset-password.astro","auth","AuthShell","auth-form","auth-session","anonymous-safe auth flow; safe return URL","Admin auth/session and generic API facade"
+"admin","/auth/sign-in","packages/admin/src/pages/auth/sign-in.astro","auth","AuthShell","auth-form","auth-session","anonymous-safe auth flow; safe return URL","Admin auth/session and generic API facade"
+"admin","/auth/username","packages/admin/src/pages/auth/username.astro","auth","AuthShell","auth-form","auth-session","anonymous-safe auth flow; safe return URL","Admin auth/session and generic API facade"
+"admin","/t/:name","packages/admin/src/pages/t/[name].astro","team","PublicSingleColumnShell","detail","team-profile","public read","Admin auth/session and generic API facade"
+"admin","/team-invites/:token/accept","packages/admin/src/pages/team-invites/[token]/accept.astro","auth","AuthShell","auth-form","auth-session","anonymous-safe auth flow; safe return URL","Admin auth/session and generic API facade"
+"admin","/u/:username","packages/admin/src/pages/u/[username].astro","public","PublicSingleColumnShell","detail","user-profile","public read","Admin auth/session and generic API facade"
+"core","/","packages/core/src/pages/index.astro","content","CoreContentLayout","collection","content-page","public read","Core content runtime"
+"core","/:slug","packages/core/src/pages/[slug].astro","content","CoreContentLayout","detail","content-page","public read","Core content runtime"
+"core","/404","packages/core/src/pages/404.astro","content","CoreContentLayout","collection","content-page","public read","Core content runtime"
+"core","/agents","packages/core/src/pages/agents/index.astro","content","CoreContentLayout","collection","content-page","public read","Core content runtime"
+"core","/agents/:slug","packages/core/src/pages/agents/[slug].astro","content","CoreContentLayout","detail","content-page","public read","Core content runtime"
+"core","/books","packages/core/src/pages/books/index.astro","content","CoreReaderLayout","reader","content-page","public read","Core content runtime"
+"core","/books/:slug","packages/core/src/pages/books/[slug].astro","content","CoreReaderLayout","reader","content-page","public read","Core content runtime"
+"core","/contact","packages/core/src/pages/contact.astro","content","CoreContentLayout","collection","content-page","public read","Core content runtime"
+"core","/decisions","packages/core/src/pages/decisions/index.astro","content","CoreContentLayout","collection","content-page","public read","Core content runtime"
+"core","/decisions/:slug","packages/core/src/pages/decisions/[slug].astro","content","CoreContentLayout","detail","content-page","public read","Core content runtime"
+"core","/docs-runtime","packages/core/src/pages/docs-runtime/index.astro","content","CoreReaderLayout","reader","content-page","public read","Core content runtime"
+"core","/docs-runtime/:slug*","packages/core/src/pages/docs-runtime/[...slug].astro","content","CoreReaderLayout","reader","content-page","public read","Core content runtime"
+"core","/notes","packages/core/src/pages/notes/index.astro","content","CoreContentLayout","collection","content-page","public read","Core content runtime"
+"core","/notes/:slug","packages/core/src/pages/notes/[slug].astro","content","CoreContentLayout","detail","content-page","public read","Core content runtime"
+"core","/objectives","packages/core/src/pages/objectives/index.astro","content","CoreContentLayout","collection","content-page","public read","Core content runtime"
+"core","/objectives/:slug","packages/core/src/pages/objectives/[slug].astro","content","CoreContentLayout","detail","content-page","public read","Core content runtime"
+"core","/people","packages/core/src/pages/people/index.astro","content","CoreContentLayout","collection","content-page","public read","Core content runtime"
+"core","/people/:slug","packages/core/src/pages/people/[slug].astro","content","CoreContentLayout","detail","content-page","public read","Core content runtime"
+"core","/proposals","packages/core/src/pages/proposals/index.astro","content","CoreContentLayout","collection","content-page","public read","Core content runtime"
+"core","/proposals/:slug","packages/core/src/pages/proposals/[slug].astro","content","CoreContentLayout","detail","content-page","public read","Core content runtime"
+"core","/questions","packages/core/src/pages/questions/index.astro","content","CoreContentLayout","collection","content-page","public read","Core content runtime"
+"core","/questions/:slug","packages/core/src/pages/questions/[slug].astro","content","CoreContentLayout","detail","content-page","public read","Core content runtime"
+"core","/ui","packages/core/src/pages/ui/index.astro","content","CoreContentLayout","collection","content-page","public read","Core content runtime"

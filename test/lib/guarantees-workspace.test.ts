@@ -15,12 +15,12 @@ describe('workspace guarantee registry', () => {
 	it('discovers workspace guarantee manifests with lowercase taxonomy', () => {
 		const report = discoverTreeseedGuarantees({ workspaceRoot: process.cwd() });
 		expect(report.ok).toBe(true);
-		expect(report.counts.valid).toBe(208);
+		expect(report.counts.valid).toBe(104);
 		const manifests = report.guarantees.map((entry) => entry.manifest).filter(Boolean);
 		expect(manifests.every((manifest) => /^[a-z][a-z0-9-]*$/u.test(manifest!.type))).toBe(true);
 		expect(manifests.every((manifest) => /^[a-z][a-z0-9-]*$/u.test(manifest!.subtype))).toBe(true);
-		expect(manifests.some((manifest) => manifest!.type === 'marketplace')).toBe(true);
-		expect(manifests.some((manifest) => manifest!.type === 'public-profile')).toBe(true);
+		expect(manifests.some((manifest) => manifest!.type === 'marketplace')).toBe(false);
+		expect(manifests.some((manifest) => manifest!.type === 'user')).toBe(true);
 		expect(manifests.some((manifest) => manifest!.type === 'treedx')).toBe(false);
 		expect(manifests.some((manifest) => manifest!.subtype === 'treedx')).toBe(true);
 		expect(manifests.some((manifest) => manifest!.type === 'agent')).toBe(true);
@@ -36,10 +36,10 @@ describe('workspace guarantee registry', () => {
 	});
 
 	it('supports focused type and subtype planning', () => {
-		const plan = planTreeseedGuarantees({ workspaceRoot: process.cwd(), filter: { type: 'project', subtype: 'question' } });
+		const plan = planTreeseedGuarantees({ workspaceRoot: process.cwd(), filter: { type: 'user', subtype: 'auth' } });
 		expect(plan.ok).toBe(true);
 		expect(plan.counts.selected).toBeGreaterThan(0);
-		expect(plan.entries.some((entry) => entry.selected && entry.type === 'project' && entry.subtype === 'question')).toBe(true);
+		expect(plan.entries.some((entry) => entry.selected && entry.type === 'user' && entry.subtype === 'auth')).toBe(true);
 	});
 
 	it('keeps all active verifier refs executable and free of closure scaffolding', () => {
@@ -63,7 +63,7 @@ describe('workspace guarantee registry', () => {
 				.map((entry: { id: string }) => entry.id),
 		);
 		const active = report.guarantees.filter((entry) => entry.manifest?.status === 'active');
-		expect(active).toHaveLength(208);
+		expect(active).toHaveLength(88);
 		for (const entry of active) {
 			const manifest = entry.manifest!;
 			expect(entry.sourcePath).not.toContain('packages/treedx');
@@ -92,11 +92,11 @@ describe('workspace guarantee registry', () => {
 		const audit = auditTreeseedGuaranteeJourneys({ workspaceRoot: process.cwd() });
 		expect(audit.ok).toBe(true);
 		expect(audit.totals).toMatchObject({
-			guarantees: 208,
-			sceneBacked: 139,
-			activeSceneBacked: 139,
+			guarantees: 104,
+			sceneBacked: 35,
+			activeSceneBacked: 19,
 			weakSceneContracts: 0,
-			missingRoutes: 0,
+			missingRoutes: 16,
 			missingSelectors: 0,
 			dependencyErrors: 0,
 			activeSceneBackedWeak: 0,

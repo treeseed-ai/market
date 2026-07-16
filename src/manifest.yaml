@@ -23,7 +23,7 @@ features:
   proposals: true
   decisions: true
   agents: true
-  forms: true
+  forms: false
 site:
   models:
     knowledge_packs:

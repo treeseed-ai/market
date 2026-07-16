@@ -12,10 +12,9 @@ Reusable TreeSeed web UI now lives in `@treeseed/ui`. Import Astro components fr
 
 ## Current Shell And Layout Model
 
-TreeSeed uses four current shell families:
+TreeSeed currently composes three shell families; reusable UI exports beyond these consumers remain available for redesign work:
 
 - **Authenticated app shell:** `ShellFrame`, `ShellHeader`, `SiteUserControls`, `TeamOperationsPanel`, `TeamOperationsDrawer`, and `ControlSurface` composed by Admin's `TreeseedAppLayout` for `/app/**`.
-- **Operational market shell:** the same authenticated app frame composed by Admin's `TreeseedOperationalMarketLayout` for market work such as marketplace browsing, cart, checkout, capacity, services, Commons participation, and catalog acquisition.
 - **Auth shell:** `AuthShell` for sign-in, registration, recovery, username, email confirmation, and device approval flows.
 - **Public single-column shell:** `PublicSingleColumnShell`, `PublicStack`, `PublicSection`, `PublicHeroSection`, `PublicProfileHeader`, and `PublicKnowledgeSection` for the homepage, marketing pages, public profiles, public projects, books, and Knowledge Hub pages.
 
@@ -28,8 +27,8 @@ Every exported Astro layout/component must have a UI sandbox registry entry in `
 ## Package Ownership
 
 - `@treeseed/ui` owns reusable components, shells, forms, controls, cards, operation panels, auth surfaces, theme utilities, React widgets, and CSS primitives.
-- `@treeseed/admin` owns admin route composition, data binding, auth/session flow, admin view models, and workflow orchestration.
-- root `@treeseed/market` owns tenant content, public messaging, page overrides, Treeseed branding, authenticated operational marketplace/cart/checkout/service/capacity/Commons participant pages, and public marketing/profile/knowledge pages.
+- `@treeseed/admin` currently owns authentication, account, team, active-team, invitation, and identity-only public profile composition plus retained generic contracts.
+- root `@treeseed/market` owns tenant content, configuration, public messaging, and future redesigned business-policy presentation; it currently owns no route files.
 - `@treeseed/core` owns generic site runtime and plugin/layout integration hooks, not layout-down product components.
 - `@treeseed/api`, `@treeseed/sdk`, `@treeseed/cli`, `@treeseed/agent`, and TreeDX own non-visual runtime behavior.
 

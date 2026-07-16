@@ -37,14 +37,16 @@ The frontend must never be authoritative for Stripe price IDs, seller IDs, amoun
 
 Commerce is integrated into the canonical UI architecture as a capability family, not a standalone frontend app.
 
-Operational buyer routes are server-loaded TreeSeed market routes rendered through `TreeseedOperationalMarketLayout` and canonical templates:
+> UI status: all Market/Admin ecommerce presentation routes described in this document were removed during the legacy UI cleanup. Ecommerce contracts, persistence, API behavior, and reusable `@treeseed/ui` components remain. Route descriptions below are historical redesign requirements; see [Legacy Routes](./legacy-routes.md) and [UI Redesign](./ui-redesign.md).
+
+The retired operational buyer routes were server-loaded TreeSeed market routes rendered through `TreeseedOperationalMarketLayout` and canonical templates:
 
 - `/marketplace`: `DashboardTemplate` plus `CollectionTemplate` for marketplace listings.
 - `/market/products/:productId`: `DetailTemplate` for product, offer, ownership, and stewardship context.
 - `/cart` and `/checkout/:checkoutId`: dashboard/detail checkout views. Stripe.js is limited to explicit payment confirmation after the API has resolved checkout and payment group state.
 - `/capacity/*` and `/services/*`: collection/detail/settings templates for trust-gated capacity and scoped service flows.
 
-Authenticated seller and steward routes are app-shell routes rendered through `TreeseedAppLayout` and admin-owned view models:
+The retired authenticated seller and steward routes were app-shell routes rendered through `TreeseedAppLayout` and admin-owned view models:
 
 - `/app/market/seller`: seller dashboard and distribution state.
 - `/app/teams/:teamId/commerce`: seller readiness, Stripe status, products/offers/sales/services/capacity, ownership/stewardship, and required next actions.

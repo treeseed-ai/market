@@ -1,219 +1,64 @@
 # UI Architecture Inventory
 
-This architecture inventory is generated from `scripts/ui-architecture/inventory.ts`. Update the typed inventory first, then run `npm run check:ui-architecture -- --write` to refresh this reviewer-facing view.
+Generated from `scripts/ui-architecture/inventory.ts`. This is the current post-cleanup route and component inventory; the removed surface is archived in [legacy-routes.md](./legacy-routes.md), and redesign direction lives in [ui-redesign.md](./ui-redesign.md).
 
-The typed inventory is canonical for human-facing route shells, templates, policy needs, architecture maturity, and reusable UI component ownership. Current active routes are not deprecated. Any future replaced or deleted entry must have no remaining imported implementation.
+Market currently owns no route files. Admin owns the retained authentication, account, team, active-team, invitation, and public identity/team profile surface. Core routes and every `@treeseed/ui` component remain unchanged.
 
-## Route Inventory
+## Human-facing routes
 
-| Owner | Route | Source | Context | Current shell | Target shell | Target template | Resource | Maturity | Risk | Status | Architecture proof | Architecture debt |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| admin | `/app/account` | `packages/admin/src/pages/app/account.astro` | personal | AuthenticatedAppShell | AuthenticatedAppShell | settings | page | L1 | medium | active | none | route-local-script |
-| admin | `/app/capacity/allocation` | `packages/admin/src/pages/app/capacity/allocation.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | dashboard | allocation | L9 | medium | active | Allocation and workday operating loop proof | route-local-script |
-| admin | `/app/capacity/allocation/projects/:projectId` | `packages/admin/src/pages/app/capacity/allocation/projects/[projectId].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | allocation | L9 | medium | active | Allocation and workday operating loop proof | route-local-script |
-| admin | `/app/capacity/allocation/projects/:projectId/agents/:agentSlug` | `packages/admin/src/pages/app/capacity/allocation/projects/[projectId]/agents/[agentSlug].astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | workspace | allocation | L9 | medium | active | Allocation and workday operating loop proof | none |
-| admin | `/app/capacity/allocation/projects/:projectId/modes/:modeId` | `packages/admin/src/pages/app/capacity/allocation/projects/[projectId]/modes/[modeId].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | allocation | L9 | medium | active | Allocation and workday operating loop proof | none |
-| admin | `/app/capacity` | `packages/admin/src/pages/app/capacity/index.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | collection | allocation-capacity | L1 | medium | active | none | none |
-| admin | `/app/capacity/providers/:providerId` | `packages/admin/src/pages/app/capacity/providers/[providerId].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | capacity-provider | L8 | medium | active | Services and capacity readiness proof | none |
-| admin | `/app/capacity/providers/:providerId/keys` | `packages/admin/src/pages/app/capacity/providers/[providerId]/keys.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | detail | capacity-provider | L1 | medium | active | none | route-local-script |
-| admin | `/app/capacity/providers/:providerId/settings` | `packages/admin/src/pages/app/capacity/providers/[providerId]/settings.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | settings | capacity-provider | L8 | medium | active | Services and capacity readiness proof | route-local-script |
-| admin | `/app/capacity/providers` | `packages/admin/src/pages/app/capacity/providers/index.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | capacity-provider | L8 | medium | active | Services and capacity readiness proof | none |
-| admin | `/app/capacity/providers/new` | `packages/admin/src/pages/app/capacity/providers/new.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | wizard | capacity-provider | L1 | medium | active | none | route-local-script |
-| admin | `/app/capacity/runtime` | `packages/admin/src/pages/app/capacity/runtime.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | collection | allocation-capacity | L1 | medium | active | none | page-local-css<br>raw-color-fallback |
-| admin | `/app/capacity/workday-runs/:runId` | `packages/admin/src/pages/app/capacity/workday-runs/[runId].astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | workspace | workday | L9 | medium | active | Allocation and workday operating loop proof | none |
-| admin | `/app/capacity/workday-runs` | `packages/admin/src/pages/app/capacity/workday-runs/index.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | collection | workday | L9 | medium | active | Allocation and workday operating loop proof | route-local-script |
-| admin | `/app/commons` | `packages/admin/src/pages/app/commons/index.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | commons-governance | L10 | medium | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| admin | `/app/commons/participants` | `packages/admin/src/pages/app/commons/participants.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | commons-governance | L10 | medium | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| admin | `/app/commons/proposals/:proposalId` | `packages/admin/src/pages/app/commons/proposals/[proposalId].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | proposal | L10 | medium | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| admin | `/app/hosts/:hostType/:hostId` | `packages/admin/src/pages/app/hosts/[hostType]/[hostId].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | host | L8 | medium | active | Services and capacity readiness proof | none |
-| admin | `/app/hosts/:hostType/:hostId/settings` | `packages/admin/src/pages/app/hosts/[hostType]/[hostId]/settings.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | settings | host | L8 | medium | active | Services and capacity readiness proof | route-local-script |
-| admin | `/app/hosts/:hostType/new` | `packages/admin/src/pages/app/hosts/[hostType]/new.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | wizard | host | L1 | medium | active | none | route-local-script |
-| admin | `/app/hosts` | `packages/admin/src/pages/app/hosts/index.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | host | L8 | medium | active | Services and capacity readiness proof | none |
-| admin | `/app/hosts/knowledge-library` | `packages/admin/src/pages/app/hosts/knowledge-library.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | collection | host | L1 | medium | active | none | route-local-script |
-| admin | `/app/hosts/new` | `packages/admin/src/pages/app/hosts/new.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | wizard | host | L1 | medium | active | none | none |
-| admin | `/app` | `packages/admin/src/pages/app/index.astro` | personal | AuthenticatedAppShell | AuthenticatedAppShell | dashboard | page | L7 | medium | active | Personal/team contextual dashboard proof | none |
-| admin | `/app/knowledge` | `packages/admin/src/pages/app/knowledge.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | dashboard | knowledge-artifact | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/knowledge/:category/:slug` | `packages/admin/src/pages/app/knowledge/[category]/[slug].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | knowledge-artifact | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/knowledge/artifacts` | `packages/admin/src/pages/app/knowledge/artifacts.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | knowledge-artifact | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/knowledge/books` | `packages/admin/src/pages/app/knowledge/books.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | book-page | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/knowledge/books/:slug` | `packages/admin/src/pages/app/knowledge/books/[slug].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | book-page | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/knowledge/capabilities` | `packages/admin/src/pages/app/knowledge/capabilities.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | capability | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/knowledge/capabilities/:slug` | `packages/admin/src/pages/app/knowledge/capabilities/[slug].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | capability | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/knowledge/imports` | `packages/admin/src/pages/app/knowledge/imports.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | knowledge-import | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/knowledge/imports/:slug` | `packages/admin/src/pages/app/knowledge/imports/[slug].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | knowledge-import | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/knowledge/packs` | `packages/admin/src/pages/app/knowledge/packs.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | knowledge-pack | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/knowledge/publish` | `packages/admin/src/pages/app/knowledge/publish.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | settings | knowledge-artifact | L10 | high | active | Knowledge and capability distribution proof | route-local-script |
-| admin | `/app/knowledge/releases` | `packages/admin/src/pages/app/knowledge/releases.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | release | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/knowledge/releases/:releaseId` | `packages/admin/src/pages/app/knowledge/releases/[releaseId].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | release | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/knowledge/releases/:releaseId/review` | `packages/admin/src/pages/app/knowledge/releases/[releaseId]/review.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | settings | release | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/knowledge/templates` | `packages/admin/src/pages/app/knowledge/templates.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | template | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/market/seller` | `packages/admin/src/pages/app/market/seller.astro` | market | AuthenticatedAppShell | AuthenticatedAppShell | dashboard | seller | L10 | high | active | Knowledge and capability distribution proof | none |
-| admin | `/app/projects/:projectId` | `packages/admin/src/pages/app/projects/[projectId].astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | dashboard | project | L8 | medium | active | service readiness architecture project service readiness dashboard projection | none |
-| admin | `/app/projects/:projectId/agents` | `packages/admin/src/pages/app/projects/[projectId]/agents.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | workspace | project | L9 | medium | active | Allocation and workday operating loop proof | none |
-| admin | `/app/projects/:projectId/agents/:agentSlug` | `packages/admin/src/pages/app/projects/[projectId]/agents/[agentSlug].astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | workspace | project | L9 | medium | active | Allocation and workday operating loop proof | route-local-script |
-| admin | `/app/projects/:projectId/agents/new` | `packages/admin/src/pages/app/projects/[projectId]/agents/new.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | settings | project | L9 | medium | active | Allocation and workday operating loop proof | route-local-script |
-| admin | `/app/projects/:projectId/artifacts` | `packages/admin/src/pages/app/projects/[projectId]/artifacts.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | detail | project | L1 | medium | active | none | route-local-script |
-| admin | `/app/projects/:projectId/decisions` | `packages/admin/src/pages/app/projects/[projectId]/decisions.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | detail | decision | L1 | medium | active | none | none |
-| admin | `/app/projects/:projectId/delete` | `packages/admin/src/pages/app/projects/[projectId]/delete.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | detail | project | L1 | medium | active | none | route-local-script |
-| admin | `/app/projects/:projectId/deploy` | `packages/admin/src/pages/app/projects/[projectId]/deploy.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | detail | project | L1 | medium | active | none | route-local-script |
-| admin | `/app/projects/:projectId/guidance` | `packages/admin/src/pages/app/projects/[projectId]/guidance.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | detail | project | L1 | medium | active | Project-scoped direction companion proof | none |
-| admin | `/app/projects/:projectId/hosts` | `packages/admin/src/pages/app/projects/[projectId]/hosts.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | detail | host | L1 | medium | active | none | route-local-script |
-| admin | `/app/projects/:projectId/knowledge` | `packages/admin/src/pages/app/projects/[projectId]/knowledge.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | reader | project | L5 | high | active | Private Knowledge Hub reader proof | none |
-| admin | `/app/projects/:projectId/knowledge/:slug*` | `packages/admin/src/pages/app/projects/[projectId]/knowledge/[...slug].astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | reader | project | L5 | high | active | Private Knowledge Hub reader proof | none |
-| admin | `/app/projects/:projectId/settings` | `packages/admin/src/pages/app/projects/[projectId]/settings.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | settings | project | L1 | medium | active | none | route-local-script |
-| admin | `/app/projects/:projectId/workdays` | `packages/admin/src/pages/app/projects/[projectId]/workdays.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | collection | workday | L9 | medium | active | Allocation and workday operating loop proof | route-local-script |
-| admin | `/app/projects/:projectId/workdays/:workdayId` | `packages/admin/src/pages/app/projects/[projectId]/workdays/[workdayId].astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | workspace | workday | L9 | medium | active | Allocation and workday operating loop proof | route-local-script |
-| admin | `/app/projects/deployment/:id` | `packages/admin/src/pages/app/projects/deployment/[id].astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | dashboard | deployment | L1 | medium | active | none | inline-dynamic-style<br>route-local-script |
-| admin | `/app/projects` | `packages/admin/src/pages/app/projects/index.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | collection | project | L1 | medium | active | none | none |
-| admin | `/app/projects/new` | `packages/admin/src/pages/app/projects/new.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | wizard | project | L8 | high | active | Project launch service readiness proof | route-local-script |
-| admin | `/app/services` | `packages/admin/src/pages/app/services.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | dashboard | service-readiness | L8 | medium | active | Services and capacity readiness proof | none |
-| admin | `/app/teams/:teamId/commerce` | `packages/admin/src/pages/app/teams/[teamId]/commerce.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | team | L10 | high | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| admin | `/app/teams/:teamId/commerce/capacity` | `packages/admin/src/pages/app/teams/[teamId]/commerce/capacity.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | allocation-capacity | L10 | high | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| admin | `/app/teams/:teamId/commerce/capacity/:listingId` | `packages/admin/src/pages/app/teams/[teamId]/commerce/capacity/[listingId].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | allocation-capacity | L10 | high | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| admin | `/app/teams/:teamId/commerce/products` | `packages/admin/src/pages/app/teams/[teamId]/commerce/products.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | team | L10 | high | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| admin | `/app/teams/:teamId/commerce/products/:productId/governance` | `packages/admin/src/pages/app/teams/[teamId]/commerce/products/[productId]/governance.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | settings | team | L10 | high | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| admin | `/app/teams/:teamId/commerce/sales` | `packages/admin/src/pages/app/teams/[teamId]/commerce/sales.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | team | L10 | high | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| admin | `/app/teams/:teamId/commerce/services` | `packages/admin/src/pages/app/teams/[teamId]/commerce/services.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | team | L10 | high | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| admin | `/app/teams/:teamId/commerce/services/:requestId` | `packages/admin/src/pages/app/teams/[teamId]/commerce/services/[requestId].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | team | L10 | high | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| admin | `/app/teams/:teamId/delete` | `packages/admin/src/pages/app/teams/[teamId]/delete.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | team | L1 | medium | active | none | route-local-script |
-| admin | `/app/teams/:teamId/edit` | `packages/admin/src/pages/app/teams/[teamId]/edit.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | wizard | team | L1 | medium | active | none | none |
-| admin | `/app/teams/:teamId/members` | `packages/admin/src/pages/app/teams/[teamId]/members.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | team | L1 | medium | active | none | route-local-script |
-| admin | `/app/teams` | `packages/admin/src/pages/app/teams/index.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | dashboard | team | L7 | medium | active | Personal/team contextual dashboard proof | none |
-| admin | `/app/teams/new` | `packages/admin/src/pages/app/teams/new.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | wizard | team | L1 | medium | active | none | none |
-| admin | `/app/work` | `packages/admin/src/pages/app/work.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | dashboard | page | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/decisions` | `packages/admin/src/pages/app/work/decisions.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | decision | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/decisions/:slug` | `packages/admin/src/pages/app/work/decisions/[slug].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | decision | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/decisions/:slug/edit` | `packages/admin/src/pages/app/work/decisions/[slug]/edit.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | settings | decision | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/decisions/new` | `packages/admin/src/pages/app/work/decisions/new.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | settings | decision | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/notes` | `packages/admin/src/pages/app/work/notes.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | note | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/notes/:slug` | `packages/admin/src/pages/app/work/notes/[slug].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | note | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/notes/:slug/edit` | `packages/admin/src/pages/app/work/notes/[slug]/edit.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | settings | note | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/notes/new` | `packages/admin/src/pages/app/work/notes/new.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | settings | note | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/objectives` | `packages/admin/src/pages/app/work/objectives.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | objective | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/objectives/:slug` | `packages/admin/src/pages/app/work/objectives/[slug].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | objective | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/objectives/:slug/edit` | `packages/admin/src/pages/app/work/objectives/[slug]/edit.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | settings | objective | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/objectives/new` | `packages/admin/src/pages/app/work/objectives/new.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | settings | objective | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/proposals` | `packages/admin/src/pages/app/work/proposals.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | proposal | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/proposals/:slug` | `packages/admin/src/pages/app/work/proposals/[slug].astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | detail | proposal | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/proposals/:slug/edit` | `packages/admin/src/pages/app/work/proposals/[slug]/edit.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | settings | proposal | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/proposals/new` | `packages/admin/src/pages/app/work/proposals/new.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | settings | proposal | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/app/work/questions` | `packages/admin/src/pages/app/work/questions.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | collection | question | L6 | medium | active | Direction resource collection and authenticated contextual help proof | none |
-| admin | `/app/work/questions/:slug` | `packages/admin/src/pages/app/work/questions/[slug].astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | detail | question | L6 | medium | active | Direction resource detail/form and authenticated contextual help proof | none |
-| admin | `/app/work/questions/:slug/edit` | `packages/admin/src/pages/app/work/questions/[slug]/edit.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | settings | question | L6 | medium | active | Direction resource detail/form and authenticated contextual help proof | none |
-| admin | `/app/work/questions/new` | `packages/admin/src/pages/app/work/questions/new.astro` | project | AuthenticatedAppShell | AuthenticatedAppShell | settings | question | L6 | medium | active | Direction resource detail/form and authenticated contextual help proof | none |
-| admin | `/app/work/review` | `packages/admin/src/pages/app/work/review.astro` | team | AuthenticatedAppShell | AuthenticatedAppShell | collection | review-queue | L9 | low | active | Allocation and workday operating loop proof | none |
-| admin | `/auth/check-email` | `packages/admin/src/pages/auth/check-email.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | none |
-| admin | `/auth/confirm-email` | `packages/admin/src/pages/auth/confirm-email.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | none |
-| admin | `/auth/device/approve` | `packages/admin/src/pages/auth/device/approve.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | none |
-| admin | `/auth/forgot-password` | `packages/admin/src/pages/auth/forgot-password.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | none |
-| admin | `/auth/logout` | `packages/admin/src/pages/auth/logout.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | none |
-| admin | `/auth/register` | `packages/admin/src/pages/auth/register.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | route-local-script |
-| admin | `/auth/reset-password` | `packages/admin/src/pages/auth/reset-password.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | none |
-| admin | `/auth/sign-in` | `packages/admin/src/pages/auth/sign-in.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | none |
-| admin | `/auth/username` | `packages/admin/src/pages/auth/username.astro` | auth | AuthShell | AuthShell | auth-form | auth-session | L1 | medium | active | none | none |
-| admin | `/market` | `packages/admin/src/pages/market/index.astro` | market | OperationalMarketShell | OperationalMarketShell | dashboard | page | L7 | low | active | contextual dashboard architecture market contextual dashboard proof | none |
-| admin | `/market/knowledge-packs/:slug` | `packages/admin/src/pages/market/knowledge-packs/[slug].astro` | market | OperationalMarketShell | OperationalMarketShell | public-acquisition | market-knowledge-pack | L10 | medium | active | Knowledge and capability distribution proof | none |
-| admin | `/market/knowledge-packs` | `packages/admin/src/pages/market/knowledge-packs/index.astro` | market | OperationalMarketShell | OperationalMarketShell | collection | market-knowledge-pack | L10 | medium | active | Knowledge and capability distribution proof | none |
-| admin | `/market/templates/:slug` | `packages/admin/src/pages/market/templates/[slug].astro` | market | OperationalMarketShell | OperationalMarketShell | public-acquisition | market-template | L10 | medium | active | Knowledge and capability distribution proof | none |
-| admin | `/market/templates` | `packages/admin/src/pages/market/templates/index.astro` | market | OperationalMarketShell | OperationalMarketShell | collection | market-template | L10 | medium | active | Knowledge and capability distribution proof | none |
-| admin | `/p/:project` | `packages/admin/src/pages/p/[project].astro` | public | PublicSingleColumnShell | PublicSingleColumnShell | detail | profile | L1 | low | active | none | none |
-| admin | `/t/:name` | `packages/admin/src/pages/t/[name].astro` | public | PublicSingleColumnShell | PublicSingleColumnShell | detail | profile | L1 | low | active | none | none |
-| admin | `/team-invites/:token/accept` | `packages/admin/src/pages/team-invites/[token]/accept.astro` | auth | AuthShell | AuthShell | auth-form | page | L1 | low | active | none | none |
-| admin | `/u/:username` | `packages/admin/src/pages/u/[username].astro` | public | PublicSingleColumnShell | PublicSingleColumnShell | detail | profile | L1 | low | active | none | none |
-| core | `/:slug` | `packages/core/src/pages/[slug].astro` | content | CoreContentLayout | PublicSingleColumnShell | detail | page | L1 | low | active | none | none |
-| core | `/404` | `packages/core/src/pages/404.astro` | content | CoreContentLayout | PublicSingleColumnShell | collection | page | L1 | low | active | none | none |
-| core | `/agents/:slug` | `packages/core/src/pages/agents/[slug].astro` | content | CoreContentLayout | PublicSingleColumnShell | detail | agent | L1 | low | active | none | none |
-| core | `/agents` | `packages/core/src/pages/agents/index.astro` | content | CoreContentLayout | PublicSingleColumnShell | collection | agent | L1 | low | active | none | none |
-| core | `/books/:slug` | `packages/core/src/pages/books/[slug].astro` | content | CoreReaderLayout | PublicSingleColumnShell | reader | book-page | L1 | low | active | none | none |
-| core | `/books` | `packages/core/src/pages/books/index.astro` | content | CoreReaderLayout | PublicSingleColumnShell | reader | book-page | L1 | low | active | none | none |
-| core | `/contact` | `packages/core/src/pages/contact.astro` | content | CoreContentLayout | PublicSingleColumnShell | collection | page | L1 | low | active | none | none |
-| core | `/decisions/:slug` | `packages/core/src/pages/decisions/[slug].astro` | content | CoreContentLayout | PublicSingleColumnShell | detail | decision | L1 | low | active | none | none |
-| core | `/decisions` | `packages/core/src/pages/decisions/index.astro` | content | CoreContentLayout | PublicSingleColumnShell | collection | decision | L1 | low | active | none | none |
-| core | `/docs-runtime/:slug*` | `packages/core/src/pages/docs-runtime/[...slug].astro` | content | PublicSingleColumnShell | PublicSingleColumnShell | reader | book-page | L6 | medium | active | Public runtime reader and public contextual help proof | none |
-| core | `/docs-runtime` | `packages/core/src/pages/docs-runtime/index.astro` | content | PublicSingleColumnShell | PublicSingleColumnShell | reader | book-page | L6 | medium | active | Public runtime reader and public contextual help proof | none |
-| core | `/` | `packages/core/src/pages/index.astro` | content | CoreContentLayout | PublicSingleColumnShell | dashboard | page | L1 | low | active | none | none |
-| core | `/notes/:slug` | `packages/core/src/pages/notes/[slug].astro` | content | CoreContentLayout | PublicSingleColumnShell | detail | note | L1 | low | active | none | none |
-| core | `/notes` | `packages/core/src/pages/notes/index.astro` | content | CoreContentLayout | PublicSingleColumnShell | collection | note | L1 | low | active | none | none |
-| core | `/objectives/:slug` | `packages/core/src/pages/objectives/[slug].astro` | content | CoreContentLayout | PublicSingleColumnShell | detail | objective | L1 | low | active | none | none |
-| core | `/objectives` | `packages/core/src/pages/objectives/index.astro` | content | CoreContentLayout | PublicSingleColumnShell | collection | objective | L1 | low | active | none | none |
-| core | `/people/:slug` | `packages/core/src/pages/people/[slug].astro` | content | CoreContentLayout | PublicSingleColumnShell | detail | profile | L1 | low | active | none | none |
-| core | `/people` | `packages/core/src/pages/people/index.astro` | content | CoreContentLayout | PublicSingleColumnShell | collection | profile | L1 | low | active | none | none |
-| core | `/proposals/:slug` | `packages/core/src/pages/proposals/[slug].astro` | content | CoreContentLayout | PublicSingleColumnShell | detail | proposal | L1 | low | active | none | none |
-| core | `/proposals` | `packages/core/src/pages/proposals/index.astro` | content | CoreContentLayout | PublicSingleColumnShell | collection | proposal | L1 | low | active | none | none |
-| core | `/questions/:slug` | `packages/core/src/pages/questions/[slug].astro` | content | CoreContentLayout | PublicSingleColumnShell | detail | question | L1 | low | active | none | none |
-| core | `/questions` | `packages/core/src/pages/questions/index.astro` | content | CoreContentLayout | PublicSingleColumnShell | collection | question | L1 | low | active | none | none |
-| core | `/ui` | `packages/core/src/pages/ui/index.astro` | content | CoreContentLayout | PublicSingleColumnShell | collection | page | L1 | low | active | none | none |
-| market | `/capacity/:listingId` | `src/pages/capacity/[listingId].astro` | market | OperationalMarketShell | OperationalMarketShell | detail | allocation-capacity | L10 | medium | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| market | `/capacity` | `src/pages/capacity/index.astro` | market | OperationalMarketShell | OperationalMarketShell | collection | allocation-capacity | L10 | medium | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| market | `/cart` | `src/pages/cart.astro` | market | OperationalMarketShell | OperationalMarketShell | dashboard | cart | L10 | medium | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| market | `/checkout/:checkoutId` | `src/pages/checkout/[checkoutId].astro` | market | OperationalMarketShell | OperationalMarketShell | detail | checkout | L10 | high | active | Marketplace acquisition, seller operations, and Commons governance proof | route-local-script |
-| market | `/commons` | `src/pages/commons/index.astro` | market | OperationalMarketShell | OperationalMarketShell | collection | commons-governance | L10 | medium | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| market | `/commons/proposals/:proposalId` | `src/pages/commons/proposals/[proposalId].astro` | market | OperationalMarketShell | OperationalMarketShell | detail | proposal | L10 | medium | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| market | `/commons/proposals/new` | `src/pages/commons/proposals/new.astro` | market | OperationalMarketShell | OperationalMarketShell | settings | proposal | L10 | medium | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| market | `/commons/questions/new` | `src/pages/commons/questions/new.astro` | market | OperationalMarketShell | OperationalMarketShell | settings | question | L10 | medium | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| market | `/` | `src/pages/index.astro` | public | PublicSingleColumnShell | PublicSingleColumnShell | dashboard | page | L1 | low | active | public layout baseline | none |
-| market | `/market/products/:productId` | `src/pages/market/products/[productId].astro` | market | OperationalMarketShell | OperationalMarketShell | detail | market-product | L10 | medium | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| market | `/marketplace` | `src/pages/marketplace/index.astro` | market | OperationalMarketShell | OperationalMarketShell | dashboard | marketplace | L10 | medium | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| market | `/services/:requestId` | `src/pages/services/[requestId].astro` | market | OperationalMarketShell | OperationalMarketShell | detail | service-request | L10 | medium | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
-| market | `/services/:requestId/checkout` | `src/pages/services/[requestId]/checkout.astro` | market | OperationalMarketShell | OperationalMarketShell | settings | checkout | L10 | high | active | Marketplace acquisition, seller operations, and Commons governance proof | route-local-script |
-| market | `/services/new` | `src/pages/services/new.astro` | market | OperationalMarketShell | OperationalMarketShell | settings | service-request | L10 | medium | active | Marketplace acquisition, seller operations, and Commons governance proof | none |
+| Owner | Route | Source | Context | Shell | Template | Policy |
+| --- | --- | --- | --- | --- | --- | --- |
+| admin | `/app` | `packages/admin/src/pages/app/index.astro` | personal | AuthenticatedAppShell | dashboard | signed-in principal |
+| admin | `/app/account` | `packages/admin/src/pages/app/account.astro` | personal | AuthenticatedAppShell | settings | signed-in principal |
+| admin | `/app/teams` | `packages/admin/src/pages/app/teams/index.astro` | team | AuthenticatedAppShell | collection | signed-in principal; team membership and management role |
+| admin | `/app/teams/:teamId/delete` | `packages/admin/src/pages/app/teams/[teamId]/delete.astro` | team | AuthenticatedAppShell | detail | signed-in principal; team membership and management role |
+| admin | `/app/teams/:teamId/edit` | `packages/admin/src/pages/app/teams/[teamId]/edit.astro` | team | AuthenticatedAppShell | detail | signed-in principal; team membership and management role |
+| admin | `/app/teams/:teamId/members` | `packages/admin/src/pages/app/teams/[teamId]/members.astro` | team | AuthenticatedAppShell | detail | signed-in principal; team membership and management role |
+| admin | `/app/teams/new` | `packages/admin/src/pages/app/teams/new.astro` | team | AuthenticatedAppShell | wizard | signed-in principal; team membership and management role |
+| admin | `/auth/check-email` | `packages/admin/src/pages/auth/check-email.astro` | auth | AuthShell | auth-form | anonymous-safe auth flow; safe return URL |
+| admin | `/auth/confirm-email` | `packages/admin/src/pages/auth/confirm-email.astro` | auth | AuthShell | auth-form | anonymous-safe auth flow; safe return URL |
+| admin | `/auth/device/approve` | `packages/admin/src/pages/auth/device/approve.astro` | auth | AuthShell | auth-form | anonymous-safe auth flow; safe return URL |
+| admin | `/auth/forgot-password` | `packages/admin/src/pages/auth/forgot-password.astro` | auth | AuthShell | auth-form | anonymous-safe auth flow; safe return URL |
+| admin | `/auth/logout` | `packages/admin/src/pages/auth/logout.astro` | auth | AuthShell | auth-form | anonymous-safe auth flow; safe return URL |
+| admin | `/auth/register` | `packages/admin/src/pages/auth/register.astro` | auth | AuthShell | auth-form | anonymous-safe auth flow; safe return URL |
+| admin | `/auth/reset-password` | `packages/admin/src/pages/auth/reset-password.astro` | auth | AuthShell | auth-form | anonymous-safe auth flow; safe return URL |
+| admin | `/auth/sign-in` | `packages/admin/src/pages/auth/sign-in.astro` | auth | AuthShell | auth-form | anonymous-safe auth flow; safe return URL |
+| admin | `/auth/username` | `packages/admin/src/pages/auth/username.astro` | auth | AuthShell | auth-form | anonymous-safe auth flow; safe return URL |
+| admin | `/t/:name` | `packages/admin/src/pages/t/[name].astro` | team | PublicSingleColumnShell | detail | public read |
+| admin | `/team-invites/:token/accept` | `packages/admin/src/pages/team-invites/[token]/accept.astro` | auth | AuthShell | auth-form | anonymous-safe auth flow; safe return URL |
+| admin | `/u/:username` | `packages/admin/src/pages/u/[username].astro` | public | PublicSingleColumnShell | detail | public read |
+| core | `/` | `packages/core/src/pages/index.astro` | content | CoreContentLayout | collection | public read |
+| core | `/:slug` | `packages/core/src/pages/[slug].astro` | content | CoreContentLayout | detail | public read |
+| core | `/404` | `packages/core/src/pages/404.astro` | content | CoreContentLayout | collection | public read |
+| core | `/agents` | `packages/core/src/pages/agents/index.astro` | content | CoreContentLayout | collection | public read |
+| core | `/agents/:slug` | `packages/core/src/pages/agents/[slug].astro` | content | CoreContentLayout | detail | public read |
+| core | `/books` | `packages/core/src/pages/books/index.astro` | content | CoreReaderLayout | reader | public read |
+| core | `/books/:slug` | `packages/core/src/pages/books/[slug].astro` | content | CoreReaderLayout | reader | public read |
+| core | `/contact` | `packages/core/src/pages/contact.astro` | content | CoreContentLayout | collection | public read |
+| core | `/decisions` | `packages/core/src/pages/decisions/index.astro` | content | CoreContentLayout | collection | public read |
+| core | `/decisions/:slug` | `packages/core/src/pages/decisions/[slug].astro` | content | CoreContentLayout | detail | public read |
+| core | `/docs-runtime` | `packages/core/src/pages/docs-runtime/index.astro` | content | CoreReaderLayout | reader | public read |
+| core | `/docs-runtime/:slug*` | `packages/core/src/pages/docs-runtime/[...slug].astro` | content | CoreReaderLayout | reader | public read |
+| core | `/notes` | `packages/core/src/pages/notes/index.astro` | content | CoreContentLayout | collection | public read |
+| core | `/notes/:slug` | `packages/core/src/pages/notes/[slug].astro` | content | CoreContentLayout | detail | public read |
+| core | `/objectives` | `packages/core/src/pages/objectives/index.astro` | content | CoreContentLayout | collection | public read |
+| core | `/objectives/:slug` | `packages/core/src/pages/objectives/[slug].astro` | content | CoreContentLayout | detail | public read |
+| core | `/people` | `packages/core/src/pages/people/index.astro` | content | CoreContentLayout | collection | public read |
+| core | `/people/:slug` | `packages/core/src/pages/people/[slug].astro` | content | CoreContentLayout | detail | public read |
+| core | `/proposals` | `packages/core/src/pages/proposals/index.astro` | content | CoreContentLayout | collection | public read |
+| core | `/proposals/:slug` | `packages/core/src/pages/proposals/[slug].astro` | content | CoreContentLayout | detail | public read |
+| core | `/questions` | `packages/core/src/pages/questions/index.astro` | content | CoreContentLayout | collection | public read |
+| core | `/questions/:slug` | `packages/core/src/pages/questions/[slug].astro` | content | CoreContentLayout | detail | public read |
+| core | `/ui` | `packages/core/src/pages/ui/index.astro` | content | CoreContentLayout | collection | public read |
 
-## Component Inventory
+## Component groups
 
-| Owner | Component/candidate | Source | Target package | Architecture target | Maturity | Status | Architecture debt |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| admin | Question capability metadata | `packages/admin/src/capabilities/questions.ts` | @treeseed/admin | future admin capability registry entry | L5 | active | none |
-| admin | Question vertical form | `packages/admin/src/components/work/QuestionForm.astro` | @treeseed/admin | future reusable direction-resource form pattern after repeated resources | L5 | active | none |
-| admin | Admin app layout wrapper | `packages/admin/src/layouts/TreeseedAppLayout.astro` | @treeseed/admin | @treeseed/ui shell configuration or thin wrapper | L1 | active | route-local-script |
-| admin | Admin operational market layout wrapper | `packages/admin/src/layouts/TreeseedOperationalMarketLayout.astro` | @treeseed/admin | @treeseed/ui shell configuration or thin wrapper | L1 | active | none |
-| admin | Admin public layout wrapper | `packages/admin/src/layouts/TreeseedPublicLayout.astro` | @treeseed/admin | @treeseed/ui shell configuration or thin wrapper | L1 | active | none |
-| admin | Knowledge distribution client helper | `packages/admin/src/lib/knowledge-distribution/publish-client.ts` | @treeseed/admin | small route-scoped client helper until broader action registry composition is proven | L10 | active | route-local-script |
-| admin | Operating-loop client helpers | `packages/admin/src/lib/market/operating-loop-client.ts` | @treeseed/admin | small route-scoped client helpers until broader action registry composition is proven | L9 | active | route-local-script |
-| admin | Route-local capacity runtime panel | `packages/admin/src/pages/app/capacity/runtime.astro` | @treeseed/admin | service readiness template | L1 | active | page-local-css<br>raw-color-fallback |
-| admin | Private project knowledge reader routes | `packages/admin/src/pages/app/projects/[projectId]/knowledge.astro` | @treeseed/admin | private content proxy proof before private packs/artifacts/help reuse | L5 | active | none |
-| admin | Private project knowledge reader slug route | `packages/admin/src/pages/app/projects/[projectId]/knowledge/[...slug].astro` | @treeseed/admin | private content proxy proof before private packs/artifacts/help reuse | L5 | active | none |
-| admin | Route-local team profile pages | `packages/admin/src/pages/t/[name].astro` | @treeseed/admin | public single-column detail/profile template | L1 | active | page-local-css |
-| admin | Route-local profile pages | `packages/admin/src/pages/u/[username].astro` | @treeseed/admin | public single-column detail/profile template | L1 | active | page-local-css |
-| admin | Contextual dashboard view models | `packages/admin/src/view-models/contextual-dashboard.vm.ts` | @treeseed/admin | route-local dashboard mappers until broader capability registry composition is proven | L7 | active | none |
-| admin | Knowledge distribution view models | `packages/admin/src/view-models/knowledge-distribution.vm.ts` | @treeseed/admin | route-local distribution mappers until broader capability registry composition is proven | L10 | active | none |
-| admin | Operating-loop view models | `packages/admin/src/view-models/operating-loop.vm.ts` | @treeseed/admin | route-local operating-loop mappers until broader capability registry composition is proven | L9 | active | none |
-| admin | Service readiness view models | `packages/admin/src/view-models/service-readiness.vm.ts` | @treeseed/admin | route-local service readiness mappers until broader capability registry composition is proven | L8 | active | none |
-| admin | Question help and feedback view model context | `packages/admin/src/view-models/ui-foundation/questions.vm.ts` | @treeseed/admin | route-local view-model context until help/feedback registry composition is proven | L6 | active | none |
-| core | Core feedback forwarding endpoint | `packages/core/src/pages/api/feedback/submit.ts` | @treeseed/core | dynamic feedback forwarding route until broader hub feedback config is proven | L5 | active | none |
-| core | Core runtime reader routes | `packages/core/src/pages/docs-runtime` | @treeseed/core | ReaderTemplate and public shell behavior proof before broader content-route consolidation | L6 | active | none |
-| core | Core public runtime reader view model | `packages/core/src/utils/runtime-reader.ts` | @treeseed/core | public runtime reader/help proof before broader content-route consolidation | L6 | active | none |
-| ui | App controls | `packages/ui/src/astro/app/controls` | @treeseed/ui | candidate PageHeader/ActionBar/resource controls | L2 | active | none |
-| ui | Operations panels | `packages/ui/src/astro/app/operations` | @treeseed/ui | future deployment/workday templates | L2 | active | none |
-| ui | Auth primitives | `packages/ui/src/astro/auth` | @treeseed/ui | canonical reusable auth shell and cards | L2 | active | none |
-| ui | Core bridge components | `packages/ui/src/astro/core` | @treeseed/ui | Core-safe reusable bridge primitives | L1 | active | page-local-css |
-| ui | Data primitives | `packages/ui/src/astro/data` | @treeseed/ui | canonical data display components | L2 | active | none |
-| ui | Distribution components | `packages/ui/src/astro/distribution` | @treeseed/ui | canonical distribution and overlay display primitives | L10 | active | none |
-| ui | Docs reader components | `packages/ui/src/astro/docs` | @treeseed/ui | ReaderTemplate ingredients | L1 | active | page-local-css |
-| ui | Shell feedback components | `packages/ui/src/astro/feedback` | @treeseed/ui | canonical feedback trigger/dialog foundation | L5 | active | none |
-| ui | Form primitives | `packages/ui/src/astro/forms` | @treeseed/ui | canonical form controls | L2 | active | none |
-| ui | Shell contextual help components | `packages/ui/src/astro/help` | @treeseed/ui | canonical contextual help foundation | L6 | active | none |
-| ui | UI foundation action and resource components | `packages/ui/src/astro/layout/ActionBar.astro` | @treeseed/ui | canonical action rendering primitive | L2 | active | none |
-| ui | Layout components | `packages/ui/src/astro/layouts` | @treeseed/ui | Shells/templates architecture review | L1 | active | none |
-| ui | Market cards | `packages/ui/src/astro/market` | @treeseed/ui | public acquisition template ingredients | L2 | active | none |
-| ui | Operating-loop components | `packages/ui/src/astro/operating` | @treeseed/ui | canonical operating-loop primitives | L9 | active | none |
-| ui | UI foundation permission boundary | `packages/ui/src/astro/patterns/PermissionBoundary.astro` | @treeseed/ui | canonical permission boundary primitive | L2 | active | none |
-| ui | Service readiness summary | `packages/ui/src/astro/service/ReadinessSummary.astro` | @treeseed/ui | canonical service readiness primitive | L8 | active | none |
-| ui | Shell primitives | `packages/ui/src/astro/shell` | @treeseed/ui | canonical current shell primitives with deprecated compatibility wrappers | L2 | active | none |
-| ui | Site content components | `packages/ui/src/astro/site` | @treeseed/ui | public layout and content collection/detail templates | L2 | active | none |
-| ui | Surface primitives | `packages/ui/src/astro/surface` | @treeseed/ui | canonical surface components | L2 | active | none |
-| ui | UI foundation resource cards | `packages/ui/src/astro/surface/ResourceCard.astro` | @treeseed/ui | canonical resource summary primitive | L2 | active | none |
-| ui | UI foundation templates | `packages/ui/src/astro/templates` | @treeseed/ui | canonical reusable templates | L2 | active | none |
-| ui | Dashboard template | `packages/ui/src/astro/templates/DashboardTemplate.astro` | @treeseed/ui | canonical DashboardTemplate proof | L7 | active | none |
-| ui | Workspace template | `packages/ui/src/astro/templates/WorkspaceTemplate.astro` | @treeseed/ui | canonical operating workspace template | L9 | active | none |
-| ui | Theme utilities | `packages/ui/src/astro/theme` | @treeseed/ui | canonical YAML-backed theme system | L3 | active | inline-dynamic-style |
-| ui | Distribution overlay loader | `packages/ui/src/lib/distribution/overlay-loader.ts` | @treeseed/ui | canonical lazy overlay bootstrap helper | L10 | active | none |
-| ui | Shell feedback client controller | `packages/ui/src/lib/feedback/dialog.ts` | @treeseed/ui | canonical lazy feedback client controller | L5 | active | none |
-| ui | Feedback DOM capture helper | `packages/ui/src/lib/feedback/dom-capture.ts` | @treeseed/ui | lazy screenshot helper until broader capture workflow is proven | L5 | active | none |
-| ui | UI foundation contracts | `packages/ui/src/lib/foundation/contracts.ts` | @treeseed/ui | canonical typed foundation contract | L6 | active | none |
-| ui | Shell contextual help client controller | `packages/ui/src/lib/help/drawer.ts` | @treeseed/ui | canonical lazy contextual help controller | L6 | active | none |
-| ui | Contextual help search helper | `packages/ui/src/lib/help/search.ts` | @treeseed/ui | lazy scoped search helper until broader help search is proven | L6 | active | none |
-| ui | React charts | `packages/ui/src/react/charts` | @treeseed/ui | dashboard chart primitives | L1 | active | inline-dynamic-style |
-| ui | Rich Markdown editor | `packages/ui/src/react/editors` | @treeseed/ui | overlay editing editor primitive | L2 | active | none |
-| ui | React form controls | `packages/ui/src/react/form-controls` | @treeseed/ui | canonical React form primitives | L2 | active | none |
-| ui | Dynamic allocation input | `packages/ui/src/react/pie-allocation` | @treeseed/ui | allocation input primitive | L2 | active | inline-dynamic-style<br>raw-color-fallback |
-| ui | Dynamic allocation styles | `packages/ui/src/styles/pie-allocation.css` | @treeseed/ui | allocation style primitive | L2 | active | raw-color-fallback |
+| Owner | Group | Source | Current use | Architecture target |
+| --- | --- | --- | --- | --- |
+| admin | Authenticated identity shell | `packages/admin/src/layouts/TreeseedAppLayout.astro` | Account and team navigation | Retained identity/team composition only. |
+| admin | Identity/team view models | `packages/admin/src/view-models` | Principal, active-team, and membership projections | Retained identity/team composition only. |
+| admin | Public identity shell | `packages/admin/src/layouts/TreeseedPublicLayout.astro` | Public user/team profiles and invitations | Retained identity/team composition only. |
+| core | Core layouts | `packages/core/src/layouts` | Unchanged public content composition | Retained identity/team composition only. |
+| ui | Reusable Astro components | `packages/ui/src/astro` | Shared layout-down components; unchanged by cleanup | Preserve reusable package-owned primitives for the redesign. |
+| ui | Reusable React components | `packages/ui/src/react` | Shared interactive components; unchanged by cleanup | Preserve reusable package-owned primitives for the redesign. |
+| ui | Theme and CSS primitives | `packages/ui/src/styles` | Shared tokens and styles; unchanged by cleanup | Preserve reusable package-owned primitives for the redesign. |
