@@ -3,8 +3,8 @@
 Treeseed uses three deliberately separate workflow boundaries:
 
 - `trsd save` creates a fast, coherent checkpoint across the independent repositories.
-- `trsd stage` promotes one immutable candidate and waits for exact-SHA verification and deployment workflows.
-- `trsd release` tags and promotes the staged repositories, then waits for tag-driven deployment workflows.
+- `trsd stage` promotes one locally verified immutable candidate without deploying hosted infrastructure.
+- `trsd release` is intentionally unavailable while hosted deployment automation is suspended.
 
 Guarantees are authoritative live acceptance evidence, but they do not run during routine save or deployment workflows. The manual API and Market release gates run focused live guarantee collections against staging or production.
 
@@ -18,17 +18,17 @@ Use `--verify local` when a checkpoint also needs package-local verification. An
 
 Stage requires a clean pushed task branch. It merges current staging down before promotion, resolves generated internal-reference and lock metadata conflicts, and stops with file-level diagnostics for source conflicts. Package refs are promoted with expected-head protection and the Market staging ref moves last.
 
-Every promoted repository must pass `verify.yml` for its exact staging SHA. Market and each changed hostable package must also pass `deploy.yml` for that SHA. API deploys staging from Git source; Market deploys the web surface through TreeSeed reconciliation. `trsd stage` returns only after all required workflows succeed, then synchronizes every checkout to `staging`. `trsd stage --async` is the explicit exception that returns while hosted verification is pending.
+Stage runs local proof, promotes exact package refs with expected-head protection, moves Market staging last, verifies the remote refs, and synchronizes every checkout to `staging`. Push-triggered `verify.yml` workflows remain advisory non-mutating feedback. Hosted monitoring is explicit with `--ci hosted` and must not be used while deployment automation is suspended.
 
 ## Release Contract
 
-Live `trsd release` uses the resumable SDK release engine to promote and tag repositories in dependency order. Stable tag pushes trigger each package's publication workflow; hostable packages use `deploy.yml`. API publishes immutable versioned images before production reconciliation, and Market deploys the tagged web revision. Production completion requires those exact tag-driven workflows to succeed.
+Production release is fail-closed while Market and API hosted deployment workflows are absent. A future release path must be restored only after an OpenTofu-based Railway/Cloudflare design has passed isolated acceptance testing and GitHub Actions remains the sole deployment authority.
 
 Reviewer is a local-only package. It participates in save, verification, artifact, and publication ordering, but its manifest forbids hosted deployment.
 
 ## CI/CD Truth
 
-GitHub-hosted workflow results for exact branch and head SHA are the authoritative CI/CD proof.
+Local verification and exact staging refs are the current staging proof. GitHub-hosted `verify.yml` results provide additional non-mutating feedback but are not deployment gates while hosted release automation is suspended.
 
 Local checks are still useful:
 
@@ -72,19 +72,19 @@ Plan release proof:
 npx trsd proof plan --target staging --json
 ```
 
-Promote and verify an immutable staging candidate:
+Promote a locally verified immutable staging candidate:
 
 ```bash
 npx trsd stage --json
 ```
 
-Deliberately return before hosted proof finishes:
+Explicitly request hosted proof only after hosted automation is restored:
 
 ```bash
-npx trsd stage --async --json
+npx trsd stage --ci hosted --json
 ```
 
-Release the latest successful staged candidate:
+Production release is intentionally blocked until hosted automation is restored:
 
 ```bash
 npx trsd release --patch --json
