@@ -3,7 +3,11 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const convertedFiles = [
-	'packages/admin/src/pages/app/account.astro',
+	'packages/admin/src/pages/app/account/index.astro',
+	'packages/admin/src/pages/app/account/sessions.astro',
+	'packages/admin/src/pages/app/account/notifications.astro',
+	'packages/admin/src/pages/app/account/appearance.astro',
+	'packages/admin/src/pages/app/account/delete.astro',
 	'packages/admin/src/pages/auth/register.astro',
 	'packages/admin/src/pages/auth/sign-in.astro',
 	'packages/admin/src/pages/auth/forgot-password.astro',
@@ -68,26 +72,29 @@ describe('auth and account UI primitive conversion', () => {
 
 	it('keeps registration appearance wiring and removes the account-local appearance tab', () => {
 		const register = source('packages/admin/src/pages/auth/register.astro');
+		const registrationForm = source('packages/ui/src/astro/auth/RegistrationForm.astro');
 		expect(register).toContain('showAppearance={false}');
 		expect(register).not.toContain('Default appearance');
-		expect(register).toContain('name="colorScheme"');
-		expect(register).toContain('name="themeMode"');
-		expect(register).toContain('treeseed:theme-change');
+		expect(registrationForm).toContain('name="colorScheme"');
+		expect(registrationForm).toContain('name="themeMode"');
+		expect(registrationForm).toContain('treeseed:theme-change');
 		expect(register).toContain('submittedFirstName');
-		expect(register).toContain('data-username-status');
-		expect(register).toContain('payload = result?.payload || result');
-		expect(register).toContain("submitButton.disabled = status === 'taken'");
+		expect(registrationForm).toContain('data-availability-status="username"');
+		expect(registrationForm).toContain('data-availability-status="email"');
+		expect(registrationForm).toContain('cannot be changed after registration');
 
-		const account = source('packages/admin/src/pages/app/account.astro');
+		const account = source('packages/admin/src/pages/app/account/index.astro');
 		expect(account).not.toContain('account-tab-appearance');
 		expect(account).not.toContain('account-panel-appearance');
 		expect(account).not.toContain('data-account-api-form="appearance"');
 		expect(account).not.toContain('Choose the color scheme and light/dark behavior used across TreeSeed.');
-		expect(account).toContain('Attached email addresses');
-		expect(account).toContain('data-email-action="add"');
-		expect(account).toContain('data-email-action="verify"');
-		expect(account).toContain('data-email-action="primary"');
-		expect(account).toContain('data-email-action="delete"');
+		expect(account).toContain('AccountIdentitySettings');
+		const identity = source('packages/ui/src/astro/account/AccountIdentitySettings.astro');
+		expect(identity).toContain('title="Email addresses"');
+		expect(identity).toContain('value="add-email"');
+		expect(identity).toContain('value="resend-email"');
+		expect(identity).toContain('value="primary-email"');
+		expect(identity).toContain('value="delete-email"');
 
 		const appLayout = source('packages/admin/src/layouts/TreeseedAppLayout.astro');
 		expect(appLayout).toContain('treeseed:theme-change');

@@ -97,13 +97,14 @@ describe('anonymous auth appearance', () => {
 	});
 
 	it('locks the selected auth appearance into registration payload fields', () => {
-		const source = readFileSync(resolve(process.cwd(), 'packages/admin/src/pages/auth/register.astro'), 'utf8');
-		expect(source).not.toContain('Default appearance');
-		expect(source).toContain('name="colorScheme"');
-		expect(source).toContain('name="themeMode"');
-		expect(source).toContain('data-auth-theme-scheme-field');
-		expect(source).toContain('treeseed:theme-change');
-		expect(source).toContain('appearance,');
+		const route = readFileSync(resolve(process.cwd(), 'packages/admin/src/pages/auth/register.astro'), 'utf8');
+		const form = readFileSync(resolve(process.cwd(), 'packages/ui/src/astro/auth/RegistrationForm.astro'), 'utf8');
+		expect(route).not.toContain('Default appearance');
+		expect(route).toContain('appearance,');
+		expect(form).toContain('name="colorScheme"');
+		expect(form).toContain('name="themeMode"');
+		expect(form).toContain('data-auth-theme-scheme-field');
+		expect(form).toContain('treeseed:theme-change');
 	});
 
 	it('returns anonymous defaults when no market user preference is available', async () => {
@@ -138,10 +139,11 @@ describe('anonymous auth appearance', () => {
 	});
 
 	it('keeps authenticated appearance changes on the shell control instead of an account tab', () => {
-		const source = readFileSync(resolve(process.cwd(), 'packages/admin/src/pages/app/account.astro'), 'utf8');
+		const source = readFileSync(resolve(process.cwd(), 'packages/admin/src/pages/app/account/appearance.astro'), 'utf8');
 		expect(source).not.toContain('account-panel-appearance');
 		expect(source).not.toContain('data-account-api-form="appearance"');
 		expect(source).not.toContain('Choose the color scheme and light/dark behavior used across TreeSeed.');
+		expect(source).toContain('PersonalThemeManager');
 
 		const layout = readFileSync(resolve(process.cwd(), 'packages/admin/src/layouts/TreeseedAppLayout.astro'), 'utf8');
 		expect(layout).toContain('treeseed:theme-change');

@@ -182,7 +182,8 @@ coverage:
     - auth.web.sign-up.sends-confirmation-email
     - descriptor-executable-role-matrix.post.v1.auth.web.sign-up.anonymous
     - auth.web.sign-in.site-admin
-    - auth.web.username-check.seeded
+    - auth.availability.username.seeded
+    - auth.availability.email.seeded
     - provider-key-cannot-read-platform-operations
     - site-role-matrix.me.siteAdmin
     - site-role-matrix.platform-operations-read.teamViewer
@@ -247,10 +248,10 @@ cases:
         - path: payload.accessToken
           type: string
 
-  - id: auth.web.username-check.seeded
+  - id: auth.availability.username.seeded
     actor: anonymous
     method: GET
-    path: ${apiVersionPath}/auth/web/username/check?username=${actors.teamOwner.username}
+    path: ${apiVersionPath}/auth/availability/username?value=${actors.teamOwner.username}
     expect:
       status: 200
       envelope:
@@ -258,6 +259,20 @@ cases:
       json:
         - path: payload.available
           equals: false
+
+  - id: auth.availability.email.seeded
+    actor: anonymous
+    method: GET
+    path: ${apiVersionPath}/auth/availability/email?value=${actors.teamOwner.email}
+    expect:
+      status: 200
+      envelope:
+        ok: true
+      json:
+        - path: payload.available
+          equals: false
+        - path: payload.message
+          equals: This email can’t be used
 
   - id: auth.me.site-admin
     actor: siteAdmin

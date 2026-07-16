@@ -207,15 +207,15 @@ describe('web runtime boundaries', () => {
 		expect(middleware).not.toContain('loadSiteWebSession');
 	});
 
-	it('keeps browser logout redirecting even when upstream session revocation fails', () => {
-		const proxy = readFileSync('packages/admin/src/pages/v1/[...all].ts', 'utf8');
-		expect(proxy).toContain("const logoutRedirect = path === 'auth/logout' && method === 'GET'");
-		expect(proxy).toContain('if (logoutRedirect) {');
-		expect(proxy).toContain('clearApiAccessTokenCookie(context)');
-		expect(proxy).toContain("responseHeaders.set('location', target)");
-		expect(proxy).toContain('status: 303');
-		expect(proxy).toContain('if (shouldClearAuthCookie(path, method, response.ok))');
-		expect(proxy).not.toContain('if (logoutRedirect && response.ok)');
+	it('keeps logout a CSRF-protected POST while GET remains non-mutating', () => {
+		const logout = readFileSync('packages/admin/src/pages/auth/logout.ts', 'utf8');
+		expect(logout).toContain('export const GET');
+		expect(logout).toContain('export const POST');
+		expect(logout).toContain('requireCsrf');
+		expect(logout).toContain("request('POST', '/v1/auth/logout'");
+		expect(logout).toContain('clearApiAccessTokenCookie(context)');
+		expect(logout).toContain("'/auth/sign-in?signedOut=1', 303");
+		expect(logout.split('export const GET')[1].split('export const POST')[0]).not.toContain('clearApiAccessTokenCookie');
 	});
 
 	it('keeps the Astro endpoint surface thin and routes APIs through v1', () => {
@@ -241,6 +241,7 @@ describe('web runtime boundaries', () => {
 			.sort();
 		expect(endpointFiles).toEqual([
 			'packages/admin/src/pages/auth/callback/[provider].ts',
+			'packages/admin/src/pages/auth/logout.ts',
 			'packages/admin/src/pages/v1/[...all].ts',
 		]);
 
@@ -289,10 +290,11 @@ describe('web runtime boundaries', () => {
 
 	it('keeps device login approval same-origin outside local development', () => {
 		const source = readFileSync('packages/admin/src/pages/auth/device/approve.astro', 'utf8');
-		expect(source).toContain('formAction: `${Astro.url.pathname}${Astro.url.search}`');
-		expect(source).toContain('serverUrls: [`${Astro.url.origin}/v1/auth/device/approve`]');
-		expect(source).toContain("return 'http://127.0.0.1:3000';");
-		expect(source).not.toContain("apiApprovalBaseUrl ? `${apiApprovalBaseUrl}/auth/device/approve`");
+		expect(source).toContain('directApprovalAction = `${Astro.url.pathname}${Astro.url.search}`');
+		expect(source).toContain('createApiFacade(Astro)');
+		expect(source).toContain('api.approveDevice(userCode)');
+		expect(source).toContain('requireCsrf');
+		expect(source).not.toContain('principalId');
 		expect(source).not.toContain('createCoreAuthProvider');
 	});
 

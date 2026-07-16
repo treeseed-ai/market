@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { extname, resolve } from 'node:path';
-import { componentInventory, pathExistsForInventory, routeInventory } from './ui-architecture/inventory.ts';
+import { componentInventory, pathExistsForInventory, routeInventory, supportEndpointInventory } from './ui-architecture/inventory.ts';
 
 const root = process.cwd();
 const shouldWrite = process.argv.slice(2).includes('--write');
@@ -19,9 +19,9 @@ function walk(path: string): string[] {
 
 function routePatternFromPath(sourcePath: string): string {
 	const pagesIndex = sourcePath.indexOf('/pages/');
-	const relative = (pagesIndex >= 0 ? sourcePath.slice(pagesIndex + 7) : sourcePath.replace(/^src\/pages\//u, '')).replace(/\.astro$/u, '');
+	const relative = (pagesIndex >= 0 ? sourcePath.slice(pagesIndex + 7) : sourcePath.replace(/^src\/pages\//u, '')).replace(/\.(?:astro|ts)$/u, '');
 	const withoutIndex = relative === 'index' ? '' : relative.replace(/\/index$/u, '');
-	return `/${withoutIndex.replace(/\[\.\.\.([^\]]+)\]/gu, ':$1*').replace(/\[([^\]]+)\]/gu, ':$1')}`.replace(/\/$/u, '') || '/';
+	return `/${withoutIndex}`.replace(/\/$/u, '') || '/';
 }
 
 function escapeCell(value: unknown): string {
@@ -33,6 +33,7 @@ function escapeCsv(value: unknown): string {
 }
 
 const routes = [...routeInventory].sort((a, b) => a.owner.localeCompare(b.owner) || a.routePattern.localeCompare(b.routePattern));
+const supportEndpoints = [...supportEndpointInventory].sort((a, b) => a.owner.localeCompare(b.owner) || a.routePattern.localeCompare(b.routePattern));
 const components = [...componentInventory].sort((a, b) => a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name));
 const routeTable = routes.map((entry) => `| ${escapeCell(entry.owner)} | \`${escapeCell(entry.routePattern)}\` | \`${escapeCell(entry.sourcePath)}\` | ${escapeCell(entry.surfaceContext)} | ${escapeCell(entry.currentShell)} | ${escapeCell(entry.targetTemplate)} | ${escapeCell(entry.policyNeeds.join('; '))} |`).join('\n');
 const componentTable = components.map((entry) => `| ${escapeCell(entry.owner)} | ${escapeCell(entry.name)} | \`${escapeCell(entry.sourcePath)}\` | ${escapeCell(entry.currentUse)} | ${escapeCell(entry.architectureTarget)} |`).join('\n');
@@ -60,23 +61,19 @@ const routeDoc = `# Current UI Routes
 
 Generated from \`scripts/ui-architecture/inventory.ts\`. This inventory contains retained Admin routes and unchanged Core human-facing routes. Market contributes no tenant-owned routes. Non-page support endpoints are listed below the table.
 
-| Owner | Route | Source | Access/policy | Data source |
-| --- | --- | --- | --- | --- |
-${routes.map((entry) => `| ${entry.owner} | \`${entry.routePattern}\` | \`${entry.sourcePath}\` | ${escapeCell(entry.policyNeeds.join('; '))} | ${escapeCell(entry.dataSource)} |`).join('\n')}
+| Owner | Route | Behavior | Path parameters | Access/policy | Data source | Source |
+| --- | --- | --- | --- | --- | --- | --- |
+${routes.map((entry) => `| ${entry.owner} | \`${entry.routePattern}\` | ${escapeCell(entry.description)} | ${escapeCell(entry.parameterSemantics)} | ${escapeCell(entry.policyNeeds.join('; '))} | ${escapeCell(entry.dataSource)} | \`${entry.sourcePath}\` |`).join('\n')}
 
 ## Retained support endpoints
 
-| Owner | Route | Source | Purpose |
-| --- | --- | --- | --- |
-| admin | \`/auth/callback/[provider]\` | \`packages/admin/src/pages/auth/callback/[provider].ts\` | OAuth callback |
-| admin | \`/v1/[...all]\` | \`packages/admin/src/pages/v1/[...all].ts\` | Shared authenticated API facade |
-| core | \`/api/feedback/submit\` | \`packages/core/src/pages/api/feedback/submit.ts\` | Core feedback forwarding |
-| core | \`/api/form/submit\` | \`packages/core/src/pages/api/form/submit.ts\` | Core-owned form forwarding |
-| core | \`/feed.xml\` | \`packages/core/src/pages/feed.xml.ts\` | Content feed |
+| Owner | Route | Response | Access/policy | Behavior | Data source | Source |
+| --- | --- | --- | --- | --- | --- | --- |
+${supportEndpoints.map((entry) => `| ${entry.owner} | \`${entry.routePattern}\` | ${escapeCell(entry.responseKind)} | ${escapeCell(entry.accessPolicy)} | ${escapeCell(entry.description)} | ${escapeCell(entry.dataSource)} | \`${entry.sourcePath}\` |`).join('\n')}
 `;
 
-const csvHeader = ['owner', 'route', 'source', 'context', 'shell', 'template', 'resourceType', 'policyNeeds', 'dataSource'];
-const csv = [csvHeader, ...routes.map((entry) => [entry.owner, entry.routePattern, entry.sourcePath, entry.surfaceContext, entry.currentShell, entry.targetTemplate, entry.resourceType, entry.policyNeeds.join('; '), entry.dataSource])]
+const csvHeader = ['owner', 'route', 'description', 'pathParameters', 'source', 'context', 'shell', 'template', 'resourceType', 'policyNeeds', 'dataSource'];
+const csv = [csvHeader, ...routes.map((entry) => [entry.owner, entry.routePattern, entry.description, entry.parameterSemantics, entry.sourcePath, entry.surfaceContext, entry.currentShell, entry.targetTemplate, entry.resourceType, entry.policyNeeds.join('; '), entry.dataSource])]
 	.map((row) => row.map(escapeCsv).join(','))
 	.join('\n') + '\n';
 
@@ -87,14 +84,27 @@ const generated = new Map([
 ]);
 
 const failures: string[] = [];
-const discovered = routeRoots.flatMap(walk).filter((path) => extname(path) === '.astro').sort();
 const inventoried = routes.map((entry) => entry.sourcePath).sort();
+const inventoriedSources = new Set(inventoried);
+const discovered = routeRoots.flatMap(walk).filter((path) => extname(path) === '.astro' || inventoriedSources.has(path)).sort();
 if (JSON.stringify(discovered) !== JSON.stringify(inventoried)) failures.push('Human-facing route inventory does not match discovered Astro pages.');
 if (walk('src/pages').length !== 0) failures.push('Market must own zero route files.');
 for (const entry of routes) {
 	if (!pathExistsForInventory(entry.sourcePath)) failures.push(`${entry.sourcePath}: inventory source is missing`);
 	if (entry.routePattern !== routePatternFromPath(entry.sourcePath)) failures.push(`${entry.sourcePath}: route pattern is incorrect`);
-	if (!entry.policyNeeds.length || !entry.dataSource || !entry.architectureNotes) failures.push(`${entry.sourcePath}: route metadata is incomplete`);
+	if (!entry.description || !entry.parameterSemantics || !entry.policyNeeds.length || !entry.dataSource || !entry.architectureNotes) failures.push(`${entry.sourcePath}: route metadata is incomplete`);
+	if (entry.owner === 'admin' && (entry.routePattern.startsWith('/auth/') || entry.routePattern.startsWith('/app/account')) && entry.sourcePath.endsWith('.astro')) {
+		const contents = readFileSync(resolve(root, entry.sourcePath), 'utf8');
+		if (/<style(?:\s|>)/u.test(contents)) failures.push(`${entry.sourcePath}: auth/account routes may not contain page-local CSS`);
+		if (/<script(?:\s|>)/u.test(contents)) failures.push(`${entry.sourcePath}: auth/account routes may not contain route-local scripts`);
+		if (/\bfetch\s*\(/u.test(contents)) failures.push(`${entry.sourcePath}: auth/account routes must call a focused Admin controller instead of fetch`);
+		if (/<(?:button|select|textarea)\b/u.test(contents) || /<input\b(?![^>]*type=["']hidden["'])/u.test(contents)) failures.push(`${entry.sourcePath}: auth/account routes must compose standardized UI controls`);
+		if (!/@treeseed\/ui\/components\/astro\//u.test(contents)) failures.push(`${entry.sourcePath}: auth/account routes must compose a UI-package template or component`);
+	}
+}
+for (const entry of supportEndpoints) {
+	if (!pathExistsForInventory(entry.sourcePath)) failures.push(`${entry.sourcePath}: support endpoint source is missing`);
+	if (!entry.description || !entry.responseKind || !entry.accessPolicy || !entry.dataSource) failures.push(`${entry.sourcePath}: support endpoint metadata is incomplete`);
 }
 for (const entry of components) {
 	if (!pathExistsForInventory(entry.sourcePath)) failures.push(`${entry.sourcePath}: component inventory source is missing`);

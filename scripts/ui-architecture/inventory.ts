@@ -1,4 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { ADMIN_ROUTES, ADMIN_SUPPORT_ROUTES } from '../../packages/admin/src/routes.ts';
+import { CORE_ROUTES, CORE_SUPPORT_ROUTES } from '../../packages/core/src/routes.ts';
+import type { TreeseedSiteRouteContribution } from '../../packages/sdk/src/platform/plugin.ts';
 
 export type PackageOwner = 'market' | 'admin' | 'core' | 'ui';
 export type SurfaceContext = 'auth' | 'public' | 'personal' | 'team' | 'content' | 'system';
@@ -11,6 +14,8 @@ export interface RouteInventoryEntry {
 	owner: PackageOwner;
 	routePattern: string;
 	sourcePath: string;
+	description: string;
+	parameterSemantics: string;
 	surfaceContext: SurfaceContext;
 	currentShell: ShellName;
 	targetShell: ShellName;
@@ -34,6 +39,16 @@ export interface RouteInventoryEntry {
 	architectureDebt: ArchitectureDebt[];
 }
 
+export interface SupportEndpointInventoryEntry {
+	owner: 'admin' | 'core';
+	routePattern: string;
+	sourcePath: string;
+	responseKind: string;
+	accessPolicy: string;
+	dataSource: string;
+	description: string;
+}
+
 export interface ComponentInventoryEntry {
 	owner: PackageOwner;
 	name: string;
@@ -49,67 +64,101 @@ export interface ComponentInventoryEntry {
 	architectureDebt: ArchitectureDebt[];
 }
 
-const adminRoutePaths = [
-	'packages/admin/src/pages/app/account.astro',
-	'packages/admin/src/pages/app/index.astro',
-	'packages/admin/src/pages/app/teams/[teamId]/delete.astro',
-	'packages/admin/src/pages/app/teams/[teamId]/edit.astro',
-	'packages/admin/src/pages/app/teams/[teamId]/members.astro',
-	'packages/admin/src/pages/app/teams/index.astro',
-	'packages/admin/src/pages/app/teams/new.astro',
-	'packages/admin/src/pages/auth/check-email.astro',
-	'packages/admin/src/pages/auth/confirm-email.astro',
-	'packages/admin/src/pages/auth/device/approve.astro',
-	'packages/admin/src/pages/auth/forgot-password.astro',
-	'packages/admin/src/pages/auth/logout.astro',
-	'packages/admin/src/pages/auth/register.astro',
-	'packages/admin/src/pages/auth/reset-password.astro',
-	'packages/admin/src/pages/auth/sign-in.astro',
-	'packages/admin/src/pages/auth/username.astro',
-	'packages/admin/src/pages/t/[name].astro',
-	'packages/admin/src/pages/team-invites/[token]/accept.astro',
-	'packages/admin/src/pages/u/[username].astro',
-] as const;
+function sourcePath(owner: 'admin' | 'core', route: TreeseedSiteRouteContribution) {
+	return `packages/${owner}/src/${route.resourcePath}`;
+}
 
-const coreRoutePaths = [
-	'packages/core/src/pages/404.astro',
-	'packages/core/src/pages/[slug].astro',
-	'packages/core/src/pages/agents/[slug].astro',
-	'packages/core/src/pages/agents/index.astro',
-	'packages/core/src/pages/books/[slug].astro',
-	'packages/core/src/pages/books/index.astro',
-	'packages/core/src/pages/contact.astro',
-	'packages/core/src/pages/decisions/[slug].astro',
-	'packages/core/src/pages/decisions/index.astro',
-	'packages/core/src/pages/docs-runtime/[...slug].astro',
-	'packages/core/src/pages/docs-runtime/index.astro',
-	'packages/core/src/pages/index.astro',
-	'packages/core/src/pages/notes/[slug].astro',
-	'packages/core/src/pages/notes/index.astro',
-	'packages/core/src/pages/objectives/[slug].astro',
-	'packages/core/src/pages/objectives/index.astro',
-	'packages/core/src/pages/people/[slug].astro',
-	'packages/core/src/pages/people/index.astro',
-	'packages/core/src/pages/proposals/[slug].astro',
-	'packages/core/src/pages/proposals/index.astro',
-	'packages/core/src/pages/questions/[slug].astro',
-	'packages/core/src/pages/questions/index.astro',
-	'packages/core/src/pages/ui/index.astro',
-] as const;
+const humanCapabilities = [...ADMIN_ROUTES, ...CORE_ROUTES];
+const capabilityBySource = new Map(humanCapabilities.map((entry) => [sourcePath(entry.capability?.owner as 'admin' | 'core', entry), entry]));
+const adminRoutePaths = ADMIN_ROUTES.map((entry) => sourcePath('admin', entry));
+const coreRoutePaths = CORE_ROUTES.map((entry) => sourcePath('core', entry));
 
 function routePatternFromPath(sourcePath: string): string {
 	const pagesIndex = sourcePath.indexOf('/pages/');
-	const relative = sourcePath.slice(pagesIndex + '/pages/'.length).replace(/\.astro$/u, '');
+	const relative = sourcePath.slice(pagesIndex + '/pages/'.length).replace(/\.(?:astro|ts)$/u, '');
 	const withoutIndex = relative === 'index' ? '' : relative.replace(/\/index$/u, '');
-	return `/${withoutIndex.replace(/\[\.\.\.([^\]]+)\]/gu, ':$1*').replace(/\[([^\]]+)\]/gu, ':$1')}`.replace(/\/$/u, '') || '/';
+	return `/${withoutIndex}`.replace(/\/$/u, '') || '/';
 }
 
 function source(path: string) {
 	return existsSync(path) ? readFileSync(path, 'utf8') : '';
 }
 
+const routeDescriptions: Record<string, string> = {
+	'/app': 'Authenticated start page. Summarizes the signed-in principal, available teams, current active-team selection, and direct account/team-management actions without loading projects or operational domains.',
+	'/app/account': 'Identity settings route for public profile details, immutable username display, verified-email lifecycle, scoped-reauthenticated password setup/change, and explicit provider linking/unlinking without mixing session, notification, theme, or deletion concerns.',
+	'/app/account/sessions': 'Session collection for the signed-in principal. It identifies the current browser session, permits idempotent revocation of other sessions, and directs current-device termination through the CSRF-protected logout action.',
+	'/app/account/notifications': 'Notification preference editor with one account-wide email cadence, a canonical content-type selection inherited across authorized projects, optional exact-replacement project overrides, and browser-derived IANA timezone capture. In-app visibility remains immediate.',
+	'/app/account/appearance': 'Personal-theme manager that lists immutable built-ins and private user-created themes, validates guided light/dark palettes and WCAG contrast, and supports create, rename, edit, and guarded deletion. Theme activation remains exclusively in the authenticated shell selector.',
+	'/app/account/delete': 'Destructive account workflow that loads authoritative ownership/admin blockers, requires the exact confirmation phrase and a five-minute one-use scoped reauthentication grant or current password, then revokes sessions and purges account-owned identity data.',
+	'/app/teams': 'Lists teams available to the principal, identifies the active team and membership role, and exposes create, select, edit, member-management, and delete actions when the principal has sufficient authority.',
+	'/app/teams/:teamId/delete': 'Protected team deletion workflow. Resolves the requested team, verifies an owner or project-lead role, loads deletion blockers, requires an exact confirmation phrase, and deletes only when no blocking records remain.',
+	'/app/teams/:teamId/edit': 'Protected team settings form. Resolves and selects the requested team, verifies management authority, displays current identity fields, validates submitted changes, and persists updates through the Admin API facade.',
+	'/app/teams/:teamId/members': 'Protected membership workspace for listing team members, sending invitations, changing member roles, and removing members. Owner/project-lead authorization and API last-owner protections govern mutations.',
+	'/app/teams/new': 'Authenticated team-creation form. Validates the new team identity, creates it through the API facade, records it as the active team, and continues into the retained team-management surface.',
+	'/auth/check-email': 'Auth continuation page shown after registration or password-reset requests. Explains which message to expect, preserves only a validated return target, and redirects an already authenticated principal to the app.',
+	'/auth/confirm-email': 'Consumes an email-confirmation token through the authentication API. On success it establishes the resulting session and follows the validated return target; invalid or expired tokens render a recoverable failure state.',
+	'/auth/device/approve': 'Signed-in approval screen for CLI/device authorization. Displays the requesting device context, submits approval to the auth service, and reports approved, invalid, expired, or denied states.',
+	'/auth/forgot-password': 'Anonymous password-reset request form. Accepts an account email, calls the reset-request API, and transitions to the check-email page without exposing whether an account exists.',
+	'/auth/logout': 'CSRF-protected POST action that revokes the current web session, clears the API access cookie, and returns a 303 to sign-in. GET performs no authentication mutation and redirects to sign-in.',
+	'/auth/register': 'Anonymous credential-registration form for name, permanent public username, email, and password. It normalizes and checks username availability after debounce, checks privacy-safe email usability on blur/change, blocks submission until both checks succeed, repeats uniqueness validation authoritatively at submission, and directs a new account to email verification.',
+	'/auth/reset-password': 'Token-based password-reset form. Validates and confirms the replacement password, submits the reset token to the auth service, and returns the user to sign-in after completion.',
+	'/auth/sign-in': 'Credential sign-in form accepting email or username plus password. Creates the web session, preserves a safe return target, and exposes recovery and registration paths.',
+	'/auth/username': 'Authenticated username-claim step for principals that do not yet have a public username. Validates namespace availability, stores the permanent username, and returns to a safe account/app destination.',
+	'/t/:name': 'Public, identity-only team profile. Resolves a team by its normalized public name and renders its display identity and basic team metadata; unknown teams return 404 and no project/catalog data is exposed.',
+	'/team-invites/:token/accept': 'Invitation redemption flow. Resolves the invite token, coordinates sign-in or registration when necessary, accepts valid invitations through the API, and reports expired, invalid, or already-used invitations.',
+	'/u/:username': 'Public, identity-only user profile. Normalizes the username, redirects noncanonical casing/spelling, renders display name, handle, image, and join metadata, and returns 404 for unknown active users.',
+	'/': 'Core homepage composed from enabled content collections. Introduces the site and surfaces recent questions, objectives, proposals, decisions, notes, people, agents, and books without a Market-owned override.',
+	'/:slug': 'Generic top-level Core content page. Resolves an entry from the pages collection, chooses the configured content or bridge layout, renders local or published-runtime HTML, and returns the shared not-found surface when absent.',
+	'/404': 'Explicit not-found page with a plain explanation and recovery links to the homepage, books library, and status content.',
+	'/agents': 'Public directory of configured software-agent contributors, including each agent’s name, summary, operator, runtime status, tags, and link to its profile.',
+	'/agents/:slug': 'Agent profile page with rendered narrative content, operator/runtime metadata, and resolved relationships to questions and objectives. Missing agents return the shared 404 presentation.',
+	'/books': 'Ordered public catalog of book records showing title, summary, section metadata, landing paths, and available download links.',
+	'/books/:slug': 'Long-form book reader. Resolves a book by ID or slug, renders local or published-runtime content in the reader layout, and returns a book-specific not-found state when absent.',
+	'/contact': 'Public contact page and Core-owned contact form for questions, feedback, collaboration notes, and issue reports. It displays submission status returned by the Core form handler.',
+	'/decisions': 'Reverse-chronological public decision index showing title, summary, status, date, contributor, and tags for recorded accepted, rejected, deferred, or superseded choices.',
+	'/decisions/:slug': 'Decision detail with rationale, authority, type, implementation metadata, contributor, rendered body, and links to related objectives, questions, notes, proposals, books, and superseded decisions.',
+	'/docs-runtime': 'Root of the public knowledge reader. Selects local Astro docs or the published content runtime and renders the root document, with explicit 404 and upstream-unavailable states.',
+	'/docs-runtime/:slug*': 'Catch-all public knowledge reader for nested documentation paths. Resolves local or published content by the complete remaining path and distinguishes missing content from runtime unavailability.',
+	'/notes': 'Public working-notes index for implementation observations, framing, and documentation decisions, loaded from the local or published notes collection.',
+	'/notes/:slug': 'Working-note detail with metadata and rendered local or published content. Drafts are excluded and missing notes receive a note-specific 404 state.',
+	'/objectives': 'Public index of strategic objectives, including summaries, status/context metadata, contributors, and links into each objective record.',
+	'/objectives/:slug': 'Objective detail with authored content, contributor, and resolved relationships to questions and books. Draft or missing objectives are not rendered.',
+	'/people': 'Public directory of human contributors, describing stewardship identities and linking each person to their profile.',
+	'/people/:slug': 'Human contributor profile with rendered biography/profile content and resolved relationships to questions and objectives; missing profiles return 404.',
+	'/proposals': 'Public proposal index presenting explicit suggested changes with summaries, state, contributors, and navigation to their detailed records.',
+	'/proposals/:slug': 'Proposal detail with authored content and relationships to objectives, questions, notes, books, decisions, and superseded proposals. Draft or missing proposals are withheld.',
+	'/questions': 'Public stream of research questions, showing their summaries, status/context, contributors, and links to detailed inquiry records.',
+	'/questions/:slug': 'Question detail with authored content, contributor information, and resolved objective/book relationships. Draft or unknown questions return the shared not-found state.',
+	'/ui': 'Core UI catalog used to inspect shared TreeSeed primitives across themes and viewport sizes, including buttons, badges, cards, forms, lists, details, tables, empty states, and appearance controls.',
+};
+
+function parameterSemantics(routePattern: string): string {
+	if (routePattern.includes('[teamId]')) return '[teamId] identifies the team selected for a protected management action.';
+	if (routePattern.includes('[username]')) return '[username] is the normalized, globally unique public username.';
+	if (routePattern.includes('[name]')) return '[name] is the normalized public team name.';
+	if (routePattern.includes('[...slug]')) return '[...slug] is the complete nested documentation path, including any remaining segments.';
+	if (routePattern.includes('[slug]')) return '[slug] identifies a content entry in the route’s collection.';
+	if (routePattern.includes('[token]')) return '[token] is the opaque invitation credential issued by the authentication API.';
+	if (routePattern.includes('[provider]')) return '[provider] is one configured identity-provider identifier from the canonical provider registry.';
+	return 'No path parameters.';
+}
+
+function routePolicies(routePattern: string, owner: PackageOwner): string[] {
+	if (owner === 'core' || routePattern.startsWith('/u/') || routePattern.startsWith('/t/')) return ['public read'];
+	if (routePattern === '/app' || routePattern === '/app/account' || routePattern === '/app/teams/new') return ['signed-in principal'];
+	if (routePattern === '/app/teams') return ['signed-in principal', 'team membership filters visible teams', 'management role gates privileged actions'];
+	if (routePattern.startsWith('/app/teams/:teamId/')) return ['signed-in principal', 'requested team membership', 'team owner or project lead for mutations'];
+	if (routePattern === '/auth/device/approve') return ['signed-in principal', 'valid pending device request', 'safe return URL'];
+	if (routePattern === '/auth/username') return ['signed-in principal', 'username not already assigned', 'safe return URL'];
+	return ['anonymous-safe auth flow', 'safe return URL'];
+}
+
 function route(sourcePath: string): RouteInventoryEntry {
-	const routePattern = routePatternFromPath(sourcePath);
+	const registered = capabilityBySource.get(sourcePath);
+	if (!registered?.capability) throw new Error(`Route registry metadata is missing for ${sourcePath}`);
+	const capability = registered.capability;
+	const routePattern = registered.pattern;
 	const owner: PackageOwner = sourcePath.startsWith('packages/admin/') ? 'admin' : 'core';
 	const isAuth = routePattern.startsWith('/auth') || routePattern.startsWith('/team-invites');
 	const isApp = routePattern === '/app' || routePattern.startsWith('/app/');
@@ -128,13 +177,15 @@ function route(sourcePath: string): RouteInventoryEntry {
 		owner,
 		routePattern,
 		sourcePath,
+		description: routeDescriptions[routePattern] ?? routeDescriptions[routePattern.replace(/\[\.\.\.([^\]]+)\]/gu, ':$1*').replace(/\[([^\]]+)\]/gu, ':$1')] ?? capability.description,
+		parameterSemantics: parameterSemantics(routePattern),
 		surfaceContext: isAuth ? 'auth' : isTeam ? 'team' : isApp ? 'personal' : owner === 'core' ? 'content' : 'public',
-		currentShell: shell,
-		targetShell: shell,
-		targetTemplate: template,
-		resourceType: isTeam ? 'team-profile' : routePattern.startsWith('/u/') ? 'user-profile' : isAuth ? 'auth-session' : owner === 'core' ? 'content-page' : 'account',
-		policyNeeds: isAuth ? ['anonymous-safe auth flow', 'safe return URL'] : isApp ? ['signed-in principal', ...(isTeam ? ['team membership and management role'] : [])] : ['public read'],
-		dataSource: owner === 'admin' ? 'Admin auth/session and generic API facade' : 'Core content runtime',
+		currentShell: capability.shell as ShellName,
+		targetShell: capability.shell as ShellName,
+		targetTemplate: (capability.archetype === 'message' ? 'detail' : capability.archetype === 'profile' ? 'detail' : capability.archetype === 'auth-form' ? 'auth-form' : capability.archetype) as TargetTemplate,
+		resourceType: capability.resourceType,
+		policyNeeds: capability.accessPolicy,
+		dataSource: capability.viewModelDependencies.join('; '),
 		pageLocalComponents: [],
 		pageLocalCss: debt.includes('page-local-css') ? 'present' : 'none',
 		reusableComponentsUsed,
@@ -153,6 +204,19 @@ function route(sourcePath: string): RouteInventoryEntry {
 }
 
 export const routeInventory: RouteInventoryEntry[] = [...adminRoutePaths, ...coreRoutePaths].map(route);
+
+export const supportEndpointInventory: SupportEndpointInventoryEntry[] = [...ADMIN_SUPPORT_ROUTES, ...CORE_SUPPORT_ROUTES].map((entry) => {
+	if (!entry.capability) throw new Error(`Support route registry metadata is missing for ${entry.pattern}`);
+	return {
+		owner: entry.capability.owner as 'admin' | 'core',
+		routePattern: entry.pattern,
+		sourcePath: sourcePath(entry.capability.owner as 'admin' | 'core', entry),
+		responseKind: entry.capability.responseKind,
+		accessPolicy: entry.capability.accessPolicy.join('; '),
+		dataSource: entry.capability.viewModelDependencies.join('; '),
+		description: entry.capability.description,
+	};
+});
 
 function component(owner: PackageOwner, name: string, sourcePath: string, currentUse: string, targetPackage: ComponentInventoryEntry['targetPackage']): ComponentInventoryEntry {
 	return {
@@ -175,9 +239,9 @@ export const componentInventory: ComponentInventoryEntry[] = [
 	component('admin', 'Authenticated identity shell', 'packages/admin/src/layouts/TreeseedAppLayout.astro', 'Account and team navigation', '@treeseed/admin'),
 	component('admin', 'Public identity shell', 'packages/admin/src/layouts/TreeseedPublicLayout.astro', 'Public user/team profiles and invitations', '@treeseed/admin'),
 	component('admin', 'Identity/team view models', 'packages/admin/src/view-models', 'Principal, active-team, and membership projections', '@treeseed/admin'),
-	component('ui', 'Reusable Astro components', 'packages/ui/src/astro', 'Shared layout-down components; unchanged by cleanup', '@treeseed/ui'),
-	component('ui', 'Reusable React components', 'packages/ui/src/react', 'Shared interactive components; unchanged by cleanup', '@treeseed/ui'),
-	component('ui', 'Theme and CSS primitives', 'packages/ui/src/styles', 'Shared tokens and styles; unchanged by cleanup', '@treeseed/ui'),
+	component('ui', 'Reusable Astro components', 'packages/ui/src/astro', 'Canonical layout-down templates and auth/account compound components', '@treeseed/ui'),
+	component('ui', 'Reusable React components', 'packages/ui/src/react', 'Shared interactive components available to package-owned surfaces', '@treeseed/ui'),
+	component('ui', 'Theme and CSS primitives', 'packages/ui/src/styles', 'Shared tokens, theme compiler, validation, and styles', '@treeseed/ui'),
 	component('core', 'Core layouts', 'packages/core/src/layouts', 'Unchanged public content composition', '@treeseed/core'),
 ];
 

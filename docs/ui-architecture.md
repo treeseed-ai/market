@@ -10,16 +10,18 @@ The Market/Admin presentation layer is now a deliberately small redesign foundat
 - Every `@treeseed/ui` component, style, theme primitive, and export is unchanged and remains available to the redesign.
 - Backend API, SDK, schemas, reconciliation, commerce, capacity, project, content, and operations capabilities remain in their owning packages.
 
-The canonical current inventory is `scripts/ui-architecture/inventory.ts`. It generates [ui-routes.md](./ui-routes.md), [ui-routes.csv](./ui-routes.csv), and [ui-architecture-inventory.md](./ui-architecture-inventory.md).
+The canonical route source is now the typed SDK `TreeseedRouteCapability` contract plus package-owned Admin and Core registries. `scripts/ui-architecture/inventory.ts` merges those registries and generates [ui-routes.md](./ui-routes.md), [ui-routes.csv](./ui-routes.csv), and [ui-architecture-inventory.md](./ui-architecture-inventory.md). API actions, proxies, and feeds use separate support registries with the same vocabulary.
 
 ## Shell ownership
 
-Admin's authenticated layout presents only Start, Teams, Account, active-team selection, and team-management actions. Its public layout is limited to identity/profile presentation and auth entry. Auth pages continue to use the UI auth shell. Core continues to use its public content and reader layouts.
+Admin's authenticated layout presents only Start, Teams, Account, active-team selection, the notification bell, theme selector, and team-management actions. Account navigation is one shared section model spanning Identity, Sessions, Notifications, Appearance, and Delete. Auth pages use UI-package shells and compound components; account pages use `SettingsTemplate` and focused UI-package panels. Core continues to use its public content and reader layouts.
 
 No deleted route has a redirect, alias, or compatibility wrapper. Public `/u/[username]` and `/t/[name]` pages show identity/team profile information only; they do not project projects, catalogs, knowledge packs, or operational state.
 
 ## Boundaries for redesign work
 
-Route controllers and Admin view models may resolve identity, teams, memberships, and actions. Reusable rendering primitives stay in `@treeseed/ui`. Admin continues to call backend behavior only through generic API/proxy contracts. Market remains the tenant/config/content owner and does not absorb Admin or API implementation.
+Route controllers and Admin view models may resolve identity, teams, memberships, and actions. Reusable visual structure, interaction behavior, focus management, validation, dialogs, account panels, and theme compilation stay in `@treeseed/ui`; portable contracts and registries stay in the SDK; persistence and policy stay in the API. Admin calls backend behavior only through focused facades or the CSRF-protected proxy. Market remains the tenant/config/content owner and does not absorb Admin or API implementation.
+
+The architecture check rejects page-local CSS/scripts, direct `fetch`, and bespoke controls in auth/account page controllers. Provider callbacks and the shared proxy remain hidden support controllers. Custom-theme creation never activates a theme; only the authenticated shell selector writes the active appearance preference.
 
 Run `npm run check:ui-architecture` and `npm run audit:ui` when changing the current surface. Refresh generated inventories with `npm run check:ui-architecture -- --write`.

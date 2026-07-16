@@ -5,11 +5,11 @@ import { ADMIN_ROUTES } from '../../packages/admin/src/routes';
 import { routeInventory } from '../../scripts/ui-architecture/inventory';
 
 const retained = [
-	'/app', '/app/account', '/app/teams', '/app/teams/new',
+	'/app', '/app/account', '/app/account/sessions', '/app/account/notifications', '/app/account/appearance', '/app/account/delete', '/app/teams', '/app/teams/new',
 	'/app/teams/[teamId]/edit', '/app/teams/[teamId]/delete', '/app/teams/[teamId]/members',
 	'/auth/register', '/auth/check-email', '/auth/confirm-email', '/auth/sign-in', '/auth/logout',
 	'/auth/forgot-password', '/auth/reset-password', '/auth/username', '/auth/device/approve',
-	'/auth/callback/[provider]', '/u/[username]', '/t/[name]', '/team-invites/[token]/accept', '/v1/[...all]',
+	'/auth/callback/[provider]', '/u/[username]', '/t/[name]', '/team-invites/[token]/accept',
 ].sort();
 
 function filesUnder(path: string): string[] {
@@ -21,10 +21,10 @@ function filesUnder(path: string): string[] {
 }
 
 describe('Market and Admin legacy UI removal', () => {
-	it('leaves Market with no tenant-owned routes and Admin with exactly 21 routes', () => {
+	it('leaves Market with no tenant-owned routes and Admin with the focused human and support routes', () => {
 		expect(filesUnder('src/pages')).toEqual([]);
 		expect(ADMIN_ROUTES.map((route) => route.pattern).sort()).toEqual(retained);
-		expect(filesUnder('packages/admin/src/pages')).toHaveLength(21);
+		expect(filesUnder('packages/admin/src/pages')).toHaveLength(25);
 	});
 
 	it('keeps the generated current inventory free of retired routes', () => {

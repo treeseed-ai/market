@@ -12,9 +12,13 @@ Notifications must be capability-driven, scope-aware, preference-aware, and poli
 
 Notification events are derived from durable product events: activity, audit, actions, deployment, review, publish, overlay editing, content runtime, contextual help feedback, feedback, capacity, workday, membership, and security events.
 
-## Implementation Boundary
+## Current Identity-Slice Implementation
 
-Notifications must start with the first durable events needed by the vertical slices: project questions/direction, public/private content runtime, feedback triage, contextual help feedback, project launch status, service readiness, capacity allocation, and workday review/exception status. Digests and broad preference inheritance should expand only after policy filtering, safe links, mute/watch behavior, and private no-leak tests pass for the first slices.
+The account redesign implements the first notification slice from one SDK content-capability registry: objectives, questions, notes, proposals, decisions, and agents. The account has one global content-type set, optional authorized-project replacements, one IANA timezone, and one email cadence (`immediate`, `daily`, or `weekly`). An override replaces the global set; deleting it restores inheritance.
+
+Durable content-publish events create policy-filtered recipient projections and suppress the actor. In-app notifications are immediately visible through the shared shell bell regardless of email cadence. The operations runner drains an idempotent outbox: immediate messages are event-keyed; daily and weekly deliveries are period-keyed and scheduled for approximately 08:00 local time (Monday for weekly). Access is checked during projection and again when listing notifications or following their safe target.
+
+Existing users begin with no selected content types and therefore receive no new notification mail; cadence defaults to daily. Preference replacement is one database transaction. Events outside the SDK registry are rejected.
 
 ## Scopes
 
@@ -75,14 +79,11 @@ Supported notification periods:
 Notification preferences resolve by inheritance:
 
 ```text
-account default
-  -> team preference
-  -> project preference
-  -> resource/content-type preference
-  -> explicit mute/follow/watch override
+global account content types
+  -> optional exact project replacement
 ```
 
-More specific settings override broader settings. Explicit mutes must be visible and reversible.
+This intentionally simple inheritance is the complete account slice. Team/resource watch and mute layers remain future redesign work and must not be added as parallel preference paths.
 
 ## Policy Filtering
 

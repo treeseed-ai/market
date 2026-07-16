@@ -19,7 +19,7 @@ function walk(path: string): string[] {
 function routePatternFromPath(sourcePath: string): string {
 	const pagesIndex = sourcePath.indexOf('/pages/');
 	const rootRelative = pagesIndex >= 0 ? sourcePath.slice(pagesIndex + '/pages/'.length) : sourcePath.replace(/^src\/pages\//u, '');
-	const withoutExtension = rootRelative.replace(/\.astro$/u, '');
+	const withoutExtension = rootRelative.replace(/\.(?:astro|ts)$/u, '');
 	const withoutIndex = withoutExtension === 'index' ? '' : withoutExtension.replace(/\/index$/u, '');
 	const normalized = withoutIndex
 		.replace(/\[\.\.\.([^\]]+)\]/gu, ':$1*')
@@ -29,7 +29,7 @@ function routePatternFromPath(sourcePath: string): string {
 
 describe('UI architecture inventory', () => {
 	it('covers every human-facing Astro route', () => {
-		const discovered = routeRoots.flatMap(walk).filter((path) => extname(path) === '.astro').sort();
+		const discovered = routeRoots.flatMap(walk).filter((path) => extname(path) === '.astro' || path.endsWith('/auth/logout.ts') || path.includes('/auth/callback/')).sort();
 		const inventoried = routeInventory.map((entry) => entry.sourcePath).sort();
 
 		expect(inventoried).toEqual(discovered);
@@ -37,7 +37,7 @@ describe('UI architecture inventory', () => {
 
 	it('keeps route metadata complete and aligned with file paths', () => {
 		for (const entry of routeInventory) {
-			expect(entry.routePattern).toBe(routePatternFromPath(entry.sourcePath));
+			expect(entry.routePattern.replace(/\[\.\.\.([^\]]+)\]/gu, ':$1*').replace(/\[([^\]]+)\]/gu, ':$1')).toBe(routePatternFromPath(entry.sourcePath));
 			expect(entry.policyNeeds.length, `${entry.sourcePath} policy needs`).toBeGreaterThan(0);
 			expect(entry.dataSource, `${entry.sourcePath} data source`).toBeTruthy();
 			expect(entry.requiredArchitectureChecks.length, `${entry.sourcePath} architecture checks`).toBeGreaterThan(0);
