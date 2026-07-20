@@ -1359,7 +1359,8 @@ secretDeployments:
 
   capacityProvider:
     railway:
-      - TREESEED_CAPACITY_PROVIDER_API_KEY
+      - TREESEED_CAPACITY_PROVIDER_MANIFEST
+      - provider identity and membership secret references declared by that manifest
 ```
 
 Repository credential provider secrets and customer project secrets should not be deployed to capacity-provider hosts by default. Customer project secrets should be deployed to GitHub repository or environment secrets for the initial implementation. If a `trusted_direct` provider grant requires direct credential delegation, that deployment must be represented as an explicit elevated grant, not as a default environment registry target.

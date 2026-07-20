@@ -4,6 +4,8 @@
 **Date:** 2026-07-05
 **Audience:** Agent runtime, SDK/API contract, provider runtime, Admin, and CLI implementers
 
+> Completion authority: [Agent Capacity Completion and Production-Readiness Plan](./agent-capacity-completion.md) governs removal of legacy kernel scheduling/cycle surfaces, consolidation on `runAssignment`, and the TreeDX single-artifact execution contract.
+
 The AgentKernel is owned by `@treeseed/agent`. SDK owns portable contracts used by the kernel, and API owns durable assignment, mode-run, and usage records. Core remains the reusable web runtime and must not own agent scheduling or provider execution.
 
 The human-machine execution provider architecture extends this runtime boundary so handlers build provider-neutral work packages and execution provider adapters perform or coordinate the work across AI, deterministic automation, and human issue queues. The kernel still validates assignment mode, reservation capacity, readiness, capability coverage, scoped handles, activity-profile configuration, and output contracts before provider-assigned work can complete. See [Human-Machine Execution Providers](./human-machine-providers.md).
@@ -63,6 +65,8 @@ Acting mode executes approved work through `acting`, `reviewing`, `reporting`, a
 
 Handlers do not choose whether they are planning or acting. The provider runner leases an existing `ProviderAssignment`, then calls `AgentKernel.runAssignment`. The kernel validates the mode-bounded scope and invokes the project-owned handler selected by the activity profile with capacity context on `AgentContext`.
 
+The kernel receives only assignments that survived strict API repository decoding and the single API lease-authority path. Unknown assignment modes, corrupt durable context, invalid state versions, and malformed lease duration are control-plane failures and must never be coerced into a planning kernel run.
+
 ## Kernel Input
 
 The kernel receives:
@@ -78,11 +82,25 @@ The kernel receives:
 
 The assignment decides the outer scope. The envelope decides budget and capability bounds. The input decides the governance context. The profile and policy decide runtime behavior.
 
+The kernel receives policy provenance selected by the API; it never creates or repairs that policy. Workday assignments must reference an already-active grant, effective allocation version, governed reservation, and pre-existing TreeDX binding. A missing or ambiguous record is a control-plane scheduling failure, not permission for the kernel or provider runner to synthesize a fallback grant, allocation, or repository binding.
+
+The API's typed workday demand compiler selects the project agent, activity profile, handler, planning intent, source context, and durable participation entry before admission; the assignment function binds that demand to the admitted assignment. The kernel consumes that admitted envelope only; it does not rediscover projects, repair corrupt workday records, choose a different agent, or maintain a parallel workday scheduler.
+
+The API also compiles project/team/architecture/repository context before admission and fails on incomplete durable ownership or read uncertainty. The kernel consumes that admitted context and never synthesizes repository or team defaults.
+
+The admitted envelope is durably owned by one exact workday run. An uncertain scheduling or recovery transition prevents dispatch from being treated as ready; the kernel never infers run ownership from an envelope id or repairs missing scheduling evidence.
+
+All JSON policy and context persisted before admission is strictly decoded by the API. The kernel receives a validated admitted envelope and never substitutes defaults for malformed allocation, grant, workday, session, class, reservation, or assignment evidence.
+
+The API also strictly decodes agent/capacity mutation requests as JSON objects before they can shape an assignment. Malformed, null, array, or primitive input cannot become default planning, capacity-plan, lease, lifecycle, mode-run, or workflow-operation data, so the kernel never receives work derived from a parser fallback.
+
 The implemented `AgentContext.capacity` field is optional so existing handlers continue to run outside provider assignment execution. When present, it includes assignment id, provider id, selected mode, capacity envelope, decision input, project agent class/profile/policy metadata, source assignment, readiness metadata, and TreeDX proxy handle metadata.
 
-The implemented `AgentContext.treeDx` field is also optional. Provider runners hydrate it only from assignment proxy handles, apply handle-bound repository/workspace/path/operation defaults locally, and call TreeSeed `/v1/dx/projects/:projectId/...` proxy routes with provider auth, assignment id, and proxy handle id. Handlers can build context, read repository files, search workspaces, write workspace files, commit workspaces, and read back results through that adapter without seeing raw TreeDX service credentials. Model-aware content commands sit above this raw adapter: they render and validate SDK content records before calling the assignment-scoped TreeDX workspace routes.
+The implemented `AgentContext.treeDx` field is also optional. Provider runners hydrate it only from fully scoped assignment proxy handles, apply handle-bound repository/workspace/read-path/write-path/operation defaults locally through the canonical SDK evaluator, and call TreeSeed `/v1/dx/projects/:projectId/...` proxy routes with provider auth, assignment id, and proxy handle id. The API independently authorizes the request against the durable handle written by admission; it never trusts the embedded assignment copy as an authorization fallback. Handlers can build context, read repository files, search workspaces, write workspace files, commit workspaces, and read back results through that adapter without seeing raw TreeDX service credentials. Model-aware content commands sit above this raw adapter: they render and validate SDK content records before calling the assignment-scoped TreeDX workspace routes.
 
-TreeDX is the default SDK content and repository backend, including local environments. Missing TreeDX configuration is a setup error for content operations; local filesystem content is available only when a caller explicitly passes `contentRepository: { adapter: 'local' }`. Provider runners may still use explicit local mode to bootstrap project-bundled agent specs and tenant handler modules from a synced checkout, but assignment content reads and writes should use TreeDX proxy handles when those handles are present.
+Before the kernel receives a writable workday assignment, the API has created its deterministic workspace through a bounded, strictly decoded TreeDX response and admitted the corresponding durable proxy handle. The kernel never accepts a replacement workspace id or repairs an uncertain workspace response.
+
+TreeDX is the default SDK content and repository backend, including local environments. Missing TreeDX configuration is a setup error for content operations; local filesystem content is available only when a caller explicitly passes `contentRepository: { adapter: 'local' }`. Provider runners load project agent specifications through the assignment-scoped TreeDX proxy. Optional tenant handler implementations are code extensions under the dedicated `src/agent-handlers/` directory; general `src/agents/` runtime/support modules are never inferred to be handlers. Assignment content reads and writes always use TreeDX proxy handles when those handles are present.
 
 Execution provider invocations carry a redacted `agent_tool` catalog derived from the agent content definition and the assignment handles available to the provider runner. Codex receives the same assignment-scoped tool catalog through a local stdio MCP server, while GitHub Issues receives credential-free tool descriptions, route templates, and required header names for human or external automation executors. Descriptors never contain raw TreeDX bearer tokens, provider API keys, GitHub tokens, repository deploy keys, or unredacted proxy payloads.
 
@@ -94,12 +112,14 @@ Agent content access is separate from provider tool access. `contentAccess.read`
 
 Codex and other AI-focused execution providers should receive assignment-scoped tools directly where their harness supports tool calling. A handler should not require a magic output string to ask the runtime for a tool; missing capability is reported as a structured blocked result. Provider runners capture execution-provider messages, usage, and artifacts as assignment/mode-run telemetry so UI surfaces can follow long-running agent work.
 
+Mode-run telemetry is required evidence, not best-effort logging. Every provider phase derives one stable identity from the assignment and logical event and retries that same identity through a bounded delivery primitive. A provider message remains pending until the API acknowledges it. If required evidence cannot be persisted after bounded retries, the runner does not silently continue: it returns or fails the assignment through the canonical lease path and records explicit telemetry-delivery diagnostics on that lifecycle transition.
+
 ## Mode Selection
 
 Mode selection is API- and kernel-coordinated:
 
 - API selects eligible demand and issues an assignment with a target mode.
-- `ModeScheduler`, `QueueObserver`, and `PriorityResolver` provide the kernel-local decision point for planning, acting, fallback, or idle behavior within the assignment envelope.
+- The API-selected assignment and its resolved activity profile are the sole mode/activity decision; the kernel does not run a queue observer, priority resolver, or mode scheduler.
 - Kernel validates that the project agent profile supports the mode.
 - Kernel maps assignment context into a bounded activity-profile handler invocation.
 - Kernel applies fallback only within the assignment's allowed mode and output types.
@@ -194,7 +214,9 @@ Acting fallback examples:
 - no acting work in assignment -> return assignment
 - repeated failure -> create weakness proposal if policy allows
 
-Every fallback emits a reason on the `AgentModeRun`. When the provider runner maps a bounded fallback to assignment return or failure, the same fallback can be persisted as an `AgentFallbackOutput` for operator review.
+Every fallback emits a reason on the `AgentModeRun`. When the provider runner maps a bounded fallback to assignment return or failure, the same fallback is persisted as an `AgentFallbackOutput` for operator review before the lease is released. Its identity is deterministic for assignment, mode, fallback code, and durable attempt number; transport replay returns the first canonical evidence and cannot overwrite another execution's record.
+
+The API lifecycle service rejects return, completion, or failure after lease expiry even when the runner still holds the old token. The runner must renew before expiry or stop; it cannot use a fallback or late result to terminalize work after authority has lapsed.
 
 Permissions failures are not a pause reason at assignment execution time. Work that the assigned agent cannot access should be rejected before lease. Runtime pauses are reserved for time or capacity shortage and must preserve assignment state for continuation.
 
@@ -216,7 +238,7 @@ Every bounded attempt emits an `AgentModeRun` record with:
 
 `AgentRunTrace` can remain as lower-level trace detail while the system migrates. `AgentModeRun` is the durable cross-package record for assignment/mode/usage accounting.
 
-The implemented Phase 3 path emits a running mode-run event before handler execution and a terminal mode-run event after success, failure, cancellation, or bounded fallback. Terminal records include trace references to the lower-level `AgentRunTrace` when handler execution reaches the trace path.
+The implemented Architecture Milestone M3 path emits a running mode-run event before handler execution and a terminal mode-run event after success, failure, cancellation, or bounded fallback. Terminal records include trace references to the lower-level `AgentRunTrace` when handler execution reaches the trace path. M3 is a roadmap milestone, not a completion-plan phase number.
 
 ## Verification Expectations
 
@@ -228,6 +250,9 @@ Runtime verification should continue to prove:
 - expired leases stop or renew before continuing
 - fallback paths are bounded and visible
 - usage actuals settle against the assignment and mode run
+- the API's exactly-once reservation settlement is the sole usage-actual writer; the kernel cannot create a parallel usage record
+- provider assignments and mode runs are the sole task execution lifecycle; a project-runner task queue, client, or task/event/output table must not be reintroduced
+- provider availability and assignment telemetry are the sole agent coordination lifecycle; project-runner manager leases, worker runners, repository claims, runner scale decisions, agent pools, pool registrations, or direct worker-pool scalers must not be reintroduced
 
 ## Guarantee Execution Providers
 

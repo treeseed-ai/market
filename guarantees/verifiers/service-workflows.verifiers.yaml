@@ -1,0 +1,44 @@
+schemaVersion: treeseed.guarantee-verifiers/v1
+ownerPackage: "@treeseed/market"
+verifiers:
+  market.capacity.sdk-operator-contract:
+    kind: vitestCase
+    ownerPackage: "@treeseed/sdk"
+    testFile: test/utils/capacity-operator-surface.test.ts
+    timeoutSeconds: 60
+  market.capacity.sdk-configuration-contract:
+    kind: vitestCase
+    ownerPackage: "@treeseed/sdk"
+    testFile: test/utils/capacity-configuration.test.ts
+    timeoutSeconds: 60
+  market.capacity.api-operator-contract:
+    kind: vitestCase
+    ownerPackage: "@treeseed/api"
+    testFile: test/lib/capacity-operator-routes.test.ts
+    timeoutSeconds: 120
+  market.capacity.api-descriptor-contract:
+    kind: vitestCase
+    ownerPackage: "@treeseed/api"
+    testFile: test/lib/api-route-descriptors.test.ts
+    timeoutSeconds: 120
+  market.capacity.cli-operator-contract:
+    kind: nodeScript
+    ownerPackage: "@treeseed/cli"
+    command: packages/cli/scripts/capacity-operator-parity.test.ts
+    timeoutSeconds: 120
+  market.capacity.cli-secret-contract:
+    kind: nodeScript
+    ownerPackage: "@treeseed/cli"
+    command: packages/cli/scripts/capacity-output-security.test.ts
+    timeoutSeconds: 120
+  market.capacity.full-local-lifecycle:
+    kind: packageScript
+    ownerPackage: "@treeseed/market"
+    command: guarantee:capacity-local-acceptance
+    timeoutSeconds: 2400
+  market.capacity.failure-concurrency-matrix:
+    kind: vitestCase
+    ownerPackage: "@treeseed/market"
+    testFile: test/lib/capacity-failure-concurrency-service-workflow.test.ts
+    testName: recovers interruption, fences stale leases, limits cross-project pressure, and preserves human policy
+    timeoutSeconds: 60

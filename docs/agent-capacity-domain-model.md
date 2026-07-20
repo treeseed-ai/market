@@ -4,9 +4,11 @@
 **Date:** 2026-07-05
 **Audience:** SDK, API, agent runtime, Admin, CLI, and integration implementers
 
+> Completion authority: [Agent Capacity Completion and Production-Readiness Plan](./agent-capacity-completion.md) defines the global provider identity, provider/team membership, broadcast registration key, strict allocation v2, and migration work that supersedes incomplete current-state records described below.
+
 This document defines the shared implementation vocabulary for Treeseed agent capacity. It describes the model that SDK contracts, API records, agent runtime inputs, Admin views, and CLI reports should converge on.
 
-The canonical contract surface is exported from `@treeseed/sdk/agent-capacity`. Durable coordination records are stored by `@treeseed/api` through migrations `0005_agent_capacity_coordination.sql`, `0006_provider_assignment_lifecycle.sql`, `0007_agent_architecture_gap_closure.sql`, `0008_agent_capacity_operational_closure.sql`, and `0009_agent_capacity_runtime_hardening.sql`.
+The canonical contract surface is exported from `@treeseed/sdk/agent-capacity`. Durable coordination records are stored by `@treeseed/api` against the SDK-owned Drizzle schema. Every historical additive capacity migration has been deleted. The only Market schema artifact is the regenerated `0000_market_control_plane.sql` clean-reset baseline; no capacity compatibility migration is part of the current contract.
 
 ## Boundary Rule
 
@@ -39,6 +41,8 @@ Provider-owned examples:
 
 The API coordinates the match between project demand and provider supply. The provider manager supervises only one provider's local runtime; it is not the cross-provider planning authority.
 
+Assignment project context is compiled once by the API before admission from the durable project, owning team, architecture, and repository records. Missing ownership or storage uncertainty fails admission; the compiler does not fabricate a team or silently replace an unreadable architecture with defaults.
+
 Human-machine execution providers use this same boundary: projects define work semantics, while AI providers, deterministic workflows, and human issue queues supply execution capacity. See [Human-Machine Execution Providers](./human-machine-providers.md).
 
 ## AllocationSet
@@ -58,7 +62,13 @@ It includes:
 
 Admin may edit allocation policy. API persists and applies it. SDK defines the portable contract. Providers cannot mutate it.
 
-Implemented allocation writes create a new allocation set and activate it. Activation supersedes prior active draft/active sets for the team, while existing reservations keep their original `allocationSetId` and grant metadata. Grants remain provider/project enforcement records derived from the active allocation set; they are not the canonical policy version by themselves.
+Implemented allocation writes create a new allocation set and activate it. Activation supersedes overlapping active sets for the team, while existing reservations keep their original `allocationSetId` and grant metadata. Grants are explicit membership/project enforcement records created and activated independently; membership approval and allocation activation never synthesize a grant.
+
+Every public grant, allocation, workday-envelope, and project-agent-class mutation requires an idempotency key. The API transaction stores the mutation and one `capacity_operation_receipts` row keyed by team, operation, and idempotency key. The receipt binds a canonical request digest to the durable response. Same-key/same-input retries return that response after transport loss or process restart; same-key/different-input retries fail with a stable conflict. This reusable receipt is the single canonical control-plane mutation primitive; concurrent mutation tests prove one durable resource/result wins.
+
+Workday scheduling is a read-only consumer of governance policy. Before creating a workday envelope, the API must resolve an approved provider membership, an active allocation that is effective and covers every requested project, and one unambiguous active planning grant per project and environment. Scheduling and maintenance must never create, activate, supersede, pause, revoke, expire, or otherwise rewrite allocation sets or grants.
+
+Every workday envelope created by a governed schedule stores the exact owning workday-run id through an indexed foreign key. Scheduling, terminalization, and recovery query that durable relationship directly; an envelope id prefix, naming convention, or in-memory collection is never ownership evidence. If scheduling fails after partial persistence, recovery attempts exact envelope closure, a failure event, and the failed run transition independently and reports any missing recovery evidence as a control-plane failure.
 
 ## ProjectAgentClass
 
@@ -155,13 +165,11 @@ A `WorkdayCapacityEnvelope` is the TreeSeed-side accounting envelope for a team/
 It includes:
 
 - workday id and time window
-- team allowance
-- project allowances
-- agent-class allowances
-- planning/acting allowances
-- reserves and borrowing rules
+- total workday budget and committed usage
+- the immutable effective allocation-set reference
 - current reservations and actual usage
-- mode split metadata for planning and acting
+
+Project, agent-class, and mode percentages, reserves, and borrowing rules exist only in the referenced `CapacityAllocationSetV2`. Workdays do not copy or override allocation policy.
 
 Workdays are not provider calendars. Providers participate by checking in with availability sessions that may overlap all or part of a workday.
 
@@ -198,9 +206,10 @@ It includes:
 - repository/workspace context
 - relevant notes and prior outputs
 - expected output contract
+- explicit `workGraphNodeId` provenance for acting input
 - audit and trace references
 
-Planning inputs can target unresolved proposals, weak proposals, estimates, comparisons, and summaries. Acting inputs must be tied to approved work.
+Planning inputs can target unresolved proposals, weak proposals, estimates, comparisons, and summaries. Acting inputs must be tied to approved work. Accepted acting input fails closed unless its `workGraphNodeId` identifies the intended node in the active decision graph; the execution-input id, capacity-plan work-unit id, and graph-node id remain distinct durable identities.
 
 ## StructuredEstimate
 
@@ -235,6 +244,8 @@ It is derived from:
 - capacity policy and readiness rules
 
 Agents may propose dependencies and deliverables. The API owns the executable graph, graph versions, ready-state evaluation, and assignment synthesis. Acting assignments are leased only when their upstream graph dependencies, required deliverables, readiness gates, and reservations are satisfied.
+
+The SDK Drizzle schema owns `structured_agent_estimates`, `decision_assignment_graphs`, `deliverable_contracts`, and `deliverable_manifests`; the reset clean baseline must contain this contract. The unlaunched capacity system does not retain an additive capacity compatibility migration path. The retired `runtime_tasks`, `runtime_task_events`, and `runtime_task_outputs` queue is not an alternate graph execution store.
 
 ## DeliverableContract And DeliverableManifest
 
@@ -284,18 +295,21 @@ A `ProviderAvailabilitySession` records one provider's reported availability and
 
 It includes:
 
-- provider id
-- check-in time and availability window
+- provider and approved membership ids
+- open/refresh time, expiry, and availability window
 - execution providers and capabilities
-- grants and scopes
 - native limits, observations, and confidence
 - runner pressure and concurrency
 - provider-local constraints
-- session status
+- session status and compare-and-swap sequence
 
-Providers create and refresh sessions by outbound check-in. The API must not require inbound access to provider machines.
+Providers create and refresh membership-scoped sessions through outbound availability-session operations. The API must not require inbound access to provider machines.
 
-Provider sessions are recorded through `/v1/provider/sessions` and `/v1/provider/check-in`. Check-in records generic supply: availability, execution providers, native limits, grants, capabilities, runner pressure, and provider-local constraints. The API also performs bounded request-scoped synthesis from existing readiness/planning records before leasing work. Providers still do not invent project work.
+Availability sessions are opened through `POST /v1/provider/availability-sessions`, replaced with a full sequence-checked snapshot through `PUT /v1/provider/availability-sessions/:sessionId`, and closed through `POST /v1/provider/availability-sessions/:sessionId/close`. They record supply facts only: availability, execution providers, native limits, capabilities, runner pressure, and provider-local constraints. Provider-asserted grants are never accepted; API-owned active grants are authoritative. The API performs bounded request-scoped synthesis from existing workday/readiness/planning records before leasing work. Providers still do not invent project work.
+
+Provider sessions and assignments replace the retired project-runner manager-lease, worker-runner, repository-claim, and runner-scale models. Those duplicate records are not compatibility contracts. Operations-runner repository workspace claims use the separately named `platform_repository_claims` model and have no capacity-allocation or agent-scheduling meaning.
+
+Synthesis is authorized only under an approved membership, active provider identity, and one exact open membership-scoped session whose time window and environment match the request. Unknown explicit sessions are rejected rather than replaced by a different session. Storage uncertainty is an error, never an empty grant set, zero active usage, or implicit authorization. The lease-authority service is the sole lease-time evaluator; obsolete provider eligibility evaluators are not retained.
 
 ## ProviderAssignment
 
@@ -316,28 +330,47 @@ It includes:
 - status, attempts, renewals, return reason, completion, or failure
 - lifecycle reason, code, and output summary
 
-Assignments replace ambiguous task-claim language for new coordination work. Existing task claim APIs may remain during migration, but new runtime behavior should use assignment/session semantics.
+Assignments replace ambiguous task-claim language. Capacity task-claim compatibility APIs must not remain; all provider execution uses assignment/session semantics.
 
-Assignments can be explicit control-plane records or synthesized records. Explicit assignments remain useful for fixtures, diagnostics, and acceptance proof. Synthesized assignments are created deterministically from open planning input requests and accepted capacity-plan work units during provider check-in or next-assignment polling. Accepted decision execution inputs are planning artifacts until they are aggregated into a durable capacity plan and accepted. Synthesis is idempotent through a stable synthesis key and produces an assignment explanation record.
+Assignments are created only by the canonical admission transaction. Fixtures and acceptance workflows must use the same transaction. One request-scoped demand compiler normalizes TreeDX-backed objectives, questions, proposals, decision reviews, and knowledge gaps; durable planning inputs; assignment completion/blockage; release-readiness, summary, handoff, and configured idle intents; and strictly gated capacity-plan work units into `capacity_workday_demands`. Authenticated next-assignment polling and explicit idempotent workday ticks may invoke the compiler; there is no process-local/background synthesis queue. One assignment function atomically claims demand before admission, creates the assignment through the sole admission transaction, and then provisions its deterministic TreeDX workspace through a recoverable `provisioning` to `issued` handle lifecycle. Accepted decision execution inputs remain planning artifacts until aggregated into an accepted durable capacity plan. An admitted assignment owns its current explanation; a denied pre-admission demand is recorded in the capacity audit ledger because no assignment exists yet.
 
-Durable `AgentCapacityPlanRecord` entries are API-owned acceptance gates. They aggregate accepted `DecisionExecutionInput` records into work units with expected/high credits, capability needs, dependencies, blockers, assumptions, risk, and scoped capacity envelopes. Acting synthesis uses only accepted, scheduled, or active plan work units unless a future emergency policy explicitly records a bypass.
+Allocation, grant, workday, availability-session, project-agent-class, reservation, and assignment JSON used by admission or replay is strict durable state. One API decoding primitive enforces required object/array shape; malformed evidence is a control-plane error and never becomes empty/default policy.
+
+Capacity control-plane input has the same single-owner rule. One API request-object primitive distinguishes an explicitly optional empty body from malformed JSON and rejects null, array, and primitive roots before authorization-dependent service or persistence work. Extracted governance, allocation, workday, admission, and operator routes and the remaining inline planning, capacity-plan, provider-assignment, mode-run, and assignment-operation routes use that primitive; no capacity mutation may catch parser failure and substitute `{}`.
+
+When a TreeDX proxy handle is present, the same admission transaction writes its durable API-owned authorization row. The assignment copy is execution context for the provider; it is not an authorization fallback. API proxy authorization requires the durable row and enforces its team, project, assignment, repository, workspace, expiry, revocation, operation, token-hash, read-path, and write-path constraints. Schema migration backfills preexisting embedded handles before the durable row becomes mandatory.
+
+Durable `AgentCapacityPlanRecord` entries are API-owned acceptance gates. They aggregate accepted `DecisionExecutionInput` records into work units with expected/high credits, capability needs, dependencies, blockers, assumptions, risk, scoped capacity envelopes, and explicit graph-node provenance. Acting synthesis uses only accepted, scheduled, or active plan work units whose referenced active graph node is ready, acting-mode, class/handler compatible, dependency-ready, and covered by approved deliverable contracts. Validated engineering workflow promotion configuration is consumed by the API-owned workday coordinator before demand compilation: it waits for human approval and a linked accepted estimate, then idempotently creates the active graph, graph-scoped accepted inputs, and accepted plan through their canonical service owners. `decision_execution_inputs.work_graph_node_id` defines the supersession slot, so sibling graph nodes coexist while a changed scope for the same node supersedes its predecessor and affected plan. Decision readiness is projected from the newest accepted, scheduled, or active plan. Transitioning an older plan to superseded or another inactive state cannot overwrite readiness owned by a newer active plan; when no active plan remains, readiness fails closed as blocked.
 
 The lifecycle leases assignments through `/v1/provider/assignments/next` and updates state through renew, return, complete, and fail routes. Leased assignments execute through `@treeseed/agent` `AgentKernel.runAssignment`.
 
-Provider task claim/event/complete/fail routes are not part of this model. The provider runtime contract is provider check-in, next assignment, renew lease, create mode run, complete/return/fail assignment, and report usage.
+Lease selection records its current explanation in the same compare-and-swap that claims the assignment. Workday terminalization is a single API-owned primitive shared by explicit closure, deadline maintenance, terminal-run recovery, and supersession. It settles the admission reservation before changing assignment or mode-run state, advances the assignment state version conditionally, and propagates storage failure so maintenance can retry. Fallback output identity is stable for assignment, mode, code, and attempt; replay cannot replace evidence owned by another execution.
+
+Lease selection considers only `pending` and `returned` assignments. Expired `leased` rows first pass through the bounded API recovery owner invoked by scoped provider polling and global operations-runner maintenance. Settlement, usage, successful or active mode runs, TreeDX proxy events, fallback evidence, retry limit, and reservation transition tokens determine one explicit safe-retry, terminal-failure, completed, or operator-action disposition. Safe retry keeps the reservation; retry exhaustion settles it exactly once; completed recovery requires successful mode-run plus settlement evidence; uncertain side effects or financial transition remain `expired`. Assignment CAS, orphan mode-run closure, demand/participation status, and audit evidence share one database batch, and a previously committed recovery settlement converges on replay.
+
+The API assignment repository is the only durable row serializer and list/get owner. It rejects corrupt JSON, unknown modes, and invalid state versions. The focused lease service owns candidate ordering, diagnostics, and lease CAS but delegates authorization to the sole lease-authority evaluator; it does not duplicate grant, allocation, session, reservation, membership, provider, or workday eligibility policy.
+
+The typed assignment-admission service is the only synthesis-to-admission bridge. Typed planning-input/capacity-plan synthesis strictly decodes persisted source JSON and propagates storage uncertainty. Team operators inspect bounded pre-admission evidence through `GET /v1/teams/:teamId/capacity-audit-events` or `trsd capacity audit-events`; synthesis never writes an explanation for a nonexistent assignment.
+
+Workday demand and assignment have one typed request-scoped owner each. A strict workday-run repository rejects unknown status, invalid required fields, malformed JSON, and an active-run collection beyond its explicit bound. Project policy rejects missing or ambiguous requested projects. Durable participation cycles and entries record pending, assigned, completed, excluded, and blocked outcomes and prevent a new cycle while an eligible entry remains uncovered. TreeDX content reads and artifact-context reads propagate transport, storage, and decoding failure. The compiler writes idempotent positive demand only; the assignment function claims one demand, calls the sole assignment-admission service, and provisions the deterministic TreeDX workspace only after admission.
+
+Workspace preparation derives one replay-stable id from the assignment, validates brokered repository/token/TTL input, and consumes a strictly bounded TreeDX response. HTTP failure, oversized content, malformed JSON, and a returned id that differs from the deterministic id are stable fail-closed control-plane errors; no assignment is admitted from uncertain workspace state.
+
+Provider task claim/event/complete/fail routes are not part of this model. The provider runtime contract is availability-session create/refresh/close, next assignment, renew lease, create mode run, complete/return/fail assignment, and settlement/usage reporting.
 
 Lease rules:
 
 - `pending/unleased`, `returned/released`, and expired `leased` assignments are eligible for next-assignment polling.
 - A next-assignment response leases one existing assignment for the authenticated provider and returns a lease token.
-- Renew, return, complete, and fail operations require the current provider key and the active lease token.
+- Renew, return, complete, and fail operations require the current membership-scoped provider access token and the active lease token.
+- The active lease must still be unexpired when renew, return, complete, or fail commits. Matching stale token material does not confer terminal mutation authority.
 - Retryable failures return the assignment to the eligible pool; non-retryable failures end as failed.
 
 ## ProviderAssignmentExplanation
 
 An assignment explanation records why a candidate was eligible or blocked. It includes source, source record id, eligibility result, readiness, capability, grant, allocation and policy gates, allocation policy version when known, and human-readable reasons.
 
-Providers can read their assignment explanation through provider-key routes. Operators can read the same explanation through team-scoped routes.
+Providers can read their assignment explanation through membership-scoped access-token routes. Operators can read the same explanation through team-scoped routes.
 
 ## AgentModeRun
 
@@ -355,9 +388,15 @@ It includes:
 - validation results
 - fallback reason when applicable
 
-Phase 1 records mode-run telemetry and can link it to usage actuals. Phase 3 emits mode-run telemetry from the AgentKernel assignment runtime: a running attempt when bounded execution begins and a terminal attempt when the handler succeeds, fails, cancels, or the kernel produces a bounded fallback.
+Architecture Milestone M1 records mode-run telemetry and can link it to usage actuals. Architecture Milestone M3 emits mode-run telemetry from the AgentKernel assignment runtime: a running attempt when bounded execution begins and a terminal attempt when the handler succeeds, fails, cancels, or the kernel produces a bounded fallback. These are roadmap milestone labels, not completion-plan phase numbers.
 
-Assignment lifecycle settlement is API-owned. Lease/start emits `task_started`; completion emits `task_completed_actual_settlement` plus release of unused reservation credits; return and retryable fail emit `reservation_released`; nonretryable fail emits `task_failed_refund`. Reservation state, consumed credits, native usage, provider units, and USD actuals are updated from the same ledger helper.
+A mode-run event id is stable within its assignment and logical event. Same-assignment delivery replay updates the canonical record; reuse of that id for another assignment is a conflict and cannot move forensic evidence. Usage linkage is atomic and is accepted only when the usage actual belongs to the same team and assignment. Provider delivery is required and bounded: buffered messages are acknowledged only after persistence, and exhausted delivery deterministically returns or fails the lease with explicit diagnostics.
+
+Assignment lifecycle settlement is API-owned. Lease/start emits `task_started`; completion emits one reservation-scoped `task_completed_actual_settlement` plus release of unused reservation credits; return and retryable fail emit `reservation_released`; nonretryable fail emits `task_failed_refund`. An explicit settlement token selects the only writer, and a unique reservation/phase ledger constraint prevents a second actual settlement even when callers race with different idempotency keys. Reservation state, consumed credits, native usage, provider units, and USD actuals are updated from the same transaction. Replays return the canonical settlement; conflicting actual usage is rejected.
+
+Every usage actual carries a report idempotency key, durable assignment attempt, stable usage dimension, and an `informational`, `incremental`, or `aggregate` accounting mode. Informational rows carry zero credits. A reservation-owned report token serializes partial ingestion against terminal settlement. The terminal aggregate must cover every accepted incremental credit report; an underreported aggregate produces no ledger/counter mutation and can be corrected idempotently. An overrun creates an append-only hold and `overran_pending_approval` reservation state. Only a team-management API/CLI decision may approve the bounded counter exception or reject and release it; provider credentials cannot self-approve an overrun.
+
+One focused usage service owns the sole usage insert operation used by both the provider partial-report endpoint and settlement. Settlement remains the sole owner of ledger, counter, and reservation accounting. There is no alternative usage writer or global JSON scan that infers execution-provider kind from a fixed availability-session window. Typed usage repositories expose bounded keyset or explicitly scoped recent reads, strictly decode persisted evidence, and propagate database uncertainty.
 
 `AgentRunTrace` remains useful as lower-level handler/runtime trace detail. `AgentModeRun` is the durable control-plane record that connects mode, assignment, capacity envelope, output, and usage.
 
@@ -367,7 +406,7 @@ Usage actuals connect native provider observations to TreeSeed accounting.
 
 They include:
 
-- assignment id, mode run id, reservation id, provider id, execution-provider id
+- assignment id, assignment attempt, usage dimension, report idempotency key, mode run id, reservation id, provider id, execution-provider id
 - native units consumed
 - derived credits
 - confidence level
@@ -377,17 +416,29 @@ They include:
 
 The API settles usage into the capacity ledger. Providers report native observations; TreeSeed derives and records provider-neutral accounting.
 
-`WorkdayCapacityEnvelope` records can be started, paused, completed, and summarized through `/v1/workdays`. Summaries combine envelope policy, assignments, mode runs, usage actuals, ledger entries, release/refund calculations, native usage snapshots, and provider-confidence warnings. The summary is an API control-plane read model; it is not reconciled infrastructure.
+### Native accounting windows
+
+Native availability is never calculated from lifetime reservation history. Each execution-provider limit is evaluated inside one explicit accounting window keyed by capacity provider, execution provider, native unit, limit scope, and window start/end. The window comes from a fresh provider observation when available, otherwise from a supported configured reset cadence. An opaque or unsupported reset cadence produces unknown derived capacity and a diagnostic reason; it must not silently assume an unlimited window.
+
+For an observed-remaining source, the observation is authoritative at `observedAt`: TreeSeed subtracts current reserved/consuming commitments and only terminal usage newer than that observation. For a configured-limit source, TreeSeed subtracts reserved commitments plus terminal usage inside the current reset window. Reset rollover excludes prior-window terminal usage while preserving immutable reservations, usage actuals, and ledger evidence. SQL aggregates own totals; operator diagnostics return only an explicit bounded evidence window with continuation metadata.
+
+Window selection and arithmetic are SDK-owned pure primitives. API admission and summaries use the same primitive and persisted facts. Required tests cover daily/weekly/monthly rollover, observation refresh, late and duplicate settlement, concurrent reservations, missing cadence, provider/session scope, and restart/replay.
+
+`WorkdayCapacityEnvelope` records can be started, paused, completed, and summarized through `/v1/workdays`. Summaries combine envelope policy with aggregate assignment, mode-run, reservation, usage, and ledger totals, release/refund calculations, native usage snapshots, provider-confidence warnings, and five bounded evidence windows. Each evidence collection is continued explicitly with `evidence`, `limit`, and opaque `cursor`; a summary never embeds an unbounded forensic history. The summary is an API control-plane read model; it is not reconciled infrastructure.
 
 ## TreeDX Proxy Handle
 
 Assignments may carry a project-scoped `TreeDxProxyHandle`. The handle identifies project, assignment, repository/workspace scope, allowed operations, and expiry. It is not a TreeDX service credential.
 
-Provider runners call `/v1/dx/projects/:projectId/...` with their provider API key plus `x-treeseed-assignment-id` and `x-treeseed-treedx-proxy-handle-id`. The API verifies the provider, team, project, active assignment lease, handle id, handle state, expiry, repository, workspace, allowed operation, and allowed path before resolving the TreeDX node. Successful and denied calls write `TreeDxProjectProxyAuditRecord` rows that can be read by project operators. Raw TreeDX credentials must not appear in assignment payloads, logs, Admin, CLI, or provider reports.
+Provider runners call `/v1/dx/projects/:projectId/...` with the connection's short-lived membership access token plus `x-treeseed-assignment-id` and `x-treeseed-treedx-proxy-handle-id`. The API verifies the membership, provider, team, project, active assignment lease, handle id, handle state, expiry, repository, workspace, allowed operation, and allowed path before resolving the TreeDX node. Successful and denied calls write `TreeDxProjectProxyAuditRecord` rows that can be read by project operators. Raw TreeDX credentials, membership credentials, and access tokens must not appear in assignment payloads, logs, Admin, CLI, or provider reports.
 
 ## Assignment Capability Handles
 
-Assignments may also carry a redacted `capabilityHandles` bundle. The bundle records the workspace access mode plus repository access handles, TreeDX workspace handles, workflow-operation handles, and secret-use references. These are policy handles, not credentials. Write-capable handles require acting mode with readiness and accepted/scheduled/active capacity-plan provenance. Provider runners hydrate `AgentContext.capacity.capabilityHandles` and dispatch approved workflow operations only through assignment-scoped API routes; generic workflow dispatch and raw GitHub App tokens remain outside provider payloads.
+Assignments may also carry a redacted `capabilityHandles` bundle. The bundle records the workspace access mode plus repository access handles, TreeDX workspace handles, workflow-operation handles, and secret-use references. These are policy handles, not credentials. Write-capable handles require acting mode with readiness and accepted/scheduled/active capacity-plan provenance. When the execution input carries `exactBaseRef`, write-capable repository authority contains exactly that allowed ref; TreeDX workspace provisioning uses it as the base, and the provider creates or resumes only an isolated worktree that proves the same commit ancestry. Provider runners hydrate `AgentContext.capacity.capabilityHandles` and dispatch approved workflow operations only through assignment-scoped API routes; generic workflow dispatch and raw GitHub App tokens remain outside provider payloads.
+
+Source checkpointing is an SDK-owned assignment operation, not the general workspace save workflow. It inventories the assigned worktree, enforces the effective allowed and forbidden paths, creates a local commit, and emits a source-commit receipt; it has no push, merge, tag, stage, release, deployment, or provider authority. On acting completion, the API validates the canonical artifact manifest against assignment scope and the graph node's exact output contract. Required source commits, passing verification, and explicit review disposition are stage-specific gates. A deterministic assignment manifest id makes concurrent/repeated completion converge before the API advances or revises the graph.
+
+Every engineering deliverable manifest carries typed `sourceAuthority`: assignment and mode-run identity, the governed base commit, the effective commit, and the checkpoint commit when the stage created one. Contract approval selects that exact manifest. When a downstream graph node becomes ready, the API resolves its repository authority from the selected manifests of its completed predecessor nodes; all predecessors must converge on one immutable commit. Missing manifests, cross-project or cross-decision evidence, mutable refs, and divergent predecessor commits fail closed. The provider then proves the downstream worktree was created from that resolved commit, so test, implementation, verification, review, and revision stages cannot silently restart from the workflow's original source.
 
 ## Fallback Output
 

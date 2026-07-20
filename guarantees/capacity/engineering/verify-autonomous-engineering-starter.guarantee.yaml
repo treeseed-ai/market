@@ -1,0 +1,43 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.capacity.engineering.verify-autonomous-engineering-starter.509
+journeyIndex: 509
+type: capacity
+subtype: engineering
+journey: Verify Autonomous Engineering Starter
+ownerPackage: "@treeseed/market"
+surface: agent-runtime
+summary: "Prove the reconciled engineering starter autonomously plans and executes a real test-first graph through proposal, estimate, research, architecture, failing test, implementation, verification, rejection, revision, approval, documentation, release readiness, reporting, usage, settlement, and cleanup."
+status: active
+actors:
+  allowed: [team_owner, capacity_provider, capacity_operator]
+  forbidden: [unapproved_capacity_provider, revoked_capacity_provider]
+gates: [core, release]
+preconditions:
+  fixtures: [integrated_treeseed_project]
+  notes:
+    - "The canonical local development stack and reconciled engineering starter TreeDX repository must be ready."
+scene:
+  required: false
+api:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle]
+content:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle]
+audit:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle]
+negativeCases:
+  - id: revision-cannot-bypass-review
+    actor: capacity_provider
+    verifierRefs: [market.capacity.full-local-lifecycle]
+  - id: acting-cannot-bypass-governed-capacity
+    actor: unapproved_capacity_provider
+    verifierRefs: [market.capacity.full-local-lifecycle]
+evidence:
+  required: [guarantee_report, verifier_evidence, api_verification_log, audit_event_id]
+notes:
+  - "The verifier requires all eight starter roles, eleven durable graph nodes, an explicit Reviewer rejection and revision loop, exact-ref source checkpoints, TreeDX artifacts, dimensional usage, exactly-once ledger entries, and terminal cleanup."
+run:
+  timeoutSeconds: 2400
+  requiredForRelease: true

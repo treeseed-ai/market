@@ -1,1366 +1,206 @@
-# TreeSeed Capacity Provider, Agent Execution, and Coordination Architecture
+# Capacity Provider and Agent Coordination Architecture
 
-**Status:** Canonical coordination architecture for provider-initiated activity-profile execution
-**Date:** 2026-07-05
-**Scope:** TreeSeed API/control plane, SDK capacity model, Market UI, project-bundled agents, capacity provider runtime, execution providers, provider managers/runners
-**Audience:** TreeSeed architecture, SDK/API, agent runtime, provider runtime, Market UI, and CLI implementation teams
+**Status:** Canonical current architecture
+**Last updated:** 2026-07-17
+**Completion authority:** [Agent Capacity Completion and Production-Readiness Plan](./agent-capacity-completion.md)
 
-**Important caveat:** This document refines the architecture in [agent_kernel_capacity_plan.md](agent_kernel_capacity_plan.md). It assumes capacity providers may be unreachable by inbound network calls and therefore coordinates through provider-initiated check-in and durable API records.
+## Purpose
 
-**Canonical implementation set:** Use this document as the durable coordination architecture together with [agent-capacity-implementation-roadmap.md](agent-capacity-implementation-roadmap.md), [agent-capacity-domain-model.md](agent-capacity-domain-model.md), [agent-kernel-mode-runtime.md](agent-kernel-mode-runtime.md), and [agent-capacity-operator-surfaces.md](agent-capacity-operator-surfaces.md).
+This document defines the single coordination architecture for external capacity providers, team governance, work allocation, API-side assignment, provider-local execution, and AgentKernel operation. It replaces the former single-team provider, permanent API-key, check-in grant assertion, opaque/team-authored lane, and team-owned execution-provider designs. Canonical provider-global execution providers and provider-native lanes remain required target entities.
 
-For the execution-provider migration that unifies AI model providers, deterministic automation, and human issue queues behind the same assignment lifecycle, see [Human-Machine Execution Providers](./human-machine-providers.md).
+## Ownership
 
-**Package ownership:** `@treeseed/agent` owns provider runtime, provider manager/runner behavior, AgentKernel execution, and mode scheduling. `@treeseed/sdk` owns shared contracts. `@treeseed/api` owns durable coordination records and assignment functions. `@treeseed/core` owns web runtime composition and does not own provider scheduling or agent execution.
+| Owner | Responsibility |
+| --- | --- |
+| `@treeseed/sdk` | Portable contracts, validation, allocation/admission policy, lifecycle primitives, provider-neutral helpers |
+| `@treeseed/api` | Durable governance, availability, allocation, admission, reservations, assignment leases, workdays, usage, settlement, audit, TreeDX authorization |
+| `@treeseed/agent` | Provider identity and manifest, multi-team provider manager, global runner scheduling, provider-local enforcement, AgentKernel, handlers and execution adapters |
+| `@treeseed/cli` | Complete human/provider operator surface over API, SDK, and reconciliation contracts |
+| Projects/starters | Agents, classes, prompts, activity profiles, planning/acting permissions, output contracts, and project work semantics |
+| TreeDX | Product-neutral content/repository storage and operations |
 
----
+Admin UI is a future consumer. It is not a scheduler or source of policy. Every backend action exists first as API and CLI/config behavior.
 
-## 1. Executive Summary
+## Trust and Registration
 
-TreeSeed capacity coordination should be organized around a durable API/control-plane assignment model, not a new central long-running scheduler service. The TreeSeed API knows team/project demand, governance state, allocation policy, decision readiness, and ledger history. Capacity providers know their local execution surfaces, native budgets, availability windows, runner pressure, and provider-local constraints.
+Each provider installation owns one Ed25519 identity. Its private key never leaves provider-controlled secret storage. The API stores a global provider identity derived from the public-key fingerprint, allowing the same provider to join multiple teams.
 
-The target flow is:
+Each team owns one current regeneratable broadcast registration key. A provider uses that key only to submit a signed membership request. Team approval creates an approved provider/team membership, but creates no grant, allocation, reservation, or assignment.
 
-```text
-Humans allocate capacity policy.
-Projects define agents and agent classes.
-Providers check in when available.
-TreeSeed API matches project demand to provider supply.
-Provider managers claim leased assignments.
-Project-bundled agents execute on provider execution surfaces.
-Usage is reported back to the TreeSeed ledger.
-Telemetry improves future estimates and routing.
+After approval the provider exchanges signed proof for a one-time membership credential. That credential mints short-lived membership access tokens. Credentials, tokens, memberships, and provider identity are independently revocable. Registration-key rotation cancels requests from the old generation without disrupting approved memberships.
+
+Every signed proof binds algorithm, public-key fingerprint, identity version, method, canonical path, audience, request-body digest, issue/expiry time, and a one-use nonce. Mutations are idempotent and auditable.
+
+## Provider Manifest and Multi-Team Runtime
+
+One provider manifest declares provider-global execution capacity and multiple independently governed team connections:
+
+```yaml
+schemaVersion: 2
+identity:
+  displayName: Shared Engineering and Research Capacity
+  privateKeyRef: secret://capacity/provider-identity
+executionProviders:
+  - id: codex-primary
+    adapter: codex
+    nativeLimits:
+      maxConcurrentRunners: 4
+    capabilities: [engineering, research]
+connections:
+  - id: team-a
+    marketProfile: staging
+    teamId: team-a
+    providerId: provider-shared
+    membershipId: membership-team-a
+    membershipCredentialRef: secret://capacity/team-a
+    membershipCredentialId: credential-a
+    offer:
+      sharePercent: 60
+      maxConcurrentRunners: 3
+      capabilities: [engineering, research]
+  - id: team-b
+    marketProfile: staging
+    teamId: team-b
+    providerId: provider-shared
+    membershipId: membership-team-b
+    membershipCredentialRef: secret://capacity/team-b
+    membershipCredentialId: credential-b
+    offer:
+      sharePercent: 40
+      maxConcurrentRunners: 1
+      capabilities: [research]
 ```
 
-The key boundary correction is:
-
-```text
-Agents are bundled with projects, not capacity providers.
-Capacity providers bundle execution providers, runners, native capacity, and availability.
-```
-
-This means capacity providers do not bring TreeSeed work semantics such as "research", "writing", "implementation", "testing", or "security review". Those are project-owned agent definitions, project agent classes, activity profiles, clean handler selections, and profile contracts. A capacity provider brings runnable execution capacity, such as an OpenAI Pro subscription, an OpenRouter/OpenCode budget, a GitHub Copilot budget, a local model runner, a human review pool, or custom automation runners.
+The broadcast registration key is one-time `provider join` input and is never a manifest field. A new manifest may have `connections: []`. After approval and one-time credential exchange, the provider coordinator writes the credential to its secret store and atomically materializes the complete membership-scoped connection. Provider manager and runner startup accept only these approved credential-backed connections.
 
-The TreeSeed API coordinates the match between:
+Connections may narrow, but never widen, provider-global capability or limits. A single provider manager reconciles connections independently. A weighted-deficit scheduler reserves a locked durable provider-global/per-connection claim before polling team assignments, preventing cross-process and restart double spend. The claim is bound to assignment/lease identity as soon as the poll succeeds and remains until durable completion, return, failure, or confirmed recovery. Manager availability reads shared pressure from this state but never exposes another team's assignment identity. Failure, suspension, expiry, or token refresh for one connection does not block another.
 
-- project demand: objectives, proposals, approved decisions, planning inputs, capacity plans, and workday priorities;
-- project execution intent: agent classes, activity profiles, handlers, prompts/configuration, output types, and required execution capabilities;
-- provider supply: execution providers, native limits, runner concurrency, availability windows, grants, and recent observations;
-- policy envelopes: team workday schedules, portfolio allocation, project agent-class allocation, planning/acting splits, reserves, soft caps, hard caps, and borrowing rules.
+Providers initiate outbound traffic only. The API never needs inbound connectivity to a provider host.
 
----
+## Availability Is Supply, Not Authority
 
-## 2. Core Principles
+An approved membership access token creates one expiring availability session. Refresh uses an expected sequence so concurrent or stale managers cannot overwrite current state. Opening a replacement session closes the previous open session for that membership.
 
-1. **No new central long-running coordinator service.** Cross-provider coordination happens through deterministic API assignment logic invoked during provider check-in, provider next-assignment requests, and normal API state transitions.
-2. **TreeSeed API is a durable coordination and assignment surface.** It stores demand, policies, provider sessions, assignments, leases, reservations, ledgers, and telemetry.
-3. **Providers initiate contact through outbound check-in.** The API must not require inbound network reachability to local laptops, firewalled hosts, or self-hosted provider networks.
-4. **Providers are authoritative for native capacity, local runner availability, and provider-local constraints.** TreeSeed can derive and summarize availability, but providers can always report pressure, reject work, return work, or reduce supply when native conditions change.
-5. **TreeSeed is authoritative for team/project demand, governance, decisions, allocation policies, reservations, and ledger settlement.** Providers cannot approve proposals, create executable decisions, mutate allocation policies, or decide cross-provider team priorities.
-6. **Projects own agent definitions and work semantics.** Project Astro content defines agent classes, agent definitions, activity profiles, handler selections, prompts, TreeDX content access, allowed tools, branch/question policy, output expectations, and required execution capabilities.
-7. **Capacity providers own execution surfaces and runner mechanics.** They bundle execution providers, runner pools, native quota/spend limits, local availability, and provider-local enforcement.
-8. **Workdays are TreeSeed-side coordination/accounting windows, not provider-owned calendars.** A provider may participate in all, part, or none of a TreeSeed workday.
-9. **Provider availability windows constrain participation in a workday.** Provider sessions and assignment leases must fit the provider's reported availability and grant policy.
-10. **Planning and acting remain separate capacity modes.** Activity profiles refine the purpose inside those modes. Planning prepares estimates, comparisons, summaries, questions, proposal drafts, and reviews. Acting executes approved, capacity-planned work.
-11. **Human allocation policies create budgets and targets, not hard task prescriptions unless explicitly configured.** Allocation slices are target envelopes by default. Soft caps and hard caps must be explicit.
-12. **All execution must be traceable.** Every reservation, assignment, mode run, and usage actual must be traceable to project, decision/proposal context, agent class, mode, provider, execution provider, lease/reservation, and ledger entry.
+Request-scoped assignment synthesis requires that same approved membership and active global provider identity plus one exact open membership-scoped session. An explicit session id is never replaced by another open session. Its availability window and environment must match the request, and database uncertainty fails the synthesis request instead of becoming empty or permissive policy state. Lease selection independently revalidates durable membership, provider, reservation, grant, allocation, workday, and session authority.
 
----
-
-## 3. System Boundary Definitions
+Authenticated next-assignment polling and explicit idempotent workday ticks are request-scoped demand-compilation triggers. Provider availability records supply but do not schedule work, and terminal assignment transitions do not start a background queue. One typed compiler persists source-neutral demand and propagates TreeDX, planning-input, capacity-plan, and durable-state uncertainty. One assignment function claims demand and invokes canonical admission. Admission denials for demand that does not yet have an assignment are append-only `capacity_audit_events`; admitted assignments alone own assignment explanations. Team operators can inspect the audit ledger and invoke tick, cancellation, and safe requeue through API and CLI.
 
-### TreeSeed API / Control Plane
+The snapshot contains:
 
-The TreeSeed API/control plane is the durable coordination authority for team and project work.
+- environment and availability window;
+- provider-global execution-provider declarations relevant to the connection;
+- capabilities narrowed by the connection offer;
+- native budgets and remaining capacity;
+- active/global runner pressure;
+- provider-local constraints and diagnostic metadata.
 
-Responsibilities:
+The snapshot never grants project access. Provider-asserted grants are ignored. Team-owned active grants and allocation sets are the only authorization and budget policy.
 
-- teams, projects, and portfolios;
-- objectives, questions, proposals, and decisions;
-- decision readiness and planning-input status;
-- workday schedules and workday summaries;
-- allocation policies and allocation-set versions;
-- provider registrations and grants;
-- provider check-in sessions;
-- provider availability snapshots;
-- assignment selection and leased assignment records;
-- capacity reservations and routing decisions;
-- capacity ledgers and settlement;
-- task/mode run telemetry;
-- UI and CLI API contracts.
+## Allocation and Admission
 
-Non-responsibilities:
+Teams publish immutable, versioned allocation sets containing reserve policy, project slices, optional agent-class/mode children, and explicit borrowing rules. Every slice declares target, minimum, maximum, and hard-cap percentages.
 
-- hosting provider-local runners;
-- initiating inbound calls to providers;
-- owning native provider credentials;
-- owning project agent definitions;
-- running a separate scheduler daemon for cross-provider coordination;
-- directly controlling provider-local model, tool, or runner internals.
+A membership-scoped grant identifies the provider, project, environment, allowed execution-provider IDs, required capabilities, allowed modes, credit limits, concurrency, expiry, and status. Unlimited capacity is explicit; absence of a limit is not interpreted as unlimited.
 
-The API's assignment function is request-scoped. It can run during provider check-in, next-assignment requests, or explicit user/admin actions. It is deterministic, idempotent, bounded, and explainable. The implemented function rejects candidates unless the provider is active, the provider has an open availability session inside any reported availability window, required work-unit and project-agent-class capabilities are covered by provider/session capabilities, at least one active matching grant is also reported in the provider session check-in, attached workdays are active, acting work has accepted/scheduled/active capacity-plan provenance and ready or waived readiness, and runner pressure has room for another lease.
+The only admission evaluator is `evaluateCapacityAdmission` in `@treeseed/sdk`. The API loads authoritative membership, session, grant, workday, allocation, counter, provider, and acting-provenance state. In one transaction it:
 
-### TreeDX Access Boundary
+1. evaluates every gate and stable denial reason;
+2. inserts the uniquely keyed reservation with a transaction-local admission token;
+3. debits hard-limit counters only when that token won the idempotency race;
+4. records the reservation counter claims;
+5. creates the provider assignment with exact policy provenance and brokered capability handles.
 
-TreeSeed agents and capacity-provider runners should not receive raw TreeDX service URLs and bearer tokens as their normal content-repository interface. The TreeSeed API/control plane should expose authenticated, project-scoped DX routes, such as `/v1/dx/projects/:projectId/...`, and should perform the following responsibilities before forwarding to TreeDX:
+No direct assignment writer may bypass this transaction.
 
-- authenticate the caller as either a TreeSeed user/service principal with project access or a same-team capacity provider with the required provider task scopes;
-- for provider callers, require `x-treeseed-assignment-id` and `x-treeseed-treedx-proxy-handle-id`, then verify the provider owns the active leased assignment and the handle matches team, project, assignment, repository, workspace, expiry, revocation state, allowed operation, and allowed path scope;
-- resolve the project library and repository topology to the correct private or public TreeDX node;
-- hold and rotate the TreeDX node credential or node-to-node trust token;
-- verify that repository and workspace operations are scoped to the project binding;
-- forward only allowed TreeDX operations such as file read/write, workspace search, commit, context build, and repository readback;
-- record project-visible TreeDX proxy audit rows for successful and denied provider calls;
-- redact TreeDX credentials from provider assignment payloads, audit logs, reports, and UI surfaces.
+Admission and replay strictly decode durable allocation, grant, workday, availability-session, class, reservation, and assignment JSON through one API primitive. Malformed governance evidence is never normalized into empty/default policy.
 
-Local and production TreeDX authentication should use the same connected-auth process. TreeDX verifies a scoped JWT or configured trust token issued for a TreeSeed API service principal; local development must not depend on TreeDX dev-token shortcuts or hardcoded demo principals. The SDK/reconciler declares the TreeDX issuer, audience, signing secret reference, bootstrap trust actor, tenant, and capability envelope for each local or hosted TreeDX instance. TreeDX remains product-neutral: it only consumes the configured trust grant, while TreeSeed owns the mapping from authenticated TreeSeed users/capacity providers to project-scoped DX proxy calls.
+HTTP mutation input is also strict and single-owner. Extracted capacity routes and the remaining inline planning, capacity-plan, provider-assignment, mode-run, and assignment-operation routes call one request-object decoder. It permits an empty body only where the route explicitly declares it optional and rejects malformed JSON or any null, array, or primitive root with a stable 400 before mutation; parser failure is never converted to `{}`.
 
-The provider assignment payload should therefore include a DX proxy handle rather than a TreeDX credential:
+## Workdays and Assignment Function
 
-```json
-{
-  "workspace": {
-    "treeDx": {
-      "apiBaseUrl": "http://127.0.0.1:3000",
-      "proxyBasePath": "/v1/dx/projects/project_123",
-      "projectId": "project_123",
-      "repoId": "repo_456",
-      "workspaceId": "workspace_789"
-    }
-  }
-}
-```
+A workday is duration- and budget-bounded. The API assignment function is deterministic, request-scoped, indexed, idempotent, and explainable. It runs only when an authenticated provider polls for work; API transitions persist source state but never enqueue an alternative synthesis path.
 
-Provider runners call this proxy using `TREESEED_CAPACITY_PROVIDER_API_KEY` plus the active assignment id and proxy handle id. The package-owned runner hydrates `AgentContext.treeDx` from the assignment handle, applies handle-bound defaults locally, and rejects out-of-scope handler requests before calling the API. Project handlers can read injected markdown context, stage content changes, commit workspaces, and verify readback through the same path a production private TreeDX deployment will use.
+Starting a workday consumes existing team governance and project configuration. A convenient CLI selector such as `local` must first resolve to one globally stable provider id through approved membership plus open local availability; it is never persisted as a provider identity. The scheduler fails closed before mutation unless every requested project exists, the active allocation is effective and covers it, one planning grant is unambiguous, and a TreeDX repository binding already exists. Scheduler failure is a durable failed run, and any partially created envelopes are terminalized without changing grants, allocations, or TreeDX bindings.
 
-Provider assignments also carry a redacted `capabilityHandles` bundle for repository access, TreeDX workspace access, workflow-operation dispatch, and secret-use references. The provider runner hydrates `AgentContext.capacity.capabilityHandles` and `workspaceAccessMode` from that bundle. Workflow operations use the assignment-scoped provider route and a matching handle id; providers must not receive GitHub App installation tokens, deploy keys, TreeDX node credentials, or customer project secret values.
+Every scheduled envelope records its exact owning workday run through an indexed foreign key. Terminalization and recovery use only that relationship, never an envelope-id prefix. After a partial scheduling failure, the API attempts exact envelope closure, the failure event, and the failed-run transition independently; inability to confirm any required recovery record is itself a visible control-plane failure.
 
-TreeDX is the SDK default content backend. SDK callers that omit `contentRepository.adapter` are in TreeDX-required mode, and missing `TREESEED_TREEDX_BASE_URL` or `TREESEED_TREEDX_URL` causes content operations to fail fast rather than falling back to local files. Explicit local filesystem content remains available for tests, local fixture bootstrap, and project spec loading through `contentRepository: { adapter: 'local' }`.
+Planning remains productive without approved decisions: agents may ask questions, propose work, estimate, review, create linked notes, structure knowledge, and summarize evidence. Every eligible configured planning agent participates before any agent repeats. If duration, budget, and useful demand remain, later cycles may be synthesized.
 
-When an assignment has an allowed tool catalog and a valid TreeDX proxy handle, the provider runner attaches redacted `agent_tool` descriptors to `ExecutionProviderInvocation.tools`. TreeDX-backed tools use the TreeSeed API proxy routes plus provider runtime headers; SDK-backed operation tools call `AgentSdk.dispatch`, using API passthrough when configured and local execution only for operations whose dispatch policy permits it. Model-aware content tools use SDK content rendering and validation before writing through TreeDX workspace routes, so agents do not hand-author frontmatter for questions, proposals, notes, books, knowledge pages, people, agents, or other content-backed models. Content writes must use TreeDX workspace write and commit when workspace access is granted. Local file writes remain reserved for code, verification artifacts, temporary worktrees, package files, and other non-content artifacts.
+One typed workday compiler reads active runs through a strict repository, resolves the complete requested project set, reads TreeDX content and bounded artifact context, advances durable participation cycles, and writes idempotent positive demand. One assignment function claims a demand, delegates it to canonical admission, and provisions deterministic TreeDX workspaces only after admission through a recoverable handle state. Corrupt JSON, source/storage failure, missing or ambiguous projects, and a collection beyond its processing bound fail visibly; they are never converted into a shorter successful workday.
 
-Allowed tools are filtered by runtime requirements before they reach an execution provider. The provider runner records `{ requested, exposed, omitted }` catalog metadata so operators can see when a content definition allowed a tool but the assignment lacked a TreeDX proxy handle, `contentAccess` model/action policy, writable workspace, commit capability, worktree, SDK dispatch context, or provider-local git capability. Omitted tools are not callable.
+Before admission, one API compiler resolves the assignment's project, owning team, architecture, and repository context. Missing ownership or an uncertain architecture/repository read is a control-plane failure; neither the assignment function nor provider runtime may invent fallback project context.
 
-### Project
+TreeDX workspace creation is replay-stable and bounded. The API derives the expected id from the assignment, validates brokered inputs, streams no more than the declared response limit, strictly decodes JSON, and rejects an upstream id mismatch. Workspace uncertainty prevents admission rather than being deferred to the provider runner.
 
-A project owns work semantics and the agents that express those semantics.
+Acting additionally requires an approved decision, ready execution input, and accepted/scheduled/active capacity-plan provenance. Providers cannot invent demand, select broader work, approve decisions, or change policy.
 
-Responsibilities:
+Assignments contain only the selected project/class/agent/handler/mode, reserved envelope, policy and readiness provenance, allowed output contract, and short-lived brokered capability handles. They never contain reusable team/provider secrets.
 
-- agent definitions;
-- agent classes;
-- handler mappings;
-- prompts/configuration;
-- class-to-capability requirements;
-- project-specific work taxonomies;
-- allowed modes by class;
-- project-local execution rules;
-- content-driven specialization.
+## Provider Assignment Lifecycle
 
-Example:
+The provider runner requests the next assignment using a membership access token and declared runtime capabilities. The API atomically leases one eligible assignment and returns an opaque lease token. Only the owning membership, runner, current state version, and current lease token may renew, return, complete, or fail it.
 
-```text
-Project class: Security Engineering
-  handlers: review, act
-  domains: security_review, security_fix
-  allowed modes: planning, acting
-  required capabilities: repo_read, repo_write optional, shell optional, security_review
-```
+Assignment persistence has one typed repository, and next-assignment acquisition has one typed lease service. The lease service validates the lease duration before synthesis, reads a bounded candidate set, calls the sole lease-authority evaluator, records required diagnostics, and performs the state-version compare-and-swap. Durable assignment JSON, mode, or state-version corruption is a visible control-plane error; it is never normalized into eligible work.
 
-The project does not own native provider quota. It declares what kind of execution capacity its agents need.
+Retryable failure returns the assignment and releases the lease. Terminal failure settles its reservation exactly once. Successful execution records a mode run, artifact manifest, usage actual, settlement, and then completes the assignment. Revocation, stale lease, deadline expiry, explicit terminalization, terminal-run recovery, and local-workday supersession use one typed API terminalization primitive rather than alternative mutation paths. Settlement must commit before assignment state advances; uncertainty remains visible and recoverable. Terminal transitions use assignment state-version compare-and-swap, and fallback evidence is persisted under a stable assignment-attempt identity before a lease is released.
 
-### Capacity Provider
+An expired lease is never silently re-leased. Before assignment selection, the API runs bounded team/provider recovery; operations-runner maintenance runs the same owner globally. Durable evidence classifies the abandoned attempt as reservation-preserving safe retry, retry-exhausted terminal failure, recovered completion, or operator action. Exhausted attempts settle through the sole settlement service, while assignment, orphan mode-run, demand/participation, and audit transitions commit in one state-version-CAS batch. A settlement committed before interruption is recognized on replay and converged; uncertain usage, TreeDX, fallback, or settlement evidence remains visibly expired and cannot be requeued until its financial claim is resolved.
 
-A capacity provider is an economic/runtime container for one or more execution providers.
+There is no secondary project-runner task queue. The API exposes no task claim/event/complete lifecycle, the SDK exposes no runner-task client, and the clean schema contains no runtime task/event/output tables. Because the capacity system has not launched, the clean reset baseline omits those tables instead of retaining an additive compatibility cleanup migration; assignment and mode-run evidence remains authoritative.
 
-Responsibilities:
+There is also no project-runner manager-lease, worker-runner, repository-claim, or runner-scale lifecycle. Provider availability sessions, assignments, leases, mode runs, and provider-manager telemetry are authoritative. Operations-runner workspace ownership remains separately modeled as `platform_repository_claims`; it is not an agent scheduling or capacity record.
 
-- economic/policy container for execution providers;
-- team/project grants;
-- native budget policy;
-- availability windows;
-- runner pool limits;
-- provider-local reservation enforcement;
-- check-in and assignment polling;
-- usage reporting;
-- native capacity observations.
+Renew, return, complete, and fail share one typed lifecycle service. Every operation requires current provider/membership ownership, the current lease token, an unexpired lease, and state-version CAS. A stale runner cannot return, complete, fail, or settle work after lease expiry; completion additionally requires the assignment reservation to be consumed, while terminal failure settles before releasing the lease.
 
-Non-responsibilities:
+Mode-run delivery is replay-safe and required. The provider retries one stable assignment/event identity rather than minting a new phase id, and it does not acknowledge buffered execution-provider messages before durable acceptance. API persistence treats same-assignment replay as an idempotent update, rejects reuse of that identity by another assignment, and links usage only when the usage record belongs to the same team and assignment. Exhausted delivery returns or fails the lease with explicit diagnostics so execution never advances without its forensic control-plane record.
 
-- defining project agents;
-- approving TreeSeed proposals or creating executable decisions;
-- deciding cross-provider routing;
-- owning portfolio-level project priorities;
-- mutating team allocation policy;
-- starting unapproved project work.
+## AgentKernel and Content
 
-### Execution Provider
+`AgentKernel.runAssignment` is the sole production kernel entrypoint. It validates the assigned mode and class, loads project content through assignment-scoped TreeDX operations, resolves the configured activity profile, filters tools, invokes one execution adapter, validates one artifact manifest, and records telemetry.
 
-An execution provider is the concrete runnable surface behind a capacity provider.
+Handlers route and validate; project configuration decides intent and artifact type. TreeDX tool receipts are the single owner of generated content. Handlers and the kernel must not perform a second local write. Every note links to its subject, and every artifact records assignment, mode run, agent/class/handler, TreeDX refs, sources/citations, verification, usage, signals, diagnostics, and errors.
 
-Examples:
+## Usage and Settlement
 
-- OpenAI Pro subscription seat;
-- OpenRouter/OpenCode budget;
-- GitHub Copilot budget;
-- local model runner;
-- human review pool;
-- custom automation runner.
+Execution adapters report raw native/token/time facts through the membership-scoped usage endpoint before terminal settlement. The API stores every report under explicit idempotency, durable assignment-attempt, usage-dimension, and `informational | incremental | aggregate` accounting identity. Informational dimensions cannot carry credits. A reservation-owned report token serializes partial reports against the terminal settlement token. Terminal aggregate credits must cover accepted incremental credits, and summaries select the terminal aggregate rather than double-counting its dimensions. Settlement runs transactionally exactly once per reservation and ledger phase. The unique reservation/phase ledger fact is the durable authority. Replays return the canonical fact, while changed duplicate or underreported aggregate usage fails with a conflict. An overrun remains held until a team manager explicitly approves the bounded counter exception or rejects and releases it through the API/CLI; provider credentials cannot self-approve an overrun.
 
-Responsibilities:
+No second usage insert implementation or provider-kind inference scan exists. One focused usage service owns the insert operation shared by partial reporting and terminal settlement; settlement alone owns ledger/counter/reservation accounting. Current execution-provider facts come from the fully paginated provider/session projection, and typed usage repositories fail closed on malformed or unreadable durable evidence.
 
-- native unit model;
-- concurrency;
-- model/tool surface;
-- spend/quota/throttle behavior;
-- supported runtime protocol;
-- observed usage.
-
-Execution providers can be opaque, partially observable, or exactly metered. TreeSeed should support all three through native limits, observations, derived credits, and confidence levels.
-
-### Provider Manager
-
-A provider manager is the provider-local supervisor for one capacity provider runtime.
-
-Responsibilities:
+Derived native availability is windowed, never lifetime-based. A fresh provider observation is authoritative at its observation time; configured limits require an explicit supported reset cadence/window. The API aggregates reservation and settlement facts by provider, execution provider, native unit, scope, and accounting window, while SDK pure policy calculates the result. Unknown windows fail closed as unknown capacity. Diagnostic APIs expose bounded evidence windows and aggregate totals instead of loading or silently truncating reservation history.
 
-- check in with TreeSeed API;
-- report availability;
-- receive assignments;
-- claim leases;
-- dispatch provider-local runners;
-- renew leases;
-- complete/fail/return assignments;
-- report usage actuals.
+## Canonical API Families
 
-The provider manager is not the TreeSeed cross-provider planning authority. It decides how to use its own provider-local runners and native execution surfaces, but it does not decide whether a TreeSeed decision is approved, whether another provider should be used, or whether a team can borrow from another team's allocation.
+Team governance:
 
-### Provider Runner
+- `GET /v1/teams/:teamId/capacity-registration-key`
+- `GET /v1/teams/:teamId/capacity-registration-key/reveal`
+- registration-key rotate/enable/disable
+- provider request list/show/approve/reject/cancel
+- membership list/suspend/resume/revoke
+- membership credential list/revoke
+- grant list/show/create/activate/pause/resume/revoke
+- allocation-set plan/list/show/create/activate/archive
 
-A provider runner executes a leased assignment under provider-local constraints.
+Provider protocol:
 
-Responsibilities:
+- `POST /v1/provider-registrations`
+- `GET /v1/provider-registrations/:requestId`
+- `POST /v1/provider-registrations/:requestId/credential`
+- `POST /v1/provider/access-tokens`
+- availability-session create/refresh/close
+- next/renew/return/complete/fail assignment
+- assignment mode-run, workflow-operation, and settlement endpoints
 
-- execute assigned project-bundled agent/handler;
-- enforce local runtime constraints;
-- stream/record mode run status;
-- report outputs and actual usage;
-- respect lease and assignment boundaries.
+Operator inspection covers workdays, assignments and explanations, execution runs, reservations, usage, ledger, audits, and TreeDX proxy audit. The CLI must expose equivalent operations with JSON output and plan/live mutation discipline.
 
-The runner receives a scoped project agent assignment context. It should not infer arbitrary additional project work or expand beyond the assignment's allowed output types, mode, and capabilities.
+## Durable Records
 
----
+The target clean baseline contains global identities, team registration keys, requests, memberships, credentials, access tokens, proof nonces, audit events, availability sessions, provider-global execution providers and lanes, grants, allocation sets, workdays/participation/demand/work graphs, reservations, capacity-provider assignments, mode runs, usage actuals, ledger entries, and durable TreeDX proxy authorization/audit records. Admission persists any assignment proxy handle in the same transaction as its reservation and assignment. The durable handle row—not the embedded assignment context—is authoritative for API proxy authorization, including distinct read and write path scopes. The current baseline still diverges in entity names and omits execution-provider/lane entities; CAP-082 owns that Phase 1 correction.
 
-## 4. Terminology Cleanup
+Execution-provider inventory is not duplicated in team-owned tables. Current execution-provider facts come from validated provider manifests and unexpired availability snapshots.
 
-Docs and code should avoid using "manager" without a qualifier.
+## Required Guarantees
 
-| Ambiguous Term | Replacement | Meaning |
-| --- | --- | --- |
-| manager | provider manager | provider-local runner supervisor |
-| manager | assignment function | API-side deterministic selection invoked during check-in |
-| manager | team capacity policy | human/admin allocation settings |
-| capacity provider | capacity provider | economic/runtime container |
-| execution provider | execution provider | native runnable surface |
-| agent | project agent | project-owned configured role/handler |
-| workday | TreeSeed workday | team/project accounting window |
+Production proof must cover registration rotation and replay, approval-without-authority, credential/token revocation, multi-team isolation, provider-global concurrency, authoritative grants, allocation hard caps and borrowing, atomic admission, lease CAS, exactly-once settlement, workday continuation/fairness, acting gates, TreeDX-only artifacts, complete trace, starter engineering/research workflows, interruption recovery, and CLI/API parity.
 
-The prior agent kernel plan uses "manager" to describe cross-provider planning behavior. In this refined architecture, that behavior belongs to API-side assignment and policy functions, not the provider-local manager service.
-
----
-
-## 5. End-To-End Architecture Flow
-
-The end-to-end flow is:
-
-```text
-1. Team admins define workday schedule and allocation policies.
-2. TreeSeed derives team workday allowances from monthly capacity and workday count.
-3. Portfolio allocation divides team allowance across projects.
-4. Project allocation divides project allowance across agent classes.
-5. Agent-class policy divides class allowance across planning and acting.
-6. Project decisions/proposals create demand.
-7. Capacity providers check in at the start of an availability window.
-8. Provider check-in reports execution providers, capabilities, grants, availability, native limits, and runner pressure.
-9. API records an availability session.
-10. API runs deterministic assignment selection for that provider/session.
-11. API returns leased assignments.
-12. Provider manager claims and dispatches work locally.
-13. Project-bundled agent executes through provider execution surface.
-14. Provider reports status, outputs, usage actuals, blockers, and returned capacity.
-15. API settles the ledger and updates summaries.
-16. Telemetry improves future estimates, conversion profiles, and assignment selection.
-```
-
-```text
-Project demand
-  objectives / proposals / approved decisions
-        |
-        v
-TreeSeed API assignment function
-  allocation policies + readiness + provider sessions
-        |
-        v
-Provider assignment leases
-        |
-        v
-Capacity provider manager
-        |
-        v
-Execution provider + runner
-        |
-        v
-Mode run outputs + usage actuals
-        |
-        v
-TreeSeed ledger + telemetry
-```
-
-The API does not call providers directly. Providers create availability sessions by checking in. The API returns initial assignments in the check-in response and may return additional assignments when the provider asks for more work.
-
----
-
-## 6. Workday And Availability Model
-
-The architecture uses three distinct time concepts.
-
-### TreeSeed Workday
-
-A TreeSeed workday is a team/project coordination and accounting period.
-
-It contains:
-
-- scheduled date/window;
-- team allowance;
-- portfolio budgets;
-- project budgets;
-- agent-class budgets;
-- planning/acting budgets;
-- assignments;
-- reservations;
-- usage actuals;
-- summary.
-
-A TreeSeed workday is the period the organization plans, monitors, and summarizes. It is not a guarantee that any specific provider is online for the full period.
-
-### Provider Availability Window
-
-A provider availability window is a provider-specific time period when the provider can accept and run assignments.
-
-Examples:
-
-```text
-OpenAI Pro: weekdays 9 AM - 1 PM for Team A
-OpenRouter: all day while monthly spend remains
-Copilot: weekdays 1 PM - 5 PM
-Laptop local runner: whenever provider manager checks in
-```
-
-A provider can expose different availability windows and grant slices for different teams.
-
-### Assignment Lease Window
-
-An assignment lease window is a short-lived claimable/running lease for concrete work.
-
-Rules:
-
-- assignments expire unless claimed;
-- running assignments require renewal;
-- expired assignments return to assignable pool;
-- completed assignments settle actuals;
-- returned assignments release unused budget.
-
-A TreeSeed workday is not a promise that every provider is available for the entire window. It is the umbrella accounting period into which provider availability windows and assignment leases fit.
-
----
-
-## 7. Allocation Policy Layers
-
-TreeSeed should keep allocation unified through one hierarchy:
-
-```text
-Provider native capacity
-  -> derived TreeSeed credits
-  -> team monthly capacity
-  -> scheduled workday allowance
-  -> project portfolio allocation
-  -> project agent-class allocation
-  -> planning/acting mode allocation
-  -> provider/session assignment
-```
-
-Each layer narrows the allowable spend for the next layer. The lower layers should not create independent budgeting systems.
-
-### Team Workday Schedule
-
-Team admins configure:
-
-- workday calendar;
-- reset cadence;
-- workdays per month;
-- monthly capacity source;
-- reserves;
-- carryover policy;
-- emergency allocation.
-
-Example:
-
-```text
-Monthly projected capacity: 2,000 credits
-Scheduled workdays: 20
-Base allowance per workday: 100 credits
-Emergency reserve: 5%
-```
-
-TreeSeed derives scheduled workday allowances from team-level monthly capacity and the configured workday calendar. The monthly capacity may be assembled from derived provider availability, explicit governance caps, or a hybrid policy, depending on existing dynamic capacity settings.
-
-### Portfolio Allocation
-
-Admins allocate workday allowance across projects or portfolio buckets.
-
-Example:
-
-```text
-Project A: 50%
-Project B: 30%
-Maintenance: 15%
-Emergency: 5%
-```
-
-Portfolio allocations apply after provider native availability has been converted into derived TreeSeed credits. Humans allocate capacity shares; they do not manually enter provider inventory credits.
-
-### Project Agent-Class Allocation
-
-Each project defines its own agent classes.
-
-Example:
-
-```text
-Research: 15%
-Design: 10%
-Standards Development: 10%
-Feature Development: 30%
-Bug Fixes: 10%
-Testing: 10%
-Documentation: 5%
-Security Engineering: 5%
-Performance Optimization: 5%
-```
-
-Agent classes are human-facing budget categories. They are not provider-specific queues. They map project demand to project agents/handlers and required execution capabilities.
-
-### Planning/Acting Allocation
-
-Planning/acting allocation can be global, per project, per class, or per agent.
-
-Example:
-
-```text
-Feature Development:
-  planning target: 25%
-  acting target: 75%
-  planning min: 15%
-  planning max: 40%
-
-Research:
-  planning target: 80%
-  acting target: 20%
-```
-
-These percentages are usually targets or soft caps. Hard caps must be explicit. The assignment function may shift between planning and acting within configured min/max bounds when demand changes, such as increasing planning when approved decisions lack estimates or increasing acting when accepted capacity plans are waiting.
-
----
-
-## 8. Unified AllocationSet Model
-
-TreeSeed should use one reusable SDK/API concept for percentage allocation.
-
-```ts
-type AllocationSetScope =
-  | "team_workday"
-  | "project_portfolio"
-  | "project_agent_class"
-  | "agent_mode";
-
-type AllocationSet = {
-  allocationSetId: string;
-  teamId: string;
-  projectId?: string;
-  scope: AllocationSetScope;
-  parentAllocationSetId?: string;
-  effectiveFrom: string;
-  effectiveUntil?: string;
-  status: "draft" | "active" | "superseded" | "archived";
-  slices: AllocationSlice[];
-  policy: AllocationPolicy;
-  metadata?: Record<string, unknown>;
-};
-
-type AllocationSlice = {
-  id: string;
-  name: string;
-  percentage: number;
-  minPercentage?: number;
-  maxPercentage?: number;
-  locked?: boolean;
-  targetKind:
-    | "project"
-    | "portfolio_bucket"
-    | "agent_class"
-    | "mode"
-    | "reserve";
-  targetId: string;
-  metadata?: Record<string, unknown>;
-};
-
-type AllocationPolicy = {
-  enforcement: "target" | "soft_cap" | "hard_cap";
-  allowBorrowing: boolean;
-  borrowingRequiresApproval: boolean;
-  carryover: "none" | "same_period" | "next_workday" | "monthly";
-  overflowTargetId?: string;
-};
-```
-
-The existing `/home/adrian/Projects/pie` component already uses a compatible primitive:
-
-```ts
-{ id, name, percentage, minPercentage, maxPercentage, locked }
-```
-
-TreeSeed should keep the component generic and domain-neutral. SDK and UI adapters can add TreeSeed-specific metadata, target kinds, labels, explanations, and validation rules.
-
-Allocation sets should be versioned. Active allocation sets should not be mutated in a way that rewrites history for already-created reservations. Supersession should create a new active policy version and preserve auditability for prior workdays.
-
----
-
-## 9. Project Agent Class Model
-
-Project-owned agent classes connect human capacity policy to project-bundled agents and execution requirements.
-
-```ts
-type ProjectAgentClass = {
-  classId: string;
-  projectId: string;
-  name: string;
-  description?: string;
-  allowedModes: ("planning" | "acting")[];
-  preferredHandlers: string[];
-  fallbackHandlers?: string[];
-  requiredExecutionCapabilities: ExecutionCapabilityRef[];
-  optionalExecutionCapabilities?: ExecutionCapabilityRef[];
-  defaultModeAllocation?: {
-    planningPercentage: number;
-    actingPercentage: number;
-    minPlanningPercentage?: number;
-    maxPlanningPercentage?: number;
-  };
-  outputTypes: string[];
-  riskProfile: "low" | "medium" | "high";
-  metadata?: Record<string, unknown>;
-};
-```
-
-Examples:
-
-```text
-Research
-  handlers: research, report
-  domains: source_research, knowledge_draft
-  modes: planning
-  required capabilities: reasoning, long_context, browser optional
-
-Feature Development
-  handlers: act
-  domains: software_implementation
-  modes: planning, acting
-  required capabilities: coding, repo_read, repo_write, shell
-
-Testing
-  handlers: review, act
-  domains: verification_review, test_repair
-  modes: planning, acting
-  required capabilities: shell, test_runner, repo_read
-
-Security Engineering
-  handlers: review, act
-  domains: security_review, security_fix
-  modes: planning, acting
-  required capabilities: security_review, repo_read, shell optional
-```
-
-Project agent classes can vary by project. A content-heavy project might emphasize research, writing, editorial review, and publication. A software project might emphasize feature development, testing, security engineering, documentation, and performance optimization. The capacity system should not hard-code a universal taxonomy.
-
----
-
-## 10. Agent Handler Boundary
-
-Handlers are project assets. Providers supply compatible execution surfaces.
-
-```text
-Project agent definition:
-  identity, role, prompt/config, class mapping, output expectations
-
-Handler:
-  executable strategy for one type of agent work
-
-Provider:
-  runtime capacity and execution surface that can run compatible handlers
-```
-
-Assignments must include enough project context for a provider runner to execute without taking ownership of project semantics:
-
-```ts
-type ProjectAgentAssignmentContext = {
-  projectId: string;
-  agentId: string;
-  agentClassId: string;
-  handlerId: string;
-  mode: "planning" | "acting";
-  selectedInputType: string;
-  selectedInputId: string;
-  allowedOutputTypes: string[];
-  requiredExecutionCapabilities: ExecutionCapabilityRef[];
-};
-```
-
-The assignment context should also carry provenance references such as decision IDs, proposal IDs, objective/question chain references, capacity plan IDs, and workday IDs when applicable.
-
-Provider runners should execute the assignment's project-bundled agent definition and selected activity profile. They should not substitute a provider-owned agent taxonomy. Provider-local routing can choose which execution provider, model, or runner instance satisfies the assignment, but the project owns the agent identity, activity-profile semantics, and handler selection.
-
----
-
-## 11. Provider Check-In Protocol
-
-Provider coordination is provider-initiated. A provider manager checks in at the start of an availability period and can ask for more assignments as local runner capacity becomes free.
-
-Implemented Phase 2 endpoint:
-
-```http
-POST /v1/provider/check-in
-```
-
-Provider request:
-
-```ts
-type CapacityProviderCheckInRequest = {
-  providerId: string;
-  idempotencyKey: string;
-  availabilitySessionId?: string;
-  availableFrom: string;
-  availableUntil?: string;
-  providerTimeZone?: string;
-  grants: ProviderGrantAvailability[];
-  executionProviders: ExecutionProviderSnapshot[];
-  lanes: CapacityLaneSnapshot[];
-  capabilities: ExecutionCapabilityRef[];
-  maxConcurrentAssignments: number;
-  activeAssignmentIds: string[];
-  pressure: "idle" | "normal" | "busy" | "throttled" | "exhausted";
-  observations?: ProviderObservation[];
-};
-```
-
-Response:
-
-```ts
-type CapacityProviderCheckInResponse = {
-  availabilitySessionId: string;
-  recordedAt: string;
-  nextCheckInAfterSeconds: number;
-  policyVersion: string;
-};
-```
-
-The API records the check-in as a provider availability session. A session is soft supply until assignments are leased through `/v1/provider/assignments/next`. If the provider disappears after check-in, leases expire and uncompleted assignments return to the assignable pool.
-
-Provider managers may use a loop like:
-
-```text
-check in at start of availability window
-poll next assignment when runner capacity is available
-dispatch provider-local runners
-renew leases while running
-complete/fail/return assignments
-check out at end of availability window
-```
-
-The implemented next-assignment route performs bounded request-scoped synthesis, then leases one eligible assignment for provider-local pull:
-
-```http
-POST /v1/provider/assignments/next
-```
-
-This route runs bounded deterministic selection against `ProviderAssignment` records for the authenticated provider. Before selection, the API can synthesize idempotent assignments from open planning input requests and accepted capacity-plan work units. Accepted decision execution inputs must first be aggregated into a durable capacity plan and accepted before acting synthesis. Acting synthesis creates a reservation, attaches allocation policy version context when known, records the checked-in grant id in reservation metadata, and requires referenced workdays to be active. It does not synthesize assignments from legacy task queues or create a central long-running scheduler daemon.
-
-Assignment responses and explanation records include selected and blocked eligibility metadata. Stable reason codes include `missing_required_capability`, `missing_checked_in_grant`, `outside_availability_window`, `runner_pressure_exhausted`, `capacity_plan_not_ready`, `decision_readiness_not_ready`, `workday_not_active`, and `allocation_exhausted`. Eligible assignments are sorted by priority descending, assigned/created time ascending, and id ascending.
-
-Legacy provider task routes are removed. Providers use check-in, next assignment, renew lease, create mode run, complete assignment, return assignment, fail assignment, and usage report endpoints as the runtime contract.
-
----
-
-## 12. Provider Assignment / Lease Model
-
-Assignments are leased records connecting TreeSeed demand to a provider session.
-
-```ts
-type ProviderAssignmentStatus =
-  | "offered"
-  | "leased"
-  | "claimed"
-  | "running"
-  | "completed"
-  | "failed"
-  | "returned"
-  | "expired"
-  | "cancelled";
-```
-
-```ts
-type ProviderAssignment = {
-  assignmentId: string;
-  providerId: string;
-  availabilitySessionId: string;
-  teamId: string;
-  projectId: string;
-  workdayId: string;
-  decisionId?: string;
-  proposalId?: string;
-  agentClassId: string;
-  agentId: string;
-  handlerId: string;
-  mode: "planning" | "acting";
-  selectedInputType: string;
-  selectedInputId: string;
-  expectedOutputTypes: string[];
-  reservedCredits: number;
-  reservedNative?: {
-    executionProviderId: string;
-    nativeUnit: string;
-    amount: number;
-  };
-  leaseExpiresAt: string;
-  requiredCapabilities: ExecutionCapabilityRef[];
-  status: ProviderAssignmentStatus;
-};
-```
-
-Provider action endpoints:
-
-```http
-POST /v1/provider-assignments/{assignmentId}/claim
-POST /v1/provider-assignments/{assignmentId}/heartbeat
-POST /v1/provider-assignments/{assignmentId}/complete
-POST /v1/provider-assignments/{assignmentId}/fail
-POST /v1/provider-assignments/{assignmentId}/return
-```
-
-These are normal API routes, not a new backend service. They mutate durable records and can be implemented through the existing Treeseed API/control-plane pattern.
-
-Claiming should be idempotent. Heartbeats should renew leases and update mode-run status. Completion should include output references and native usage facts. Failure should include a structured reason. Return should release unused reservation capacity and record whether the work can be retried, rerouted, or must be blocked.
-
----
-
-## 13. Assignment Selection Function
-
-The assignment selection function is deterministic API-side logic invoked during provider check-in or next-assignment requests.
-
-Inputs:
-
-- provider check-in session;
-- provider grants;
-- provider capabilities;
-- provider native availability;
-- provider current pressure;
-- workday schedules;
-- allocation policies;
-- project agent class budgets;
-- planning/acting budgets;
-- decision readiness;
-- existing reservations;
-- active assignments;
-- priority and risk policy.
-
-Output:
-
-- zero or more leased assignments for the checking-in provider.
-
-Selection rules:
-
-1. Only assign work for grants included in provider check-in.
-2. Only assign work whose project agent class, activity profile, handler, and capability requirements match provider execution capabilities.
-3. Respect provider availability window.
-4. Respect team workday allowance.
-5. Respect project portfolio remaining allowance.
-6. Respect project agent-class remaining allowance.
-7. Respect planning/acting remaining allowance.
-8. Prefer approved decisions needing planning estimates before acting work that lacks readiness.
-9. Prefer accepted capacity plan acting work when planning requirements are complete.
-10. Avoid assigning work above provider concurrency.
-11. Use leases to avoid stale assignment.
-12. Allow soft-cap overflow only when policy permits.
-13. Require approval for hard-cap or emergency reserve borrowing.
-
-The function should be bounded. It should not globally optimize every team and provider on every check-in. It should select from indexed demand for grants the provider is authorized to serve, rank eligible candidates, create reservations/leases for the best candidates, and return an explainable result.
-
----
-
-## 14. Planning And Acting With Allocation Classes
-
-Planning/acting mode remains a kernel-level execution boundary, but available budget is shaped by agent class allocation.
-
-Example:
-
-```text
-Feature Development class has 20 credits today.
-Planning target is 25%, acting target is 75%.
-
-Eligible planning:
-  estimate approved decisions
-  produce implementation approach
-  identify dependencies
-
-Eligible acting:
-  implement assigned work unit
-  fix verification failure
-  perform release support
-```
-
-Dynamic adjustment can happen inside configured bounds:
-
-- increase planning if decisions lack estimates;
-- increase acting if capacity plans are accepted and waiting;
-- keep within configured min/max;
-- record auto-shifts as policy-derived events.
-
-Planning mode should never perform binding work. Acting mode should never run without the required decision, readiness, capacity plan, capability, environment, and reservation gates.
-
-Approved decisions become executable through API-owned graph compilation, not direct agent-to-agent scheduling. Agents submit structured estimates, dependency declarations, and deliverable manifests. The API validates those records, versions the decision assignment graph, and leases ready assignments only when upstream graph dependencies, required deliverables, readiness gates, and mode reservations are satisfied.
-
----
-
-## 15. Multi-Provider Example
-
-### Providers
-
-```text
-OpenAI Pro provider
-  execution provider: OpenAI Pro subscription
-  Team A grant: 50%
-  Team B grant: 50%
-  strengths: reasoning, planning, summaries, review
-  quota visibility: opaque/partial
-
-OpenCode/OpenRouter provider
-  execution provider: OpenRouter budget
-  Team A grant: $150/month
-  strengths: code tasks, configurable models
-  quota visibility: exact
-
-GitHub Copilot provider
-  execution provider: Copilot budget
-  Team A grant: $500/month
-  strengths: repo-local coding/review
-  quota visibility: partial/exact depending integration
-```
-
-### Team Workday
-
-```text
-Team A workday allowance: 100 credits
-Project Market allocation: 50 credits
-Feature Development allocation: 17.5 credits
-Testing allocation: 5 credits
-Research allocation: 7.5 credits
-```
-
-### Check-In Example
-
-OpenAI Pro checks in first:
-
-```text
-Capabilities: reasoning, long_context, planning
-API assigns:
-  research planning estimate
-  decision summary
-  proposal comparison
-```
-
-Copilot checks in later:
-
-```text
-Capabilities: repo_read, repo_write, code_review
-API assigns:
-  feature acting work
-  testing/review work
-```
-
-OpenRouter checks in all day:
-
-```text
-Capabilities: coding, shell, long_context depending lane
-API assigns:
-  overflow implementation
-  API estimate
-  documentation acting work
-```
-
-These providers do not coordinate directly with each other. They coordinate through TreeSeed records: availability sessions, assignments, reservations, mode runs, usage actuals, and ledger entries.
-
----
-
-## 16. Shared Provider Across Multiple Teams
-
-Shared provider fairness is provider-side for native capacity and TreeSeed-side for team-scoped assignment.
-
-Rules:
-
-- provider global native ledger is provider-authoritative;
-- TreeSeed team sees only team-scoped grant availability;
-- provider check-in can include multiple team grants;
-- API assignment must only assign within returned grant availability;
-- provider can reject or return assignments if global pressure changes;
-- TreeSeed should not expose Team B state to Team A.
-
-Example:
-
-```text
-OpenAI Pro subscription
-  Team A grant: 50%
-  Team B grant: 50%
-
-Provider reports Team A available share separately from Team B.
-TreeSeed Team A assignment function cannot consume Team B's share.
-```
-
-If a provider serves multiple teams during one availability session, the provider check-in should report per-team grant availability. The API can assign work for any grant represented in the check-in, but each assignment must remain scoped to that grant and must not reveal other teams' demand or consumption.
-
----
-
-## 17. Ledger And Settlement
-
-TreeSeed should keep one capacity ledger. Do not create separate ledgers for every allocation layer.
-
-Each reservation/actual should include dimensions:
-
-```text
-teamId
-projectId
-workdayId
-providerId
-executionProviderId
-grantId
-assignmentId
-decisionId
-proposalId
-agentClassId
-agentId
-handlerId
-mode
-reservedCredits
-consumedCredits
-reservedNative
-consumedNative
-allocationSetIds
-```
-
-Summaries can roll up by:
-
-- team;
-- project;
-- workday;
-- provider;
-- execution provider;
-- agent class;
-- mode;
-- decision;
-- handler;
-- native unit;
-- allocation policy.
-
-Provider actuals are facts. TreeSeed settlement converts those facts into normalized credits using the SDK capacity model, learned conversion profiles, native limits, observations, reservations, and allocation policy. This preserves the dynamic capacity architecture where humans configure native/provider policy and TreeSeed derives credit availability.
-
-Assignment lifecycle settlement is automatic at the API boundary. Lease/start writes `task_started` and moves a reserved reservation into consuming state. Completion links mode-run and usage actuals, writes `task_completed_actual_settlement`, updates consumed credits/native usage/USD, and releases unused reserved capacity. Return and retryable failure write `reservation_released`; nonretryable failure writes `task_failed_refund`. Allocation/grant exhaustion blocks reservation creation with an explanation unless the active grant's overflow policy requires approval, in which case the API creates an overrun hold instead of leasing runnable work.
-
----
-
-## 18. UI Integration
-
-### Team Capacity Settings
-
-The team capacity settings UI should expose:
-
-- workday schedule;
-- monthly capacity projection;
-- reserve policy;
-- portfolio allocation pie.
-
-### Project Capacity Settings
-
-The project capacity settings UI should expose:
-
-- project agent-class allocation pie;
-- class definitions;
-- handler mappings;
-- allowed modes;
-- default planning/acting split.
-
-### Agent Class Detail
-
-Agent class detail should show:
-
-- description;
-- handlers;
-- capabilities;
-- mode split;
-- recent usage;
-- estimate accuracy;
-- allocation target vs actual.
-
-### Capacity Provider Page
-
-The capacity provider page should show:
-
-- check-in status;
-- availability sessions;
-- execution providers;
-- native limits;
-- grants;
-- provider observations;
-- recent assignments;
-- usage by team/project/class/mode.
-
-### Workday Page
-
-The workday page should show:
-
-- total allowance;
-- portfolio allocation;
-- project allocation;
-- class allocation;
-- provider sessions;
-- assignments;
-- actuals vs targets;
-- blocked/deferred work.
-
-### Pie Component Integration
-
-Use the component from `/home/adrian/Projects/pie` as a generic control with adapters for:
-
-```text
-PortfolioAllocationInput
-AgentClassAllocationInput
-ModeAllocationInput
-```
-
-Keep the generic component domain-neutral. TreeSeed-specific wrappers should provide labels, descriptions, target metadata, persistence, validation, permission checks, and audit messages.
-
----
-
-## 19. API Contract Sketch
-
-These are conceptual routes, not final route names.
-
-Allocation:
-
-```http
-GET /v1/teams/{teamId}/allocation-sets
-POST /v1/teams/{teamId}/allocation-sets
-PATCH /v1/allocation-sets/{allocationSetId}
-POST /v1/allocation-sets/{allocationSetId}/activate
-POST /v1/allocation-sets/{allocationSetId}/supersede
-```
-
-Project agent classes:
-
-```http
-GET /v1/projects/{projectId}/agent-classes
-POST /v1/projects/{projectId}/agent-classes
-PATCH /v1/projects/{projectId}/agent-classes/{classId}
-```
-
-Provider check-in:
-
-```http
-POST /v1/provider/check-in
-POST /v1/provider/assignments/next
-```
-
-Assignments:
-
-```http
-GET /v1/provider/assignments/{assignmentId}
-POST /v1/provider/assignments/{assignmentId}/renew
-POST /v1/provider/assignments/{assignmentId}/complete
-POST /v1/provider/assignments/{assignmentId}/fail
-POST /v1/provider/assignments/{assignmentId}/return
-POST /v1/provider/assignments/{assignmentId}/mode-runs
-```
-
-Summaries:
-
-```http
-GET /v1/workdays/{workdayId}/summary
-GET /v1/projects/{projectId}/capacity-summary
-GET /v1/capacity-providers/{providerId}/sessions
-```
-
-All write routes should use idempotency keys where retries are plausible, especially check-in, assignment creation, claim, complete, fail, and return.
-
----
-
-## 20. SDK Surface
-
-Conceptual SDK exports/types:
-
-```text
-AllocationSet
-AllocationSlice
-AllocationPolicy
-ProjectAgentClass
-ProviderAvailabilitySession
-CapacityProviderCheckInRequest
-CapacityProviderCheckInResponse
-ProviderAssignment
-ProviderAssignmentStatus
-ExecutionCapabilityRef
-```
-
-Conceptual SDK functions:
-
-```ts
-normalizeAllocationSet(input)
-validateAllocationSet(input)
-deriveWorkdayAllowance(...)
-derivePortfolioAllowances(...)
-deriveAgentClassAllowances(...)
-deriveModeAllowances(...)
-selectAssignmentsForProviderCheckIn(...)
-settleProviderAssignmentActuals(...)
-summarizeAllocationActuals(...)
-```
-
-Reuse existing capacity model concepts where possible:
-
-- `capacity_providers`;
-- `capacity_provider_lanes`;
-- `capacity_grants`;
-- `capacity_reservations`;
-- `capacity_routing_decisions`;
-- `capacity_ledger_entries`;
-- `execution_providers`;
-- `execution_provider_native_limits`;
-- `execution_provider_observations`.
-
-The SDK should remain the canonical place for shared allocation math, assignment eligibility, credit derivation, settlement, and summaries. The API should call SDK helpers rather than duplicating selection and settlement math.
-
----
-
-## 21. Failure Modes
-
-### Provider Goes Offline After Check-In
-
-- leases expire;
-- assignments return to assignable state;
-- UI shows provider session stale/offline;
-- no permanent budget consumption unless actuals were reported.
-
-### Provider Rejects Assignment
-
-- assignment marked returned or failed;
-- reason recorded;
-- capacity released;
-- future routing penalizes incompatible path when appropriate.
-
-### Allocation Slice Exhausted
-
-- if target: assignment may continue if priority warrants;
-- if soft cap: overflow allowed only under policy;
-- if hard cap: block or require approval.
-
-### Provider Native Capacity Exhausted
-
-- provider reports pressure/exhausted;
-- API stops assigning to that session/grant;
-- work may route elsewhere or defer.
-
-### No Provider Available For Required Agent Class
-
-- work remains pending;
-- UI shows blocked by provider availability/capability;
-- administrator may adjust grants, providers, class mappings, or schedule.
-
-### Stale Assignment
-
-- lease expiry returns work;
-- mode run heartbeat absence marks assignment stale;
-- provider can resume only through renewed claim policy.
-
-### Provider Reports Conflicting Actuals
-
-- actuals are stored as provider facts with source metadata;
-- settlement should reject impossible negative or duplicate consumption;
-- repeated inconsistencies should reduce provider confidence and surface an admin warning.
-
-### Allocation Policy Changes During Workday
-
-- already leased assignments keep the allocation policy version they were created under unless cancelled or returned;
-- new assignments use the active policy version;
-- summaries should show policy-version boundaries when a workday spans a policy change.
-
----
-
-## 22. Observability
-
-Required summaries:
-
-```text
-Team workday allowance vs actual
-Project allocation target vs actual
-Agent-class target vs actual
-Planning vs acting target vs actual
-Provider availability sessions
-Provider assignment success/failure
-Native usage by execution provider
-Credits by class/mode/provider
-Borrowing/overflow events
-Hard-cap blocks
-Returned unused capacity
-Estimate variance by class/handler/provider
-```
-
-Required event dimensions:
-
-```text
-teamId
-projectId
-workdayId
-providerId
-executionProviderId
-availabilitySessionId
-assignmentId
-agentClassId
-agentId
-handlerId
-mode
-decisionId
-proposalId
-allocationSetId
-grantId
-nativeUnit
-reservedCredits
-consumedCredits
-status
-```
-
-The UI should distinguish:
-
-- target allocation;
-- reserved capacity;
-- consumed capacity;
-- returned unused capacity;
-- blocked work;
-- overflow/borrowed capacity.
-
----
-
-## 23. Security And Governance
-
-Rules:
-
-1. Provider check-in authenticates as a capacity provider.
-2. Provider may only report/receive assignments for grants it owns or is authorized to serve.
-3. Provider cannot create decisions or approve work.
-4. Provider cannot mutate allocation policy.
-5. Project agent definitions are served through scoped assignment context.
-6. Secrets remain provider-local where possible.
-7. Provider actuals are recorded as facts, then centrally settled.
-8. Assignment leases prevent abandoned local providers from holding work forever.
-9. Admin overrides are audited.
-10. Borrowing from reserve or another slice is audited.
-
-Provider authentication should be scoped to provider actions. Project assignment context should expose only the information needed for the leased assignment. Acting assignments should still require an immutable accepted governance decision, accepted capacity plan, required capabilities, and environment checks.
-
----
-
-## 24. Compatibility With Existing Dynamic Capacity Budget
-
-This architecture preserves the dynamic capacity model described in [dynamic-capacity-budget.md](dynamic-capacity-budget.md).
-
-It preserves:
-
-- derived provider capacity;
-- avoidance of human-entered provider credits;
-- native capacity and observed usage as the basis for derived TreeSeed credits;
-- portfolio percentages as governance allocation;
-- existing capacity concepts such as providers, lanes, grants, reservations, routing decisions, ledger entries, execution providers, native limits, and observations.
-
-This document extends the model with:
-
-- scheduled workday allowances;
-- project agent-class allocations;
-- planning/acting allocation under each class;
-- provider check-in sessions;
-- project-bundled agent assignment;
-- provider-local execution leases;
-- class/mode/provider settlement dimensions.
-
-The allocation hierarchy should not compete with dynamic capacity. It should sit on top of derived availability and express how humans want available capacity used across the portfolio, project classes, and execution modes.
-
----
-
-## 25. Implementation Sequencing Guidance
-
-Recommended sequence:
-
-1. Document terminology and boundaries in code comments, API descriptions, and follow-on docs.
-2. Add/confirm SDK types for allocation sets and project agent classes.
-3. Integrate generic pie allocation UI for portfolio and class allocations.
-4. Add provider check-in availability session records.
-5. Add leased provider assignments.
-6. Add deterministic assignment selection on provider check-in.
-7. Wire project-bundled agent/handler context into assignments.
-8. Add provider claim/heartbeat/complete/fail/return flow.
-9. Add workday/project/class/mode summaries.
-10. Add dynamic planning/acting adjustment within configured bounds.
-
-This sequencing intentionally avoids a central scheduler daemon. It adds durable API records and request-time assignment behavior first, then expands provider runtime integration and UI summaries.
-
----
-
-## 26. Acceptance Criteria For The Architecture
-
-The architecture is successful when:
-
-- a team admin can configure workday schedules;
-- a team admin can allocate workday capacity across project portfolio slices;
-- a project admin can allocate project capacity across project-defined agent classes;
-- a project can map agent classes to project-bundled handlers;
-- a provider can check in without inbound API calls from TreeSeed;
-- the API can return assignments immediately during provider check-in;
-- assignments include project agent context and provider execution requirements;
-- providers can claim, run, renew, complete, fail, or return leased assignments;
-- the ledger can report usage by provider, project, agent class, and planning/acting mode;
-- shared providers can enforce separate team grants;
-- no additional central long-running backend service is required.
-
----
-
-## 27. Explicit Assumptions And Defaults
-
-- Workdays are TreeSeed-side accounting windows.
-- Provider availability windows are provider-side constraints inside a workday.
-- Agents are project-bundled.
-- Capacity providers bundle execution providers.
-- Provider managers are provider-local.
-- API-side coordination happens synchronously during provider check-in / next-assignment requests.
-- Allocation percentages are targets by default.
-- Hard caps require explicit configuration.
-- Provider check-in availability is soft until assignments are leased and claimed.
-- Leases expire unless renewed.
-- One central capacity ledger remains the source for settlement and summaries.
-- The generic pie component should stay domain-neutral and be adapted by TreeSeed UI wrappers.
-
-## Local And CI Execution Providers
-
-Provider capability discovery advertises activity operations rather than old handler names. The default first-party provider capability includes `codex` and `mock` execution models. CI guarantee runs use the deterministic mock execution provider; local and staging proof can require live Codex and must fail closed if Codex auth is missing.
+String, route-presence, mock-call-order, and file-presence tests are not sufficient evidence. Service workflows must exercise the real API database, provider manager, runner, kernel, TreeDX proxy, usage, and settlement paths.

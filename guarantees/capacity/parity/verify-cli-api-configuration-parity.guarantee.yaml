@@ -1,0 +1,52 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.capacity.parity.verify-cli-api-configuration-parity.508
+journeyIndex: 508
+type: capacity
+subtype: parity
+journey: Verify Capacity CLI API And Configuration Parity
+ownerPackage: "@treeseed/market"
+surface: cli
+summary: "Prove that every canonical backend capacity capability has one CLI owner, an exact API route and access class, schema-backed declarative configuration where applicable, safe secret handling, and a working real local lifecycle."
+status: active
+actors:
+  allowed: [team_owner, capacity_operator, capacity_provider]
+  forbidden: [anonymous_user, unauthorized_user]
+gates: [core, release]
+preconditions:
+  fixtures: [integrated_treeseed_project]
+  notes:
+    - "The reconciled local stack must be ready for the real lifecycle verifier."
+scene:
+  required: false
+api:
+  required: true
+  verifierRefs:
+    - market.capacity.full-local-lifecycle
+    - market.capacity.api-operator-contract
+    - market.capacity.api-descriptor-contract
+    - market.capacity.sdk-operator-contract
+    - market.capacity.sdk-configuration-contract
+content:
+  required: false
+  verifierRefs: []
+audit:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle]
+negativeCases:
+  - id: unauthorized-capability-has-no-wider-route
+    actor: unauthorized_user
+    verifierRefs: [market.capacity.api-descriptor-contract]
+  - id: secrets-are-redacted
+    actor: capacity_operator
+    verifierRefs: [market.capacity.cli-secret-contract]
+  - id: no-duplicate-cli-owner
+    actor: capacity_operator
+    verifierRefs: [market.capacity.cli-operator-contract]
+evidence:
+  required: [guarantee_report, verifier_evidence, api_verification_log]
+notes:
+  - "The SDK inventory is canonical; API descriptors and CLI ownership are checked against it rather than maintained as duplicate lists."
+  - "This aggregate does not treat descriptor tests as service authorization by themselves; it also requires the real local lifecycle verifier."
+run:
+  timeoutSeconds: 2400
+  requiredForRelease: true

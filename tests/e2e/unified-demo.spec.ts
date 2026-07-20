@@ -1,6 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
-import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 const runId = `demo-${Date.now().toString(36)}`;
@@ -12,7 +11,6 @@ const demoArtifactsDir = process.env.TREESEED_DEMO_ARTIFACTS_DIR
 	? path.resolve(process.env.TREESEED_DEMO_ARTIFACTS_DIR)
 	: path.resolve(process.env.INIT_CWD ?? process.cwd(), 'test-results/demo-artifacts');
 const screenshotDir = path.join(demoArtifactsDir, 'screenshots');
-const providerDataDir = path.join(demoArtifactsDir, 'provider-data');
 const recipe = process.env.TREESEED_DEMO_RECIPE_JSON ? JSON.parse(process.env.TREESEED_DEMO_RECIPE_JSON) : null;
 
 function screenshotPath(name: string) {
@@ -140,74 +138,9 @@ async function createProject(page: Page, teamId: string, slug: string, name: str
 	return project.project ?? project.payload?.project ?? project;
 }
 
-function parseProviderEnv(text: string) {
-	const env: Record<string, string> = {};
-	for (const line of text.split(/\r?\n/u)) {
-		const match = /^([A-Z0-9_]+)=(.*)$/u.exec(line.trim());
-		if (match) env[match[1]] = match[2];
-	}
-	return env;
-}
-
-function runProviderRole(role: 'register' | 'runner', env: Record<string, string>) {
-	const args = ['--experimental-transform-types', 'packages/agent/src/provider/entrypoint.ts', role, '--json'];
-	if (role === 'runner') args.push('--once');
-	const result = spawnSync(process.execPath, args, {
-		cwd: process.env.INIT_CWD ?? process.cwd(),
-		env: {
-			...process.env,
-			...env,
-			TREESEED_PROVIDER_DATA_DIR: providerDataDir,
-			TREESEED_PROVIDER_ENVIRONMENT: 'local',
-			TREESEED_AGENT_EXECUTION_PROVIDER: 'codex',
-		},
-		encoding: 'utf8',
-		timeout: role === 'runner' ? 180_000 : 30_000,
-	});
-	expect(result.status, `${role} stdout:\n${result.stdout}\n${role} stderr:\n${result.stderr}`).toBe(0);
-	const lines = result.stdout.trim().split('\n');
-	for (let index = lines.length - 1; index >= 0; index -= 1) {
-		if (!lines[index].trim().startsWith('{')) continue;
-		try {
-			return JSON.parse(lines.slice(index).join('\n'));
-		} catch {
-			// Try the next JSON-looking block.
-		}
-	}
-	throw new Error(`${role} stdout did not include a parseable JSON result:\n${result.stdout}`);
-}
-
-function writeProviderPortfolioIndex(projectId: string) {
-	const indexPath = path.join(providerDataDir, 'portfolio', 'index.json');
-	mkdirSync(path.dirname(indexPath), { recursive: true });
-	writeFileSync(indexPath, `${JSON.stringify({
-		ok: true,
-		generatedAt: new Date().toISOString(),
-		team: { id: teamSlug, slug: teamSlug, name: 'Demo Private Team' },
-		dataDir: providerDataDir,
-		projects: [{
-			projectId,
-			slug: 'engineering-starter',
-			enabled: true,
-			repository: {
-				ok: true,
-				path: process.env.INIT_CWD ?? process.cwd(),
-				branch: 'main',
-				commitSha: null,
-			},
-			agents: { ok: true, count: 1, enabledCount: 1, handlers: ['planner'], diagnostics: [], reportPath: null },
-			tests: { ok: true, count: 1, reportPath: null },
-			workDay: null,
-		}],
-		reportPath: path.join(providerDataDir, 'reports', 'portfolio-processing.json'),
-		indexPath,
-	}, null, 2)}\n`, 'utf8');
-}
-
 test.describe('unified demo release workflow', () => {
 	test.beforeEach(() => {
 		mkdirSync(screenshotDir, { recursive: true });
-		mkdirSync(providerDataDir, { recursive: true });
 	});
 
 	test('presents the marketplace-first homepage story', async ({ page }) => {
@@ -242,71 +175,11 @@ test.describe('unified demo release workflow', () => {
 		await expect(page.getByText(/Engineering/i).first()).toBeVisible();
 		await expect(page.getByText(/Research/i).first()).toBeVisible();
 		await page.screenshot({ path: recipeScreenshot('project.create', 'starter-projects.png'), fullPage: true });
-		const engineering = await createProject(page, team.id, `engineering-${runId}`.slice(0, 58), 'Engineering Starter', 'treeseed/engineering-template');
-		const research = await createProject(page, team.id, `research-${runId}`.slice(0, 58), 'Research Starter', 'treeseed/research-template');
-
-		await page.goto('/app/capacity/providers/new');
-		await expect(page.getByRole('heading', { name: /Create provider/i })).toBeVisible();
-		await expect(page.getByText(/Provider creators do not configure TreeSeed credits/i)).toBeVisible();
-		const providerForm = page.locator('form').filter({ has: page.getByRole('button', { name: /^Create provider$/i }) });
-		await providerForm.locator('input[name="name"]').fill('Local Codex Demo Provider');
-		await providerForm.locator('input[name="limitAmount"]').fill('300');
-		await expect(providerForm.locator('input[name="dailyUsageCapPercent"]')).toHaveValue('30');
-		await page.screenshot({ path: recipeScreenshot('capacity-provider.create', 'capacity-provider-before-submit.png'), fullPage: true });
-		await providerForm.getByRole('button', { name: /^Create provider$/i }).click();
-		await expect(page.getByText(/Provider and native capacity created/i)).toBeVisible({ timeout: 15_000 });
-		const keyText = await page.locator('#provider-key').innerText();
-		const instructionText = await page.locator('#provider-instructions').innerText();
-		const providerEnv = {
-			...parseProviderEnv(instructionText),
-			...parseProviderEnv(keyText),
-			TREESEED_MANAGEMENT_API_URL: 'http://127.0.0.1:3000',
-			TREESEED_MARKET_URL: 'http://127.0.0.1:3000',
-			TREESEED_MARKET_ID: 'local',
-		};
-		expect(providerEnv.TREESEED_CAPACITY_PROVIDER_API_KEY).toMatch(/^tsp_/u);
-		const registration = runProviderRole('register', providerEnv);
-		expect(registration.ok).toBe(true);
-
-		await page.goto('/app/capacity');
-		const providers = await browserJson(page, 'GET', `/v1/teams/${encodeURIComponent(team.id)}/capacity-providers`);
-		const registeredProvider = providers.find?.((entry: any) => entry.name === 'Local Codex Demo Provider');
-		expect(registeredProvider, 'UI-created provider should be returned by the capacity provider API').toBeTruthy();
-		expect(JSON.stringify(registeredProvider)).toMatch(/connected|online|registered/i);
-		await page.screenshot({ path: recipeScreenshot('capacity.status', 'capacity-provider-registered.png'), fullPage: true });
-
-		await page.goto('/app/capacity/allocation');
-		await page.locator('input[name="allocations"]').evaluate((input: HTMLInputElement, projects: any[]) => {
-			input.value = JSON.stringify(projects.map((project, index) => ({ id: project.id, name: project.name, percentage: index === 0 ? 70 : 30 })));
-			input.dispatchEvent(new Event('input', { bubbles: true }));
-			input.dispatchEvent(new Event('change', { bubbles: true }));
-		}, [engineering, research]);
-		await page.screenshot({ path: recipeScreenshot('capacity.allocate.portfolio', 'capacity-allocation-portfolio.png'), fullPage: true });
-		await page.getByRole('button', { name: /Save portfolio allocation/i }).click();
-		await expect(page.getByText(/Allocation saved/i)).toBeVisible();
-
-		await page.goto(`/app/capacity/allocation?projectId=${encodeURIComponent(engineering.id)}`);
-		await expect(page.getByRole('heading', { name: /agent classes/i })).toBeVisible();
-		await expect(page.getByRole('link', { name: /Back to portfolio/i })).toBeVisible();
-		await page.screenshot({ path: recipeScreenshot('capacity.allocate.project', 'capacity-allocation-agent-classes.png'), fullPage: true });
-
-		writeProviderPortfolioIndex(engineering.id);
-		await page.goto(`/app/projects/${encodeURIComponent(engineering.id)}/workdays`);
-		await page.getByRole('button', { name: /Request local workday/i }).click();
-		await expect(page).toHaveURL(/requested=/u);
-		const runner = runProviderRole('runner', providerEnv);
-		expect(runner.result?.claimed, JSON.stringify(runner, null, 2)).toBe(1);
-		expect(runner.result?.result?.task?.status ?? runner.result?.result?.ok).toBeTruthy();
+		await createProject(page, team.id, `engineering-${runId}`.slice(0, 58), 'Engineering Starter', 'treeseed/engineering-template');
+		await createProject(page, team.id, `research-${runId}`.slice(0, 58), 'Research Starter', 'treeseed/research-template');
 
 		await page.goto('/app/work/decisions');
 		await expect(page.getByRole('heading', { name: /Decisions|Work/i }).first()).toBeVisible();
 
-		await page.goto('/app/knowledge/artifacts');
-		await expect(page.getByText(/Live Codex provider artifact/i)).toBeVisible({ timeout: 15_000 });
-		await page.screenshot({ path: recipeScreenshot('knowledge.inspect-artifacts', 'knowledge-artifacts.png'), fullPage: true });
-
-		await page.goto('/app/knowledge/publish');
-		await expect(page.getByRole('heading', { name: /Publish project artifacts/i })).toBeVisible();
-		await page.screenshot({ path: screenshotPath('publish-before-submit.png'), fullPage: true });
 	});
 });

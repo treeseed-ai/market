@@ -1,0 +1,43 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.capacity.research.verify-autonomous-cited-research-starter.510
+journeyIndex: 510
+type: capacity
+subtype: research
+journey: Verify Autonomous Cited Research Starter
+ownerPackage: "@treeseed/market"
+surface: agent-runtime
+summary: "Prove the reconciled research starter autonomously decomposes a question, applies source policy, gathers independent evidence, rejects an unsupported claim, revises it, preserves contradiction, publishes cited knowledge, reports the workday, settles usage, and cleans up."
+status: active
+actors:
+  allowed: [team_owner, capacity_provider, capacity_operator]
+  forbidden: [unapproved_capacity_provider, revoked_capacity_provider]
+gates: [core, release]
+preconditions:
+  fixtures: [integrated_treeseed_project]
+  notes:
+    - "The canonical local development stack and reconciled research starter TreeDX repository must be ready."
+scene:
+  required: false
+api:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle]
+content:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle]
+audit:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle]
+negativeCases:
+  - id: unsupported-material-claim-cannot-pass-review
+    actor: capacity_provider
+    verifierRefs: [market.capacity.full-local-lifecycle]
+  - id: research-cannot-bypass-source-policy
+    actor: capacity_provider
+    verifierRefs: [market.capacity.full-local-lifecycle]
+evidence:
+  required: [guarantee_report, verifier_evidence, api_verification_log, audit_event_id]
+notes:
+  - "The verifier requires all four starter roles, forty-one settled assignments, eleven durable stages, two independent citations with hashes and retrieval metadata, rejection and revision, cited publication, Reporter completion, continuous access-token refresh, and terminal cleanup."
+run:
+  timeoutSeconds: 2400
+  requiredForRelease: true

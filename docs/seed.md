@@ -163,10 +163,7 @@ resources:
   projects: []
   hubRepositories: []
   products: []
-  capacityProviders: []
-  capacityGrants: []
-  workPolicies: []
-  agentPools: []
+  catalogArtifacts: []
 ```
 
 ### Environment targeting
@@ -199,43 +196,7 @@ projects:
     slug: market
 ```
 
-```yaml
-capacityProviders:
-  - key: capacity-provider:treeseed/local-dev
-    team: team:treeseed
-    name: treeseed-local-dev
-```
-
-Native-capacity providers declare execution providers and native limits directly. Humans enter facts they can forecast, such as wall minutes, USD, tokens, concurrency, reset cadence, quota visibility, and reserve buffers. Static provider credit budgets are compatibility data only.
-
-```yaml
-capacityProviders:
-  - key: capacity-provider:treeseed/local-dev
-    environments: [local]
-    team: team:treeseed
-    name: treeseed-local-dev
-    kind: local
-    provider: local
-    billingScope: team
-    creditBudgetMode: derived
-    maxConcurrentWorkers: 4
-    executionProviders:
-      - id: treeseed-local-codex
-        name: Local Codex capacity
-        kind: codex_subscription
-        nativeUnit: wall_minute
-        quotaVisibility: opaque
-        maxConcurrentWorkers: 4
-        resetCadence: daily
-        nativeLimits:
-          - scope: daily
-            nativeUnit: wall_minute
-            limitAmount: 600
-            reserveBufferPercent: 20
-            resetCadence: daily
-            confidence: estimated
-            source: configured
-```
+Capacity providers are intentionally not seed resources. Provider identity and native supply belong to `treeseed.capacity-provider.yaml`; team registration, approval, grants, and allocation sets belong to the capacity governance API and `trsd capacity` commands. This keeps portable project bootstrap separate from independently owned, multi-team execution supply.
 
 ---
 
@@ -398,182 +359,13 @@ projects:
       localContentMaterialization: none
 ```
 
-### Capacity Providers
+### Capacity Provider Governance
 
-```yaml
-capacityProviders:
-  - key: capacity-provider:treeseed/local-dev
-    environments: [local]
-    team: team:treeseed
-    name: treeseed-local-dev
-    kind: local
-    provider: local
-    billingScope: team
-    creditBudgetMode: derived
-    maxConcurrentWorkdays: 2
-    maxConcurrentWorkers: 4
-    executionProviders:
-      - id: treeseed-local-codex
-        name: Local Codex capacity
-        kind: codex_subscription
-        nativeUnit: wall_minute
-        quotaVisibility: opaque
-        maxConcurrentWorkers: 4
-        resetCadence: daily
-        nativeLimits:
-          - scope: daily
-            nativeUnit: wall_minute
-            limitAmount: 600
-            reserveBufferPercent: 20
-            resetCadence: daily
-            confidence: estimated
-            source: configured
+Capacity providers, memberships, grants, and allocation sets are configured through the capacity-provider manifest and governance API/CLI. They are not created or exported by project seed reconciliation.
 
-  - key: capacity-provider:treeseed/production
-    environments: [staging, prod]
-    team: team:treeseed
-    name: treeseed-production
-    kind: managed
-    provider: railway
-    billingScope: team
-    creditBudgetMode: derived
-    maxConcurrentWorkdays: 2
-    maxConcurrentWorkers: 8
-    executionProviders:
-      - id: treeseed-production-openrouter
-        name: Production OpenRouter budget
-        kind: openrouter
-        nativeUnit: usd
-        quotaVisibility: exact
-        maxConcurrentWorkers: 8
-        resetCadence: monthly
-        nativeLimits:
-          - scope: monthly
-            nativeUnit: usd
-            limitAmount: 75
-            reserveBufferPercent: 10
-            resetCadence: monthly
-            confidence: exact
-            source: configured
-```
+### Agent capacity policy
 
-### Capacity Grants
-
-```yaml
-capacityGrants:
-  - key: capacity-grant:treeseed/local/market
-    environments: [local]
-    provider: capacity-provider:treeseed/local-dev
-    team: team:treeseed
-    project: project:treeseed/market
-    environment: local
-    grantScope: project
-    portfolioAllocationPercent: 50
-    reservePoolPercent: 10
-    priorityWeight: 1
-    overflowPolicy: soft_grant
-
-  - key: capacity-grant:treeseed/local/sdk
-    environments: [local]
-    provider: capacity-provider:treeseed/local-dev
-    team: team:treeseed
-    project: project:treeseed/sdk
-    environment: local
-    grantScope: project
-    portfolioAllocationPercent: 6
-    reservePoolPercent: 10
-    priorityWeight: 1
-    overflowPolicy: soft_grant
-
-  - key: grant:treeseed/prod/market
-    environments: [prod]
-    provider: capacity-provider:treeseed/production
-    team: team:treeseed
-    project: project:treeseed/market
-    grantScope: project
-    portfolioAllocationPercent: 40
-    reservePoolPercent: 10
-    maxDailyProjectCredits: 2500
-    priorityWeight: 10
-    overflowPolicy: approval_required
-
-  - key: grant:treeseed/prod/sdk
-    environments: [prod]
-    provider: capacity-provider:treeseed/production
-    team: team:treeseed
-    project: project:treeseed/sdk
-    grantScope: project
-    dailyCreditLimit: 1000
-    monthlyCreditLimit: 10000
-    priorityWeight: 6
-    overflowPolicy: approval_required
-
-  - key: grant:treeseed/prod/core
-    environments: [prod]
-    provider: capacity-provider:treeseed/production
-    team: team:treeseed
-    project: project:treeseed/core
-    grantScope: project
-    dailyCreditLimit: 1000
-    monthlyCreditLimit: 10000
-    priorityWeight: 6
-    overflowPolicy: approval_required
-
-  - key: grant:treeseed/prod/cli
-    environments: [prod]
-    provider: capacity-provider:treeseed/production
-    team: team:treeseed
-    project: project:treeseed/cli
-    grantScope: project
-    dailyCreditLimit: 500
-    monthlyCreditLimit: 5000
-    priorityWeight: 4
-    overflowPolicy: approval_required
-
-  - key: grant:treeseed/prod/agent
-    environments: [prod]
-    provider: capacity-provider:treeseed/production
-    team: team:treeseed
-    project: project:treeseed/agent
-    grantScope: project
-    dailyCreditLimit: 1000
-    monthlyCreditLimit: 10000
-    priorityWeight: 8
-    overflowPolicy: approval_required
-```
-
-### Work Policies
-
-Work policy `dailyCreditBudget` and queued-credit limits are governance caps for a project workday. They are not provider inventory. Capacity provider availability is seeded through `capacityProviders[].executionProviders[].nativeLimits[]` and converted to credits by the Market capacity model.
-
-```yaml
-workPolicies:
-  - key: work-policy:treeseed/local/market
-    environments: [local]
-    project: project:treeseed/market
-    environment: local
-    enabled: true
-    startCron: "0 9 * * 1-5"
-    durationMinutes: 480
-    maxRunners: 1
-    maxWorkersPerRunner: 4
-    dailyCreditBudget: 5000
-    maxQueuedTasks: 100
-    maxQueuedCredits: 10000
-
-  - key: work-policy:treeseed/prod/market
-    environments: [prod]
-    project: project:treeseed/market
-    environment: prod
-    enabled: true
-    startCron: "0 9 * * 1-5"
-    durationMinutes: 480
-    maxRunners: 1
-    maxWorkersPerRunner: 4
-    dailyCreditBudget: 2500
-    maxQueuedTasks: 50
-    maxQueuedCredits: 5000
-```
+Project seed reconciliation does not own agent-capacity policy. Configure provider offers in the capacity-provider manifest and configure grants, immutable allocation sets, and bounded workdays through their schema-backed capacity API and CLI operations. This keeps seed reconciliation from becoming a duplicate scheduler or governance path.
 
 ---
 
@@ -898,35 +690,6 @@ Create/update fields:
 * project architecture role when the same repository supplies software, site, and content paths
 
 For the TreeSeed seed, these should model the market repository and package repositories as remote Git sources with logical project architecture. Submodule paths may point to where those remotes are mounted inside the market checkout today, but the reconciler should still preserve the canonical remote `gitUrl` and architecture fields for cloning, validation, runner checkout, import, production automation, and future non-submodule workspaces.
-
-### Capacity Providers
-
-Reconcile by team + provider/name.
-
-Create/update fields:
-
-* kind
-* status
-* billing scope
-* monthly credit budget
-* daily credit budget
-* max concurrent workdays
-* max concurrent workers
-* capacity model metadata
-
-### Capacity Grants
-
-Reconcile by provider + team + project + environment.
-
-Create/update fields:
-
-* grant scope
-* daily/weekly/monthly limits
-* USD limits
-* quota limits
-* priority weight
-* overflow policy
-* state
 
 ### Work Policies
 

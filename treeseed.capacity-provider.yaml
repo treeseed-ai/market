@@ -1,0 +1,21 @@
+schemaVersion: 2
+identity:
+  privateKeyRef: data://identity.json
+  displayName: Treeseed local engineering and research provider
+executionProviders:
+  - id: codex
+    adapter: codex
+    nativeLimits:
+      maxConcurrentRunners: 1
+      availableCredits: 100
+    capabilities:
+      - engineering
+      - research
+      - planning
+      - acting
+      - verification
+      - agent_mode_run
+      - repo_read
+      - repo_write
+      - repository_work
+connections: []

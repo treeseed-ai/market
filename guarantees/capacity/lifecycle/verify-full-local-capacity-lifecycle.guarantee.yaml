@@ -1,0 +1,51 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.capacity.lifecycle.verify-full-local-capacity-lifecycle.507
+journeyIndex: 507
+type: capacity
+subtype: lifecycle
+journey: Verify Full Local Capacity Lifecycle
+ownerPackage: "@treeseed/market"
+surface: agent-runtime
+summary: "Prove signed multi-team provider onboarding, key/proof/review race handling, independent membership suspension, explicit governance and admission, provider-manager and runner dispatch, AgentKernel execution, TreeDX artifact ownership, usage, exactly-once settlement, revocation, and cleanup through the reconciled local service stack."
+status: active
+actors:
+  allowed: [team_owner, capacity_provider, capacity_operator]
+  forbidden: [unapproved_capacity_provider, revoked_capacity_provider]
+gates: [core, release]
+preconditions:
+  fixtures: [integrated_treeseed_project]
+  notes:
+    - "The canonical local development stack must be reconciled and ready."
+scene:
+  required: false
+api:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle]
+content:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle]
+audit:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle]
+negativeCases:
+  - id: membership-alone-cannot-execute
+    actor: unapproved_capacity_provider
+    verifierRefs: [market.capacity.full-local-lifecycle]
+  - id: revoked-access-cannot-inspect-assignment
+    actor: revoked_capacity_provider
+    verifierRefs: [market.capacity.full-local-lifecycle]
+  - id: replayed-proof-cannot-register
+    actor: unapproved_capacity_provider
+    verifierRefs: [market.capacity.full-local-lifecycle]
+  - id: suspended-team-cannot-open-availability
+    actor: capacity_provider
+    verifierRefs: [market.capacity.full-local-lifecycle]
+evidence:
+  required: [guarantee_report, verifier_evidence, api_verification_log, audit_event_id]
+notes:
+  - "The verifier creates an isolated provider identity and membership, proves approval creates no grant, then creates the grant, allocation, workday, and demand as separate governed operations."
+  - "The same global Ed25519 identity joins a temporary second team; the verifier rejects proof replay, resolves concurrent approval/rejection exactly once, races registration against key rotation, observes old-generation cancellation while the approved membership survives, suspends only the second membership, denies its token, and deletes the temporary team."
+  - "Terminal validation requires one committed TreeDX artifact with create/commit receipts, exact-ref read-back, dimensional usage with one aggregate row, one ledger settlement, closed workspace, revoked capability handles, unchanged human policy, and denied revoked access."
+run:
+  timeoutSeconds: 2400
+  requiredForRelease: true

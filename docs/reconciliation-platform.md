@@ -196,6 +196,10 @@ Capacity adapters cover provider registration, local Docker provider runtime, ma
 
 Capacity adapters do not reconcile runtime coordination records such as provider availability sessions, assignment leases, mode runs, usage actuals, or ledger entries. Those are API/control-plane records owned by `@treeseed/api` and consumed by `@treeseed/agent`, Admin, CLI, and SDK clients. Reconciliation proves that the provider runtime exists, has the right image/config/secrets, and is healthy; assignment coordination proves that a live provider can check in, receive leased work, report mode runs, and settle usage.
 
+Local capacity-provider desired state includes the canonical digest of the fully validated manifest, not only its path. Identity, execution-provider, native-limit, connection, and offer changes therefore plan a Compose update and supervised restart; an unchanged digest converges to `noop`. The logical provider resource also records the expected connection count. A fresh zero-connection manager is a healthy idle provider, while every declared connection still requires a current team-scoped availability session. Connection offboarding always removes local manifest, credential, token, and coordinator state even when remote membership revocation is already complete or unreachable, and reports remote confirmation separately for operator follow-up.
+
+Local database bootstrap is also explicit desired state. The `local-seed-bootstrap` resource depends on the healthy local API, plans the configured seed against current durable state through the API-owned seed service, applies only its reported create/update actions, and verifies by replanning until zero mutations remain. The seed manifest digest participates in desired-state identity. Clean database creation, reset, and ordinary local startup therefore converge the same canonical team/project/catalog baseline without verifier-owned setup or a separate operator seed command.
+
 TreeDX adapters cover source-build selection, production image reference selection, public federation services, private team instances, volumes, domains, health, SDK publishing gates, and profile image gates.
 
 ## JSON Report Contract
@@ -231,7 +235,7 @@ TreeDX staging updates reconcile the package repository source build and API-hos
 
 Capacity provider lifecycle reconciles provider registration, secrets, local or hosted runtime, health, and cleanup through the same run model. Provider check-ins, next-assignment polling, lease renewal, completion/failure, mode-run telemetry, and usage settlement are runtime API behavior and must not be modeled as infrastructure drift. Capacity runtime acceptance may create tagged diagnostic assignments and mode runs as audit evidence, but those records remain API control-plane records rather than reconciled resources.
 
-Local dev reconciles process supervisors, ports, local DB, local API, local runner, Mailpit, and generated config. It reports whether web is using a local API or configured remote API.
+Local dev reconciles process supervisors, ports, local DB, local API, local runner, Mailpit, and generated config. SDK-managed API and operations-runner instance records persist a deterministic SHA-256 closure of their API source, migrations, runtime package configuration, and consumed SDK distribution. Refresh compares the live instance's start digest with the current closure: a healthy PID with a stale closure is `update` drift, is restarted through reconciliation, and must pass fresh health plus digest postconditions before the run reports success. Unchanged closures converge to `noop`. The local report also states whether web is using a local API or configured remote API.
 
 ## Live Test Framework
 
@@ -247,12 +251,12 @@ Live scenarios include:
 - Cloudflare Pages, Worker, D1, R2, KV, Queue, DNS, Turnstile, secrets, and cache rules.
 - GitHub environment, secret, variable, workflow dispatch, workflow observation, and repository-scoped token routing.
 - Local process, port, local DB, local runner, Docker Compose capacity provider, and `capacity-provider-assignment-proof`.
-- Railway `capacity-provider-runtime-assignment-proof`, which checks in with the provider API key, creates a tagged diagnostic assignment through the existing team API, leases the assignment through the provider protocol, emits mode-run telemetry, completes the assignment, and verifies project mode-run visibility.
+- Railway `capacity-provider-runtime-assignment-proof`, which uses an approved provider membership and short-lived access token, leases a tagged assignment through the canonical provider protocol, emits mode-run and artifact-manifest telemetry, settles usage, completes the assignment, and verifies durable project evidence.
 - TreeDX Railway source build consumed by the API-hosted public node and verified over HTTP.
 
 The live command reports capability coverage by provider and resource type. Mutation-capable scenarios compile isolated desired resources and exercise the adapter lifecycle: refresh, diff, plan, validate, apply, refresh, verify, persist, destroy, refresh, verify-cleanup. Provider-private probes are allowed only for credential/API reachability checks that cannot be modeled as desired resources. Missing adapter coverage, failed cleanup drift, or an unavailable required credential is a failing `blocked` result, not a silent skip.
 
-Capacity runtime proof requires `TREESEED_CAPACITY_ACCEPTANCE_API_URL`, `TREESEED_CAPACITY_ACCEPTANCE_ADMIN_TOKEN`, `TREESEED_CAPACITY_ACCEPTANCE_TEAM_ID`, `TREESEED_CAPACITY_ACCEPTANCE_PROJECT_ID`, `TREESEED_CAPACITY_ACCEPTANCE_PROVIDER_ID`, `TREESEED_CAPACITY_ACCEPTANCE_AGENT_CLASS_ID`, and `TREESEED_CAPACITY_PROVIDER_API_KEY`. Missing values block the proof before hosted mutation where applicable. Cleanup removes provider infrastructure only; completed diagnostic assignments and mode runs are retained with the live-test run id for operator audit.
+Capacity runtime proof requires a capacity-provider manifest with an Ed25519 identity and an approved team membership. The proof obtains a short-lived membership access token through the same credential-exchange path used by normal providers; no permanent provider API key is accepted. Missing registration, approval, grant, allocation, or identity prerequisites block the proof before assignment admission. Cleanup removes provider infrastructure only; completed diagnostic assignments, mode runs, artifact manifests, usage actuals, and settlements are retained with the live-test run id for operator audit.
 
 ## Review Rounds
 

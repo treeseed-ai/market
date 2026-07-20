@@ -657,8 +657,9 @@ Examples:
 
 ```bash
 cd packages/agent && npm test -- --runInBand
-cd packages/agent && npm run test:market-knowledge-dogfood
-npm test -- market-docs-automation-governance
+cd packages/agent && npm test
+npx trsd capacity test-local --json
+npx trsd guarantees run --owner-package @treeseed/agent --environment local --json
 npm test -- governance
 npm test -- workday
 npm test -- knowledge

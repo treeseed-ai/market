@@ -4,6 +4,8 @@
 
 The Treeseed operations runner now lives in `packages/api` and deploys separately from the root Market web app.
 
+In database-transport mode, the runner also executes the API-owned capacity-workday maintenance sweep on a bounded interval. The sweep terminalizes elapsed workday verification runs, settles unfinished reservations exactly once, closes unfinished mode runs and assignments, and expires run-scoped grants. This is control-plane record maintenance only: the operations runner does not execute agent handlers, claim provider assignments, or act as a team capacity provider. `TREESEED_CAPACITY_WORKDAY_MAINTENANCE_INTERVAL_MS` controls the interval and defaults to 30 seconds.
+
 Current ownership:
 
 - `packages/api/src/api/**`: API routes, operation lifecycle, runner health surfaces, route descriptors, and Treeseed PostgreSQL adapter
@@ -627,13 +629,14 @@ platform:deploy:write
 platform:database:migrate
 ```
 
-Do not reuse capacity-provider scopes such as:
+Do not reuse capacity-provider membership scopes such as:
 
 ```text
-provider:register
-provider:heartbeat
+provider:availability:write
 provider:assignments:read
 provider:assignments:write
+provider:usage:write
+provider:credentials:rotate
 ```
 
 ### UI behavior

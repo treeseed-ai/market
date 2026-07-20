@@ -851,14 +851,14 @@ Prefer existing records first:
 - Continue using `ProviderAvailabilitySession`.
 - Continue using `ProviderAssignment`.
 - Continue using `AgentModeRun`.
-- Continue using `TaskUsageActual` and ledger settlement records.
+- Continue using canonical `CapacityUsageActual` and ledger settlement records.
 - Continue using `ProviderAssignmentExplanation`.
 
 Add durable fields only if existing JSON metadata is insufficient:
 
-- `provider_assignments.external_ref`
-- `provider_assignments.external_url`
-- `provider_assignments.execution_run_ref_json`
+- `capacity_provider_assignments.external_ref`
+- `capacity_provider_assignments.external_url`
+- `capacity_provider_assignments.execution_run_ref_json`
 - `agent_mode_runs.external_refs_json`
 - `agent_mode_runs.artifacts_json`
 

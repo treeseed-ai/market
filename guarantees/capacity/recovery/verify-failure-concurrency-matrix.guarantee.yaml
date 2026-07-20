@@ -1,0 +1,40 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.capacity.recovery.verify-failure-concurrency-matrix.506
+journeyIndex: 506
+type: capacity
+subtype: recovery
+journey: Verify Capacity Failure And Concurrency Matrix
+ownerPackage: "@treeseed/market"
+surface: agent-runtime
+summary: "Prove cross-project admission pressure, provider-local final-slot exclusion, interrupted lease recovery, stale-token fencing, membership revocation, exactly-once settlement, policy immutability, and cleanup through one integrated service workflow."
+status: active
+actors:
+  allowed: [capacity_provider, capacity_operator, team_owner]
+  forbidden: [revoked_capacity_provider]
+gates: [core, release]
+preconditions:
+  fixtures: [integrated_treeseed_project]
+scene:
+  required: false
+api:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle]
+content:
+  required: false
+  verifierRefs: []
+audit:
+  required: true
+  verifierRefs: [market.capacity.failure-concurrency-matrix]
+negativeCases:
+  - id: stale-or-revoked-provider-cannot-renew
+    actor: revoked_capacity_provider
+    verifierRefs: [market.capacity.failure-concurrency-matrix]
+evidence:
+  required: [guarantee_report, verifier_evidence]
+notes:
+  - "This root-owned workflow deliberately composes public SDK contracts with the API repository/service stack and Agent provider-local durable capacity store; neither package depends on the other package's implementation."
+  - "The API claim uses the real reconciled local lifecycle verifier; the audit and negative claims add the bounded service-level concurrency and recovery matrix."
+  - "The workflow fingerprints human-owned grants and allocation policy before execution and proves they are unchanged afterward."
+run:
+  timeoutSeconds: 2400
+  requiredForRelease: true

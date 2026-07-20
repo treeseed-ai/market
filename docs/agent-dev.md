@@ -1904,34 +1904,9 @@ Generated knowledge includes an optimization score and review recommendation.
 
 ---
 
-## Milestone 6: Local dogfood scenario for TreeSeed book knowledge
+## Milestone 6: TreeDX-backed local workday proof
 
-Goal: run planner, researcher, knowledge generator, and optimizer against the top-level market platform.
-
-Tasks:
-
-* Seed objective: write TreeSeed book knowledge about the agent processing platform.
-* Seed questions about research, workdays, provider architecture, Codex provider, API/UI integration.
-* Run planner.
-* Run researcher.
-* Run knowledge generator.
-* Run optimizer.
-* Emit summary JSON.
-* Assert no code mutation.
-
-Deliverables:
-
-```text
-packages/agent/src/agents/testing/market-knowledge-dogfood.ts
-packages/agent/scripts/test-market-knowledge-dogfood.ts
-packages/agent/test/agents/market-knowledge-dogfood.test.ts
-```
-
-Acceptance:
-
-```text
-npm run test:market-knowledge-dogfood creates optimized draft knowledge about TreeSeed.
-```
+The former filesystem-writing Market knowledge dogfood harness was retired. It duplicated agent orchestration and bypassed the production TreeDX assignment path. Knowledge and research acceptance must now use the real API workday, provider manager, runner, AgentKernel, assignment-scoped TreeDX tools, mutation receipts, usage settlement, and guarantee evidence described in `docs/agent-capacity-completion.md`.
 
 ---
 
@@ -2259,22 +2234,9 @@ Test:
 * provider readiness warnings appear;
 * empty states are useful.
 
-### 14.5 Dogfood tests
+### 14.5 Workday service tests
 
-Add:
-
-```bash
-cd packages/agent
-npm run test:market-knowledge-dogfood
-```
-
-Expected:
-
-```text
-planner -> researcher -> knowledge_generator -> optimizer -> approval_request
-```
-
-No code mutation in dogfood test.
+Use `trsd capacity test-local` and the package-owned active capacity guarantees. Evidence is valid only when the work uses assignment-scoped TreeDX operations and durable mutation receipts; direct fixture content writes do not prove the production workflow.
 
 ---
 
