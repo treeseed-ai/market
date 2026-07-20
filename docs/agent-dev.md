@@ -1222,7 +1222,7 @@ export interface CodexExecutionResult {
 ```ts
 import { Codex } from '@openai/codex-sdk';
 
-export async function runCodexSubscriptionTask(
+export async function runCodexTask(
   request: CodexExecutionRequest,
 ): Promise<CodexExecutionResult> {
   assertCodexRequestIsSafe(request);
@@ -1952,7 +1952,7 @@ Tasks:
 
 * Confirm Codex execution tasks receive operations permissions from the work package before any mutation attempt.
 * Add `@openai/codex-sdk` dependency to `packages/agent`.
-* Add `codex` provider id, with `codex_subscription` accepted as a compatibility alias.
+* Add the canonical `codex` provider id without compatibility aliases.
 * Add provider config schema.
 * Add readiness check.
 * Add adapter skeleton.

@@ -195,7 +195,7 @@ execution:
       - repo_write
       - verification
     preferredLanes:
-      - provider: codex_subscription
+      - provider: codex
         weight: 80
       - provider: human_issue_queue
         weight: 20
@@ -556,7 +556,7 @@ Implementation guidance:
 
 - AgentKernel should expose `context.execution` as `ExecutionProviderAdapter` or a narrowed handler-facing facade over it.
 - The retired prompt-only adapter should be removed or renamed as part of the hard replacement.
-- Existing Codex and Copilot implementations should become `ExecutionProviderAdapter` implementations. Manual print-only and stub execution adapters should not remain selectable server capacity providers; provider-runner DryRun is the only non-side-effect fallback execution mode.
+- Existing Codex and Copilot implementations should become `ExecutionProviderAdapter` implementations. Manual print-only and stub execution adapters must not remain selectable server capacity providers; `plan` validates intended execution without selecting any fallback execution provider.
 - `AgentRunTrace` remains lower-level trace detail.
 - `AgentModeRun` remains the durable assignment-level record.
 - Kernel validation must continue to reject invalid acting work, expired leases, output contract violations, missing capability coverage, invalid capability handles, invalid TreeDX proxy handles, and unsupported modes.
@@ -825,7 +825,7 @@ outputs -> model final response, changed paths, verification hints
 usage -> tokens, wall minutes, files changed
 ```
 
-Existing Codex execution should use `ExecutionProviderAdapter.start`. The adapter should expose descriptors such as `ai_model`, `codex_subscription`, `repo_read`, `repo_write`, `planning`, `implementation`, and `verification` as applicable. It should report wall time, token usage when available, changed paths, commands proposed or run, and verification hints as normalized usage and artifacts.
+Existing Codex execution should use `ExecutionProviderAdapter.start`. The adapter should expose descriptors such as `ai_model`, `codex`, `repo_read`, `repo_write`, `planning`, `implementation`, and `verification` as applicable. It should report wall time, token usage when available, changed paths, commands proposed or run, and verification hints as normalized usage and artifacts.
 
 ## API And SDK Additions
 
@@ -950,7 +950,7 @@ Acceptance:
 ### Phase C: Runtime Adapter Replacement
 
 - Replace the retired prompt-only adapter with `ExecutionProviderAdapter` in `packages/agent/src/agents/runtime-types.ts`.
-- Migrate `CopilotExecutionAdapter` and `CodexSubscriptionExecutionAdapter`; remove selectable stub/manual execution providers in favor of explicit DryRun fallback behavior in the provider runner.
+- Migrate `CopilotExecutionAdapter` and `CodexExecutionProviderAdapter`; remove selectable stub/manual execution providers. A `plan` operation validates intended execution without constructing a fake provider, while live execution fails closed when no provider is available.
 - Update `agent-runtime.ts` provider registry to register execution-provider adapters.
 - Update handlers to call work-package execution instead of legacy prompt execution.
 
