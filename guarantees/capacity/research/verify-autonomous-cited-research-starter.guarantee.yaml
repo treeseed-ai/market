@@ -37,7 +37,8 @@ negativeCases:
 evidence:
   required: [guarantee_report, verifier_evidence, api_verification_log, audit_event_id]
 notes:
-  - "The verifier requires all four starter roles, forty-one settled assignments, eleven durable stages, two independent citations with hashes and retrieval metadata, rejection and revision, cited publication, Reporter completion, continuous access-token refresh, and terminal cleanup."
+  - "Reopened on 2026-07-20: scripted source and execution evidence was withdrawn. Reactivate only after governed real-source collection and the complete real-provider revision workflow pass."
+  - "The verifier requires all four starter roles, every canonical stage with one settled assignment per attempt, two independent citations with hashes and retrieval metadata, rejection and at least one revision, repeated revision/review when approval is withheld, cited publication only after approval, Reporter completion, continuous access-token refresh, and terminal cleanup."
 run:
-  timeoutSeconds: 2400
+  timeoutSeconds: 14400
   requiredForRelease: true

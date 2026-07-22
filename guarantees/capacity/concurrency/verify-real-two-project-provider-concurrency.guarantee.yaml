@@ -1,0 +1,44 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.capacity.concurrency.verify-real-two-project-provider-concurrency.511
+journeyIndex: 511
+type: capacity
+subtype: concurrency
+journey: Verify Real Two Project Provider Concurrency
+ownerPackage: "@treeseed/market"
+surface: agent-runtime
+summary: "Prove one reconciled local provider executes independent engineering and research project assignments concurrently through two real Codex runners with isolated TreeDX workspaces, project budgets, artifacts, usage, settlement, and cleanup."
+status: active
+actors:
+  allowed: [team_owner, capacity_provider, capacity_operator]
+  forbidden: [unapproved_capacity_provider, revoked_capacity_provider]
+gates: [core, release]
+preconditions:
+  fixtures: [integrated_treeseed_project]
+  notes:
+    - "The reconciled engineering and research starter repositories must be available; the bounded two-slot scenario runs before the long one-slot baselines so portfolio failures stop early."
+scene:
+  required: false
+api:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle, market.capacity.failure-concurrency-matrix]
+content:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle]
+audit:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle, market.capacity.failure-concurrency-matrix]
+negativeCases:
+  - id: project-failure-cannot-consume-another-project-slot
+    actor: capacity_provider
+    verifierRefs: [market.capacity.failure-concurrency-matrix]
+  - id: concurrent-projects-cannot-share-workspace-or-settlement
+    actor: capacity_provider
+    verifierRefs: [market.capacity.full-local-lifecycle]
+evidence:
+  required: [guarantee_report, verifier_evidence, api_verification_log, audit_event_id]
+notes:
+  - "Activate only after the live verifier records two distinct project ids, assignment ids, workspace ids, overlapping claimed-to-completed intervals, dimensional usage evidence with exactly one aggregate actual and one ledger settlement per assignment, and zero residue."
+  - "The bounded service matrix supplies deterministic failure isolation; the real-provider scenario supplies overlapping Codex/AgentKernel/TreeDX execution."
+run:
+  timeoutSeconds: 14400
+  requiredForRelease: true

@@ -1,12 +1,12 @@
 # Capacity Provider and Agent Coordination Architecture
 
 **Status:** Canonical current architecture
-**Last updated:** 2026-07-17
+**Last updated:** 2026-07-21
 **Completion authority:** [Agent Capacity Completion and Production-Readiness Plan](./agent-capacity-completion.md)
 
 ## Purpose
 
-This document defines the single coordination architecture for external capacity providers, team governance, work allocation, API-side assignment, provider-local execution, and AgentKernel operation. It replaces the former single-team provider, permanent API-key, check-in grant assertion, opaque/team-authored lane, and team-owned execution-provider designs. Canonical provider-global execution providers and provider-native lanes remain required target entities.
+This document defines the single coordination architecture for external capacity providers, team governance, work allocation, API-side assignment, provider-local execution, and AgentKernel operation. It replaces the former single-team provider, permanent API-key, check-in grant assertion, opaque/team-authored lane, and team-owned execution-provider designs. Provider-global execution providers and provider-native lanes are canonical durable entities in the clean baseline.
 
 ## Ownership
 
@@ -77,6 +77,8 @@ Connections may narrow, but never widen, provider-global capability or limits. A
 
 Providers initiate outbound traffic only. The API never needs inbound connectivity to a provider host.
 
+Membership access tokens are intentionally short-lived. The durable membership credential is the renewal authority: the provider exchanges it with a fresh signed proof at each long-running starter or lifecycle boundary, and cleanup independently renews before closing sessions. A bootstrap token must not be captured and reused for a workday that can outlive it.
+
 ## Availability Is Supply, Not Authority
 
 An approved membership access token creates one expiring availability session. Refresh uses an expected sequence so concurrent or stale managers cannot overwrite current state. Opening a replacement session closes the previous open session for that membership.
@@ -122,6 +124,8 @@ A workday is duration- and budget-bounded. The API assignment function is determ
 
 Starting a workday consumes existing team governance and project configuration. A convenient CLI selector such as `local` must first resolve to one globally stable provider id through approved membership plus open local availability; it is never persisted as a provider identity. The scheduler fails closed before mutation unless every requested project exists, the active allocation is effective and covers it, one planning grant is unambiguous, and a TreeDX repository binding already exists. Scheduler failure is a durable failed run, and any partially created envelopes are terminalized without changing grants, allocations, or TreeDX bindings.
 
+A workday run is the portfolio scheduling boundary and may own multiple project envelopes. Parallel project execution uses one provider-bound run, one envelope and grant cap per project, and provider/runner concurrency above those envelopes. Local same-provider successor semantics deliberately terminalize an older run; creating one run per project would therefore be replacement, not concurrency. Team-scoped mutation receipts require project identity in every project-agent-class idempotency key.
+
 Every scheduled envelope records its exact owning workday run through an indexed foreign key. Terminalization and recovery use only that relationship, never an envelope-id prefix. After a partial scheduling failure, the API attempts exact envelope closure, the failure event, and the failed-run transition independently; inability to confirm any required recovery record is itself a visible control-plane failure.
 
 Planning remains productive without approved decisions: agents may ask questions, propose work, estimate, review, create linked notes, structure knowledge, and summarize evidence. Every eligible configured planning agent participates before any agent repeats. If duration, budget, and useful demand remain, later cycles may be synthesized.
@@ -150,7 +154,11 @@ There is no secondary project-runner task queue. The API exposes no task claim/e
 
 There is also no project-runner manager-lease, worker-runner, repository-claim, or runner-scale lifecycle. Provider availability sessions, assignments, leases, mode runs, and provider-manager telemetry are authoritative. Operations-runner workspace ownership remains separately modeled as `platform_repository_claims`; it is not an agent scheduling or capacity record.
 
+Provider-manager liveness and runner execution remain concurrent services. The manager keeps each exact membership session fresh while any runner holds work; the API rejects renewal once that short-lived authority expires. A synchronous acceptance executor therefore uses a refresh-only session heartbeat beside its runner. It never leaves a full manager scheduler running after the selected dispatch set, so session freshness cannot pre-lease later work.
+
 Renew, return, complete, and fail share one typed lifecycle service. Every operation requires current provider/membership ownership, the current lease token, an unexpired lease, and state-version CAS. A stale runner cannot return, complete, fail, or settle work after lease expiry; completion additionally requires the assignment reservation to be consumed, while terminal failure settles before releasing the lease.
+
+For successful work, settlement is the runner's local terminal-renewal boundary even though API completion follows it. The runner stops timer and execution-lifecycle renewals before the settlement request consumes the reservation, then closes the workspace and completes the assignment. This prevents a queued renewal from being misreported during the valid consumed-reservation-to-released-lease handoff; the API still rejects any renewal that actually arrives after reservation consumption.
 
 Mode-run delivery is replay-safe and required. The provider retries one stable assignment/event identity rather than minting a new phase id, and it does not acknowledge buffered execution-provider messages before durable acceptance. API persistence treats same-assignment replay as an idempotent update, rejects reuse of that identity by another assignment, and links usage only when the usage record belongs to the same team and assignment. Exhausted delivery returns or fails the lease with explicit diagnostics so execution never advances without its forensic control-plane record.
 
@@ -158,7 +166,17 @@ Mode-run delivery is replay-safe and required. The provider retries one stable a
 
 `AgentKernel.runAssignment` is the sole production kernel entrypoint. It validates the assigned mode and class, loads project content through assignment-scoped TreeDX operations, resolves the configured activity profile, filters tools, invokes one execution adapter, validates one artifact manifest, and records telemetry.
 
-Handlers route and validate; project configuration decides intent and artifact type. TreeDX tool receipts are the single owner of generated content. Handlers and the kernel must not perform a second local write. Every note links to its subject, and every artifact records assignment, mode run, agent/class/handler, TreeDX refs, sources/citations, verification, usage, signals, diagnostics, and errors.
+Handlers route and validate; project configuration decides intent and artifact type. TreeDX tool receipts are the single owner of generated content. Handlers and the kernel must not perform a second local write. Every note links to its subject, and every artifact records assignment, mode run, agent/class/handler, TreeDX refs, sources/citations, verification, usage, signals, diagnostics, and errors. Before either canonical TreeDX commit tool may finalize a writable assignment workspace, the provider tool boundary checks authenticated telemetry for the required content model and subject relations on every mutated note. A missing gate returns a structured non-mutating result, allowing same-thread repair before TreeDX makes the workspace immutable. A bounded same-thread completion correction may obtain missing authenticated receipts or repair an incomplete relation through the same granted tools. The initial run and correction share one isolated provider client/runtime; auxiliary questions, proposals, or notes remain separate artifacts and never substitute for the configured required artifact kind.
+
+The assignment's canonical `modeRunId` owns kernel running-to-terminal lifecycle evidence and must match the artifact manifest. Provider progress phases and execution-provider messages use distinct event identities. For engineering, the last successful source checkpoint is authoritative, downstream exact refs come only from authenticated completed-predecessor manifests, and review receives only completed-ancestor evidence. For content, both `treeseed.content.commit` and direct `treedx.commit_workspace` are canonical commit operations when their authenticated receipts and exact path/ref/SHA read-back agree.
+
+Provider completion never implies repository integration. A supervisor may use `capacity checkpoint-integrate` only after the graph is completed and the final implementation contract, verification, review, and release-readiness evidence are approved. The API-selected deliverable manifest and project repository topology are required inputs. The SDK revalidates immutable lineage and copies the checkpoint into a clean unprotected task branch; the provider has no invocation path to this operator command and gains no push, save, stage, release, deployment, grant, or allocation authority.
+
+Provider-global concurrency is exercised at both deterministic and real-execution layers. The one-slot multi-team case proves final-slot exclusion and failure isolation. The bounded two-slot starter case uses one provider connection/session and one shared allocation with independent project slices, while per-project grants cap each project at one assignment. Two manager claims and two runner executions must overlap without sharing project, worktree, TreeDX workspace, usage, or settlement identity.
+
+Research uses the API-owned eleven-stage workflow rather than unconstrained planning. The tool catalog intersects project web policy with the selected provider's bounded source policy and omits search/fetch when no allowed domain remains. Fetch, claim, and review tools emit authenticated events consumed by workflow projection. At independent-source fetch, real Codex must produce the configured number of successful fetch receipts; a bounded same-thread correction may request missing receipts from a completed or waiting result, but cannot fabricate citations or replace the required linked TreeDX note.
+
+The research workflow is cyclic but finite at its governed revision boundary. An authenticated rejection during post-revision approval is a successful review outcome, not an assignment failure: the API records the attempt and reason, reopens the Researcher revision node, returns Reviewer approval to pending, and withholds publication. The next assignment must revise the semantic claim text against that reason, not merely relabel it supported. The project/workflow-owned `maxRevisionCycles` is a typed one-through-ten limit (default three); rejection at the limit blocks the workflow and fails the approval node with inspectable evidence. Workday duration and budget remain independent outer bounds.
 
 ## Usage and Settlement
 
@@ -195,7 +213,7 @@ Operator inspection covers workdays, assignments and explanations, execution run
 
 ## Durable Records
 
-The target clean baseline contains global identities, team registration keys, requests, memberships, credentials, access tokens, proof nonces, audit events, availability sessions, provider-global execution providers and lanes, grants, allocation sets, workdays/participation/demand/work graphs, reservations, capacity-provider assignments, mode runs, usage actuals, ledger entries, and durable TreeDX proxy authorization/audit records. Admission persists any assignment proxy handle in the same transaction as its reservation and assignment. The durable handle row—not the embedded assignment context—is authoritative for API proxy authorization, including distinct read and write path scopes. The current baseline still diverges in entity names and omits execution-provider/lane entities; CAP-082 owns that Phase 1 correction.
+The clean baseline contains global identities, team registration keys, requests, memberships, credentials, access tokens, proof nonces, audit events, availability sessions, provider-global execution providers and lanes, grants, allocation sets, workdays/participation/demand/work graphs, reservations, capacity-provider assignments, mode runs, usage actuals, ledger entries, and durable TreeDX proxy authorization/audit records. Admission persists any assignment proxy handle in the same transaction as its reservation and assignment. The durable handle row—not the embedded assignment context—is authoritative for API proxy authorization, including distinct read and write path scopes. CAP-082 completed and service-proved execution-provider/lane persistence, admission, provider-local enforcement, usage, and settlement provenance.
 
 Execution-provider inventory is not duplicated in team-owned tables. Current execution-provider facts come from validated provider manifests and unexpired availability snapshots.
 
@@ -204,3 +222,5 @@ Execution-provider inventory is not duplicated in team-owned tables. Current exe
 Production proof must cover registration rotation and replay, approval-without-authority, credential/token revocation, multi-team isolation, provider-global concurrency, authoritative grants, allocation hard caps and borrowing, atomic admission, lease CAS, exactly-once settlement, workday continuation/fairness, acting gates, TreeDX-only artifacts, complete trace, starter engineering/research workflows, interruption recovery, and CLI/API parity.
 
 String, route-presence, mock-call-order, and file-presence tests are not sufficient evidence. Service workflows must exercise the real API database, provider manager, runner, kernel, TreeDX proxy, usage, and settlement paths.
+
+The local production proof explicitly selects the independent engineering and research starter repositories. Reconciliation seeds each into its own TreeDX repository; each run creates a disposable project/control-plane scope bound to that repository and imports its MDX agents through TreeDX. Engineering executes against the starter checkout through isolated exact-ref worktrees. The test measures durable demand, participation, admission, reservations, leases, the canonical mode run, authenticated artifact/tool receipts, graph/workflow transitions, usage, ledger settlement, handle revocation, and zero-drift cleanup. Guarantee preflight reconciles the managed API source closure instead of trusting endpoint health from a stale process. Final cleanup respects asynchronous project aggregate deletion and waits for the API-owned team-deletion blockers to converge before removing the isolated team. A fabricated execution provider or a disposable fake source repository is not admissible proof.

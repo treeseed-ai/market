@@ -1,7 +1,7 @@
 # Agent Kernel Mode Runtime
 
 **Status:** Canonical runtime design for activity-profile execution, planning reservations, and planning/acting mode boundaries
-**Date:** 2026-07-05
+**Last updated:** 2026-07-21
 **Audience:** Agent runtime, SDK/API contract, provider runtime, Admin, and CLI implementers
 
 > Completion authority: [Agent Capacity Completion and Production-Readiness Plan](./agent-capacity-completion.md) governs removal of legacy kernel scheduling/cycle surfaces, consolidation on `runAssignment`, and the TreeDX single-artifact execution contract.
@@ -113,6 +113,14 @@ Agent content access is separate from provider tool access. `contentAccess.read`
 Codex and other AI-focused execution providers should receive assignment-scoped tools directly where their harness supports tool calling. A handler should not require a magic output string to ask the runtime for a tool; missing capability is reported as a structured blocked result. Provider runners capture execution-provider messages, usage, and artifacts as assignment/mode-run telemetry so UI surfaces can follow long-running agent work.
 
 Mode-run telemetry is required evidence, not best-effort logging. Every provider phase derives one stable identity from the assignment and logical event and retries that same identity through a bounded delivery primitive. A provider message remains pending until the API acknowledges it. If required evidence cannot be persisted after bounded retries, the runner does not silently continue: it returns or fails the assignment through the canonical lease path and records explicit telemetry-delivery diagnostics on that lifecycle transition.
+
+Kernel lifecycle identity is narrower than provider telemetry identity. The assignment supplies the canonical `modeRunId`; kernel start and terminal updates use that id, and the resulting artifact manifest must reference it. Provider phase/message rows use their own stable event ids. They provide detail but cannot authenticate a predecessor artifact or replace the canonical lifecycle row.
+
+For governed research, the work package includes `researchStage`, `minimumIndependentSources`, `maxRevisionCycles`, current revision count, and the latest authenticated review attempt when one exists. Research tools are callable only when the assignment catalog contains the provider/project policy intersection. Successful fetches, claims, and review decisions become authenticated tool events. The Codex adapter enforces required fetch receipts at the independent-source stage and may issue one bounded same-thread correction for either a completed or waiting result; it never converts prose or an unauthenticated URL into citation evidence. A reopened revision prompt quotes the Reviewer's reason and requires evidence-bounded claim text, not a status-only edit.
+
+Reviewer rejection remains an authenticated successful output even at the post-revision approval gate. AgentKernel and the provider runner complete and settle that assignment normally; API workflow projection records the reason and synthesizes the reopened Researcher revision demand while below the configured limit. At the limit it records a blocked workflow instead of another demand. The runtime must not rewrite an evidence-based rejection into approval or treat the feedback result as a provider failure.
+
+The same correction boundary enforces general completion receipts. One isolated Codex client and runtime home span the initial run and its single correction so the existing thread and assignment MCP catalog remain authoritative; cleanup occurs only after the assignment attempt ends. Missing verification, checkpoint, review, note-relation, or required content-kind receipts can request narrowly scoped follow-up tool work. Before either canonical TreeDX commit tool may finalize a writable assignment workspace, the provider tool boundary checks authenticated telemetry for the required content model and subject relations on every mutated note. A missing gate returns a structured non-mutating result, allowing the same thread to repair content before TreeDX makes the workspace immutable. Auxiliary content remains independently classified and cannot be relabeled as the required deliverable, while later validated receipts for the same content path supersede earlier incomplete relation metadata.
 
 ## Mode Selection
 
@@ -253,13 +261,14 @@ Runtime verification should continue to prove:
 - the API's exactly-once reservation settlement is the sole usage-actual writer; the kernel cannot create a parallel usage record
 - provider assignments and mode runs are the sole task execution lifecycle; a project-runner task queue, client, or task/event/output table must not be reintroduced
 - provider availability and assignment telemetry are the sole agent coordination lifecycle; project-runner manager leases, worker runners, repository claims, runner scale decisions, agent pools, pool registrations, or direct worker-pool scalers must not be reintroduced
+- the canonical mode-run row named by the assignment and artifact manifest exists and reaches its terminal state; provider phase rows are not accepted as a substitute
+- engineering downstream worktrees resolve the final successful authenticated checkpoint from completed predecessor manifests, and review does not demand graph-blocked downstream artifacts
+- research source tools expose only the provider/project domain intersection, and the eleven-stage workflow advances only from authenticated citation, claim, review, TreeDX artifact, publication, and reporting evidence
+- two-slot acceptance runs distinct project assignments through separate runners and TreeDX workspaces, with overlapping durable claim intervals and independently settled usage
+- availability authority remains fresh throughout any assignment longer than the short session TTL, without a background acceptance scheduler pre-leasing later graph work
+
+AgentKernel authority ends at the assignment checkpoint and artifact manifest. It never integrates that checkpoint into an operator branch. The separate SDK/CLI supervisor operation reads the API-selected deliverable manifest and repository topology, revalidates the completed graph and immutable Git evidence, and stops at a local task-branch integration. Normal `trsd save`, stage, release, and deployment controls remain outside AgentKernel and the provider runtime.
 
 ## Guarantee Execution Providers
 
-Agent guarantee runs support three execution-provider modes:
-
-- `mock`: deterministic CI-safe provider that runs through the provider manager, runner, kernel, tool telemetry, assignment, and reporting path without a live model account.
-- `live-codex`: live Codex execution provider; local and staging runs must fail closed with `missing_codex_auth` when `~/.codex/auth.json` or `TREESEED_CODEX_AUTH_FILE` is unavailable.
-- `auto`: local default; selects live Codex when auth is detected and otherwise selects the deterministic mock provider.
-
-CI should use `TREESEED_AGENT_GUARANTEE_EXECUTION_PROVIDER=mock`. Staging proof should use live Codex.
+Agent guarantee runs support `live-codex` and `auto`. Both require real Codex authentication. `auto` selects Codex when authentication is available and otherwise fails closed with `missing_codex_auth`; it never falls back to a mock or synthetic execution provider. CI and staging must provide real provider credentials for any guarantee that claims execution behavior.

@@ -7,7 +7,7 @@ This runbook describes how to demonstrate TreeSeed through the real local operat
 * seeded TreeSeed portfolio;
 * local API and web UI;
 * local TreeDX content repository plane;
-* capacity-provider workday manager and worker runner;
+* capacity-provider manager and assignment runner;
 * capacity provider, lanes, grants, and work policy;
 * governance records;
 * generated artifacts and operational knowledge.
@@ -199,10 +199,10 @@ Show launch status, readiness, staging and production cards, active timeline, la
 npx trsd dev start --web-runtime local --json
 ```
 
-That command supervises the API, managed local PostgreSQL, migrations, and the deployment runner. For a focused mocked rehearsal outside the integrated supervisor, queue staging deploy or monitor, then run:
+That command supervises the API, managed local PostgreSQL, migrations, and the deployment runner. External deployment actions require real provider credentials and a disposable target; during the hosted-deployment suspension they remain blocked rather than simulated. The standalone real runner is:
 
 ```bash
-npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external
+npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment
 ```
 
 Walk through:
@@ -262,7 +262,7 @@ A healthy local demo should show:
 
 * at least one seeded project;
 * repository metadata for the market project;
-* deployment readiness, staging/prod environment cards, and at least one mocked deployment or monitor record;
+* deployment readiness and staging/prod environment cards, without claiming a hosted deployment unless real provider acceptance passed;
 * local capacity provider, lanes, grants, and work policy;
 * local TreeDX binding and project repository topology where content is `treedx` and site/project repositories are `filesystem`;
 * Karyon live proof project with `docs/` as the content source;
@@ -299,25 +299,26 @@ npx trsd dev status --json
 If you are intentionally demonstrating the capacity-provider workday loop, run:
 
 ```bash
-npx trsd dev:manager --plan --json
+npx trsd capacity up --json
+npx trsd capacity status --json
 ```
 
-Then restart the workday manager with an explicit workday id:
+Then create a duration- and budget-bounded workday through the canonical control-plane command:
 
 ```bash
-npx trsd dev:manager --with-worker --docs-automation plan --approval-policy manual --workday-id local-docs-1 --capacity-budget 500
+npx trsd capacity workday-run --market local --team <team-id> --provider local --workdays 1 --duration-seconds 900 --execute --json
 ```
 
 ### Tasks Do Not Run
 
-Inspect capacity readiness, worker runner logs, task state, and queue polling. The local seed must provide capacity provider, lanes, grants, and work policy before the worker loop can look healthy.
+Inspect capacity readiness, provider runner logs, assignments, availability sessions, grants, and the effective allocation. Membership alone cannot execute work, and the provider runtime does not own a separate task queue.
 
 ### Deployment Does Not Progress
 
-Confirm the project has repository and web host readiness. In normal local development, the deployment runner is already supervised by `npx trsd dev start --web-runtime local --json`. For focused mocked debugging outside the integrated supervisor, run:
+Confirm the project has repository and web host readiness. In normal local development, the deployment runner is already supervised by `npx trsd dev start --web-runtime local --json`. For real-provider debugging outside the integrated supervisor, run:
 
 ```bash
-npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external
+npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment
 ```
 
 If the runner cannot authenticate, unlock or configure the local Market runner secret. If a real external staging proof is required, use a disposable GitHub/Cloudflare target or document the missing credential/target blocker.

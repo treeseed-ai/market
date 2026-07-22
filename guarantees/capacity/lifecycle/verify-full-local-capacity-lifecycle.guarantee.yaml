@@ -43,9 +43,10 @@ negativeCases:
 evidence:
   required: [guarantee_report, verifier_evidence, api_verification_log, audit_event_id]
 notes:
+  - "Reopened on 2026-07-20: prior synthetic-provider evidence is not admissible. Reactivate only after the normal manifest-selected real-provider lifecycle passes with cleanup."
   - "The verifier creates an isolated provider identity and membership, proves approval creates no grant, then creates the grant, allocation, workday, and demand as separate governed operations."
   - "The same global Ed25519 identity joins a temporary second team; the verifier rejects proof replay, resolves concurrent approval/rejection exactly once, races registration against key rotation, observes old-generation cancellation while the approved membership survives, suspends only the second membership, denies its token, and deletes the temporary team."
   - "Terminal validation requires one committed TreeDX artifact with create/commit receipts, exact-ref read-back, dimensional usage with one aggregate row, one ledger settlement, closed workspace, revoked capability handles, unchanged human policy, and denied revoked access."
 run:
-  timeoutSeconds: 2400
+  timeoutSeconds: 14400
   requiredForRelease: true

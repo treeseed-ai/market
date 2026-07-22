@@ -32,9 +32,10 @@ negativeCases:
 evidence:
   required: [guarantee_report, verifier_evidence]
 notes:
+  - "Reopened on 2026-07-20: the service-level matrix passes, but the aggregate claim remains planned until its real-provider lifecycle dependency is re-proven."
   - "This root-owned workflow deliberately composes public SDK contracts with the API repository/service stack and Agent provider-local durable capacity store; neither package depends on the other package's implementation."
   - "The API claim uses the real reconciled local lifecycle verifier; the audit and negative claims add the bounded service-level concurrency and recovery matrix."
   - "The workflow fingerprints human-owned grants and allocation policy before execution and proves they are unchanged afterward."
 run:
-  timeoutSeconds: 2400
+  timeoutSeconds: 14400
   requiredForRelease: true

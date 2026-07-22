@@ -1,7 +1,7 @@
 # Agent Capacity Implementation Roadmap
 
 **Status:** Canonical architecture roadmap; architecture milestones M1-M5, activity profiles, and reservation-backed planning implemented. Milestone numbers are historical architecture groupings, not production-completion phase numbers.
-**Date:** 2026-07-05
+**Last updated:** 2026-07-21
 **Audience:** Treeseed SDK, API, agent runtime, provider runtime, Admin, CLI, and package maintainers
 
 > Completion authority: [Agent Capacity Completion and Production-Readiness Plan](./agent-capacity-completion.md) records the audited gaps, replacement architecture, phase status, and evidence required before this roadmap can be described as production-ready. Where an older implemented-status statement conflicts with that document, the completion plan controls.
@@ -22,7 +22,7 @@ Related architecture:
 
 The implementation boundary is:
 
-- `@treeseed/agent` owns the provider runtime, provider manager, provider runner, AgentKernel execution, mode scheduling, fallback behavior, runtime images, runtime tests, and provider-local lifecycle behavior.
+- `@treeseed/agent` owns the provider runtime, provider manager, provider runner, sole-entrypoint AgentKernel execution, activity-profile resolution, fallback behavior, runtime images, runtime tests, and provider-local lifecycle behavior.
 - `@treeseed/sdk` owns portable contracts, domain types, reconciliation contracts, package discovery, config, and provider-neutral helper logic.
 - `@treeseed/api` owns durable control-plane state, API routes, request-scoped demand compilation, the assignment function, provider sessions, leases, reservations, usage settlement, decision readiness records, governed workday scheduling, exact run-owned workday envelopes, scheduling-failure recovery, and TreeDX proxy authorization.
 - `@treeseed/admin` owns browser operator surfaces over API contracts.
@@ -31,6 +31,21 @@ The implementation boundary is:
 - `packages/treedx` remains product-neutral. Treeseed maps project and capacity semantics outside TreeDX.
 
 Human-machine execution provider work follows the same ownership model. `@treeseed/agent` owns executable adapter interfaces and provider-local runtime behavior; `@treeseed/sdk` owns portable DTOs and pure matching helpers; `@treeseed/api` owns assignment selection and durable lifecycle records. See [Human-Machine Execution Providers](./human-machine-providers.md).
+
+## Production Acceptance Project Model
+
+Capacity acceptance tests projects as projects, not as folders in the Market integration checkout. The active first-party fixtures are the independently versioned Git repositories checked out at `starters/engineering` and `starters/research`. Reconciliation publishes each repository into its own TreeDX repository (`treeseed-starter-engineering` or `treeseed-starter-research`) at an immutable commit.
+
+For every live starter run, the verifier:
+
+1. selects one of those explicit starter repositories and resolves its immutable Git/TreeDX ref;
+2. creates an isolated, disposable API project under the acceptance team with the starter's logical repository architecture;
+3. attaches that project to the corresponding reconciled TreeDX repository;
+4. reads the project's MDX agent definitions through TreeDX and synchronizes project-scoped agent classes;
+5. creates only run-scoped grant, allocation, workday, workflow, reservation, assignment, and workspace state; and
+6. deletes the disposable API project and terminalizes all run state during cleanup.
+
+The verifier does not initialize a fake repository per run and does not treat the Market root as the starter repository. Engineering mutation runs use isolated worktrees from the selected starter checkout and must prove the assignment's exact immutable base/effective ref. Research content runs mutate only the assignment's TreeDX workspace and commit through the project proxy.
 
 ## Current Agent Architecture
 
@@ -102,7 +117,7 @@ Implemented boundaries:
 - Availability-session create/refresh/close routes record availability, execution providers, native limits, capabilities, runner pressure, and provider-local constraints. Provider-asserted grants are not accepted.
 - Provider synthesis resolves one exact membership-scoped open session through a typed fail-closed service. It requires approved membership and active provider authority, validates time/environment scope, rejects substitution of an unknown explicit session, and propagates storage failure. Lease-time policy remains solely owned by the canonical lease-authority service.
 - Provider next-assignment route leases eligible `ProviderAssignment` records and first performs bounded request-scoped synthesis from active live workdays, open planning input requests, and accepted capacity-plan work units.
-- Provider check-in and assignment terminal transitions do not enqueue synthesis. Authenticated next-assignment polling is the single trigger, so failures remain request-visible and cannot disappear with an in-memory timer queue.
+- Availability refresh and assignment terminal transitions do not enqueue synthesis. Authenticated next-assignment polling is the single trigger, so failures remain request-visible and cannot disappear with an in-memory timer queue.
 - One typed admission service owns the synthesis-to-admission transaction boundary. Typed planning/capacity-plan synthesis strictly decodes persisted JSON, propagates reads, and records denied pre-admission candidates in `capacity_audit_events`; assignment explanations are written only after admission.
 - Admission state, grants, and committed replay use one strict durable-JSON primitive for allocation, grant, workday, session, class, reservation, and assignment evidence. Malformed required state fails with a stable control-plane error instead of becoming empty/default policy.
 - Capacity mutation input uses one strict request-object primitive across extracted routes and remaining inline agent/capacity composition routes. Optional empty bodies remain explicit, while malformed JSON and null, array, or primitive roots fail with stable 400 codes before service or persistence work; catch-and-default request parsing is forbidden.
@@ -112,9 +127,10 @@ Implemented boundaries:
 - Assignment list/get persistence and strict row serialization are owned by one typed repository. Next-assignment validation, bounded ordering, diagnostics, and lease CAS are owned by one typed service that invokes the sole lease-authority evaluator; corrupt persisted state and invalid lease duration fail before authorization or mutation.
 - The shared assignment eligibility function requires an active provider, approved membership, an open membership session inside its availability window, an API-owned active matching grant, required capabilities, active workday state, accepted/scheduled/active capacity-plan provenance for acting, ready or waived readiness for acting, and available runner concurrency.
 - Lease-renewal, return, complete, and fail routes delegate to one typed lifecycle service that updates `ProviderAssignment` state with runner id, lease token, lifecycle reason/code, output summary, and ledger settlement. All four require current membership/provider ownership, token, unexpired lease, and state-version CAS; completion requires consumed reservation state and terminal fail settles before transition.
+- Successful settlement is the runner-local terminal renewal boundary: informational usage is reported first, timer/execution renewal authority closes before settlement consumes the reservation, and workspace close plus assignment completion follow. Detached renewal rejection after that boundary is suppressed, while the API continues to deny renewals against consumed reservations.
 - Explicit workday closure, deadline maintenance, terminal-run recovery, and local-workday supersession share one typed settlement-before-transition terminalizer. The former provider-scoped expiry and supersede mutation paths are deleted; maintenance failures remain visible, state transitions use assignment-version CAS, and read endpoints do not run hidden recovery mutations.
 - Exactly-once reservation settlement is the only task-usage writer. The unused direct writer and its fail-open fixed-window execution-provider scan are deleted; one typed repository owns strict bounded usage evidence reads for summaries, diagnostics, and learning inputs.
-- Workday demand compilation and assignment selection are no longer embedded in the untyped store or split by source. Remaining modularization covers the other capacity domains still embedded in composition files and must reuse the demand, participation, admission, audit, workday/assignment repositories, lease-authority, lifecycle, settlement, fallback-evidence, and terminalization primitives rather than introduce compatibility paths.
+- Workday demand compilation and assignment selection are no longer embedded in the untyped store or split by source. Every capacity domain now uses the focused demand, participation, admission, audit, workday/assignment repositories, lease-authority, lifecycle, settlement, fallback-evidence, and terminalization primitives; static architecture gates reject a return to composition-file ownership.
 - The provider runner in `@treeseed/agent` is assignment-only. Legacy provider task HTTP routes and provider-client task methods have been removed.
 - Provider runners consume scoped project-agent assignment context and emit mode-run telemetry through the assignment route.
 - Provider images run provider manager and provider runner roles only. The retired provider-local API role is not part of the deployment service role set; provider coordination is outbound to the TreeSeed API.
@@ -132,7 +148,7 @@ Completed by Architecture Milestone M3 and gap closure:
 
 - Architecture Milestone M3 implemented AgentKernel-native planning/acting execution and fallback behavior.
 - Gap closure added deterministic synthesis from open planning input requests and accepted capacity-plan work units. Accepted decision execution inputs must first be aggregated into a durable capacity plan and accepted before acting assignments are synthesized. The newest accepted, scheduled, or active plan owns decision readiness; an inactive transition of an older plan cannot overwrite a newer active plan, and readiness becomes blocked when no active plan remains. Synthesis from legacy task queues and long-running scheduler daemons remains out of scope.
-- Project-scoped TreeDX proxy handles attached to synthesized assignments are recorded atomically as API-owned durable handle records by admission. The embedded assignment copy is provider execution context only and is never an authorization fallback. Provider-key TreeDX proxy calls require a matching active assignment lease and authoritative durable proxy handle id on every request; the shared SDK policy enforces repository, workspace, operation, distinct read/write path, expiry, and revocation constraints where present. Successful and denied provider proxy calls are recorded as project-visible audit rows without exposing raw TreeDX credentials.
+- Project-scoped TreeDX proxy handles attached to synthesized assignments are recorded atomically as API-owned durable handle records by admission. The embedded assignment copy is provider execution context only and is never an authorization fallback. Membership access-token TreeDX proxy calls require a matching active assignment lease and authoritative durable proxy handle id on every request; the shared SDK policy enforces repository, workspace, operation, distinct read/write path, expiry, and revocation constraints where present. Successful and denied provider proxy calls are recorded as project-visible audit rows without exposing raw TreeDX credentials.
 
 ## Architecture Milestone M3: Agent Kernel Mode Runtime
 
@@ -146,11 +162,12 @@ Implemented boundaries:
 - `AgentContext` carries optional assignment capacity context for provider-assigned work: selected mode, capacity envelope, decision input, project agent class/profile/policy, assignment id, provider id, readiness, and TreeDX proxy handle metadata.
 - `AgentContext.treeDx` exposes a first-class assignment-scoped TreeDX adapter when a provider assignment carries a valid proxy handle. The adapter applies handle defaults and rejects out-of-scope repository, workspace, operation, and path requests before calling the API. Handlers use it for context build, repository file readback, workspace search, workspace file mutation, and commit operations instead of receiving raw TreeDX credentials.
 - `AgentKernel.runAssignment` validates mode, lease, class/profile bounds, envelope scope, reserved acting capacity, decision-input scope, acting readiness, accepted capacity-plan provenance for acting, assignment capability eligibility metadata, TreeDX proxy handle scope, retry policy, and explicit output contracts before resolving or accepting a project-owned handler result.
-- `@treeseed/agent` now exposes kernel scheduling components (`ModeScheduler`, `QueueObserver`, `PriorityResolver`, `FallbackController`, and `OutputValidator`) for bounded mode decisions and fallback persistence without adding a central scheduler daemon.
+- `@treeseed/agent` exposes one thin `AgentKernel.runAssignment` coordinator over focused preflight, activity-profile resolution, context loading, tool policy, execution dispatch, output validation, artifact-manifest, telemetry, and failure-classification modules. The deleted mode scheduler, queue observer, and priority resolver are not public or production paths.
 - The provider runner executes leased assignments through `AgentKernel.runAssignment` and delivers mode-run telemetry through one bounded required-delivery primitive. Each logical phase uses a stable assignment/event identity, buffered messages remain pending until acknowledged, and exhausted delivery safely returns or fails the lease with explicit diagnostics.
 - API mode-run persistence permits same-assignment replay, rejects cross-assignment identity reuse, atomically links matching usage, and records running and terminal attempts with selected input, capacity envelope, validation/fallback detail, and lower-level `AgentRunTrace` references when handler execution reaches the trace path.
 - Invalid or unsupported assignments are bounded and observable. Retryable runtime gaps can be returned when the provider client supports return semantics; non-retryable mode/profile violations fail without executing handlers.
 - Legacy provider and project-runner task routes, clients, store methods, and task tables are intentionally absent. Project-runner manager leases, worker runners, repository claims, runner scale decisions, agent pools, pool registrations, and direct worker-pool scalers are also absent; provider availability sessions, assignments, and provider-manager telemetry own those semantics. Provider runtime execution uses availability-session create/refresh/close, next assignment, renew, mode-run, complete, return/fail, and usage routes; provider assignments and mode runs are the sole agent execution lifecycle. Operations-runner `platform_repository_claims` remain a separate workspace ownership contract.
+- Availability expiry remains a short liveness fence. The provider manager refreshes exact sessions while runners execute; acceptance must preserve that concurrency with a refresh-only heartbeat and must not replace it with a workday-long TTL or a background scheduler that can pre-lease later work.
 - The package-local legacy worker runtime and codebase documentation scan task have been removed from the general-purpose agent runtime. Specialized agents may still implement repository inspection as assignment-scoped handler/tool capability.
 
 Acceptance criteria:
@@ -189,6 +206,10 @@ Tester and Engineer persist source evidence through the narrow SDK assignment-ch
 
 That deliverable manifest is also the sole source-ref handoff record. It stores typed base/effective/checkpoint authority correlated to the completing assignment and mode run; approval selects the manifest id on the contract. Acting-demand compilation resolves a ready node from its completed predecessor manifests and requires one converged immutable effective commit before replacing the node's originally promoted base ref. The runner's exact-ref worktree check then proves ancestry. No scheduler, starter handler, or provider may infer an integration ref from ambient `HEAD`.
 
+The operator-side handoff is now explicit rather than inferred. The API exposes the selected deliverable manifest as a project-authorized read; the CLI loads it with the assignment, graph, and repository topology and calls the SDK-owned checkpoint integration operation. Plan and execute are mutually exclusive and explicit. Execute is replay-safe only when the current task-branch tree already equals the selected checkpoint; any other divergence, dirty state, protected branch, repository mismatch, superseded implementation, failed evidence, or authority mismatch blocks. The handoff stops before `trsd save`, push, stage, release, or deployment.
+
+Local release acceptance begins its real-provider starter section with a two-project gate so portfolio failures stop before the long baselines. One provider-bound workday creates independent engineering and research envelopes; one shared provider connection advertises exactly two Codex slots, one shared allocation contains separate project slices, and project grants remain independently capped at one. Two same-provider local workday runs would invoke the intentional successor contract and are not used to model project concurrency. The manager must lease both ready assignments, runners execute through AgentKernel concurrently, and terminal proof requires overlapping durable intervals plus isolated workspaces, artifacts, dimensional usage, exactly-once aggregate/ledger settlement, and cleanup. Existing one-slot ordering and deterministic failure/concurrency tests remain required rather than being replaced by the faster parallel case.
+
 ## Architecture Milestone M4: Admin And CLI Operator Surfaces
 
 Status: Implemented as read-only operator visibility over capacity coordination records. Admin and CLI consume API/SDK surfaces; they do not schedule, synthesize, or lease work.
@@ -212,7 +233,7 @@ Acceptance criteria:
 
 Completed by Architecture Milestone M5 and gap closure:
 
-- Architecture Milestone M5 implemented live acceptance proof capabilities for local and Railway capacity runtime assignment diagnostics.
+- Architecture Milestone M5 implemented local capacity-runtime acceptance and retained hosted probe contracts. Hosted execution is not current completion evidence while deployment is suspended.
 - Assignment explanation records now show why synthesized or explicit work was eligible, including readiness gates and source records.
 - Mutating operator workflows for assignment repair beyond existing controlled API fixture creation.
 - Native accounting-window aggregates, bounded diagnostic evidence, reset-rollover concurrency tests, and CLI/API visibility are implemented and service-proven under resolved CAP-053.
@@ -228,14 +249,16 @@ Implemented boundaries:
 - Keep `trsd capacity build/up/status/logs/down/test-local` focused on provider runtime lifecycle and diagnostics.
 - Reconcile provider registration, secrets, local Docker runtime, hosted runtime, images, health, and cleanup through SDK reconciliation.
 - Do not reconcile provider sessions, assignments, leases, mode runs, or usage actuals as infrastructure resources. Those are API control-plane records.
-- Live/provider acceptance includes probe-only runtime capabilities:
-  - local `capacity-provider-assignment-proof`
-  - Railway `capacity-provider-runtime-assignment-proof`
-- Runtime proof uses a manifest-v2 provider identity and approved team membership, opens a membership-scoped availability session with a short-lived access token, leases the assignment, emits mode-run telemetry and a forensic artifact manifest, settles exactly once, completes the assignment, and verifies mode-run visibility.
-- Diagnostic records are retained as API audit evidence tagged with the live-test run id. They are not cleaned up by infrastructure cleanup.
-- Hosted acceptance remains explicit: run cleanup before and after full Railway acceptance.
+- Infrastructure acceptance retains narrow provider-runtime probes, but production capacity proof is the real local engineering-plus-research starter sequence. It uses the public API, provider manager, provider runner, sole AgentKernel entrypoint, real Codex, TreeDX, isolated source worktrees, usage reporting, exactly-once settlement, and terminal cleanup.
+- Every long starter boundary exchanges the durable membership credential for a fresh short-lived access token. Cleanup performs its own exchange before closing an availability session; a token captured during initial bootstrap is not lifecycle authority for a later starter.
+- Engineering proof requires proposal and estimate planning, authenticated preparation artifacts, red test, implementation, passing verification, governed rejection/revision/reverification/approval, documentation, release-readiness output, reporting, exact-ref handoff, and settlement.
+- Research proof requires the complete API-owned eleven-stage workflow, two authenticated independent-source fetch receipts, linked evidence notes, claim synthesis, rejection, semantic revision, independent approval, cited publication, reporting, and settlement. A legitimate post-revision rejection must durably preserve its reason and reopen revision below the typed `maxRevisionCycles` limit. The next Researcher assignment must revise claim wording to fit the authenticated evidence. Rejection at the limit blocks the workflow rather than issuing unbounded work; publication remains blocked until approval.
+- Real-workday duration and guarantee timeout values are outer failure bounds, not delays. Verification terminates when the required workflow and cleanup postconditions complete. Expensive lifecycle evidence belongs to the lifecycle guarantee and is dependency-reused by focused parity checks, so contract-only corrections do not require another full workday when an admissible source-matched lifecycle report already exists.
+- Terminal verification authenticates the assignment's canonical mode run and artifact manifest; every returned content reference must name its receipt and the completed manifest tool-event id that emitted `content_created`, independent of whether the project used a model-aware create tool or a scoped TreeDX write; the manifest must also contain an authenticated `content_committed` event and exact TreeDX path/ref/SHA read-back. Revoked handles, one consumed reservation, one aggregate usage actual, and one ledger settlement remain mandatory.
+- Runtime records remain forensic API evidence while their isolated project exists. Cleanup cancels or terminalizes the API-owned workday first, closes the session, revokes the grant, requests deletion of every isolated project, waits for each asynchronous project aggregate, then waits for the authoritative team-deletion-blocker read to become empty before deleting the team. Persistent blockers are reported by exact code and identity. `completed`, `cancelled`, `failed`, and `degraded` are terminal run states; cleanup must finish with no isolated resource drift.
+- Hosted acceptance remains specified but disabled: after reviewed OpenTofu deployment automation is restored, run cleanup before and after full Railway acceptance. Until then CAP-024 remains fail-closed and local proof must not dispatch or impersonate hosted deployment.
 
-Acceptance configuration:
+Hosted acceptance configuration (local acceptance discovers or creates its isolated scope through public APIs):
 
 - `TREESEED_CAPACITY_ACCEPTANCE_API_URL`
 - `TREESEED_CAPACITY_ACCEPTANCE_ADMIN_TOKEN`
@@ -269,6 +292,6 @@ The active first-party starters are `engineering` and `research`. The former `in
 Release-grade capacity and agent work must prove:
 
 - API endpoint-family guarantees backed by complete route descriptor matrices.
-- Agent mock execution-provider guarantees for CI.
+- Agent execution-provider guarantees that fail closed unless a real provider is available, with live Codex proof for the current built-in autonomous runtime.
 - Live Codex agent guarantees for local/staging when Codex auth is present.
-- Local server restart, readiness, and acceptance seed before local guarantee runs.
+- Managed local source-closure reconciliation, server readiness, and acceptance seed before local guarantee runs. Endpoint health alone cannot reuse an API or operations runner whose started source digest is stale.

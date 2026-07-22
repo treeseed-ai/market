@@ -37,7 +37,8 @@ negativeCases:
 evidence:
   required: [guarantee_report, verifier_evidence, api_verification_log, audit_event_id]
 notes:
+  - "Reopened on 2026-07-20: scripted execution evidence was withdrawn. Reactivate only after the complete starter graph passes through the configured real provider and leaves zero residue."
   - "The verifier requires all eight starter roles, eleven durable graph nodes, an explicit Reviewer rejection and revision loop, exact-ref source checkpoints, TreeDX artifacts, dimensional usage, exactly-once ledger entries, and terminal cleanup."
 run:
-  timeoutSeconds: 2400
+  timeoutSeconds: 14400
   requiredForRelease: true

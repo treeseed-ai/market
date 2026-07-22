@@ -1,45 +1,16 @@
 # Web Deployment Release Notes
 
-## Summary
+TreeSeed exposes API and CLI contracts for governed project-web deployment records, operation lifecycle, monitoring, redaction, and audit. Provider mutation and provider-state verification must run through canonical reconciliation and real provider clients.
 
-TreeSeed Market now exposes a governed web deployment path for hosted projects. Operators can inspect deployment readiness, queue staging and production web actions, publish content, run monitors, watch progress, inspect history/events, and use matching CLI commands. The feature reuses existing project, host, repository, environment, platform operation, deployment, runner, monitor, and audit records.
+Hosted deployment acceptance is currently blocked by the intentional Railway and Cloudflare deployment suspension. Local plans and non-provider operation-lifecycle tests do not prove hosted deployment. No simulated external-provider execution is available or accepted as release evidence.
 
-Current hosting ownership:
-
-* Root Market deploys the Cloudflare web UI and `/v1/*` proxy only.
-* `packages/api` deploys the Railway API and Treeseed operations runner.
-* `trsd ready`, `trsd hosting verify --live`, and `trsd operations smoke` are the required fail-fast diagnostics before expensive hosted deploys or TreeDX bootstrap.
-
-## Included
-
-* Deploy page under `/app/projects/:projectId/deploy`.
-* Deployment API/read model routes under `/v1/projects/:projectId`.
-* `project:web_deployment` execution through the existing Treeseed operations runner.
-* `trsd projects deploy`, `publish`, `monitor`, list, inspect, retry, resume, and cancel parity.
-* Launch-to-Deploy redirect and launch recovery display.
-* Normalized monitor results visible in UI, API, and CLI.
-* Deployment governance, production confirmation, recursive redaction, and audit events.
-* Mocked local acceptance through:
-
-```bash
-npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external
-```
-
-## Deferred External Proof
-
-Automated release readiness uses mocked external execution. One real external staging deploy remains deferred unless safe disposable GitHub and Cloudflare credentials and targets are available. The actionable blocker is to provision a disposable repository and web target, then run staging deploy and monitor without `--mock-external`.
-
-Before attempting hosted proof, run:
+After the reviewed OpenTofu environments and disposable acceptance targets are restored, the required proof is:
 
 ```bash
 npx trsd ready staging --json
-npx trsd hosting verify --environment staging --service api --live --json
-npx trsd hosting verify --environment staging --service operationsRunner --live --json
-npx trsd operations smoke --environment staging --service operationsRunner --json
+npx trsd reconcile test-live --mode cleanup --provider all --environment staging --yes --json
+npx trsd reconcile test-live --mode acceptance --provider all --environment staging --yes --json
+npx trsd reconcile test-live --mode cleanup --provider all --environment staging --yes --json
 ```
 
-## Not Included
-
-* No new deployment system or runner family.
-* No legacy deployment routes or compatibility aliases.
-* No capacity-provider lanes, grants, worker pools, runtime hosts, Railway service ids, runner tokens, or provider secrets in web deployment UI/API/CLI output.
+Until that succeeds, hosted web deployment remains incomplete and must fail closed.

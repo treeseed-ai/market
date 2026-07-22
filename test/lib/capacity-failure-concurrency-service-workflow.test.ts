@@ -70,10 +70,10 @@ function admission(project: 'a' | 'b', now: string): CapacityAdmissionInput {
 }
 
 async function seedMatrix(store: ServiceStore, now: string) {
-	await store.createTeam({ id: 'matrix-team', slug: 'matrix-team', name: 'Matrix-Team' });
+	await store.run(`INSERT INTO teams (id, slug, name, created_at, updated_at) VALUES ('matrix-team','matrix-team','Matrix-Team',?,?)`, [now, now]);
 	await store.run(`INSERT INTO capacity_providers (id, fingerprint, public_jwk_json, display_name, identity_version, status, metadata_json, created_at, updated_at) VALUES ('matrix-provider','sha256:matrix-provider','{}','Matrix Provider',1,'active','{}',?,?)`, [now, now]);
 	await store.run(`INSERT INTO capacity_provider_team_memberships (id, team_id, capacity_provider_id, status, approved_at, approved_by_id, metadata_json, created_at, updated_at) VALUES ('matrix-membership','matrix-team','matrix-provider','approved',?,'matrix-owner','{}',?,?)`, [now, now, now]);
-	await store.run(`INSERT INTO capacity_execution_providers (id, capacity_provider_id, display_name, adapter, status, capabilities_json, native_unit, quota_visibility, max_concurrent_runners, native_limits_json, metadata_json, created_at, updated_at) VALUES ('matrix-execution','matrix-provider','Matrix Execution','deterministic_workflow','active','["engineering"]','credit','exact',1,'[]','{}',?,?)`, [now, now]);
+	await store.run(`INSERT INTO capacity_execution_providers (id, capacity_provider_id, display_name, adapter, status, capabilities_json, native_unit, quota_visibility, max_concurrent_runners, native_limits_json, metadata_json, created_at, updated_at) VALUES ('matrix-execution','matrix-provider','Matrix Execution','codex','active','["engineering"]','credit','exact',1,'[]','{}',?,?)`, [now, now]);
 	await store.run(`INSERT INTO capacity_provider_lanes (id, capacity_provider_id, execution_provider_id, display_name, status, capabilities_json, max_concurrent_runners, native_limits_json, metadata_json, created_at, updated_at) VALUES ('matrix-lane','matrix-provider','matrix-execution','Matrix Lane','active','["engineering"]',1,'[]','{}',?,?)`, [now, now]);
 	for (const suffix of ['a', 'b']) {
 		await store.run(`INSERT INTO projects (id, team_id, slug, name, metadata_json, created_at, updated_at) VALUES (?, 'matrix-team', ?, ?, '{}', ?, ?)`, [`matrix-project-${suffix}`, `matrix-project-${suffix}`, `Matrix Project ${suffix.toUpperCase()}`, now, now]);
@@ -120,7 +120,13 @@ describe('capacity failure and concurrency service matrix', () => {
 			// within the same workday state, so pausing B makes the recovery order
 			// explicit without weakening that production scheduling policy.
 			await store.run(`UPDATE workday_capacity_envelopes SET status = 'paused', updated_at = ? WHERE id = 'matrix-workday-b'`, [recoveryAt]);
-			await store.run(`UPDATE capacity_provider_assignments SET status = 'leased', lease_state = 'leased', lease_token = 'expired-lease', lease_expires_at = ?, runner_id = 'interrupted-runner', state_version = 2 WHERE id = 'matrix-assignment-a'`, [new Date(Date.now() - 1_000).toISOString()]);
+			const expiredAt = new Date(Date.parse(recoveryAt) - 1_000).toISOString();
+			await store.run(`UPDATE capacity_provider_assignments SET status = 'leased', lease_state = 'leased', lease_token = 'expired-lease', lease_expires_at = ?, runner_id = 'interrupted-runner', state_version = 2 WHERE id = 'matrix-assignment-a'`, [expiredAt]);
+			expect(await store.first(`SELECT status, lease_state, lease_expires_at, state_version FROM capacity_provider_assignments WHERE id = 'matrix-assignment-a'`)).toMatchObject({
+				status: 'leased',
+				lease_state: 'leased',
+				state_version: 2,
+			});
 			const recovered = await recoverExpiredProviderAssignments(store, { teamId: 'matrix-team', providerId: 'matrix-provider', now: recoveryAt });
 			expect(recovered).toMatchObject({ recovered: 1, safeRetries: 1, results: [{ assignmentId: 'matrix-assignment-a', status: 'returned', reasonCode: 'expired_lease_safe_retry' }] });
 			const principal = { teamId: 'matrix-team', membershipId: 'matrix-membership', capacityProviderId: 'matrix-provider' };

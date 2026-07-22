@@ -212,7 +212,7 @@ Acceptance criteria:
 Verification:
 
 - `npm -w packages/sdk run test:unit -- test/utils/content-runtime-source.test.ts test/utils/project-web-monitor.test.ts test/utils/published-content.test.ts test/utils/published-content-pipeline.test.ts`
-- `npm -w packages/api run test:unit -- test/api/api.test.ts -t "runs mocked project web deployments"`
+- `npm -w packages/api run test:unit -- test/api/api.test.ts -t "project web deployment"`
 - `npm -w packages/sdk run test:unit -- test/utils/desired-resource-graph.test.ts test/utils/local-content-materialization.test.ts`
 - `npm -w packages/sdk run verify:local`
 - `npm -w packages/api run verify:local`

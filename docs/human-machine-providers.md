@@ -27,7 +27,7 @@ This is not a new scheduler. This is not a new task system. Jira, Linear, GitHub
 Human teams, deterministic workflows, and AI agents use the same control-plane lifecycle:
 
 ```text
-provider check-in -> next assignment -> lease renewal -> mode-run telemetry -> complete/return/fail -> usage settlement
+membership-scoped availability session -> next assignment -> lease renewal -> mode-run telemetry -> complete/return/fail -> usage settlement
 ```
 
 Handlers are provider-independent algorithms. Providers are execution mechanisms. First-party agents use activity profiles over the clean handler set `writer`, `actor`, `estimate`, `releaser`, and `reporter`; project agent classes and profile contracts carry role semantics such as implementation, documentation review, release readiness, or codebase research. The same handlers can work across AI, deterministic automation, and human issue queues when their capability requirements match provider supply.
@@ -94,7 +94,7 @@ This architecture must integrate with existing Treeseed systems instead of creat
 
 Do use:
 
-- existing provider check-in and assignment lifecycle routes
+- existing provider availability-session and assignment lifecycle routes
 - existing `ProviderAvailabilitySession`, `ProviderAssignment`, `ProviderAssignmentExplanation`, `AgentModeRun`, usage, reservation, and ledger records
 - existing AgentKernel execution boundary
 - existing project agent MDX definitions
@@ -283,7 +283,7 @@ provider adapter descriptor
 + provider config
 + provider capabilities file
 + execution provider records
-+ provider check-in payload
++ provider availability-session payload
 + grants
 + native limits
 + observations
@@ -997,7 +997,7 @@ Implementation note: Phase E implements async adapter lifecycle support by wrapp
 Acceptance:
 
 - Existing Codex assignment proof still passes.
-- A fake async provider can return `waiting`, then `completed`.
+- A disposable real async-provider account can return `waiting`, then `completed`; this is required before the lifecycle is accepted as provider evidence.
 - Lease renewal continues while async execution is in progress.
 
 ### Phase F: Jira Reference Adapter

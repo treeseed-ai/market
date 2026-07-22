@@ -1970,7 +1970,7 @@ packages/agent/test/agents/codex-provider.test.ts
 Acceptance:
 
 ```text
-Provider can be selected and mocked in tests without invoking the Codex CLI.
+Provider selection tests may validate configuration and fail-closed behavior without invoking Codex, but provider execution evidence requires the real provider.
 ```
 
 ---
@@ -2253,8 +2253,8 @@ Use `trsd capacity test-local` and the package-owned active capacity guarantees.
 | Optimizer                          | targeted handler test plus draft scoring fixture                                          |
 | Worker task mapping                | service worker tests plus local workday smoke                                             |
 | Manager task seeding               | manager tests plus local workday smoke                                                    |
-| Codex provider skeleton            | mocked SDK unit tests                                                                     |
-| Codex provider execution           | mocked SDK tests plus manual local readiness test                                         |
+| Codex provider contract            | schema and fail-closed selection tests                                                     |
+| Codex provider execution           | automated live-provider service workflow plus durable lifecycle evidence                  |
 | API surface                        | API tests                                                                          |
 | Work/Knowledge/Capacity app surfaces | UI/render tests and local manual inspection                                             |
 | End-to-end local runtime           | `npm run dev -- --reset`, `npm run dev -- --surface services`, launch workday, inspect UI |
@@ -2573,10 +2573,4 @@ The implementation target is complete. Use this checklist before staging or rele
 
 Engineering starters mirror the root Market activity-profile agent definitions. Research starters carry research, review, technical-writer, and deterministic reporter agents; knowledge-pack packaging belongs there until a separate information-hub starter has unique workflow semantics.
 
-Agent guarantee runs use `TREESEED_AGENT_GUARANTEE_EXECUTION_PROVIDER`:
-
-- `mock` for CI.
-- `auto` for local development.
-- `live-codex` for local/staging proof when live execution is required.
-
-Explicit live Codex runs must fail closed with `missing_codex_auth` if Codex auth is unavailable.
+Agent guarantee runs use `TREESEED_AGENT_GUARANTEE_EXECUTION_PROVIDER` with `auto` or `live-codex`. Both modes require real Codex authentication and execute through the normal manifest-selected provider path. CI, local, and staging runs that claim agent execution must fail closed with `missing_codex_auth` when Codex is unavailable; there is no mock or synthetic completion mode.

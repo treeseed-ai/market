@@ -46,7 +46,7 @@ operationsRunner
 Operational commands:
 
 ```bash
-npm -w packages/api run dev:runner -- --market local --watch --operation project:web_deployment --mock-external
+npm -w packages/api run dev:runner -- --market local --watch --operation project:web_deployment
 npx trsd operations smoke --environment local --service operationsRunner --json
 npx trsd operations smoke --environment staging --service operationsRunner --json
 npx trsd hosting verify --environment staging --service operationsRunner --live --json

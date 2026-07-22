@@ -35,7 +35,7 @@ verifiers:
     kind: packageScript
     ownerPackage: "@treeseed/market"
     command: guarantee:capacity-local-acceptance
-    timeoutSeconds: 2400
+    timeoutSeconds: 7200
   market.capacity.failure-concurrency-matrix:
     kind: vitestCase
     ownerPackage: "@treeseed/market"

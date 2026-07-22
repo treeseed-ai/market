@@ -14,7 +14,7 @@ Deploy page / CLI
   -> deployment state, history, monitor result, audit_events
 ```
 
-The API owns validation, readiness, idempotency, production confirmation, authorization, and audit request records. The Treeseed operations runner owns execution, checkpoints, deployment progress events, mocked or real workflow interaction, monitor checks, terminal deployment state, and terminal audit records.
+The API owns validation, readiness, idempotency, production confirmation, authorization, and audit request records. The Treeseed operations runner owns execution, checkpoints, deployment progress events, real workflow interaction, monitor checks, terminal deployment state, and terminal audit records.
 
 The deployed API and runner live in `packages/api`, not in the root Market app. Admin deployment pages and view models live in `packages/admin`; reusable controls live in `@treeseed/ui`; CLI parity lives in `@treeseed/cli`; reconciliation logic lives in `@treeseed/sdk`. The root web app hosts the tenant, content, page overrides, authenticated operational marketplace/cart/checkout/service/capacity/Commons participant pages, public marketing/profile/knowledge pages, and business-facing overlays.
 
@@ -117,14 +117,14 @@ Non-provider local values have defaults and are centrally resolved through `trsd
 
 Use foreground `npx trsd dev --web-runtime local` when you want shell-owned lifecycle. Managed instances write `.treeseed/dev/instances/<scope>.json`, `.treeseed/dev/pids/<scope>.pid`, and `.treeseed/logs/dev-<scope>.jsonl` in the current worktree; `npx trsd dev status --all --json` discovers sibling worktree instances through the repository-family index. See [Worktree-Scoped Dev Instances](./local-dev-instances.md).
 
-The stable standalone runner command remains available for focused acceptance and debugging:
+The standalone runner remains available for real-provider debugging after credentials and a disposable target are configured:
 
 ```bash
-npm -w packages/api run dev:runner -- --market local --watch --operation project:web_deployment --mock-external
-npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external
+npm -w packages/api run dev:runner -- --market local --watch --operation project:web_deployment
+npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment
 ```
 
-Use `--mock-external` for release acceptance. It exercises API, store, platform operation claim, checkpoints, deployment events, monitor output, audit records, UI polling, and CLI wait behavior without real GitHub or Cloudflare side effects.
+Plan output and local operation-lifecycle tests are not provider acceptance. During the hosted-deployment suspension, external deployment proof remains explicitly blocked.
 
 ## State Machine
 
@@ -158,13 +158,7 @@ npx trsd dev status --json
 npx trsd dev start --web-runtime local --json
 ```
 
-For mocked acceptance outside the integrated dev supervisor, start the web/API runtime, seed local data, queue an action, and run:
-
-```bash
-npm -w packages/api run dev:runner -- --market local --once --operation project:web_deployment --mock-external
-```
-
-For real external staging proof, use only disposable GitHub and Cloudflare targets. If safe credentials or disposable targets are unavailable, record the blocker and keep mocked acceptance as the automated release gate.
+For external staging proof, use only disposable GitHub and Cloudflare targets. If safe credentials or disposable targets are unavailable, record the blocker; do not substitute fabricated provider results.
 
 When provider credentials and test namespaces are available, hosted project deployment changes also require live reconciliation acceptance and cleanup:
 

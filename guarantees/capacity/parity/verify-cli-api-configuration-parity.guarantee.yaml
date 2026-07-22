@@ -8,6 +8,9 @@ ownerPackage: "@treeseed/market"
 surface: cli
 summary: "Prove that every canonical backend capacity capability has one CLI owner, an exact API route and access class, schema-backed declarative configuration where applicable, safe secret handling, and a working real local lifecycle."
 status: active
+dependencies:
+  journeys: [507]
+  guarantees: [guarantee.capacity.lifecycle.verify-full-local-capacity-lifecycle.507]
 actors:
   allowed: [team_owner, capacity_operator, capacity_provider]
   forbidden: [anonymous_user, unauthorized_user]
@@ -21,7 +24,6 @@ scene:
 api:
   required: true
   verifierRefs:
-    - market.capacity.full-local-lifecycle
     - market.capacity.api-operator-contract
     - market.capacity.api-descriptor-contract
     - market.capacity.sdk-operator-contract
@@ -31,7 +33,7 @@ content:
   verifierRefs: []
 audit:
   required: true
-  verifierRefs: [market.capacity.full-local-lifecycle]
+  verifierRefs: [market.capacity.api-descriptor-contract, market.capacity.sdk-configuration-contract]
 negativeCases:
   - id: unauthorized-capability-has-no-wider-route
     actor: unauthorized_user
@@ -45,8 +47,9 @@ negativeCases:
 evidence:
   required: [guarantee_report, verifier_evidence, api_verification_log]
 notes:
+  - "Reopened on 2026-07-20: static parity remains green, but this aggregate also requires the real local lifecycle and cannot remain active while that evidence is withdrawn."
   - "The SDK inventory is canonical; API descriptors and CLI ownership are checked against it rather than maintained as duplicate lists."
-  - "This aggregate does not treat descriptor tests as service authorization by themselves; it also requires the real local lifecycle verifier."
+  - "This aggregate does not treat descriptor tests as service authorization by themselves; its active lifecycle-guarantee dependency supplies the real local service proof without rerunning that expensive verifier inside a focused parity check."
 run:
-  timeoutSeconds: 2400
+  timeoutSeconds: 14400
   requiredForRelease: true

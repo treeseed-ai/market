@@ -206,11 +206,11 @@ describe('Treeseed Drizzle schema baseline', () => {
 		for (const foreignKey of [
 			'fk_capacity_reservations_project',
 			'fk_capacity_ledger_project',
-			'fk_capacity_usage_actuals_project',
 			'fk_capacity_provider_assignments_project',
 			'fk_agent_mode_runs_project',
 			'fk_capacity_workday_events_project',
 		]) expect(marketSql).toMatch(new RegExp(`CONSTRAINT "${foreignKey}" FOREIGN KEY \\([^;]+ ON DELETE restrict`, 'u'));
+		expect(marketSql).toMatch(/CONSTRAINT "fk_capacity_usage_actuals_project" FOREIGN KEY \([^;]+ ON DELETE cascade/u);
 		expect(marketSql).toContain('"id" text PRIMARY KEY NOT NULL');
 		expect(marketSql).toMatch(createIndexPattern('idx_credit_conversion_profiles_profile_key'));
 		expect(marketSql).toContain('"credit_formula_version" text DEFAULT \'treeseed.actual-credits.v1\' NOT NULL');
