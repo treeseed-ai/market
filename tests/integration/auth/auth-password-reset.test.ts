@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getSiteAuthConfig } from '../../packages/admin/src/lib/auth/config';
+import { getSiteAuthConfig } from '../../../packages/admin/src/lib/auth/config';
 
 async function withEnv<T>(values: Record<string, string | undefined>, action: () => T | Promise<T>) {
 	const previous = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));

@@ -3,9 +3,9 @@ import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DataType, newDb } from 'pg-mem';
-import { MarketPostgresDatabase } from '../../packages/api/src/api/market-postgres.ts';
-import { MarketControlPlaneStore } from '../../packages/api/src/api/store.ts';
-import { createCapacityControlPlane } from '../../packages/api/src/api/capacity/control-plane.ts';
+import { MarketPostgresDatabase } from '../../../packages/api/src/api/market-postgres.ts';
+import { MarketControlPlaneStore } from '../../../packages/api/src/api/store.ts';
+import { createCapacityControlPlane } from '../../../packages/api/src/api/capacity/control-plane.ts';
 
 export function createServiceWorkflowFixture(input: {
 	templatePath: string;

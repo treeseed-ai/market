@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { persistActiveTeamSelection, resolveAppTeam } from '../../packages/admin/src/view-models/app-access';
-import type { OperationalContext } from '../../packages/admin/src/view-models/shared';
+import { persistActiveTeamSelection, resolveAppTeam } from '../../../packages/admin/src/view-models/app-access';
+import type { OperationalContext } from '../../../packages/admin/src/view-models/shared';
 
 const teams = [
 	{ id: 'team-a', slug: 'alpha', name: 'Alpha' },

@@ -28,6 +28,17 @@ Hosted application deployment is intentionally suspended while the Railway and C
 - Push-triggered `verify.yml` workflows may run because they are non-mutating verification only. Manual guarantee and package documentation workflows may remain, but they must not be invoked by save or stage.
 - Local development remains the active runtime path. Use `npx trsd dev start --web-runtime local --json` for the hot-reloading Market UI, local API, PostgreSQL, and operations runner, and use package-owned `trsd capacity` commands for capacity-provider development.
 
+## CRITICAL: Source And Test File Size
+
+Handwritten executable source and test code must remain small enough to audit, review, and test by responsibility.
+
+- No handwritten source file, executable script, test file, or code fixture may exceed 500 physical lines. The normal target is 250-350 lines.
+- Split files by cohesive domain, behavior, route family, adapter, repository, component, or scenario. Never satisfy the limit with arbitrary numbered chunks.
+- Generated output, vendored dependencies, database migrations, snapshots, lockfiles, declarative data, and documentation are exempt. Generated files must remain visibly generated and must not become a place for handwritten logic.
+- TypeScript projects use one `tests/` root with semantic suites such as `unit`, `integration`, `contract`, `acceptance`, `e2e`, and `performance`, plus `fixtures` and `support`. Do not create a parallel `test/` root or hide tests under `scripts/`.
+- Multi-language projects such as TreeDX retain ecosystem-native test roots where Cargo, Elixir, Python, or SDK tooling requires them, while following the same size and responsibility rules inside those roots.
+- Every independent repository must enforce the hard limit in its package-local verification. The integrated Market verification additionally audits the checked-out portfolio.
+
 ## Independent Project Rule
 
 This workspace is an integrated development and verification environment, not a monorepo. Each project under `packages/` is its own package/repository and must remain independently buildable, testable, and releasable from its package checkout.

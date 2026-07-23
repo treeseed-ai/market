@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveTreeseedAstroAllowedDomains } from '../../packages/core/src/utils/astro-security';
+import { deriveTreeseedAstroAllowedDomains } from '../../../packages/core/src/utils/astro-security';
 
 describe('Astro security allowed domains', () => {
 	it('derives production, staging, configured, and local web hosts', () => {

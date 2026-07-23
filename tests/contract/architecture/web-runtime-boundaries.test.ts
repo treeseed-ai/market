@@ -13,6 +13,15 @@ function files(root: string): string[] {
 	});
 }
 
+function moduleFamilySource(entrypoint: string, modulesRoot: string): string {
+	return [
+		readFileSync(entrypoint, 'utf8'),
+		...files(modulesRoot)
+			.filter((path) => /\.(ts|js)$/u.test(path))
+			.map((path) => readFileSync(path, 'utf8')),
+	].join('\n');
+}
+
 describe('web runtime boundaries', () => {
 	it('keeps public source and docs free of legacy processing compatibility names', () => {
 		const roots = ['AGENTS.md', 'docs', 'src', 'packages/agent', 'packages/cli', 'packages/sdk']
@@ -196,7 +205,10 @@ describe('web runtime boundaries', () => {
 		expect(proxy).toContain("path === 'healthz' || path.startsWith('healthz/')");
 		expect(proxy).not.toMatch(/resolveMarketStore|loadSiteWebSession|AGENT_WORK_QUEUE|SITE_DATA_DB/u);
 
-		const apiClient = readFileSync('packages/admin/src/lib/market/api-client.ts', 'utf8');
+		const apiClient = moduleFamilySource(
+			'packages/admin/src/lib/market/api-client.ts',
+			'packages/admin/src/lib/market/api-client',
+		);
 		expect(apiClient).toContain('skipUserAssertion: Boolean(token)');
 
 		const middleware = readFileSync('packages/admin/src/middleware.ts', 'utf8');
@@ -307,7 +319,8 @@ describe('web runtime boundaries', () => {
 	it('keeps backend runtime implementation out of core source', () => {
 		const sourceFiles = files('packages/core/src')
 			.filter((path) => /\.(astro|ts|js)$/u.test(path))
-			.filter((path) => path !== 'packages/core/src/dev.ts');
+			.filter((path) => path !== 'packages/core/src/dev.ts')
+			.filter((path) => !path.startsWith('packages/core/src/dev/'));
 		const offenders = sourceFiles.filter((path) => {
 			const source = readFileSync(path, 'utf8');
 			return /@treeseed\/agent|from ['"].*\/api\/|from ['"].*\/agents\/|from ['"].*\/services\/|Hono|worker runner|workday manager/u.test(source);

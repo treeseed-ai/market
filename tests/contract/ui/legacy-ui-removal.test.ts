@@ -1,8 +1,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ADMIN_ROUTES } from '../../packages/admin/src/routes';
-import { routeInventory } from '../../scripts/ui-architecture/inventory';
+import { ADMIN_ROUTES } from '../../../packages/admin/src/routes';
+import { routeInventory } from '../../../scripts/ui-architecture/inventory';
 
 const retained = [
 	'/app', '/app/account', '/app/account/sessions', '/app/account/notifications', '/app/account/appearance', '/app/account/delete', '/app/teams', '/app/teams/new',

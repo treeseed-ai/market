@@ -9,7 +9,7 @@ import {
 	discoverTreeseedGuarantees,
 	exportTreeseedGuaranteesCsv,
 	planTreeseedGuarantees,
-} from '../../packages/sdk/src/guarantees/index.ts';
+} from '../../../packages/sdk/src/guarantees/index.ts';
 
 describe('workspace guarantee registry', () => {
 	it('discovers workspace guarantee manifests with lowercase taxonomy', () => {

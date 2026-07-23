@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { extname, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { componentInventory, pathExistsForInventory, routeInventory } from '../scripts/ui-architecture/inventory';
+import { componentInventory, pathExistsForInventory, routeInventory } from '../../../scripts/ui-architecture/inventory';
 
 const routeRoots = ['src/pages', 'packages/admin/src/pages', 'packages/core/src/pages'];
 

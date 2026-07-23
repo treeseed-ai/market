@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import yaml from 'yaml';
 
-const repoRoot = resolve(__dirname, '../..');
+const repoRoot = resolve(__dirname, '../../..');
 
 const packageSlugs = [
 	'admin',

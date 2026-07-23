@@ -9,7 +9,7 @@ import {
 	setUserThemeCookies,
 	TREESEED_COLOR_SCHEME_COOKIE,
 	TREESEED_THEME_MODE_COOKIE,
-} from '../../packages/admin/src/lib/auth/appearance';
+} from '../../../packages/admin/src/lib/auth/appearance';
 
 function createContext(url = 'https://example.com/auth/register') {
 	const values = new Map<string, string>();

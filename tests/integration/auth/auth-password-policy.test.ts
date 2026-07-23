@@ -6,9 +6,9 @@ import {
 	localAuthCanonicalRedirectUrl,
 	normalizeBetterAuthBaseUrl,
 	normalizeSiteBaseUrl,
-} from '../../packages/admin/src/lib/auth/config';
-import { authEmailDeliveryFailureDetail, authEmailDeliveryFailureReason } from '../../packages/admin/src/lib/auth/email';
-import { evaluatePasswordStrength, passwordMeetsPolicy, passwordPolicyMessage } from '../../packages/admin/src/lib/auth/password-policy';
+} from '../../../packages/admin/src/lib/auth/config';
+import { authEmailDeliveryFailureDetail, authEmailDeliveryFailureReason } from '../../../packages/admin/src/lib/auth/email';
+import { evaluatePasswordStrength, passwordMeetsPolicy, passwordPolicyMessage } from '../../../packages/admin/src/lib/auth/password-policy';
 
 async function withEnv<T>(values: Record<string, string | undefined>, action: () => T | Promise<T>) {
 	const previous = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { redirectAuthenticatedToApp, submitMarketEmailAuthFlow } from '../../packages/admin/src/lib/auth/flow';
+import { redirectAuthenticatedToApp, submitMarketEmailAuthFlow } from '../../../packages/admin/src/lib/auth/flow';
 
 function redirect(path: string, status: 300 | 301 | 302 | 303 | 304 | 307 | 308 = 302) {
 	return new Response(null, {

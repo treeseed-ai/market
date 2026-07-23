@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { treeseedSchema } from '../../packages/sdk/src/db/schema.ts';
-import { treeseedMarketSchema } from '../../packages/sdk/src/db/market-schema.ts';
+import { treeseedSchema } from '../../../packages/sdk/src/db/schema.ts';
+import { treeseedMarketSchema } from '../../../packages/sdk/src/db/market-schema.ts';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
-const repoRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+const repoRoot = process.cwd();
 const marketMigrationPath = join(repoRoot, 'packages/sdk/drizzle/market/0000_market_control_plane.sql');
 const marketMigrationRoot = join(repoRoot, 'packages/sdk/drizzle/market');
 const d1MigrationPath = join(repoRoot, 'packages/sdk/drizzle/d1/0000_treeseed_d1.sql');

@@ -5,6 +5,10 @@ function source(path: string) {
 	return readFileSync(path, 'utf8');
 }
 
+function sources(paths: string[]) {
+	return paths.map(source).join('\n');
+}
+
 describe('shell-level feedback architecture', () => {
 	it('replaces shell feedback placeholders with the shared feedback components', () => {
 		for (const path of [
@@ -45,13 +49,20 @@ describe('shell-level feedback architecture', () => {
 			expect(contents, path).toContain('ReaderTemplate');
 			expect(contents, path).not.toMatch(/<form[^>]+feedback|fetch\(/iu);
 		}
-		const helper = source('packages/core/src/utils/runtime-reader.ts');
+		const helper = sources([
+			'packages/core/src/utils/runtime-reader.ts',
+			'packages/core/src/utils/runtime-reader/runtime-reader-nav-item.ts',
+		]);
 		expect(helper).toContain("submissionEndpoint: '/api/feedback/submit'");
 		expect(helper).toContain("capabilityId: 'core.public-knowledge-reader'");
 	});
 
 	it('uses narrow feedback submission paths without leaking private metadata into route templates', () => {
-		const api = source('packages/api/src/api/app.ts');
+		const api = sources([
+			'packages/api/src/api/app.ts',
+			'packages/api/src/api/routes/foundation-healthz-deep-through-feedback.ts',
+			'packages/api/src/api/app/support/feedback.ts',
+		]);
 		const coreEndpoint = source('packages/core/src/pages/api/feedback/submit.ts');
 		expect(api).toContain("app.post('/v1/feedback'");
 		expect(api).toContain('feedback.submitted');

@@ -34,7 +34,7 @@ describe('capacity and agent provider integrity', () => {
 			'starters/research',
 			'.fixtures/treeseed-fixtures',
 		].map((path) => resolve(workspaceRoot, path));
-		const thisFile = resolve(workspaceRoot, 'test/lib/capacity-no-provider-doubles.test.ts');
+		const thisFile = resolve(workspaceRoot, 'tests/contract/architecture/capacity-no-provider-doubles.test.ts');
 		const providerDoubleFile = /(?:mock|fake|stub|synthetic).*(?:provider|execution)|(?:provider|execution).*(?:mock|fake|stub|synthetic)/iu;
 		const providerDoubleDeclaration = /\b(?:class|function|const|let|var)\s+(?:Mock|Fake|Stub|Synthetic)\w*(?:Provider|Execution)\w*/u;
 		const forbiddenRuntimeSwitch = /TREESEED_[A-Z0-9_]*(?:MOCK|FAKE|STUB|SYNTHETIC)[A-Z0-9_]*/u;
