@@ -1,7 +1,7 @@
 # Agent Capacity Completion and Production-Readiness Plan
 
 **Status:** Local agent and capacity production-readiness is complete; supervised project development may begin
-**Last updated:** 2026-07-22
+**Last updated:** 2026-07-23
 **Production readiness:** Ready for the local supervised-development transition; hosted deployment remains intentionally blocked
 **Formal sequential completion:** 15 of 15 phases complete for the supported local runtime. The withdrawn synthetic-provider result has been replaced by configured real-Codex evidence.
 **Estimated backend readiness through phase 12:** Complete for the local runtime.
@@ -16,6 +16,7 @@ No phase may be called complete because a type, route, mock, fixture, or source-
 
 | Evidence window | Resolved | Still open | Current proof |
 | --- | --- | --- | --- |
+| 2026-07-23 workspace modernization | Source/test size and ownership migration; package-local verification; initial recursive save | Corrective exact-commit staging rerun | The first recursive save passed local verification and pushed Market, every package, both starters, and the shared fixture. All eight TypeScript package workflows then passed at their exact commits. Remote inspection found three delivery-only defects without reopening the completed capacity phases: stale SDK CI selection expected suspended deployment, Market's root ladder retained the deleted `test:manager-worker` name and an empty-directory test assumption, and TreeDX's existing release gate detected new Mint 1.9.1 advisories. Manifest-selected verification, the canonical `test:provider-runtime` ladder, clean-checkout-safe traversal, and Mint 1.9.3 are now locally green. TreeDX's unchanged `release-gate.yml` chain passes end to end, including security images/scans and MVP smoke; the corrective save and exact-commit rerun remain. |
 | 2026-07-21/22 real-provider cycle | CAP-293 through CAP-317 | Hosted acceptance only (CAP-024) | Active guarantee acceptance `20260722180225` passed 6/6 through the normal manifest-selected Codex provider. It completed a 190,333 ms two-project overlap with distinct assignments/workspaces and exact per-project settlement; the 14-assignment engineering graph with all eight roles and its governed rejection/revision/approval loop; and the eleven-assignment research graph with two citations, one evidence-driven revision, approval, publication, and reporting. In-run cleanup completed, and cleanup `20260722193357` found zero isolated resources and zero drift. The descriptor omission found after the live run was corrected; focused parity report `2026-07-22T19-36-02-829Z` then passed 1/1 with all nine verifier steps green. CAP-300's package canary remains the first post-readiness transition Stage B task, not a production-readiness blocker. |
 | Phase transitions | Phases 0 through 14 closed for local operation | Hosted acceptance only | The final source/diff audit, root check, API build, focused and package suites, 113/113 capacity guarantee validation, real-provider lifecycle, focused parity rerun, and zero-residue cleanup pass. Hosted Railway/Cloudflare work remains prohibited until CAP-024 is deliberately resumed. |
 

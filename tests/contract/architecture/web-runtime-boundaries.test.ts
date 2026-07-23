@@ -4,6 +4,7 @@ import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
 function files(root: string): string[] {
+	if (!existsSync(root)) return [];
 	return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
 		const path = join(root, entry.name);
 		if (entry.isDirectory() && ['.fixtures', '.git', '.treeseed', 'dist', 'node_modules'].includes(entry.name)) {

@@ -2561,7 +2561,7 @@ The implementation target is complete. Use this checklist before staging or rele
   * `npm run test:agent-contracts`
   * `npm run test:agent-handlers`
   * `npm run test:agent-message-chains`
-  * `npm run test:manager-worker`
+  * `npm run test:provider-runtime`
   * `npm -w packages/agent run test:capacity-provider-runtime`
   * `npx vitest run test/api/api.test.ts -t "agents"`
   * `npx vitest run test/lib/operational-ia.test.ts`

@@ -61,7 +61,7 @@
     "test:agent-contracts": "npm -w packages/agent run test:agent-contracts",
     "test:agent-handlers": "npm -w packages/agent run test:agent-handlers",
     "test:agent-message-chains": "npm -w packages/agent run test:agent-message-chains",
-    "test:manager-worker": "npm -w packages/agent run test:manager-worker",
+    "test:provider-runtime": "npm -w packages/agent run test:provider-runtime",
     "test:market-docs-governed-mutation": "npm -w packages/agent run test:market-docs-governed-mutation"
   },
   "dependencies": {

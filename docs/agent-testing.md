@@ -27,7 +27,7 @@ Run the lightweight checks with:
 npm run test:agent-contracts
 npm run test:agent-handlers
 npm run test:agent-message-chains
-npm run test:manager-worker
+npm run test:provider-runtime
 npm -w packages/agent run test:capacity-provider-runtime
 npm -w packages/agent run test:agent-tools
 ```
@@ -64,9 +64,7 @@ The agent test commands emit Markdown and raw JSON under:
 ```text
 .treeseed/test-reports/agent-contracts.md
 .treeseed/test-reports/agent-test-catalog.md
-.treeseed/test-reports/handler-fixtures.md
 .treeseed/test-reports/message-chains.md
-.treeseed/test-reports/manager-worker.md
 ```
 
 Dogfood commands additionally emit:

@@ -172,7 +172,7 @@ jobs:
           npm run test:agent-contracts
           npm run test:agent-handlers
           npm run test:agent-message-chains
-          npm run test:manager-worker
+          npm run test:provider-runtime
       - name: Upload Treeseed test reports
         if: always()
         uses: actions/upload-artifact@v4
