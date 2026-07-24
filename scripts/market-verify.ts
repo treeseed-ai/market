@@ -12,6 +12,7 @@ const tasks = [
 	{ id: 'check', command: ['npm', ['run', 'check']], isolated: true },
 	{ id: 'unit', command: ['npm', ['run', 'test:unit']], isolated: false },
 	{ id: 'build', command: ['npm', ['run', 'build']], isolated: true },
+	{ id: 'agent-ladder', command: ['npm', ['run', 'test:agent-ladder']], isolated: true },
 ];
 const ignoredTopLevelSegments = new Set([
 	'.astro',

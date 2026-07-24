@@ -63,6 +63,7 @@
     "test:agent-handlers": "npm -w packages/agent run test:agent-handlers",
     "test:agent-message-chains": "npm -w packages/agent run test:agent-message-chains",
     "test:provider-runtime": "npm -w packages/agent run test:provider-runtime",
+    "test:agent-ladder": "npm -w packages/agent run build && npm run test:agent-contracts && npm run test:agent-handlers && npm run test:agent-message-chains && npm run test:provider-runtime",
     "test:market-docs-governed-mutation": "npm -w packages/agent run test:market-docs-governed-mutation"
   },
   "dependencies": {

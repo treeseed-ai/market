@@ -44,5 +44,7 @@ describe('CI/CD parallelism workflows', () => {
 		expect(script).toContain('cloneNodeModules(root, taskRoot)');
 		expect(script).toContain("['-al'");
 		expect(script).toContain('TREESEED_VERIFY_PARALLEL_CHILD');
+		expect(script).toContain("id: 'agent-ladder'");
+		expect(packageJson.scripts['test:agent-ladder']).toContain('npm run test:provider-runtime');
 	});
 });
