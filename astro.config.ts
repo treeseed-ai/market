@@ -1,6 +1,6 @@
-import { createTreeseedAdminSite } from '@treeseed/admin/config';
+import { createAdminSite } from '@treeseed/admin/config';
 
-const config = createTreeseedAdminSite();
+const config = createAdminSite();
 const viteWatchIgnored = [
 	'/.agent-worktrees/',
 	'/.treeseed/',

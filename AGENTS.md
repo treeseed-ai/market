@@ -33,11 +33,22 @@ Hosted application deployment is intentionally suspended while the Railway and C
 Handwritten executable source and test code must remain small enough to audit, review, and test by responsibility.
 
 - No handwritten source file, executable script, test file, or code fixture may exceed 500 physical lines. The normal target is 250-350 lines.
+- No directory may contain more than 10 direct handwritten executable source, script, test, code-fixture, or support files. Entrypoints and barrels count toward the limit. Create purpose-named bounded-context subdirectories before a directory exceeds the limit.
+- Directory names must communicate cohesive functional ownership. Generic or ordinal partitions such as `part-N`, `module-N`, `chunk-N`, `section-N`, and `segment-N` are forbidden for directories as well as files.
 - Split files by cohesive domain, behavior, route family, adapter, repository, component, or scenario. Never satisfy the limit with arbitrary numbered chunks.
 - Generic partition names such as `part-N`, `module-N`, `chunk-N`, `section-N`, and `segment-N` are forbidden, as are ordinal collision suffixes on tests and scenario collectors. Numbers are allowed only when they are intrinsic domain terminology, such as a protocol version or HTTP status.
 - A file's directory and basename must make its single responsibility inferable. Barrels and registries may compose named domain contributions, but must not hide declaration-order or line-budget partitions behind ordinal symbols.
 - Generated output, vendored dependencies, database migrations, snapshots, lockfiles, declarative data, and documentation are exempt. Generated files must remain visibly generated and must not become a place for handwritten logic.
 - TypeScript projects use one `tests/` root with semantic suites such as `unit`, `integration`, `contract`, `acceptance`, `e2e`, and `performance`, plus `fixtures` and `support`. Do not create a parallel `test/` root or hide tests under `scripts/`.
+
+## CRITICAL: Functional Code Naming
+
+Code names must describe behavior in the context supplied by their owning package and directory.
+
+- Do not repeat `Treeseed`, `TreeSeed`, or `KnowledgeCoop` in executable filenames or declared variables, functions, classes, methods, types, interfaces, enums, or other implementation symbols. Use the smallest functional domain qualifier needed to make a name unambiguous.
+- `TREESEED_*` environment variables remain canonical. External product contracts also retain their established identity, including `@treeseed/*` package names, `treeseed.*` manifests, `.treeseed` state paths, routes, headers, persisted and wire identifiers, stable browser APIs, and human-facing product text.
+- Package-level context is part of a symbol's meaning. Prefer `WorkflowClient` inside `@treeseed/sdk` over `TreeseedWorkflowSdk`; when a clean name would collide, qualify it by responsibility, such as `PlatformApiContext` or `AgentApiContext`, never by brand or ordinal.
+- Public code APIs follow the same rule. Rename all first-party consumers atomically and do not retain deprecated branded aliases merely for compatibility.
 - Multi-language projects such as TreeDX retain ecosystem-native test roots where Cargo, Elixir, Python, or SDK tooling requires them, while following the same size and responsibility rules inside those roots.
 - Every independent repository must enforce the hard limit and functional naming rules in its package-local verification. The integrated Market verification additionally audits the checked-out portfolio.
 

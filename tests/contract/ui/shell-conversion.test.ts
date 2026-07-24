@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 describe('retained Admin shells', () => {
 	it('limits the authenticated shell to account and team work', () => {
-		const source = readFileSync('packages/admin/src/layouts/TreeseedAppLayout.astro', 'utf8');
+		const source = readFileSync('packages/admin/src/layouts/AppLayout.astro', 'utf8');
 		expect(source).toContain('ProductShell');
 		expect(source).toContain('treeseed_active_team');
 		for (const target of ['/app/', '/app/account', '/app/teams', '/app/teams/new']) expect(source).toContain(target);
@@ -13,7 +13,7 @@ describe('retained Admin shells', () => {
 	});
 
 	it('keeps the public shell identity-only', () => {
-		const source = readFileSync('packages/admin/src/layouts/TreeseedPublicLayout.astro', 'utf8');
+		const source = readFileSync('packages/admin/src/layouts/PublicLayout.astro', 'utf8');
 		expect(source).toContain('PublicShell');
 		expect(source).toContain("label: 'Home'");
 		expect(source).toContain('Account and teams');

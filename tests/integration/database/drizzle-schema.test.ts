@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { treeseedSchema } from '../../../packages/sdk/src/db/schema.ts';
-import { treeseedMarketSchema } from '../../../packages/sdk/src/db/market-schema.ts';
+import { Schema } from '../../../packages/sdk/src/db/schema.ts';
+import { MarketSchema } from '../../../packages/sdk/src/db/market-schema.ts';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -23,11 +23,11 @@ function createIndexPattern(indexName: string) {
 
 describe('Treeseed Drizzle schema baseline', () => {
 	it('exports SDK D1 tables separately from the Market PostgreSQL schema', () => {
-		expect(Object.keys(treeseedSchema).sort()).toEqual([
+		expect(Object.keys(Schema).sort()).toEqual([
 			'contactSubmissions',
 			'subscribers',
 		]);
-		expect(Object.keys(treeseedMarketSchema)).toEqual(expect.arrayContaining([
+		expect(Object.keys(MarketSchema)).toEqual(expect.arrayContaining([
 			'betterAuthUser',
 			'betterAuthSession',
 			'betterAuthAccount',
@@ -156,25 +156,25 @@ describe('Treeseed Drizzle schema baseline', () => {
 		]) {
 			expect(d1Sql).not.toMatch(new RegExp(`CREATE TABLE \`${tableName}\`\\s*\\(`, 'u'));
 		}
-		expect(treeseedMarketSchema.capacityProviders.fingerprint.name).toBe('fingerprint');
-		expect(treeseedMarketSchema.capacityProviderTeamMemberships.teamId.name).toBe('team_id');
-		expect(treeseedMarketSchema.capacityReservations.executionProviderId.name).toBe('execution_provider_id');
-		expect(treeseedMarketSchema.workdayCapacityEnvelopes.workdayRunId.name).toBe('workday_run_id');
-		expect(treeseedMarketSchema.decisionAssignmentGraphs.graphJson.name).toBe('graph_json');
-		expect(treeseedMarketSchema.deliverableManifests.deliverableContractId.name).toBe('deliverable_contract_id');
+		expect(MarketSchema.capacityProviders.fingerprint.name).toBe('fingerprint');
+		expect(MarketSchema.capacityProviderTeamMemberships.teamId.name).toBe('team_id');
+		expect(MarketSchema.capacityReservations.executionProviderId.name).toBe('execution_provider_id');
+		expect(MarketSchema.workdayCapacityEnvelopes.workdayRunId.name).toBe('workday_run_id');
+		expect(MarketSchema.decisionAssignmentGraphs.graphJson.name).toBe('graph_json');
+		expect(MarketSchema.deliverableManifests.deliverableContractId.name).toBe('deliverable_contract_id');
 		expect(marketSql).toMatch(createIndexPattern('idx_workday_capacity_envelopes_run_status'));
 		expect(marketSql).toContain('FOREIGN KEY ("workday_run_id") REFERENCES "public"."capacity_workday_runs"("id") ON DELETE restrict');
 		expect(marketSql).toContain('"admission_token" text NOT NULL');
 		expect(marketSql).toContain('"settlement_token" text');
 		expect(marketSql).toMatch(createTablePattern('agent_fallback_outputs'));
 		expect(marketSql).toMatch(createIndexPattern('idx_capacity_ledger_reservation_phase'));
-		expect(treeseedMarketSchema.capacityGrants.laneIdsJson.name).toBe('lane_ids_json');
-		expect(treeseedMarketSchema.capacityReservations.laneId.name).toBe('lane_id');
-		expect('laneId' in treeseedMarketSchema.capacityLedgerEntries).toBe(false);
-		expect(treeseedMarketSchema.capacityReservations.reservedNativeAmount.name).toBe('reserved_native_amount');
-		expect(treeseedMarketSchema.capacityUsageActuals.creditFormulaVersion.name).toBe('credit_formula_version');
-		expect(treeseedMarketSchema.capacityUsageActuals.nativeUsageJson.name).toBe('native_usage_json');
-		expect(treeseedMarketSchema.creditConversionProfiles.nativeUnitsPerCreditP50.name).toBe('native_units_per_credit_p50');
+		expect(MarketSchema.capacityGrants.laneIdsJson.name).toBe('lane_ids_json');
+		expect(MarketSchema.capacityReservations.laneId.name).toBe('lane_id');
+		expect('laneId' in MarketSchema.capacityLedgerEntries).toBe(false);
+		expect(MarketSchema.capacityReservations.reservedNativeAmount.name).toBe('reserved_native_amount');
+		expect(MarketSchema.capacityUsageActuals.creditFormulaVersion.name).toBe('credit_formula_version');
+		expect(MarketSchema.capacityUsageActuals.nativeUsageJson.name).toBe('native_usage_json');
+		expect(MarketSchema.creditConversionProfiles.nativeUnitsPerCreditP50.name).toBe('native_units_per_credit_p50');
 		expect(marketSql).not.toContain('"team_id" text,\n\t"owner_team_id"');
 		for (const legacyTable of [
 			'capacity_provider_deployments',

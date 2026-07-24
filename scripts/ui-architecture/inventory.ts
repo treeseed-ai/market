@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { ADMIN_ROUTES, ADMIN_SUPPORT_ROUTES } from '../../packages/admin/src/routes.ts';
-import { CORE_ROUTES, CORE_SUPPORT_ROUTES } from '../../packages/core/src/routes.ts';
-import type { TreeseedSiteRouteContribution } from '../../packages/sdk/src/platform/plugin.ts';
+import { CORE_ROUTES, CORE_SUPPORT_ROUTES } from '../../packages/core/src/support/routes.ts';
+import type { SiteRouteContribution } from '../../packages/sdk/src/platform/support/plugin.ts';
 
 export type PackageOwner = 'market' | 'admin' | 'core' | 'ui';
 export type SurfaceContext = 'auth' | 'public' | 'personal' | 'team' | 'content' | 'system';
@@ -64,7 +64,7 @@ export interface ComponentInventoryEntry {
 	architectureDebt: ArchitectureDebt[];
 }
 
-function sourcePath(owner: 'admin' | 'core', route: TreeseedSiteRouteContribution) {
+function sourcePath(owner: 'admin' | 'core', route: SiteRouteContribution) {
 	return `packages/${owner}/src/${route.resourcePath}`;
 }
 
@@ -236,8 +236,8 @@ function component(owner: PackageOwner, name: string, sourcePath: string, curren
 }
 
 export const componentInventory: ComponentInventoryEntry[] = [
-	component('admin', 'Authenticated identity shell', 'packages/admin/src/layouts/TreeseedAppLayout.astro', 'Account and team navigation', '@treeseed/admin'),
-	component('admin', 'Public identity shell', 'packages/admin/src/layouts/TreeseedPublicLayout.astro', 'Public user/team profiles and invitations', '@treeseed/admin'),
+	component('admin', 'Authenticated identity shell', 'packages/admin/src/layouts/AppLayout.astro', 'Account and team navigation', '@treeseed/admin'),
+	component('admin', 'Public identity shell', 'packages/admin/src/layouts/PublicLayout.astro', 'Public user/team profiles and invitations', '@treeseed/admin'),
 	component('admin', 'Identity/team view models', 'packages/admin/src/view-models', 'Principal, active-team, and membership projections', '@treeseed/admin'),
 	component('ui', 'Reusable Astro components', 'packages/ui/src/astro', 'Canonical layout-down templates and auth/account compound components', '@treeseed/ui'),
 	component('ui', 'Reusable React components', 'packages/ui/src/react', 'Shared interactive components available to package-owned surfaces', '@treeseed/ui'),

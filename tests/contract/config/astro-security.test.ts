@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { deriveTreeseedAstroAllowedDomains } from '../../../packages/core/src/utils/astro-security';
+import { deriveAstroAllowedDomains } from '../../../packages/core/src/utils/support/astro-security';
 
 describe('Astro security allowed domains', () => {
 	it('derives production, staging, configured, and local web hosts', () => {
-		const domains = deriveTreeseedAstroAllowedDomains({
+		const domains = deriveAstroAllowedDomains({
 			siteUrl: 'https://treeseed.ai',
 			surfaces: {
 				web: {
@@ -31,7 +31,7 @@ describe('Astro security allowed domains', () => {
 	});
 
 	it('deduplicates hostnames and ignores invalid values', () => {
-		const domains = deriveTreeseedAstroAllowedDomains({
+		const domains = deriveAstroAllowedDomains({
 			siteUrl: 'https://example.com',
 			surfaces: {
 				web: {

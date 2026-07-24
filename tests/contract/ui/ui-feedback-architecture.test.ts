@@ -12,8 +12,8 @@ function sources(paths: string[]) {
 describe('shell-level feedback architecture', () => {
 	it('replaces shell feedback placeholders with the shared feedback components', () => {
 		for (const path of [
-			'packages/ui/src/astro/shell/ProductShell.astro',
-			'packages/ui/src/astro/shell/PublicShell.astro',
+			'packages/ui/src/astro/shell/layout/ProductShell.astro',
+			'packages/ui/src/astro/shell/layout/PublicShell.astro',
 			'packages/ui/src/astro/auth/AuthShell.astro',
 		]) {
 			const contents = source(path);
@@ -27,8 +27,8 @@ describe('shell-level feedback architecture', () => {
 		const dialog = source('packages/ui/src/lib/feedback/dialog.ts');
 		const capture = source('packages/ui/src/lib/feedback/dom-capture.ts');
 		const shells = [
-			'packages/ui/src/astro/shell/ProductShell.astro',
-			'packages/ui/src/astro/shell/PublicShell.astro',
+			'packages/ui/src/astro/shell/layout/ProductShell.astro',
+			'packages/ui/src/astro/shell/layout/PublicShell.astro',
 			'packages/ui/src/astro/auth/AuthShell.astro',
 			'packages/ui/src/astro/layouts/MainLayout.astro',
 		].map(source).join('\n');
@@ -50,7 +50,7 @@ describe('shell-level feedback architecture', () => {
 			expect(contents, path).not.toMatch(/<form[^>]+feedback|fetch\(/iu);
 		}
 		const helper = sources([
-			'packages/core/src/utils/runtime-reader.ts',
+			'packages/core/src/utils/runtime/runtime-reader.ts',
 			'packages/core/src/utils/runtime-reader/runtime-reader-nav-item.ts',
 		]);
 		expect(helper).toContain("submissionEndpoint: '/api/feedback/submit'");
@@ -59,8 +59,8 @@ describe('shell-level feedback architecture', () => {
 
 	it('uses narrow feedback submission paths without leaking private metadata into route templates', () => {
 		const api = sources([
-			'packages/api/src/api/app.ts',
-			'packages/api/src/api/routes/foundation-health-market-and-feedback.ts',
+			'packages/api/src/api/support/app.ts',
+			'packages/api/src/api/routes/support/foundation-health-market-and-feedback.ts',
 			'packages/api/src/api/app/support/feedback.ts',
 		]);
 		const coreEndpoint = source('packages/core/src/pages/api/feedback/submit.ts');

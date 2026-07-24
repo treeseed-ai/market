@@ -51,7 +51,7 @@ describe('Market and Admin legacy UI removal', () => {
 	});
 
 	it('retains only identity and team navigation', () => {
-		const layout = readFileSync('packages/admin/src/layouts/TreeseedAppLayout.astro', 'utf8');
+		const layout = readFileSync('packages/admin/src/layouts/AppLayout.astro', 'utf8');
 		for (const label of ["label: 'Start'", "label: 'Teams'", "label: 'Account'"]) expect(layout).toContain(label);
 		for (const label of ['Projects', 'Services', 'Capacity', 'Work', 'Knowledge', 'Market', 'Cart', 'Seller']) expect(layout).not.toContain(`label: '${label}'`);
 		expect(layout).toContain('treeseed_active_team');

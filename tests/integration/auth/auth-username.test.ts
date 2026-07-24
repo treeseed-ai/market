@@ -3,7 +3,7 @@ import {
 	composeDisplayNameFromParts,
 	normalizeUsername,
 	validateUsername,
-} from '../../../packages/admin/src/lib/auth/profile-validation';
+} from '../../../packages/admin/src/lib/auth/support/profile-validation';
 
 describe('market username validation', () => {
 	it('composes the registration display name from first and last name', () => {

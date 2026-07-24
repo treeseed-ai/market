@@ -60,9 +60,9 @@ Market currently owns no route files. Admin owns the retained authentication, ac
 
 | Owner | Group | Source | Current use | Architecture target |
 | --- | --- | --- | --- | --- |
-| admin | Authenticated identity shell | `packages/admin/src/layouts/TreeseedAppLayout.astro` | Account and team navigation | Retained identity/team composition only. |
+| admin | Authenticated identity shell | `packages/admin/src/layouts/AppLayout.astro` | Account and team navigation | Retained identity/team composition only. |
 | admin | Identity/team view models | `packages/admin/src/view-models` | Principal, active-team, and membership projections | Retained identity/team composition only. |
-| admin | Public identity shell | `packages/admin/src/layouts/TreeseedPublicLayout.astro` | Public user/team profiles and invitations | Retained identity/team composition only. |
+| admin | Public identity shell | `packages/admin/src/layouts/PublicLayout.astro` | Public user/team profiles and invitations | Retained identity/team composition only. |
 | core | Core layouts | `packages/core/src/layouts` | Unchanged public content composition | Retained identity/team composition only. |
 | ui | Reusable Astro components | `packages/ui/src/astro` | Canonical layout-down templates and auth/account compound components | Preserve reusable package-owned primitives for the redesign. |
 | ui | Reusable React components | `packages/ui/src/react` | Shared interactive components available to package-owned surfaces | Preserve reusable package-owned primitives for the redesign. |

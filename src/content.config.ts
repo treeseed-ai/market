@@ -1,3 +1,3 @@
-import { createTreeseedTenantCollections } from '@treeseed/core/content-config';
+import { createTenantCollections } from '@treeseed/core/content-config';
 
-export const collections = createTreeseedTenantCollections();
+export const collections = createTenantCollections();

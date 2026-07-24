@@ -5,15 +5,15 @@ import { join, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { describe, expect, it } from 'vitest';
 import {
-	auditTreeseedGuaranteeJourneys,
-	discoverTreeseedGuarantees,
-	exportTreeseedGuaranteesCsv,
-	planTreeseedGuarantees,
+	auditGuaranteeJourneys,
+	discoverGuarantees,
+	exportGuaranteesCsv,
+	planGuarantees,
 } from '../../../packages/sdk/src/guarantees/index.ts';
 
 describe('workspace guarantee registry', () => {
 	it('discovers workspace guarantee manifests with lowercase taxonomy', () => {
-		const report = discoverTreeseedGuarantees({ workspaceRoot: process.cwd() });
+		const report = discoverGuarantees({ workspaceRoot: process.cwd() });
 		expect(report.ok).toBe(true);
 		expect(report.counts.valid).toBe(113);
 		const manifests = report.guarantees.map((entry) => entry.manifest).filter(Boolean);
@@ -27,8 +27,8 @@ describe('workspace guarantee registry', () => {
 	});
 
 	it('generates a CSV row for every guarantee', () => {
-		const report = discoverTreeseedGuarantees({ workspaceRoot: process.cwd() });
-		const csv = exportTreeseedGuaranteesCsv({ guarantees: report.guarantees });
+		const report = discoverGuarantees({ workspaceRoot: process.cwd() });
+		const csv = exportGuaranteesCsv({ guarantees: report.guarantees });
 		const rows = csv.trim().split('\n');
 		expect(rows).toHaveLength(report.counts.valid + 1);
 		expect(rows[0]).toContain('Guarantee ID,Journey Index,Type,Subtype');
@@ -36,14 +36,14 @@ describe('workspace guarantee registry', () => {
 	});
 
 	it('supports focused type and subtype planning', () => {
-		const plan = planTreeseedGuarantees({ workspaceRoot: process.cwd(), filter: { type: 'user', subtype: 'auth' } });
+		const plan = planGuarantees({ workspaceRoot: process.cwd(), filter: { type: 'user', subtype: 'auth' } });
 		expect(plan.ok).toBe(true);
 		expect(plan.counts.selected).toBeGreaterThan(0);
 		expect(plan.entries.some((entry) => entry.selected && entry.type === 'user' && entry.subtype === 'auth')).toBe(true);
 	});
 
 	it('keeps all active verifier refs executable and free of closure scaffolding', () => {
-		const report = discoverTreeseedGuarantees({ workspaceRoot: process.cwd() });
+		const report = discoverGuarantees({ workspaceRoot: process.cwd() });
 		expect(report.ok).toBe(true);
 		const registries = new Map<string, { kind: string; caseId?: string }>();
 		for (const loaded of report.verifierRegistries) {
@@ -53,7 +53,7 @@ describe('workspace guarantee registry', () => {
 		}
 		const caseDir = mkdtempSync(join(tmpdir(), 'treeseed-api-cases-'));
 		const casePath = join(caseDir, 'cases.json');
-		const expanded = spawnSync(process.execPath, ['--import', 'tsx', './scripts/api-acceptance.ts', '--environment', 'local', '--expand-json', casePath], {
+		const expanded = spawnSync(process.execPath, ['--import', 'tsx', './scripts/support/api-acceptance.ts', '--environment', 'local', '--expand-json', casePath], {
 			cwd: resolve(process.cwd(), 'packages', 'api'),
 			encoding: 'utf8',
 		});
@@ -89,7 +89,7 @@ describe('workspace guarantee registry', () => {
 	});
 
 	it('keeps active scene-backed guarantees as service journeys with stable evidence', () => {
-		const audit = auditTreeseedGuaranteeJourneys({ workspaceRoot: process.cwd() });
+		const audit = auditGuaranteeJourneys({ workspaceRoot: process.cwd() });
 		expect(audit.ok).toBe(true);
 		expect(audit.totals).toMatchObject({
 			guarantees: 113,

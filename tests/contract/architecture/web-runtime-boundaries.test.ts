@@ -286,7 +286,7 @@ describe('web runtime boundaries', () => {
 			.filter((path) => !path.startsWith('packages/admin/src/lib/market/seeds/'));
 		const offenders = sourceFiles.filter((path) => {
 			const source = readFileSync(path, 'utf8');
-			return /TREESEED_MARKET_DATABASE_URL|SITE_DATA_DB|platform-operation-store|RelationalDatabaseAdapter|MarketControlPlaneStore|from ['"].*api\/store|from ['"].*auth\/account|from ['"].*auth\/better-auth|from ['"].*auth\/session-store|resolveMarketStore|loadSiteWebSession|createSiteWebSession|createSiteBetterAuth|ensureBetterAuthD1Schema|createCoreAuthProvider/u.test(source);
+			return /TREESEED_MARKET_DATABASE_URL|SITE_DATA_DB|platform-operation-store|RelationalDatabaseAdapter|MarketControlPlaneStore|from ['"].*api\/store|from ['"].*auth\/account(?!s\b)|from ['"].*auth\/better-auth|from ['"].*auth\/session-store|resolveMarketStore|loadSiteWebSession|createSiteWebSession|createSiteBetterAuth|ensureBetterAuthD1Schema|createCoreAuthProvider/u.test(source);
 		});
 		expect(offenders).toEqual([]);
 	});

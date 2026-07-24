@@ -96,7 +96,7 @@ describe('auth and account UI primitive conversion', () => {
 		expect(identity).toContain('value="primary-email"');
 		expect(identity).toContain('value="delete-email"');
 
-		const appLayout = source('packages/admin/src/layouts/TreeseedAppLayout.astro');
+		const appLayout = source('packages/admin/src/layouts/AppLayout.astro');
 		expect(appLayout).toContain('treeseed:theme-change');
 		expect(appLayout).toContain('/v1/auth/web/appearance');
 		expect(appLayout).toContain('colorScheme: detail.scheme');
