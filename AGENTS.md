@@ -34,10 +34,12 @@ Handwritten executable source and test code must remain small enough to audit, r
 
 - No handwritten source file, executable script, test file, or code fixture may exceed 500 physical lines. The normal target is 250-350 lines.
 - Split files by cohesive domain, behavior, route family, adapter, repository, component, or scenario. Never satisfy the limit with arbitrary numbered chunks.
+- Generic partition names such as `part-N`, `module-N`, `chunk-N`, `section-N`, and `segment-N` are forbidden, as are ordinal collision suffixes on tests and scenario collectors. Numbers are allowed only when they are intrinsic domain terminology, such as a protocol version or HTTP status.
+- A file's directory and basename must make its single responsibility inferable. Barrels and registries may compose named domain contributions, but must not hide declaration-order or line-budget partitions behind ordinal symbols.
 - Generated output, vendored dependencies, database migrations, snapshots, lockfiles, declarative data, and documentation are exempt. Generated files must remain visibly generated and must not become a place for handwritten logic.
 - TypeScript projects use one `tests/` root with semantic suites such as `unit`, `integration`, `contract`, `acceptance`, `e2e`, and `performance`, plus `fixtures` and `support`. Do not create a parallel `test/` root or hide tests under `scripts/`.
 - Multi-language projects such as TreeDX retain ecosystem-native test roots where Cargo, Elixir, Python, or SDK tooling requires them, while following the same size and responsibility rules inside those roots.
-- Every independent repository must enforce the hard limit in its package-local verification. The integrated Market verification additionally audits the checked-out portfolio.
+- Every independent repository must enforce the hard limit and functional naming rules in its package-local verification. The integrated Market verification additionally audits the checked-out portfolio.
 
 ## Independent Project Rule
 

@@ -60,7 +60,7 @@ describe('shell-level feedback architecture', () => {
 	it('uses narrow feedback submission paths without leaking private metadata into route templates', () => {
 		const api = sources([
 			'packages/api/src/api/app.ts',
-			'packages/api/src/api/routes/foundation-healthz-deep-through-feedback.ts',
+			'packages/api/src/api/routes/foundation-health-market-and-feedback.ts',
 			'packages/api/src/api/app/support/feedback.ts',
 		]);
 		const coreEndpoint = source('packages/core/src/pages/api/feedback/submit.ts');

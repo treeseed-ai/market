@@ -39,6 +39,8 @@ Handwritten executable source, scripts, tests, and code fixtures have a hard max
 
 The checker excludes generated output, vendor/dependency trees, build artifacts, migrations, snapshots, lockfiles, declarative data, and documentation. There is no waiver list. A generated file must be located or named as generated so the exclusion is reviewable.
 
+Generic numbered partitions and ordinal test collisions are not an acceptable way to meet the limit. Each repository rejects `part-N`, `module-N`, `chunk-N`, `section-N`, and `segment-N` files, ordinal test/scenario suffixes, API route-range names, the retired mechanical split scripts, parallel `test/` and `tests/` roots, and tests under `scripts/`. Semantic numbers such as HTTP status codes remain valid.
+
 ## Verification Contract
 
 Each repository runs its file-length audit, package build/type checks, tests, and focused guarantees without relying on sibling source checkouts. Market runs its own suites plus integrated portfolio verification. Test moves must preserve the collected test-case inventory unless removal of an obsolete duplicate is recorded in the implementation change.
@@ -48,6 +50,10 @@ Staging saves invoke only push-triggered, non-mutating verification workflows. P
 ## Modernization Status
 
 The dependency-ordered migration is complete and package verification is green for SDK, UI, Core, Admin, Agent, API, CLI, and Reviewer. The final SDK fast-release inventory is 1,250 tests; UI has 54 unit/contract and 12 Chromium E2E tests; Core has 103 tests plus packed-install smoke; Admin has 6 tests; Agent has 178 tests plus AgentKernel, provider-container, and packed-install smoke; API has 427 tests plus its isolated local HTTP acceptance catalog; CLI has 197 tests plus packed-install binary smoke; and Reviewer has 25 tests. Each package-local verifier enforces the 500-line hard limit.
+
+The corrective functional-remediation audit removed the line-budget/declaration-order splitters and replaced every identified mechanical partition. SDK exports are organized into nine domain barrels; UI composes nine deterministic catalog contribution sets; CLI composes named operation and overlay domains; API support is divided into acceptance, descriptor, projection, seed, and runner responsibilities, while 38 route-range installers use bounded-context names. The four ordinal hosted-deployment scenarios now form one lifecycle suite, API collectors are grouped into six bounded contexts, and 175 one-case SDK/Core/Agent files use their complete scenario responsibility rather than a generated ordinal suffix. Two SDK tests stranded under `scripts/` now execute from `tests/integration` against their canonical source owners.
+
+Package-local architecture checks now run through the existing verification scripts. No TreeDX workflow was added: TreeDX continues to use only `release-gate.yml`.
 
 SDK Git-heavy workflow lifecycle tests use a dedicated serial Vitest configuration. The normal unit suite includes that group as a second phase, while the fast release suite excludes it unless `TREESEED_SDK_VERIFY_WORKFLOW_LIFECYCLE=1` explicitly enables the lifecycle gate. Provider-status scenarios clear inherited provider-token aliases so package verification measures fixture state rather than the operator machine's credentials.
 
