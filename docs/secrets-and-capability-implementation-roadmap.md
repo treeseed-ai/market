@@ -215,7 +215,7 @@ Verification:
 - `npm -w packages/sdk run test:unit -- test/utils/secrets-capability.test.ts`
 - `npm -w packages/sdk run verify:local`
 - `cd packages/treedx/apps/api && mix test test/treedx/git_credentials_test.exs`
-- `cd packages/treedx && ./scripts/test-treedx-fast.sh`
+- `cd packages/treedx && ./scripts/verification/test-treedx-fast.sh`
 - `npm -w packages/api run verify:local` remains the full API package gate, but this implementation used the focused API regression suite after the full verify run became CPU-active and silent for several minutes with stable file-descriptor counts.
 
 ## Phase 7: Capacity And Agent Integration
