@@ -94,7 +94,7 @@ describe('workspace guarantee registry', () => {
 		expect(audit.totals).toMatchObject({
 			guarantees: 113,
 			sceneBacked: 36,
-			activeSceneBacked: 9,
+			activeSceneBacked: 20,
 			weakSceneContracts: 0,
 			missingRoutes: 16,
 			missingSelectors: 0,
