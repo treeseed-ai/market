@@ -19,15 +19,15 @@ Market currently owns no route files. Admin owns the retained authentication, ac
 | admin | `/app/teams/[teamId]/edit` | `packages/admin/src/pages/app/teams/[teamId]/edit.astro` | team | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/teams/[teamId]/members` | `packages/admin/src/pages/app/teams/[teamId]/members.astro` | team | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/teams/new` | `packages/admin/src/pages/app/teams/new.astro` | team | AuthenticatedAppShell | wizard | signed-in principal |
-| admin | `/auth/callback/[provider]` | `packages/admin/src/pages/auth/callback/[provider].ts` | auth | AuthShell | redirect | configured provider; one-time database state; nonce and PKCE validation; safe return URL |
-| admin | `/auth/check-email` | `packages/admin/src/pages/auth/check-email.astro` | auth | AuthShell | detail | anonymous-safe auth flow; safe return URL |
-| admin | `/auth/confirm-email` | `packages/admin/src/pages/auth/confirm-email.astro` | auth | AuthShell | detail | anonymous-safe auth flow; safe return URL |
+| admin | `/auth/callback/[provider]` | `packages/admin/src/pages/auth/callback/[provider].ts` | auth | AuthShell | redirect | anonymous principal only; configured provider; one-time database state; nonce and PKCE validation; safe return URL |
+| admin | `/auth/check-email` | `packages/admin/src/pages/auth/check-email.astro` | auth | AuthShell | detail | anonymous principal only; safe return URL |
+| admin | `/auth/confirm-email` | `packages/admin/src/pages/auth/confirm-email.astro` | auth | AuthShell | detail | valid one-time confirmation token; anonymous or signed-in principal; safe return URL |
 | admin | `/auth/device/approve` | `packages/admin/src/pages/auth/device/approve.astro` | auth | AuthShell | auth-form | signed-in principal; valid pending device request |
-| admin | `/auth/forgot-password` | `packages/admin/src/pages/auth/forgot-password.astro` | auth | AuthShell | auth-form | anonymous-safe auth flow; safe return URL |
+| admin | `/auth/forgot-password` | `packages/admin/src/pages/auth/forgot-password.astro` | auth | AuthShell | auth-form | anonymous principal only; safe return URL |
 | admin | `/auth/logout` | `packages/admin/src/pages/auth/logout.ts` | auth | AuthShell | redirect | GET is non-mutating; POST requires signed-in session and double-submit CSRF |
-| admin | `/auth/register` | `packages/admin/src/pages/auth/register.astro` | auth | AuthShell | auth-form | anonymous-safe auth flow; safe return URL |
-| admin | `/auth/reset-password` | `packages/admin/src/pages/auth/reset-password.astro` | auth | AuthShell | auth-form | anonymous-safe auth flow; safe return URL |
-| admin | `/auth/sign-in` | `packages/admin/src/pages/auth/sign-in.astro` | auth | AuthShell | auth-form | anonymous-safe auth flow; safe return URL |
+| admin | `/auth/register` | `packages/admin/src/pages/auth/register.astro` | auth | AuthShell | auth-form | anonymous principal only; safe return URL |
+| admin | `/auth/reset-password` | `packages/admin/src/pages/auth/reset-password.astro` | auth | AuthShell | auth-form | anonymous principal only; safe return URL |
+| admin | `/auth/sign-in` | `packages/admin/src/pages/auth/sign-in.astro` | auth | AuthShell | auth-form | anonymous principal only; safe return URL |
 | admin | `/auth/username` | `packages/admin/src/pages/auth/username.astro` | auth | AuthShell | auth-form | restricted provider-onboarding session; username not already assigned; safe return URL |
 | admin | `/t/[name]` | `packages/admin/src/pages/t/[name].astro` | team | PublicSingleColumnShell | detail | public read |
 | admin | `/team-invites/[token]/accept` | `packages/admin/src/pages/team-invites/[token]/accept.astro` | auth | PublicSingleColumnShell | collection | signed-in principal |

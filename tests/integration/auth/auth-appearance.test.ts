@@ -7,6 +7,7 @@ import {
 	resolveUserThemePreference,
 	setAnonymousThemeCookies,
 	setUserThemeCookies,
+	shouldReloadAppearancePage,
 	COLOR_SCHEME_COOKIE,
 	THEME_MODE_COOKIE,
 } from '../../../packages/admin/src/lib/auth/accounts/appearance';
@@ -158,5 +159,15 @@ describe('anonymous auth appearance', () => {
 		expect(layout).toContain('detail.persist !== true');
 		expect(layout).toContain('colorScheme: detail.scheme');
 		expect(layout).toContain('themeMode: detail.mode');
+		expect(layout).toContain('shouldReloadAppearancePage(window.location.pathname, response.ok)');
+		expect(layout).toContain('window.location.reload()');
+	});
+
+	it('reloads successful theme changes only on the appearance account page', () => {
+		expect(shouldReloadAppearancePage('/app/account/appearance', true)).toBe(true);
+		expect(shouldReloadAppearancePage('/app/account/appearance/', true)).toBe(true);
+		expect(shouldReloadAppearancePage('/app/account', true)).toBe(false);
+		expect(shouldReloadAppearancePage('/app/teams', true)).toBe(false);
+		expect(shouldReloadAppearancePage('/app/account/appearance', false)).toBe(false);
 	});
 });

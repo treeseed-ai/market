@@ -47,7 +47,8 @@ describe('auth and account UI primitive conversion', () => {
 		expect(card).toContain('slot name="sidebarLinks"');
 		expect(card).toContain('src="/logo.svg"');
 		expect(card).toContain('TreeSeed Platform');
-		expect(card).toContain('Simple controls');
+		expect(card).toContain('SITE_SLOGAN');
+		expect(card).not.toContain('Simple controls');
 		expect(css).toContain('.auth-card > .ts-panel__body');
 		expect(css).toContain('grid-template-columns: minmax(10rem, 12rem) minmax(28rem, 1fr)');
 		expect(css).toContain('.auth-card__brand');
@@ -75,6 +76,7 @@ describe('auth and account UI primitive conversion', () => {
 		const registrationForm = source('packages/ui/src/astro/auth/RegistrationForm.astro');
 		expect(register).toContain('showAppearance={false}');
 		expect(register).not.toContain('Default appearance');
+		expect(register).not.toContain('Create an internal login for the market control plane.');
 		expect(registrationForm).toContain('name="colorScheme"');
 		expect(registrationForm).toContain('name="themeMode"');
 		expect(registrationForm).toContain('treeseed:theme-change');
@@ -82,6 +84,25 @@ describe('auth and account UI primitive conversion', () => {
 		expect(registrationForm).toContain('data-availability-status="username"');
 		expect(registrationForm).toContain('data-availability-status="email"');
 		expect(registrationForm).toContain('cannot be changed after registration');
+		expect(registrationForm).toContain('data-astro-rerun');
+		expect(registrationForm).toContain("form.dataset.registrationReady === 'true'");
+		expect(registrationForm).toContain('data-password-match-status');
+		expect(registrationForm).toContain("confirm.dataset.matchState = matches ? 'match' : 'mismatch'");
+		expect(registrationForm).toContain("matchStatus.textContent = matches ? 'Passwords match.' : 'Passwords do not match.'");
+		expect(registrationForm).not.toContain('Enter a username to check availability.');
+		expect(registrationForm).not.toContain('Enter an email to check availability.');
+		expect(registrationForm).not.toContain('Username is available.');
+		expect(registrationForm).not.toContain('Email is available.');
+		expect(registrationForm).toContain('isn’t available for registration.');
+		const passwordMeter = source('packages/ui/src/astro/forms/fields/PasswordMeter.astro');
+		expect(passwordMeter).toContain('data-astro-rerun');
+		expect(passwordMeter).toContain("Symbol.for('ui.password-meter-controller')");
+		expect(passwordMeter).toContain("document.addEventListener('astro:page-load', initialize)");
+		expect(passwordMeter).toContain("document.addEventListener('input', handlePasswordChange)");
+		expect(passwordMeter).toContain('previousController?.destroy?.()');
+		expect(passwordMeter).toContain("const labels = ['Weak', 'Weak', 'Fair', 'Good', 'Strong']");
+		expect(passwordMeter).toContain("input.value ? labels[score] : 'Not started'");
+		expect(passwordMeter).toContain('role="status"');
 
 		const account = source('packages/admin/src/pages/app/account/index.astro');
 		expect(account).not.toContain('account-tab-appearance');
@@ -101,6 +122,15 @@ describe('auth and account UI primitive conversion', () => {
 		expect(appLayout).toContain('/v1/auth/web/appearance');
 		expect(appLayout).toContain('colorScheme: detail.scheme');
 		expect(appLayout).toContain('themeMode: detail.mode');
+	});
+
+	it('keeps the sign-in form focused on authentication controls', () => {
+		const signIn = source('packages/admin/src/pages/auth/sign-in.astro');
+
+		expect(signIn).toContain('title="Sign in"');
+		expect(signIn).not.toContain(
+			'Use your account email or username and password, or continue with a configured provider.',
+		);
 	});
 
 	it('removes page-local auth and account styling implementations', () => {

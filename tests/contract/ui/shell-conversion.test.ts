@@ -14,9 +14,13 @@ describe('retained Admin shells', () => {
 
 	it('keeps the public shell identity-only', () => {
 		const source = readFileSync('packages/admin/src/layouts/PublicLayout.astro', 'utf8');
+		const sharedShell = readFileSync('packages/ui/src/astro/public/PublicSingleColumnShell.astro', 'utf8');
+		const controls = readFileSync('packages/ui/src/astro/shell/chrome/SiteUserControls.astro', 'utf8');
 		expect(source).toContain('PublicShell');
 		expect(source).toContain("label: 'Home'");
-		expect(source).toContain('Account and teams');
+		expect(source).not.toContain('ShellIconLink');
+		expect(sharedShell.match(/\bshowManagerLink\b/gu)).toHaveLength(1);
+		expect(controls.match(/icon="manager"/gu)).toHaveLength(1);
 		for (const target of ['/market', '/p/', '/knowledge-packs', '/templates']) expect(source).not.toContain(target);
 	});
 });
