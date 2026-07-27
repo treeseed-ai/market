@@ -50,9 +50,12 @@ describe('Market and Admin legacy UI removal', () => {
 		expect(adminPackage.dependencies).not.toHaveProperty('libsodium-wrappers-sumo');
 	});
 
-	it('retains only identity and team navigation', () => {
+	it('retains identity navigation and one canonical team-management link', () => {
 		const layout = readFileSync('packages/admin/src/layouts/AppLayout.astro', 'utf8');
-		for (const label of ["label: 'Start'", "label: 'Teams'", "label: 'Account'"]) expect(layout).toContain(label);
+		for (const label of ["label: 'Start'", "label: 'Account'"]) expect(layout).toContain(label);
+		expect(layout).not.toContain("label: 'Teams'");
+		expect(layout).toContain('aria-label="Manage teams"');
+		expect(layout.split('href="/app/teams"')).toHaveLength(2);
 		for (const label of ['Projects', 'Services', 'Capacity', 'Work', 'Knowledge', 'Market', 'Cart', 'Seller']) expect(layout).not.toContain(`label: '${label}'`);
 		expect(layout).toContain('treeseed_active_team');
 	});

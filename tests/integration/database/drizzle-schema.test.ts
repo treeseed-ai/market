@@ -59,7 +59,10 @@ describe('Treeseed Drizzle schema baseline', () => {
 
 	it('has checked-in Drizzle artifacts for Market PostgreSQL and SDK D1', () => {
 		expect(existsSync(marketMigrationPath)).toBe(true);
-		expect(readdirSync(marketMigrationRoot).filter((file) => file.endsWith('.sql'))).toEqual(['0000_market_control_plane.sql']);
+		expect(readdirSync(marketMigrationRoot).filter((file) => file.endsWith('.sql')).sort()).toEqual([
+			'0000_market_control_plane.sql',
+			'0001_account_timezone.sql',
+		]);
 		expect(existsSync(d1MigrationPath)).toBe(true);
 
 		const marketSql = readSql(marketMigrationPath);

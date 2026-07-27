@@ -74,6 +74,7 @@ describe('auth and account UI primitive conversion', () => {
 	it('keeps registration appearance wiring and removes the account-local appearance tab', () => {
 		const register = source('packages/admin/src/pages/auth/register.astro');
 		const registrationForm = source('packages/ui/src/astro/auth/RegistrationForm.astro');
+		const passwordSetup = source('packages/ui/src/astro/forms/fields/PasswordSetupFields.astro');
 		expect(register).toContain('showAppearance={false}');
 		expect(register).not.toContain('Default appearance');
 		expect(register).not.toContain('Create an internal login for the market control plane.');
@@ -86,9 +87,10 @@ describe('auth and account UI primitive conversion', () => {
 		expect(registrationForm).toContain('cannot be changed after registration');
 		expect(registrationForm).toContain('data-astro-rerun');
 		expect(registrationForm).toContain("form.dataset.registrationReady === 'true'");
-		expect(registrationForm).toContain('data-password-match-status');
-		expect(registrationForm).toContain("confirm.dataset.matchState = matches ? 'match' : 'mismatch'");
-		expect(registrationForm).toContain("matchStatus.textContent = matches ? 'Passwords match.' : 'Passwords do not match.'");
+		expect(registrationForm).toContain('<PasswordSetupFields');
+		expect(passwordSetup).toContain('data-ts-password-match-status');
+		expect(passwordSetup).toContain("confirm.dataset.matchState = matches ? 'match' : 'mismatch'");
+		expect(passwordSetup).toContain("status.textContent = matches ? 'Passwords match.' : 'Passwords do not match.'");
 		expect(registrationForm).not.toContain('Enter a username to check availability.');
 		expect(registrationForm).not.toContain('Enter an email to check availability.');
 		expect(registrationForm).not.toContain('Username is available.');
@@ -100,8 +102,11 @@ describe('auth and account UI primitive conversion', () => {
 		expect(passwordMeter).toContain("document.addEventListener('astro:page-load', initialize)");
 		expect(passwordMeter).toContain("document.addEventListener('input', handlePasswordChange)");
 		expect(passwordMeter).toContain('previousController?.destroy?.()');
-		expect(passwordMeter).toContain("const labels = ['Weak', 'Weak', 'Fair', 'Good', 'Strong']");
-		expect(passwordMeter).toContain("input.value ? labels[score] : 'Not started'");
+		expect(passwordMeter).toContain("? 'Not started'");
+		expect(passwordMeter).toContain("? 'Strong'");
+		expect(passwordMeter).toContain("? 'Almost there'");
+		expect(passwordMeter).toContain("? 'Weak'");
+		expect(passwordMeter).toContain(": 'Too weak'");
 		expect(passwordMeter).toContain('role="status"');
 
 		const account = source('packages/admin/src/pages/app/account/index.astro');

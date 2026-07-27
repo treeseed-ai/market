@@ -227,7 +227,8 @@ describe('web runtime boundaries', () => {
 		expect(logout).toContain('requireCsrf');
 		expect(logout).toContain("request('POST', '/v1/auth/logout'");
 		expect(logout).toContain('clearApiAccessTokenCookie(context)');
-		expect(logout).toContain("'/auth/sign-in?signedOut=1', 303");
+		expect(logout).toContain('pageFormResponse(context');
+		expect(logout).toContain("redirect: '/auth/sign-in?signedOut=1'");
 		expect(logout.split('export const GET')[1].split('export const POST')[0]).not.toContain('clearApiAccessTokenCookie');
 	});
 
