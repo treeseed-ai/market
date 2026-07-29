@@ -17,12 +17,15 @@ TreeSeed currently composes three shell families; reusable UI exports beyond the
 - **Authenticated app shell:** `ShellFrame`, `ShellHeader`, `SiteUserControls`, `TeamOperationsPanel`, `TeamOperationsDrawer`, and `ControlSurface` composed by Admin's `TreeseedAppLayout` for `/app/**`.
 - **Auth shell:** `AuthShell` for sign-in, registration, recovery, username, email confirmation, and device approval flows.
 - **Public single-column shell:** `PublicSingleColumnShell`, `PublicStack`, `PublicSection`, `PublicHeroSection`, `PublicProfileHeader`, and `PublicKnowledgeSection` for the homepage, marketing pages, public profiles, public projects, books, and Knowledge Hub pages.
+- **Public knowledge profiles:** `KnowledgeProfileLayout`, `KnowledgeProfileIdentity`, `KnowledgeProfileStats`, `KnowledgeProfileCollection`, and `KnowledgeActivityTrail` compose a compact, pattern-free identity rail, reusable knowledge ledger, publication rhythm, and time-zone-aware activity trail. Actual organization logos render with `object-fit: contain` on a transparent, undecorated canvas so transparent image backgrounds remain intact; fallback initials use the standard muted surface. The complete desktop identity-and-stats rail owns sticky positioning so its sections cannot overlap; mobile returns the rail to normal document flow. The layout's optional navigation slot hosts canonical, access-checked account or team tabs above the profile without duplicating tab styles. Product packages map safe view models into these primitives rather than recreating profile cards, timelines, or navigation.
 
 `SurfaceTabs` is the canonical responsive tab primitive for control-surface subpages. Link mode is used for routed subpages; panel mode is used only for in-page tab panels. `SettingsTemplate` renders routed section tabs above the active section body on every viewport. `ProjectControlNav`, `WorkContentNav`, raw `.ts-tabs`, and page-local tab scripts are compatibility surfaces and should delegate to `SurfaceTabs`.
 
 `ProductShell`, `PublicShell`, `RailNav`, and `BottomNav` remain exported for one migration cycle as compatibility/deprecated entries. New application work should compose the current shell primitives through package-owned layouts instead of importing those wrappers directly.
 
-`Timestamp` and the `timestamps` client utilities are the canonical instant-display path. Authenticated shells carry the persisted account IANA time zone, render semantic `<time datetime>` elements in that zone, and reformat refreshed content without changing the stored instant. Account settings use `AccountTimeZoneSettings`; page-local `Intl.DateTimeFormat` implementations and raw ISO timestamp output are not alternate supported paths.
+`Timestamp` and the `timestamps` client utilities are the canonical instant-display path. Authenticated shells carry the persisted account IANA time zone, render semantic `<time datetime>` elements in that zone, and reformat refreshed content without changing the stored instant. `Countdown` composes that same canonical timestamp display with an accessible live remaining-time indicator for deadlines such as archived-team recovery windows. Account settings use `AccountTimeZoneSettings`; page-local `Intl.DateTimeFormat` implementations and raw ISO timestamp output are not alternate supported paths.
+
+`IdentitySummary` is the canonical compact person/account identity display for tables and administrative lists. `ResponsiveTable` supports `density="comfortable"` for interaction-heavy directories where identity, status, and actions need stronger vertical separation.
 
 Exactly one layer owns an authenticated page heading. Routes whose content template renders `PageHeader` set `contentOwnsPageHeader`; direct-content routes leave heading ownership with `ProductShell`. The desktop team operations rail fills the viewport below the sticky header. Its primary selector/navigation region owns overflow while the team and account actions remain in a non-scrolling footer. Every navigation and action entry has an accessible icon and label.
 
@@ -33,7 +36,7 @@ Every exported Astro layout/component must have a UI sandbox registry entry in `
 ## Package Ownership
 
 - `@treeseed/ui` owns reusable components, shells, forms, controls, cards, operation panels, auth surfaces, theme utilities, React widgets, and CSS primitives.
-- `@treeseed/admin` currently owns authentication, account, team, active-team, invitation, and identity-only public profile composition plus retained generic contracts.
+- `@treeseed/admin` owns authentication, account, team, active-team, invitation, and public knowledge-profile composition plus retained generic contracts.
 - root `@treeseed/market` owns tenant content, configuration, public messaging, and future redesigned business-policy presentation; it currently owns no route files.
 - `@treeseed/core` owns generic site runtime and plugin/layout integration hooks, not layout-down product components.
 - `@treeseed/api`, `@treeseed/sdk`, `@treeseed/cli`, `@treeseed/agent`, and TreeDX own non-visual runtime behavior.

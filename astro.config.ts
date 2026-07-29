@@ -21,6 +21,9 @@ function isIgnoredWatchPath(path: string) {
 
 export default {
 	...config,
+	devToolbar: {
+		enabled: false,
+	},
 	vite: {
 		...(config.vite ?? {}),
 		build: {

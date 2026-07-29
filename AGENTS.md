@@ -118,6 +118,12 @@ Agents and operations must use TreeDX-backed content operations for real content
 
 ## Boundary Rules
 
+### User Time Zone Display
+
+- Every date or time shown in authenticated UI must use the signed-in user's persisted IANA time zone through the canonical `@treeseed/ui` `Timestamp` component or timestamp utilities.
+- Never render raw ISO values, server-local time, browser-local time, or hard-coded UTC as the primary authenticated UI display. UTC may appear only as supplemental forensic detail, such as a semantic timestamp title.
+- Pages that render timestamps server-side must pass the same account time zone to both the application shell and each timestamp component so the initial response, client hydration, and refreshed content agree.
+
 - `sdk` must not import from `core`, `admin`, `api`, `agent`, `ui`, `cli`, TreeDX source, or root market source.
 - `ui` must not import from root, `admin`, `core`, `api`, `agent`, or `cli`; it may depend on UI/runtime libraries only.
 - `core` may depend on `sdk` and `ui`; it must not depend on `admin`, `api`, `cli`, or `agent`.

@@ -2,7 +2,7 @@
 
 Generated from `scripts/ui-architecture/inventory.ts`. This is the current post-cleanup route and component inventory; the removed surface is archived in [legacy-routes.md](./legacy-routes.md), and redesign direction lives in [ui-redesign.md](./ui-redesign.md).
 
-Market currently owns no route files. Admin owns the retained authentication, account, team, active-team, invitation, and public identity/team profile surface. Core routes and every `@treeseed/ui` component remain unchanged.
+Market currently owns no route files. Admin owns the authentication, account, team, active-team, invitation, and public user/team knowledge-profile surface. Core owns its public content routes, while reusable visual composition remains in `@treeseed/ui`.
 
 ## Human-facing routes
 
@@ -14,10 +14,17 @@ Market currently owns no route files. Admin owns the retained authentication, ac
 | admin | `/app/account/delete` | `packages/admin/src/pages/app/account/delete.astro` | personal | AuthenticatedAppShell | settings | signed-in principal |
 | admin | `/app/account/notifications` | `packages/admin/src/pages/app/account/notifications.astro` | personal | AuthenticatedAppShell | settings | signed-in principal |
 | admin | `/app/account/sessions` | `packages/admin/src/pages/app/account/sessions.astro` | personal | AuthenticatedAppShell | settings | signed-in principal |
+| admin | `/app/market` | `packages/admin/src/pages/app/domain-overview.astro` | personal | PublicSingleColumnShell | collection | signed-in principal |
+| admin | `/app/market` | `packages/admin/src/pages/app/domain-overview.astro` | personal | PublicSingleColumnShell | collection | signed-in principal |
+| admin | `/app/market` | `packages/admin/src/pages/app/domain-overview.astro` | personal | PublicSingleColumnShell | collection | signed-in principal |
+| admin | `/app/market` | `packages/admin/src/pages/app/domain-overview.astro` | personal | PublicSingleColumnShell | collection | signed-in principal |
+| admin | `/app/market` | `packages/admin/src/pages/app/domain-overview.astro` | personal | PublicSingleColumnShell | collection | signed-in principal |
 | admin | `/app/teams` | `packages/admin/src/pages/app/teams/index.astro` | team | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/teams/[teamId]` | `packages/admin/src/pages/app/teams/[teamId]/index.astro` | team | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/teams/[teamId]/delete` | `packages/admin/src/pages/app/teams/[teamId]/delete.astro` | team | AuthenticatedAppShell | settings | signed-in principal |
 | admin | `/app/teams/[teamId]/edit` | `packages/admin/src/pages/app/teams/[teamId]/edit.astro` | team | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/teams/[teamId]/members` | `packages/admin/src/pages/app/teams/[teamId]/members.astro` | team | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/teams/active` | `packages/admin/src/pages/app/teams/active.ts` | team | AuthenticatedAppShell | action | signed-in principal |
 | admin | `/app/teams/new` | `packages/admin/src/pages/app/teams/new.astro` | team | AuthenticatedAppShell | wizard | signed-in principal |
 | admin | `/auth/callback/[provider]` | `packages/admin/src/pages/auth/callback/[provider].ts` | auth | AuthShell | redirect | anonymous principal only; configured provider; one-time database state; nonce and PKCE validation; safe return URL |
 | admin | `/auth/check-email` | `packages/admin/src/pages/auth/check-email.astro` | auth | AuthShell | detail | anonymous principal only; safe return URL |

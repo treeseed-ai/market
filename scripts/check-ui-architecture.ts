@@ -42,7 +42,7 @@ const architectureDoc = `# UI Architecture Inventory
 
 Generated from \`scripts/ui-architecture/inventory.ts\`. This is the current post-cleanup route and component inventory; the removed surface is archived in [legacy-routes.md](./legacy-routes.md), and redesign direction lives in [ui-redesign.md](./ui-redesign.md).
 
-Market currently owns no route files. Admin owns the retained authentication, account, team, active-team, invitation, and public identity/team profile surface. Core routes and every \`@treeseed/ui\` component remain unchanged.
+Market currently owns no route files. Admin owns the authentication, account, team, active-team, invitation, and public user/team knowledge-profile surface. Core owns its public content routes, while reusable visual composition remains in \`@treeseed/ui\`.
 
 ## Human-facing routes
 

@@ -38,7 +38,7 @@ const rawColorAllowlistPrefixes = [
 ];
 
 const inlineStyleAllowlist = new Set([
-	'packages/ui/src/astro/data/MetricGrid.astro',
+	'packages/ui/src/astro/data/metrics/MetricGrid.astro',
 	'packages/ui/src/astro/theme/ThemePreviewSwatch.astro',
 	'packages/ui/src/react/charts/MonitoringChart.tsx',
 	'packages/ui/src/react/charts/ProjectActivityChart.tsx',
