@@ -29,15 +29,20 @@ function routePatternFromPath(sourcePath: string): string {
 
 describe('UI architecture inventory', () => {
 	it('covers every human-facing Astro route', () => {
-		const discovered = routeRoots.flatMap(walk).filter((path) => extname(path) === '.astro' || path.endsWith('/auth/logout.ts') || path.includes('/auth/callback/')).sort();
-		const inventoried = routeInventory.map((entry) => entry.sourcePath).sort();
+		const inventoried = [...new Set(routeInventory.map((entry) => entry.sourcePath))].sort();
+		const inventoriedSources = new Set(inventoried);
+		const discovered = routeRoots.flatMap(walk).filter((path) => extname(path) === '.astro' || inventoriedSources.has(path)).sort();
 
 		expect(inventoried).toEqual(discovered);
 	});
 
 	it('keeps route metadata complete and aligned with file paths', () => {
+		const routeCountBySource = new Map<string, number>();
+		for (const entry of routeInventory) routeCountBySource.set(entry.sourcePath, (routeCountBySource.get(entry.sourcePath) ?? 0) + 1);
 		for (const entry of routeInventory) {
-			expect(entry.routePattern.replace(/\[\.\.\.([^\]]+)\]/gu, ':$1*').replace(/\[([^\]]+)\]/gu, ':$1')).toBe(routePatternFromPath(entry.sourcePath));
+			if (routeCountBySource.get(entry.sourcePath) === 1) {
+				expect(entry.routePattern.replace(/\[\.\.\.([^\]]+)\]/gu, ':$1*').replace(/\[([^\]]+)\]/gu, ':$1')).toBe(routePatternFromPath(entry.sourcePath));
+			}
 			expect(entry.policyNeeds.length, `${entry.sourcePath} policy needs`).toBeGreaterThan(0);
 			expect(entry.dataSource, `${entry.sourcePath} data source`).toBeTruthy();
 			expect(entry.requiredArchitectureChecks.length, `${entry.sourcePath} architecture checks`).toBeGreaterThan(0);
@@ -45,6 +50,9 @@ describe('UI architecture inventory', () => {
 			expect(entry.architectureStage, `${entry.sourcePath} architecture stage`).toBeTruthy();
 			expect(entry.implementationStatus, `${entry.sourcePath} implementation status`).toBe('active');
 		}
+		expect(routeInventory.filter((entry) => entry.sourcePath.endsWith('/app/domain-overview.astro')).map((entry) => entry.routePattern).sort()).toEqual([
+			'/app/capacity', '/app/hosts', '/app/knowledge', '/app/market', '/app/projects',
+		]);
 	});
 
 	it('identifies canonical architecture proof surfaces', () => {

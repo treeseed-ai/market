@@ -6,7 +6,8 @@ import { routeInventory } from '../../../scripts/ui-architecture/inventory';
 
 const retained = [
 	'/app', '/app/account', '/app/account/sessions', '/app/account/notifications', '/app/account/appearance', '/app/account/delete', '/app/teams', '/app/teams/new',
-	'/app/teams/[teamId]/edit', '/app/teams/[teamId]/delete', '/app/teams/[teamId]/members',
+	'/app/teams/active', '/app/teams/[teamId]', '/app/teams/[teamId]/edit', '/app/teams/[teamId]/delete', '/app/teams/[teamId]/members',
+	'/app/projects', '/app/hosts', '/app/capacity', '/app/knowledge', '/app/market',
 	'/auth/register', '/auth/check-email', '/auth/confirm-email', '/auth/sign-in', '/auth/logout',
 	'/auth/forgot-password', '/auth/reset-password', '/auth/username', '/auth/device/approve',
 	'/auth/callback/[provider]', '/u/[username]', '/t/[name]', '/team-invites/[token]/accept',
@@ -24,13 +25,13 @@ describe('Market and Admin legacy UI removal', () => {
 	it('leaves Market with no tenant-owned routes and Admin with the focused human and support routes', () => {
 		expect(filesUnder('src/pages')).toEqual([]);
 		expect(ADMIN_ROUTES.map((route) => route.pattern).sort()).toEqual(retained);
-		expect(filesUnder('packages/admin/src/pages')).toHaveLength(25);
+		expect(filesUnder('packages/admin/src/pages')).toHaveLength(28);
 	});
 
 	it('keeps the generated current inventory free of retired routes', () => {
 		expect(routeInventory.some((entry) => entry.owner === 'market')).toBe(false);
 		const patterns = routeInventory.map((entry) => entry.routePattern);
-		for (const route of ['/market', '/cart', '/checkout/:checkoutId', '/app/projects', '/app/capacity', '/app/work', '/app/knowledge']) {
+		for (const route of ['/market', '/cart', '/checkout/:checkoutId', '/app/services', '/app/work']) {
 			expect(patterns).not.toContain(route);
 		}
 	});
@@ -57,7 +58,9 @@ describe('Market and Admin legacy UI removal', () => {
 		expect(layout).toContain('aria-label="Manage teams"');
 		expect(layout.split('href="/app/teams"')).toHaveLength(2);
 		for (const label of ['Projects', 'Services', 'Capacity', 'Work', 'Knowledge', 'Market', 'Cart', 'Seller']) expect(layout).not.toContain(`label: '${label}'`);
-		expect(layout).toContain('treeseed_active_team');
+		const activeTeamAction = readFileSync('packages/admin/src/pages/app/teams/active.ts', 'utf8');
+		expect(activeTeamAction).toContain("cookies.set('treeseed_active_team'");
+		expect(activeTeamAction).toContain("path: '/app'");
 	});
 
 	it('archives all 130 removed and retained legacy route records', () => {

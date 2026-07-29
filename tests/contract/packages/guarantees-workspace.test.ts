@@ -15,7 +15,7 @@ describe('workspace guarantee registry', () => {
 	it('discovers workspace guarantee manifests with lowercase taxonomy', () => {
 		const report = discoverGuarantees({ workspaceRoot: process.cwd() });
 		expect(report.ok).toBe(true);
-		expect(report.counts.valid).toBe(113);
+		expect(report.counts.valid).toBe(115);
 		const manifests = report.guarantees.map((entry) => entry.manifest).filter(Boolean);
 		expect(manifests.every((manifest) => /^[a-z][a-z0-9-]*$/u.test(manifest!.type))).toBe(true);
 		expect(manifests.every((manifest) => /^[a-z][a-z0-9-]*$/u.test(manifest!.subtype))).toBe(true);
@@ -92,9 +92,9 @@ describe('workspace guarantee registry', () => {
 		const audit = auditGuaranteeJourneys({ workspaceRoot: process.cwd() });
 		expect(audit.ok).toBe(true);
 		expect(audit.totals).toMatchObject({
-			guarantees: 113,
-			sceneBacked: 36,
-			activeSceneBacked: 20,
+			guarantees: 115,
+			sceneBacked: 37,
+			activeSceneBacked: 21,
 			weakSceneContracts: 0,
 			missingRoutes: 16,
 			missingSelectors: 0,

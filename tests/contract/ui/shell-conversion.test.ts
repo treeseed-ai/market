@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
 describe('retained Admin shells', () => {
 	it('limits the authenticated shell to account and team work', () => {
 		const source = readFileSync('packages/admin/src/layouts/AppLayout.astro', 'utf8');
+		const activeTeamAction = readFileSync('packages/admin/src/pages/app/teams/active.ts', 'utf8');
 		expect(source).toContain('ProductShell');
-		expect(source).toContain('treeseed_active_team');
+		expect(activeTeamAction).toContain("cookies.set('treeseed_active_team'");
+		expect(activeTeamAction).toContain("path: '/app'");
 		for (const target of ['/app/', '/app/account', '/app/teams', '/app/teams/new']) expect(source).toContain(target);
 		for (const target of ['/app/projects', '/app/services', '/app/capacity', '/app/work', '/app/knowledge']) expect(source).not.toContain(target);
 		expect(source).not.toContain('SensitiveDataUnlock');
@@ -21,6 +23,7 @@ describe('retained Admin shells', () => {
 		expect(source).not.toContain('ShellIconLink');
 		expect(sharedShell.match(/\bshowManagerLink\b/gu)).toHaveLength(1);
 		expect(controls.match(/icon="manager"/gu)).toHaveLength(1);
-		for (const target of ['/market', '/p/', '/knowledge-packs', '/templates']) expect(source).not.toContain(target);
+		expect(source).toContain('showFooter={!profilePage}');
+		for (const target of ['/p/', '/knowledge-packs', '/templates']) expect(source).not.toContain(target);
 	});
 });

@@ -62,6 +62,8 @@ describe('Treeseed Drizzle schema baseline', () => {
 		expect(readdirSync(marketMigrationRoot).filter((file) => file.endsWith('.sql')).sort()).toEqual([
 			'0000_market_control_plane.sql',
 			'0001_account_timezone.sql',
+			'0001_team_lifecycle.sql',
+			'0002_team_restore_deadline.sql',
 		]);
 		expect(existsSync(d1MigrationPath)).toBe(true);
 
