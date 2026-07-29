@@ -69,9 +69,6 @@ function sourcePath(owner: 'admin' | 'core', route: SiteRouteContribution) {
 }
 
 const humanCapabilities = [...ADMIN_ROUTES, ...CORE_ROUTES];
-const capabilityBySource = new Map(humanCapabilities.map((entry) => [sourcePath(entry.capability?.owner as 'admin' | 'core', entry), entry]));
-const adminRoutePaths = ADMIN_ROUTES.map((entry) => sourcePath('admin', entry));
-const coreRoutePaths = CORE_ROUTES.map((entry) => sourcePath('core', entry));
 
 function routePatternFromPath(sourcePath: string): string {
 	const pagesIndex = sourcePath.indexOf('/pages/');
@@ -154,17 +151,17 @@ function routePolicies(routePattern: string, owner: PackageOwner): string[] {
 	return ['anonymous-safe auth flow', 'safe return URL'];
 }
 
-function route(sourcePath: string): RouteInventoryEntry {
-	const registered = capabilityBySource.get(sourcePath);
-	if (!registered?.capability) throw new Error(`Route registry metadata is missing for ${sourcePath}`);
+function route(registered: SiteRouteContribution): RouteInventoryEntry {
+	if (!registered.capability) throw new Error(`Route registry metadata is missing for ${registered.resourcePath}`);
+	const routeSourcePath = sourcePath(registered.capability.owner as 'admin' | 'core', registered);
 	const capability = registered.capability;
 	const routePattern = registered.pattern;
-	const owner: PackageOwner = sourcePath.startsWith('packages/admin/') ? 'admin' : 'core';
+	const owner: PackageOwner = routeSourcePath.startsWith('packages/admin/') ? 'admin' : 'core';
 	const isAuth = routePattern.startsWith('/auth') || routePattern.startsWith('/team-invites');
 	const isApp = routePattern === '/app' || routePattern.startsWith('/app/');
 	const isTeam = routePattern.startsWith('/app/teams') || routePattern.startsWith('/t/');
 	const isReader = routePattern.startsWith('/books') || routePattern.startsWith('/docs-runtime');
-	const contents = source(sourcePath);
+	const contents = source(routeSourcePath);
 	const debt: ArchitectureDebt[] = [];
 	if (/<style(?:\s|>)/u.test(contents)) debt.push('page-local-css');
 	if (/\sstyle=/u.test(contents)) debt.push('inline-dynamic-style');
@@ -176,7 +173,7 @@ function route(sourcePath: string): RouteInventoryEntry {
 	return {
 		owner,
 		routePattern,
-		sourcePath,
+		sourcePath: routeSourcePath,
 		description: routeDescriptions[routePattern] ?? routeDescriptions[routePattern.replace(/\[\.\.\.([^\]]+)\]/gu, ':$1*').replace(/\[([^\]]+)\]/gu, ':$1')] ?? capability.description,
 		parameterSemantics: parameterSemantics(routePattern),
 		surfaceContext: isAuth ? 'auth' : isTeam ? 'team' : isApp ? 'personal' : owner === 'core' ? 'content' : 'public',
@@ -203,7 +200,7 @@ function route(sourcePath: string): RouteInventoryEntry {
 	};
 }
 
-export const routeInventory: RouteInventoryEntry[] = [...adminRoutePaths, ...coreRoutePaths].map(route);
+export const routeInventory: RouteInventoryEntry[] = humanCapabilities.map(route);
 
 export const supportEndpointInventory: SupportEndpointInventoryEntry[] = [...ADMIN_SUPPORT_ROUTES, ...CORE_SUPPORT_ROUTES].map((entry) => {
 	if (!entry.capability) throw new Error(`Support route registry metadata is missing for ${entry.pattern}`);

@@ -84,14 +84,16 @@ const generated = new Map([
 ]);
 
 const failures: string[] = [];
-const inventoried = routes.map((entry) => entry.sourcePath).sort();
+const inventoried = [...new Set(routes.map((entry) => entry.sourcePath))].sort();
 const inventoriedSources = new Set(inventoried);
 const discovered = routeRoots.flatMap(walk).filter((path) => extname(path) === '.astro' || inventoriedSources.has(path)).sort();
 if (JSON.stringify(discovered) !== JSON.stringify(inventoried)) failures.push('Human-facing route inventory does not match discovered Astro pages.');
 if (walk('src/pages').length !== 0) failures.push('Market must own zero route files.');
+const routeCountBySource = new Map<string, number>();
+for (const entry of routes) routeCountBySource.set(entry.sourcePath, (routeCountBySource.get(entry.sourcePath) ?? 0) + 1);
 for (const entry of routes) {
 	if (!pathExistsForInventory(entry.sourcePath)) failures.push(`${entry.sourcePath}: inventory source is missing`);
-	if (entry.routePattern !== routePatternFromPath(entry.sourcePath)) failures.push(`${entry.sourcePath}: route pattern is incorrect`);
+	if (routeCountBySource.get(entry.sourcePath) === 1 && entry.routePattern !== routePatternFromPath(entry.sourcePath)) failures.push(`${entry.sourcePath}: route pattern is incorrect`);
 	if (!entry.description || !entry.parameterSemantics || !entry.policyNeeds.length || !entry.dataSource || !entry.architectureNotes) failures.push(`${entry.sourcePath}: route metadata is incomplete`);
 	if (entry.owner === 'admin' && (entry.routePattern.startsWith('/auth/') || entry.routePattern.startsWith('/app/account')) && entry.sourcePath.endsWith('.astro')) {
 		const contents = readFileSync(resolve(root, entry.sourcePath), 'utf8');
