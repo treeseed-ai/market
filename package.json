@@ -21,6 +21,12 @@
   "engines": {
     "node": ">=22"
   },
+  "overrides": {
+    "libsodium": "0.7.15",
+    "libsodium-sumo": "0.7.15",
+    "libsodium-wrappers": "0.7.15",
+    "libsodium-wrappers-sumo": "0.7.15"
+  },
   "files": [
     "README.md",
     "astro.config.ts",
@@ -77,6 +83,7 @@
   "devDependencies": {
     "@types/node": "^24.6.0",
     "drizzle-kit": "^0.31.10",
+    "libsodium-wrappers-sumo": "0.7.15",
     "pg-mem": "^3.0.14",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",

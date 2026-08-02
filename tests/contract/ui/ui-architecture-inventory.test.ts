@@ -51,14 +51,14 @@ describe('UI architecture inventory', () => {
 			expect(entry.implementationStatus, `${entry.sourcePath} implementation status`).toBe('active');
 		}
 		expect(routeInventory.filter((entry) => entry.sourcePath.endsWith('/app/domain-overview.astro')).map((entry) => entry.routePattern).sort()).toEqual([
-			'/app/capacity', '/app/hosts', '/app/knowledge', '/app/market', '/app/projects',
+			'/app/capacity', '/app/market', '/app/projects', '/app/work',
 		]);
 	});
 
 	it('identifies canonical architecture proof surfaces', () => {
 		const candidates = routeInventory.filter((entry) => entry.architectureProof);
 		expect(candidates.some((entry) => entry.architectureProof?.includes('Direction resource'))).toBe(true);
-		expect(candidates.some((entry) => entry.architectureProof?.includes('Public runtime reader'))).toBe(true);
+		expect(candidates.some((entry) => entry.architectureProof?.includes('Canonical Starlight knowledge reader'))).toBe(true);
 	});
 
 	it('keeps component inventory entries actionable', () => {

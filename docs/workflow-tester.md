@@ -172,8 +172,8 @@ Draft manifest:
 ```yaml
 schemaVersion: treeseed.scene/v1
 id: market-project-deploy-demo
-title: Market Project Deployment Demo
-description: Guided workflow proving project deployment, operation visibility, and deployment history.
+title: Team Service Management Demo
+description: Guided workflow proving provider connection, encrypted custody, and operation-lease evidence.
 audience:
   - operator
   - evaluator

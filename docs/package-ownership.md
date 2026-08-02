@@ -4,6 +4,8 @@ This document is the canonical current-state map for where Treeseed functionalit
 
 For capacity-provider and agent completion work, [Agent Capacity Completion and Production-Readiness Plan](./agent-capacity-completion.md) is the active cross-package execution ledger. It preserves the ownership boundaries in this document while replacing the incomplete single-team registration, allocation, kernel, handler, and starter implementations.
 
+For Guide-specific editorial roles, deterministic layered context, review independence, and exact-revision publication, see [TreeSeed Guide Editorial Agent System](./guide-editorial-agent-system.md).
+
 ## System Overview
 
 Treeseed is a unified system made from independently releasable package projects plus the root hosted market tenant.
@@ -41,6 +43,17 @@ Capacity acceptance follows the same independent-project rule. `starters/enginee
 | `@treeseed/reviewer` | Local guarantee run review and AI workplan packaging | Standalone local web app, guarantee run selection/review UI, reviewer notes, evidence browsing, copied local evidence bundles, directive/workplan schemas, and Codex-ready handoff packages. It invokes existing CLI guarantee commands and must not own guarantee execution or release gating. |
 | `@treeseed/agent` | Capacity-provider and agent runtime | Provider manager/runner runtime, sole-entrypoint AgentKernel execution, canonical mode-run lifecycle telemetry, activity-profile and research-stage resolution, execution-provider adapters, required replay-safe provider telemetry delivery, assignment-scoped fail-closed tool catalogs, model-aware content and governed research tools, exact-ref worktree/checkpoint execution, provider-local capacity enforcement, runtime images/templates |
 | `packages/treedx` | Generic repository data/index/query service consumed by Treeseed | TreeDX API, storage, Git/repository graph/indexing, federation, Docker image, language SDKs; no Treeseed product semantics |
+
+### Book knowledge ownership
+
+- `@treeseed/sdk` owns `treeseed.book/v2`, `treeseed.knowledge-page/v1`, book-collection and immutable knowledge-pack contracts, derived routes, content-sync safety, and deterministic snapshot artifacts.
+- `@treeseed/ui` owns reusable library, outline, authoring, review, relationship, and pack presentation. Admin routes compose these primitives and do not create page-local editor or collection systems.
+- `@treeseed/core` owns the single Starlight-based reader and the policy-filtered published-content consumption boundary.
+- `@treeseed/admin` owns authenticated authoring, review, linking, publication, and pack workbench routes over API contracts.
+- `@treeseed/api` owns authorization, TreeDX workspace/review/publication orchestration, workflow metadata, operations-runner execution, and policy-filtered knowledge APIs. Markdown remains in Git and TreeDX rather than PostgreSQL.
+- `@treeseed/cli` owns `trsd content sync`; the SDK owns its exact-ref comparison and fast-forward-only mutation policy.
+- Git is canonical history, TreeDX is the operational content and graph plane, and PostgreSQL stores workflow metadata. An atomic published manifest is the required serving plane but is still release-blocking; exact-ref runtime reads are not accepted as a substitute. The removed filesystem book exporter is not a supported fallback.
+- `@treeseed/sdk` owns the editorial context, audience declaration, and structured editorial review contracts; `@treeseed/agent` owns TreeDX-backed context resolution and trace provenance; `@treeseed/api` owns independent editorial review state and exact-revision publication enforcement; root Market content owns the Guide agents, editorial cores, chapter briefs, and evidence.
 
 ## Dependency Direction
 
@@ -154,8 +167,8 @@ TreeDX is not an ordinary web dev process. It is run through TreeDX service work
 
 - `sdk` owns config schema loading, environment registry merging, reconciliation primitives, provider credential routing, and portable capacity/assignment contracts.
 - `core` owns web runtime env schema for generic site behavior.
-- `admin` owns reusable admin env expectations and secret-manager contracts; its host credential, unlock/passphrase, and diagnostics views are retired redesign targets.
-- `api` owns backend service credentials, database configuration, operations runner secrets, backend auth, credential-session persistence, provider sessions, assignment leases, mode-run records, and usage settlement.
+- `admin` owns the Services UI, provider guidance, and browser-side vault ceremonies over SDK contracts.
+- `api` owns backend service credentials, database configuration, operations runner secrets, backend auth, encrypted service envelopes, vault grants, operation leases, provider sessions, assignment leases, mode-run records, and usage settlement. It has no provider-credential decryption path.
 - `agent` owns capacity-provider runtime env entries, provider identity/connection and availability-session settings, provider-local lifecycle, and runtime execution settings.
 - `market` owns tenant-specific values, branding, buyer-facing marketplace copy, and the real hosted site manifest.
 - `ui` owns no secrets.

@@ -1,8 +1,8 @@
 # UI Architecture Inventory
 
-Generated from `scripts/ui-architecture/inventory.ts`. This is the current post-cleanup route and component inventory; the removed surface is archived in [legacy-routes.md](./legacy-routes.md), and redesign direction lives in [ui-redesign.md](./ui-redesign.md).
+Generated from `scripts/ui-architecture/inventory.ts`. This is the canonical current route and component inventory. Team service-management architecture is documented in [service-management.md](./service-management.md).
 
-Market currently owns no route files. Admin owns the authentication, account, team, active-team, invitation, and public user/team knowledge-profile surface. Core owns its public content routes, while reusable visual composition remains in `@treeseed/ui`.
+Market currently owns no route files. Admin owns authentication, accounts, teams, active-team services, invitations, and public user/team profiles. Core owns public content routes, while reusable visual composition remains in `@treeseed/ui`.
 
 ## Human-facing routes
 
@@ -15,10 +15,18 @@ Market currently owns no route files. Admin owns the authentication, account, te
 | admin | `/app/account/notifications` | `packages/admin/src/pages/app/account/notifications.astro` | personal | AuthenticatedAppShell | settings | signed-in principal |
 | admin | `/app/account/sessions` | `packages/admin/src/pages/app/account/sessions.astro` | personal | AuthenticatedAppShell | settings | signed-in principal |
 | admin | `/app/capacity` | `packages/admin/src/pages/app/domain-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/hosts` | `packages/admin/src/pages/app/domain-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/knowledge` | `packages/admin/src/pages/app/domain-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/feedback` | `packages/admin/src/pages/app/feedback/index.astro` | personal | AuthenticatedAppShell | collection | platform_admin |
+| admin | `/app/feedback/[feedbackId]` | `packages/admin/src/pages/app/feedback/[feedbackId].astro` | personal | AuthenticatedAppShell | collection | platform_admin |
+| admin | `/app/knowledge` | `packages/admin/src/pages/app/knowledge/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/knowledge/packs/[buildId]/download` | `packages/admin/src/pages/app/knowledge/packs/[buildId]/download.ts` | personal | AuthenticatedAppShell | action | signed-in principal |
 | admin | `/app/market` | `packages/admin/src/pages/app/domain-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/projects` | `packages/admin/src/pages/app/domain-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/projects/[projectId]/books` | `packages/admin/src/pages/app/projects/[projectId]/books/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/projects/[projectId]/workflows` | `packages/admin/src/pages/app/projects/[projectId]/workflows.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/services` | `packages/admin/src/pages/app/services/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/services/[connectionId]` | `packages/admin/src/pages/app/services/[connectionId].astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/services/new` | `packages/admin/src/pages/app/services/new.astro` | personal | AuthenticatedAppShell | wizard | signed-in principal |
+| admin | `/app/services/vault` | `packages/admin/src/pages/app/services/vault.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/teams` | `packages/admin/src/pages/app/teams/index.astro` | team | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/teams/[teamId]` | `packages/admin/src/pages/app/teams/[teamId]/index.astro` | team | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/teams/[teamId]/delete` | `packages/admin/src/pages/app/teams/[teamId]/delete.astro` | team | AuthenticatedAppShell | settings | signed-in principal |
@@ -26,6 +34,7 @@ Market currently owns no route files. Admin owns the authentication, account, te
 | admin | `/app/teams/[teamId]/members` | `packages/admin/src/pages/app/teams/[teamId]/members.astro` | team | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/teams/active` | `packages/admin/src/pages/app/teams/active.ts` | team | AuthenticatedAppShell | action | signed-in principal |
 | admin | `/app/teams/new` | `packages/admin/src/pages/app/teams/new.astro` | team | AuthenticatedAppShell | wizard | signed-in principal |
+| admin | `/app/work` | `packages/admin/src/pages/app/domain-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/auth/callback/[provider]` | `packages/admin/src/pages/auth/callback/[provider].ts` | auth | AuthShell | redirect | anonymous principal only; configured provider; one-time database state; nonce and PKCE validation; safe return URL |
 | admin | `/auth/check-email` | `packages/admin/src/pages/auth/check-email.astro` | auth | AuthShell | detail | anonymous principal only; safe return URL |
 | admin | `/auth/confirm-email` | `packages/admin/src/pages/auth/confirm-email.astro` | auth | AuthShell | detail | valid one-time confirmation token; anonymous or signed-in principal; safe return URL |
@@ -44,13 +53,10 @@ Market currently owns no route files. Admin owns the authentication, account, te
 | core | `/404` | `packages/core/src/pages/404.astro` | content | CoreContentLayout | collection | public read |
 | core | `/agents` | `packages/core/src/pages/agents/index.astro` | content | CoreContentLayout | collection | public read |
 | core | `/agents/[slug]` | `packages/core/src/pages/agents/[slug].astro` | content | CoreContentLayout | detail | public read |
-| core | `/books` | `packages/core/src/pages/books/index.astro` | content | CoreReaderLayout | reader | public read |
-| core | `/books/[slug]` | `packages/core/src/pages/books/[slug].astro` | content | CoreReaderLayout | reader | public read |
+| core | `/books` | `packages/core/src/pages/books/index.astro` | content | CoreReaderLayout | reader | public books; authorized authenticated books |
 | core | `/contact` | `packages/core/src/pages/contact.astro` | content | CoreContentLayout | auth-form | public read |
 | core | `/decisions` | `packages/core/src/pages/decisions/index.astro` | content | CoreContentLayout | collection | public read |
 | core | `/decisions/[slug]` | `packages/core/src/pages/decisions/[slug].astro` | content | CoreContentLayout | detail | public read |
-| core | `/docs-runtime` | `packages/core/src/pages/docs-runtime/index.astro` | content | CoreReaderLayout | reader | public read |
-| core | `/docs-runtime/[...slug]` | `packages/core/src/pages/docs-runtime/[...slug].astro` | content | CoreReaderLayout | reader | public read |
 | core | `/notes` | `packages/core/src/pages/notes/index.astro` | content | CoreContentLayout | collection | public read |
 | core | `/notes/[slug]` | `packages/core/src/pages/notes/[slug].astro` | content | CoreContentLayout | detail | public read |
 | core | `/objectives` | `packages/core/src/pages/objectives/index.astro` | content | CoreContentLayout | collection | public read |
@@ -61,16 +67,18 @@ Market currently owns no route files. Admin owns the authentication, account, te
 | core | `/proposals/[slug]` | `packages/core/src/pages/proposals/[slug].astro` | content | CoreContentLayout | detail | public read |
 | core | `/questions` | `packages/core/src/pages/questions/index.astro` | content | CoreContentLayout | collection | public read |
 | core | `/questions/[slug]` | `packages/core/src/pages/questions/[slug].astro` | content | CoreContentLayout | detail | public read |
+| core | `/t/[teamSlug]/books/[bookSlug]` | `packages/core/src/pages/t/[teamSlug]/books/[bookSlug]/index.astro` | team | CoreReaderLayout | reader | public book; authorized authenticated book |
+| core | `/t/[teamSlug]/books/[bookSlug]/[...pageSlug]` | `packages/core/src/pages/t/[teamSlug]/books/[bookSlug]/[...pageSlug].astro` | team | CoreReaderLayout | reader | public page; authorized authenticated page |
 | core | `/ui` | `packages/core/src/pages/ui/index.astro` | content | CoreContentLayout | collection | public read |
 
 ## Component groups
 
 | Owner | Group | Source | Current use | Architecture target |
 | --- | --- | --- | --- | --- |
-| admin | Authenticated identity shell | `packages/admin/src/layouts/AppLayout.astro` | Account and team navigation | Retained identity/team composition only. |
-| admin | Identity/team view models | `packages/admin/src/view-models` | Principal, active-team, and membership projections | Retained identity/team composition only. |
-| admin | Public identity shell | `packages/admin/src/layouts/PublicLayout.astro` | Public user/team profiles and invitations | Retained identity/team composition only. |
-| core | Core layouts | `packages/core/src/layouts` | Unchanged public content composition | Retained identity/team composition only. |
-| ui | Reusable Astro components | `packages/ui/src/astro` | Canonical layout-down templates and auth/account compound components | Preserve reusable package-owned primitives for the redesign. |
-| ui | Reusable React components | `packages/ui/src/react` | Shared interactive components available to package-owned surfaces | Preserve reusable package-owned primitives for the redesign. |
-| ui | Theme and CSS primitives | `packages/ui/src/styles` | Shared tokens, theme compiler, validation, and styles | Preserve reusable package-owned primitives for the redesign. |
+| admin | Authenticated identity shell | `packages/admin/src/layouts/AppLayout.astro` | Account and team navigation | Canonical package-owned composition. |
+| admin | Identity/team view models | `packages/admin/src/view-models` | Principal, active-team, and membership projections | Canonical package-owned composition. |
+| admin | Public identity shell | `packages/admin/src/layouts/PublicLayout.astro` | Public user/team profiles and invitations | Canonical package-owned composition. |
+| core | Core layouts | `packages/core/src/layouts` | Unchanged public content composition | Canonical package-owned composition. |
+| ui | Reusable Astro components | `packages/ui/src/astro` | Canonical layout-down templates and auth/account compound components | Canonical reusable package-owned primitives. |
+| ui | Reusable React components | `packages/ui/src/react` | Shared interactive components available to package-owned surfaces | Canonical reusable package-owned primitives. |
+| ui | Theme and CSS primitives | `packages/ui/src/styles` | Shared tokens, theme compiler, validation, and styles | Canonical reusable package-owned primitives. |

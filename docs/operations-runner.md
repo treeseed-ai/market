@@ -142,8 +142,8 @@ The SDK becomes the complete shared implementation layer for Market operations. 
 Non-repository SDK operations:
 
 * team/project CRUD clients
-* host and repository-host clients
-* credential-session clients
+* team service connection and capability-binding clients
+* encrypted envelope and single-use operation-lease clients
 * capacity-provider registry clients
 * provider key rotation clients
 * deployment intent clients

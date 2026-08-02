@@ -326,7 +326,7 @@ describe('web runtime boundaries', () => {
 			.filter((path) => !path.startsWith('packages/core/src/dev/'));
 		const offenders = sourceFiles.filter((path) => {
 			const source = readFileSync(path, 'utf8');
-			return /@treeseed\/agent|from ['"].*\/api\/|from ['"].*\/agents\/|from ['"].*\/services\/|Hono|worker runner|workday manager/u.test(source);
+			return /@treeseed\/agent|from ['"](?!@treeseed\/sdk\/api\/).*\/api\/|from ['"].*\/agents\/|from ['"].*\/services\/|Hono|worker runner|workday manager/u.test(source);
 		});
 		expect(offenders).toEqual([]);
 	});

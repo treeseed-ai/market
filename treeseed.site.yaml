@@ -24,6 +24,12 @@ cloudflare:
     manifestKeyTemplate: teams/{teamId}/published/common.json
     previewRootTemplate: teams/{teamId}/previews
     previewTtlHours: 168
+  tunnel:
+    local:
+      enabled: true
+      name: treeseed-local-connectors
+      hostname: connect.local.treeseed.dev
+      originUrl: http://127.0.0.1:3000
 surfaces:
   web:
     enabled: true

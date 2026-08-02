@@ -1,0 +1,54 @@
+---
+schemaVersion: treeseed.knowledge-page/v1
+id: guide.guarantee.guarantee-market-ecommerce-confirm-an-order-690
+bookId: treeseed-guide
+slug: market/ecommerce/guarantee-market-ecommerce-confirm-an-order-690
+title: "Confirm an order"
+summary: "Guarantee that TreeSeed can confirm an order."
+status: draft
+visibility: public
+order: 5
+parentId: guide.market.ecommerce
+tags: ["market","ecommerce","guarantee"]
+contributors: []
+relatedBookIds: [treeseed-platform-architecture-development]
+relatedKnowledgeIds: ["guide.market.ecommerce"]
+relatedNoteIds: []
+relatedQuestionIds: []
+relatedObjectiveIds: []
+relatedProposalIds: []
+relatedDecisionIds: []
+guaranteeIds: ["guarantee.market.ecommerce.confirm-an-order.690"]
+capabilityIds: []
+routePatterns: []
+resourceTypes: [treeseed-guide]
+actionIds: []
+keywords: ["Confirm an order","market","ecommerce"]
+documentationUrls: []
+audiences:
+  primary: [community, operator]
+  secondary: [developer, ai-agent]
+  excluded: []
+---
+
+# Confirm an order
+
+## What this guarantee promises
+
+This page documents `guarantee.market.ecommerce.confirm-an-order.690`.
+
+## When to use it
+
+## Before you begin
+
+## Procedure
+
+## Expected result
+
+## Safety and recovery
+
+## Verification status
+
+## Related guarantees
+
+[Back to Ecommerce](/t/treeseed/books/treeseed-guide/market/ecommerce)

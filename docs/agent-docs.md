@@ -1,5 +1,7 @@
 # TreeSeed Agent-Driven Documentation Automation Implementation Plan
 
+For the standing roles, authority boundaries, layered context contract, independent review gates, and exact-revision publication model used by the TreeSeed Guide, see [TreeSeed Guide Editorial Agent System](guide-editorial-agent-system.md).
+
 ## Purpose
 
 This plan defines how TreeSeed should reach a fully governed, background-running AI documentation system using TreeSeed agents themselves.

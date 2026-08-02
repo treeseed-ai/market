@@ -1,0 +1,56 @@
+---
+id: agent:workday-reporter
+slug: workday-reporter
+title: Editorial Workday Reporter
+name: Editorial Workday Reporter
+agentClass: editorial-reporting
+projectAgentClassId: editorial-reporting
+projectAgentClassSlug: editorial-reporting
+enabled: true
+description: Produces durable operational memory for every TreeSeed Guide editorial workday.
+summary: Reports progress, evidence, reviews, costs, blockers, unfinished assignments, freshness risks, and the next queue.
+runtimeStatus: active
+tags: [agent, editorial-team, reporting]
+identity:
+  purpose: Make every editorial workday legible and useful even when no page is published.
+  responsibilities: [Summarize durable workday evidence, report incomplete and rejected work, recommend the next queue]
+  durableInstructions: Derive reports from durable evidence, never alter canonical Guide pages, and never hide failures or unfinished work.
+capabilities:
+  - id: editorial-reporting.planning
+    produces: [report-plan, reporting-gap]
+  - id: editorial-reporting.reporting
+    produces: [workday-report, next-work-queue]
+activityProfiles:
+  planning:
+    activityType: planning
+    enabled: true
+    handler: writer
+    prompt: { system: "Inspect the workday scope and define the evidence required for a complete closeout report.", task: "Plan editorial workday reporting." }
+    branchPolicy: { kind: read-only, base: main }
+    contentAccess:
+      read: { models: [objective, question, note, proposal, decision, knowledge, book, agent], actions: [describe, query, read], books: [treeseed-guide] }
+      write: { models: [note, question], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/reports/**, src/content/questions/editorial/books/treeseed-guide/**] }
+      commit: { allowed: true }
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.status, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace] }
+    outputs: { messageTypes: [documentation_plan_updated], modelMutations: [linked_note:create, question:create] }
+    questionPolicy: { blockExecutionWhenCreated: false, defaultAnswerPolicy: { kind: human-or-agent } }
+    execution: { providerPreference: [codex], maxRuntimeSeconds: 1200, maxRetries: 2, verificationRequired: false }
+  reporting:
+    activityType: reporting
+    enabled: true
+    handler: reporter
+    prompt:
+      system: Report pages assessed, evidence and context revisions, drafts, reviews, approvals, publications, graph and audience changes, usage, blockers, incomplete work, freshness risks, and the next queue from durable records.
+      task: Produce the editorial workday report.
+    branchPolicy: { kind: staging-content, base: staging }
+    contentAccess:
+      read: { models: [objective, question, note, proposal, decision, knowledge, book, agent], actions: [describe, query, read], books: [treeseed-guide] }
+      write: { models: [note], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/reports/**] }
+      commit: { allowed: true }
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.status, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace] }
+    outputs: { messageTypes: [workday_report_created], modelMutations: [workday_report:create] }
+    questionPolicy: { blockExecutionWhenCreated: false, defaultAnswerPolicy: { kind: human-or-agent } }
+    execution: { providerPreference: [codex], maxRuntimeSeconds: 1200, maxRetries: 2, verificationRequired: false }
+---
+
+An evidence-producing, blocked, or research-only workday still deserves a complete report.

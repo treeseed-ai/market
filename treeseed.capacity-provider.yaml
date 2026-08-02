@@ -30,4 +30,25 @@ executionProviders:
       - repo_read
       - repo_write
       - repository_work
-connections: []
+connections:
+  - id: primary-team
+    marketProfile: local
+    marketAudience: http://127.0.0.1:3000
+    teamId: 6f7b1b49-ea7c-4013-8a3a-f5709389681e
+    providerId: provider_eD2fKfeAVlgU3dV25G4c5bWSNHUrDRfU
+    membershipId: 40a1ef97-2fdb-48a0-8a9b-cede24ed38d2
+    membershipCredentialRef: data://secrets/primary-team.credential
+    membershipCredentialId: c91a3ba2-e169-4124-91ca-b3f2a410065a
+    offer:
+      weight: 1
+      maxConcurrentRunners: 1
+      capabilities:
+        - engineering
+        - research
+        - planning
+        - acting
+        - verification
+        - agent_mode_run
+        - repo_read
+        - repo_write
+        - repository_work

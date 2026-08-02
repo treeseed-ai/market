@@ -2,14 +2,14 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 describe('retained Admin shells', () => {
-	it('limits the authenticated shell to account and team work', () => {
+	it('composes account, team, and active-team domain navigation', () => {
 		const source = readFileSync('packages/admin/src/layouts/AppLayout.astro', 'utf8');
 		const activeTeamAction = readFileSync('packages/admin/src/pages/app/teams/active.ts', 'utf8');
 		expect(source).toContain('ProductShell');
 		expect(activeTeamAction).toContain("cookies.set('treeseed_active_team'");
 		expect(activeTeamAction).toContain("path: '/app'");
 		for (const target of ['/app/', '/app/account', '/app/teams', '/app/teams/new']) expect(source).toContain(target);
-		for (const target of ['/app/projects', '/app/services', '/app/capacity', '/app/work', '/app/knowledge']) expect(source).not.toContain(target);
+		for (const target of ['/app/projects', '/app/services', '/app/capacity', '/app/work', '/app/knowledge']) expect(source).toContain(target);
 		expect(source).not.toContain('SensitiveDataUnlock');
 		expect(source).not.toContain('<style');
 	});

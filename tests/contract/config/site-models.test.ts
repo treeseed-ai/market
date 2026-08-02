@@ -7,7 +7,6 @@ describe('site model rendering', () => {
 		vi.stubGlobal('TENANT_CONFIG', loadManifest('./src/manifest.yaml'));
 		const { siteModelRendered } = await import('../../../packages/core/src/utils/support/site-models.ts');
 
-		expect(siteModelRendered('knowledge_packs')).toBe(false);
 		expect(siteModelRendered('workdays')).toBe(false);
 		expect(siteModelRendered('templates')).toBe(true);
 

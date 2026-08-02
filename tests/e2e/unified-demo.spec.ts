@@ -164,7 +164,7 @@ test.describe('unified demo release workflow', () => {
 		await createPrivateTeam(page);
 		const team = await activeTeam(page);
 
-		await page.goto('/app/hosts/knowledge-library');
+		await page.goto('/app/services');
 		await expect(page.getByRole('heading', { name: 'Team TreeDX', exact: true })).toBeVisible();
 		await expect(page.getByText(/TreeDX is the canonical data plane/i)).toBeVisible();
 		await expect(page.getByText(/mirrors and shares/i)).toBeVisible();

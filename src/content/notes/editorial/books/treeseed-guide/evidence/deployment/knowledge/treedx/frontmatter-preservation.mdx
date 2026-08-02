@@ -1,0 +1,49 @@
+---
+id: note:market:editorial:treeseed-guide:evidence:frontmatter-preservation
+title: Markdown Frontmatter Preservation Evidence
+description: Internal source and guarantee evidence for the TreeSeed Guide frontmatter-preservation page.
+date: 2026-08-02
+status: live
+tags: [editorial, evidence, deployment, knowledge, treedx, frontmatter]
+author: evidence-researcher
+summary: TreeDX preserves structured YAML in its graph and TreeSeed consumes it, while the integrated guarantee remains planned.
+draft: false
+about: [guide.guarantee.guarantee-project-treedx-preserve-markdown-frontmatter-730]
+relatedObjectives: [objective:core]
+relatedQuestions: []
+relatedProposals: []
+relatedDecisions: []
+relatedBooks: [treeseed-guide]
+---
+
+## Claim ledger
+
+### Structured parsing exists
+
+Status: implemented and package-tested.
+
+- `packages/treedx/crates/treedx_graph/src/parse/mod.rs` parses YAML frontmatter into JSON-compatible structured values and reports invalid or unterminated blocks.
+- `packages/treedx/crates/treedx_graph/tests/frontmatter_tests.rs` covers arrays, nested objects, invalid documents, graph preservation, and relationship fields.
+
+### TreeSeed consumes structured frontmatter
+
+Status: implemented.
+
+- `packages/sdk/src/content/frontmatter.ts` owns SDK Markdown frontmatter parsing and serialization.
+- `packages/sdk/src/graph/build/parse-graph-document.ts` derives graph identity, status, audience, and relationships from parsed frontmatter.
+- `packages/api/src/api/knowledge/federated-catalog.ts` fails when a raw TreeDX knowledge document does not include parsed frontmatter.
+
+### End-to-end guarantee status
+
+Status: planned, not active.
+
+`guarantee.project.treedx.preserve-markdown-frontmatter.730` has no registered integrated API or content verifier. Its own notes identify TreeDX package tests as the current authority. The Guide must therefore distinguish supporting implementation evidence from release-gate proof.
+
+## Contradictions and limitations
+
+- Package tests demonstrate parsing and graph preservation but do not prove every TreeDX repository, workspace, proxy, and publication transition in one integrated run.
+- A future verifier should write nested frontmatter through the authenticated assignment-scoped proxy, commit it, read the exact revision, refresh the graph, and compare the complete structure.
+
+## Editorial recommendation
+
+Keep the Guide page operationally useful while labeling the guarantee planned. Do not activate the guarantee until the integrated verifier produces repeatable evidence.

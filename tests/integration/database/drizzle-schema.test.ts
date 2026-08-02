@@ -41,8 +41,15 @@ describe('Treeseed Drizzle schema baseline', () => {
 			'teamMemberships',
 			'webSessions',
 			'projects',
-			'projectCapabilityGrants',
-			'repositoryHosts',
+			'teamServiceConnections',
+			'teamServiceCapabilityBindings',
+			'teamServiceCredentialProfiles',
+			'teamVaults',
+			'userVaultKeys',
+			'teamVaultGrants',
+			'credentialEnvelopes',
+			'externalVaultBindings',
+			'secretOperationLeases',
 			'capacityProviders',
 			'teamCapacityRegistrationKeys',
 			'capacityProviderRegistrationRequests',
@@ -51,7 +58,6 @@ describe('Treeseed Drizzle schema baseline', () => {
 			'platformOperations',
 			'platformOperationEvents',
 			'marketOperationRunners',
-			'projectDeploymentEvents',
 			'marketAuthCredentials',
 			'marketAuthPasswordResets',
 		]));
@@ -59,12 +65,18 @@ describe('Treeseed Drizzle schema baseline', () => {
 
 	it('has checked-in Drizzle artifacts for Market PostgreSQL and SDK D1', () => {
 		expect(existsSync(marketMigrationPath)).toBe(true);
-		expect(readdirSync(marketMigrationRoot).filter((file) => file.endsWith('.sql')).sort()).toEqual([
-			'0000_market_control_plane.sql',
-			'0001_account_timezone.sql',
-			'0001_team_lifecycle.sql',
-			'0002_team_restore_deadline.sql',
-		]);
+		expect(readdirSync(marketMigrationRoot).filter((file) => file.endsWith('.sql')).sort())
+			.toEqual([
+				'0000_market_control_plane.sql',
+				'0001_feedback_management.sql',
+				'0001_knowledge_collaboration.sql',
+				'0002_knowledge_pack_workflow.sql',
+				'0003_knowledge_review_snapshot.sql',
+				'0004_remote_provider_publication.sql',
+				'0005_remote_delivery_operation_scope.sql',
+				'0006_workflow_run_provenance.sql',
+				'0007_transient_workflow_configuration.sql',
+			]);
 		expect(existsSync(d1MigrationPath)).toBe(true);
 
 		const marketSql = readSql(marketMigrationPath);
@@ -76,8 +88,15 @@ describe('Treeseed Drizzle schema baseline', () => {
 			'team_memberships',
 			'web_sessions',
 			'projects',
-			'project_capability_grants',
-			'repository_hosts',
+			'team_service_connections',
+			'team_service_capability_bindings',
+			'team_service_credential_profiles',
+			'team_vaults',
+			'user_vault_keys',
+			'team_vault_grants',
+			'credential_envelopes',
+			'external_vault_bindings',
+			'secret_operation_leases',
 			'capacity_providers',
 			'team_capacity_registration_keys',
 			'capacity_provider_registration_requests',
@@ -92,7 +111,6 @@ describe('Treeseed Drizzle schema baseline', () => {
 			'platform_operations',
 			'platform_operation_events',
 			'market_operation_runners',
-			'project_deployment_events',
 			'market_auth_credentials',
 			'user_email_addresses',
 			'market_auth_password_resets',
@@ -197,13 +215,18 @@ describe('Treeseed Drizzle schema baseline', () => {
 		expect(marketSql).toMatch(createTablePattern('capacity_provider_lanes'));
 		expect(marketSql).not.toMatch(createTablePattern('native_usage_observations'));
 		expect(marketSql).toMatch(createTablePattern('credit_conversion_profiles'));
-		expect(marketSql).toMatch(createTablePattern('project_deployment_events'));
 		expect(marketSql).toMatch(createTablePattern('user_email_addresses'));
 		expect(marketSql).toMatch(createIndexPattern('idx_user_email_addresses_normalized'));
-		expect(marketSql).toContain('"platform_operation_id" text');
 		expect(marketSql).toContain('"idempotency_key" text');
-		expect(marketSql).toMatch(createIndexPattern('idx_project_deployments_operation'));
-		expect(marketSql).toMatch(createIndexPattern('idx_project_deployment_events_deployment_sequence'));
+		for (const removedTable of [
+			'repository_hosts',
+			'team_web_hosts',
+			'project_capability_grants',
+			'project_deployments',
+			'project_deployment_events',
+			'credential_sessions',
+			'client_encrypted_escrow',
+		]) expect(marketSql).not.toMatch(createTablePattern(removedTable));
 		expect(marketSql).toContain('"confidence" text DEFAULT \'low\' NOT NULL');
 		expect(marketSql).toContain('CONSTRAINT "chk_credit_conversion_profiles_sample_counts"');
 		expect(marketSql).toContain('CONSTRAINT "chk_credit_conversion_profiles_confidence"');

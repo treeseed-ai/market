@@ -47,7 +47,7 @@ resources:
           prefix: market
       metadata:
         demoRole: market-control-plane
-        visibility: private
+        visibility: public
 
     - key: project:treeseed/api
       team: team:treeseed
@@ -305,35 +305,6 @@ resources:
         docsSiteReadiness: ready
         releaseOwnership: treeseed.package.yaml
 
-  repositoryHosts:
-    - key: repository-host:treeseed/knowledge-coop-github
-      team: team:treeseed
-      provider: github
-      name: knowledge-coop
-      ownership: treeseed_managed
-      accountLabel: Knowledge Coop GitHub organization
-      organizationOrOwner: knowledge-coop
-      defaultVisibility: private
-      softwareRepositoryNameTemplate: "{project}"
-      contentRepositoryNameTemplate: "{project}-content"
-      allowedProjectKinds: [market_app, package, knowledge_hub]
-      status: active
-      credentialRef: env:TREESEED_GITHUB_TOKEN
-
-    - key: repository-host:treeseed/treeseed-ai-github
-      team: team:treeseed
-      provider: github
-      name: treeseed-ai
-      ownership: treeseed_managed
-      accountLabel: TreeSeed AI GitHub organization
-      organizationOrOwner: treeseed-ai
-      defaultVisibility: public
-      softwareRepositoryNameTemplate: "{project}"
-      contentRepositoryNameTemplate: "{project}-content"
-      allowedProjectKinds: [market_app, package, knowledge_hub]
-      status: active
-      credentialRef: env:TREESEED_GITHUB_TOKEN
-
   hubRepositories: []
 
   products:
@@ -485,86 +456,4 @@ resources:
         package: seed-pack
 
 
-operationRecipes:
-  - id: full-private-team-demo
-    title: Full private team demo
-    environments: [local]
-    entrypoints:
-      - homepage-story
-    steps:
-      - id: homepage-story
-        title: Show marketplace-first homepage
-        actor: visitor
-        channel: ui
-        operation: navigate
-        target: /
-        assertions:
-          - text: Direction, Capacity, Situation, Results, Memory
-          - text: TreeSeed first-party projects
-        artifacts:
-          - screenshot: homepage-marketplace.png
-
-      - id: apply-scaffold
-        title: Reconcile canonical seed scaffold
-        actor: operator
-        channel: cli
-        operation: seed.apply
-        uses:
-          - team:treeseed
-          - project:treeseed/market
-          - project:treeseed/api
-          - project:treeseed/treedx
-          - project:treeseed/sdk
-          - project:treeseed/ui
-          - project:treeseed/cli
-          - project:treeseed/core
-          - project:treeseed/admin
-          - project:treeseed/agent
-        command:
-          argv: ["trsd", "seed", "treeseed", "--environments", "local", "--apply", "--json"]
-
-      - id: verify-private-treedx
-        title: Verify TreeDX and project architecture trust
-        actor: team-admin
-        channel: ui
-        operation: verify.treedx
-        dependsOn: [apply-scaffold]
-        uses:
-          - team:treeseed
-          - project:treeseed/treedx
-        target: /app/hosts/knowledge-library
-        assertions:
-          - text: TreeDX is the canonical data plane
-          - text: mirrors and shares
-        artifacts:
-          - screenshot: private-treedx.png
-
-      - id: verify-template-projects
-        title: Verify Engineering and Research starter sources
-        actor: team-admin
-        channel: ui
-        operation: project.create
-        dependsOn: [verify-private-treedx]
-        uses:
-          - product:treeseed/engineering-template
-          - product:treeseed/research-template
-        target: /app/projects/new
-        assertions:
-          - text: Engineering
-          - text: Research
-        artifacts:
-          - screenshot: starter-projects.png
-
-      - id: review-work-and-memory
-        title: Review work, decisions, artifacts, and publishable memory
-        actor: reviewer
-        channel: ui
-        operation: knowledge.inspect-artifacts
-        dependsOn: [verify-template-projects]
-        uses:
-          - project:treeseed/market
-        target: /app/knowledge/artifacts
-        assertions:
-          - text: Artifacts
-        artifacts:
-          - screenshot: knowledge-artifacts.png
+operationRecipes: []

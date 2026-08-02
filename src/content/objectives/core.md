@@ -10,7 +10,8 @@ motivation: The project needs a stable north star that every human and agent can
 primaryContributor: market-steward
 relatedQuestions: []
 relatedBooks:
-  - market-architecture
+  - treeseed-guide
+  - treeseed-platform-architecture-development
 ---
 
 TreeSeed exists to help organizations turn objectives into supervised workdays, reviewed outputs, and durable operational memory.

@@ -91,7 +91,6 @@ API and runner:
 
 - `TREESEED_DATABASE_URL`
 - `TREESEED_PLATFORM_RUNNER_SECRET`
-- `TREESEED_CREDENTIAL_SESSION_SECRET`
 - API auth/service trust secrets configured by the environment
 
 Runner only:

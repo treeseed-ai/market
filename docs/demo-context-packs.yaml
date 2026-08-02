@@ -18,11 +18,11 @@ packs:
     queries:
       - ctx "homepage marketplace story" for implement in /src depth 1 budget 3000 as brief
       - ctx "capacity provider setup UI" for implement in /packages/admin depth 1 budget 5000 as full
-      - ctx "hosts knowledge library TreeDX" for implement in /packages/admin depth 1 budget 4000 as full
+      - ctx "team services and private knowledge capability" for implement in /packages/admin depth 1 budget 4000 as full
     files:
       - src/overrides/pages/index.astro
       - packages/admin/src/pages/app/capacity/providers/new.astro
-      - packages/admin/src/pages/app/hosts/knowledge-library.astro
+      - packages/admin/src/pages/app/services/index.astro
       - tests/e2e/unified-demo.spec.ts
 
   capacity-provider-registration:

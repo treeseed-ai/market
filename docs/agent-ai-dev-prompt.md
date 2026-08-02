@@ -420,7 +420,7 @@ Open or inspect state for:
 http://127.0.0.1:4321/app
 /app
 /app/teams
-/app/hosts
+/app/services
 /app/projects
 /app/capacity
 /app/work/objectives

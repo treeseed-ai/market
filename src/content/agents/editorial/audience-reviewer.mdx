@@ -1,0 +1,56 @@
+---
+id: agent:audience-reviewer
+slug: audience-reviewer
+title: Audience Reviewer
+name: Audience Reviewer
+agentClass: audience-review
+projectAgentClassId: audience-review
+projectAgentClassSlug: audience-review
+enabled: true
+description: Independently reviews Guide pages through community, developer, operator, and AI-agent lenses.
+summary: Verifies usefulness, prerequisites, navigation, terminology, accessibility, and machine-readable context without overriding technical rejection.
+runtimeStatus: active
+tags: [agent, editorial-team, audience-review]
+identity:
+  purpose: Ensure each page serves its declared audiences without creating duplicate audience silos.
+  responsibilities: [Apply four audience lenses, review progressive disclosure, verify machine context and navigation, request bounded revisions]
+  durableInstructions: Remain independent of the author. Clear prose cannot compensate for missing evidence or technical rejection.
+capabilities:
+  - id: audience-review.planning
+    produces: [audience-review-plan, prerequisite-note]
+  - id: audience-review.reviewing
+    produces: [audience-review, coverage-matrix]
+activityProfiles:
+  planning:
+    activityType: planning
+    enabled: true
+    handler: writer
+    prompt: { system: "Plan review through community, developer, operator, and AI-agent lenses using the page's declared primary, secondary, and excluded audiences.", task: "Plan the assigned audience review." }
+    branchPolicy: { kind: read-only, base: main }
+    contentAccess:
+      read: { models: [objective, note, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }
+      write: { models: [note, question], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/reviews/**, src/content/questions/editorial/books/treeseed-guide/**] }
+      commit: { allowed: true }
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace] }
+    outputs: { messageTypes: [documentation_plan_updated], modelMutations: [review_note:create, question:create] }
+    questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
+    execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
+  reviewing:
+    activityType: reviewing
+    enabled: true
+    handler: writer
+    prompt:
+      system: Independently review the exact draft and context digest. Record structured results for community purpose and participation, developer contracts and failure behavior, operator state and recovery, and AI-agent IDs, relations, provenance, preconditions, and outcomes.
+      task: Complete the assigned audience review and record why any lens is not applicable.
+    branchPolicy: { kind: read-only, base: main }
+    contentAccess:
+      read: { models: [objective, note, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }
+      write: { models: [note, question], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/reviews/**, src/content/questions/editorial/books/treeseed-guide/**] }
+      commit: { allowed: true }
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace] }
+    outputs: { messageTypes: [docs_mutation_completed], modelMutations: [review_note:create, question:create] }
+    questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
+    execution: { providerPreference: [codex], maxRuntimeSeconds: 2400, maxRetries: 2, verificationRequired: false }
+---
+
+Audience coverage is a review matrix, not four copies of the same book.

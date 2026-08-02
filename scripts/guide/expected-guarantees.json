@@ -1,0 +1,73 @@
+[
+  {"category":"deployment","subcategory":"local-platform","owner":"@treeseed/sdk","surface":"content-runtime","entries":[
+    "Install the local platform","Start the managed local platform","Stop the managed local platform","Inspect local platform status","Recover interrupted local services","Preserve local operator tooling","Reconcile local dependencies","Remove stale local resources"
+  ]},
+  {"category":"deployment","subcategory":"remote-platform","owner":"@treeseed/api","surface":"api-control-plane","entries":[
+    "Plan remote platform changes","Validate remote platform configuration","Apply exact remote platform state","Detect remote platform drift","Adopt remote platform resources","Replace unhealthy remote platform resources","Verify remote platform readiness","Clean up undeclared remote resources","Recover interrupted remote reconciliation"
+  ]},
+  {"category":"deployment","subcategory":"remote-projects","owner":"@treeseed/api","surface":"api-control-plane","entries":[
+    "Create a remote project","Import an existing remote project","Configure project content routing","Configure project domains","Promote an exact project revision","Verify remote project readiness","Archive a remote project","Recover a failed project deployment"
+  ]},
+  {"category":"deployment","subcategory":"remote-capacity-providers","owner":"@treeseed/agent","surface":"agent-runtime","entries":[
+    "Provision a remote capacity provider","Configure provider runtime identity","Publish a provider runtime image","Connect a provider to the control plane","Verify remote provider readiness","Upgrade a remote provider safely","Retire a remote capacity provider"
+  ]},
+  {"category":"deployment","subcategory":"private-platform","owner":"@treeseed/api","surface":"api-control-plane","entries":[
+    "Create a private platform","Configure private network boundaries","Configure private content storage","Configure private identity trust","Restrict private platform administration","Back up private platform state","Restore a private platform"
+  ]},
+
+  {"category":"security","subcategory":"authentication","owner":"@treeseed/admin","surface":"admin-ui","entries":[
+    "Require recent authentication for sensitive actions","Enroll multi-factor authentication","Complete a multi-factor challenge","Recover multi-factor access","Link an external identity provider","Throttle repeated authentication failures","Preserve safe authentication return paths"
+  ]},
+  {"category":"security","subcategory":"accounts","owner":"@treeseed/admin","surface":"admin-ui","entries":[
+    "Manage account email addresses","Export account data","Transfer responsibilities before account deletion","Recover an account with changed identity details"
+  ]},
+  {"category":"security","subcategory":"teams","owner":"@treeseed/admin","surface":"admin-ui","entries":[
+    "Resend or cancel a team invitation","Protect the last team owner","Manage team profile visibility","Archive and restore a team","Review team membership history"
+  ]},
+  {"category":"security","subcategory":"service-vault","owner":"@treeseed/admin","surface":"admin-ui","entries":[
+    "Create a team service vault","Grant scoped vault access","Rotate a stored service credential","Revoke a stored service credential","Audit secret access without revealing values","Destroy a service vault safely"
+  ]},
+  {"category":"security","subcategory":"monitoring-auditing","owner":"@treeseed/admin","surface":"admin-ui","entries":[
+    "Inspect platform health","Search security audit events","Correlate user and service activity","Export privacy-safe audit evidence","Retain audit evidence by policy","Detect suspicious access patterns","Review failed operation diagnostics"
+  ]},
+
+  {"category":"content","subcategory":"projects-templates","owner":"@treeseed/sdk","surface":"content-runtime","entries":[
+    "Create a project from a template","Preview a project template","Validate template compatibility","Version a project template","Publish a project template","Import an existing project","Seed required project content","Upgrade a project from its template"
+  ]},
+  {"category":"content","subcategory":"management","owner":"@treeseed/admin","surface":"admin-ui","entries":[
+    "Create a knowledge book","Edit book metadata","Archive and restore a book","Create a hierarchical knowledge page","Move a page within a book","Validate a knowledge hierarchy","Review knowledge backlinks","Publish an atomic knowledge revision","Validate knowledge page frontmatter contracts"
+  ]},
+  {"category":"content","subcategory":"export-integration","owner":"@treeseed/sdk","surface":"content-runtime","entries":[
+    "Build a knowledge pack","Verify knowledge pack integrity","Download a book","Download a knowledge library","Synchronize content through TreeDX","Federate a public knowledge library","Import a knowledge pack"
+  ]},
+
+  {"category":"work","subcategory":"agents","owner":"@treeseed/agent","surface":"agent-runtime","entries":[
+    "Create a project agent","Configure an agent class","Configure agent tools and permissions","Provide agent knowledge context","Run an agent in planning mode","Run an agent in acting mode","Review an agent estimate","Recover a failed agent execution","Inspect a complete agent execution trace"
+  ]},
+  {"category":"work","subcategory":"capacity-providers","owner":"@treeseed/agent","surface":"agent-runtime","entries":[
+    "Register provider capabilities","Configure provider availability","Enforce provider concurrency","Allocate capacity across teams","Reserve capacity for approved work","Settle provider usage exactly once","Recover abandoned capacity assignments"
+  ]},
+  {"category":"work","subcategory":"workdays","owner":"@treeseed/agent","surface":"agent-runtime","entries":[
+    "Schedule a workday","Set workday duration and budget","Include every eligible planning agent","Continue useful work while capacity remains","Gate acting work on approved decisions","Close and settle a workday","Publish a workday summary"
+  ]},
+
+  {"category":"market","subcategory":"ecommerce","owner":"@treeseed/market","surface":"market-ui","entries":[
+    "Browse the product catalog","View a product offer","Add an offer to a cart","Calculate taxes and totals","Complete a checkout","Confirm an order","Manage a subscription","Request a refund","Review commerce transaction history"
+  ]},
+  {"category":"market","subcategory":"seller-accounts","owner":"@treeseed/market","surface":"market-ui","entries":[
+    "Create a seller account","Verify seller identity","Configure seller payout details","Create a marketplace listing","Publish and unpublish a listing","Manage listing inventory","Review seller orders","Suspend or close a seller account"
+  ]},
+  {"category":"market","subcategory":"referrals","owner":"@treeseed/market","surface":"market-ui","entries":[
+    "Create a referral link","Attribute a qualified referral","Prevent referral self-dealing","Track referral status","Calculate referral rewards","Issue a referral reward","Expire or revoke a referral"
+  ]},
+
+  {"category":"governance","subcategory":"proposal-discussion","owner":"@treeseed/api","surface":"api-control-plane","entries":[
+    "Create a project proposal","Edit a draft proposal","Open a proposal for discussion","Comment on a proposal","Resolve a discussion thread","Request proposal revision","Close a proposal without decision","Preserve proposal discussion history"
+  ]},
+  {"category":"governance","subcategory":"cooperative-decisions","owner":"@treeseed/api","surface":"api-control-plane","entries":[
+    "Define a cooperative electorate","Open a cooperative vote","Record a member vote","Prevent duplicate voting","Close voting at the declared boundary","Calculate a deterministic outcome","Record an approved cooperative decision"
+  ]},
+  {"category":"governance","subcategory":"decision-tracking","owner":"@treeseed/api","surface":"api-control-plane","entries":[
+    "Link a decision to its proposal","Track decision implementation state","Link acting work to an approved decision","Record decision evidence","Supersede a prior decision","Audit the complete decision history"
+  ]}
+]

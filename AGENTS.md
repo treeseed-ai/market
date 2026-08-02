@@ -213,6 +213,18 @@ Architecture-changing capacity work must update the canonical docs above and `do
 - Agent handoff must be configuration-driven. Handlers may deterministically validate, route, and serialize content, but agent prompts/configuration decide which subject is being handled and which artifact type is expected.
 - Every agent execution must be forensically traceable: agent, mode, class, handler, assignment, workday, provider, runner, execution-provider config, inputs, TreeDX context refs, generated artifacts, signals, diagnostics, token counts, durations, usage, and errors must be inspectable from CLI/Admin/API logs.
 
+### AI-Operated Human Simulation For Agent Testing
+
+- Simulate human participation only through authenticated `trsd` CLI commands. Never call governance, publication, Git, database, or provider mutation APIs directly.
+- Mark every simulated action with `--simulate-human`, the active workday ID, and a concrete evidence-based reason. Binding decisions additionally require `--yes`.
+- Inspect the exact proposal version, discussion, evidence, votes, reviews, content revision, and context digest before deciding. Ask questions or record concerns instead of automatically approving.
+- Never allow one agent or simulated operator identity to author, independently review, approve, and publish the same artifact. Multi-voter tests require separate authorized principals; never manufacture several voters from one credential.
+- Treat missing, stale, failed, mixed-revision, contradictory, or unsupported evidence as grounds to reject, request revision, or create a blocking question.
+- Keep engineering agents dormant during editorial-only campaigns. Use workday agent selectors for isolated role tests and the complete editorial selection for group tests.
+- Observe live work through `trsd capacity workday-log --follow`; process output alone is not proof. Verify assignments, mode runs, transcript closure, TreeDX artifacts, usage, settlement, publication records, and remote ref read-back.
+- Production simulation requires explicit project policy plus `--production --yes`. Hosted deployment and production release remain prohibited while the workspace deployment suspension is active.
+- Record every simulated-human command and its resulting proposal, decision, review, publication, assignment, and workday identifiers in the durable workday report.
+
 ## Shared Fixture Model
 
 - `.fixtures/treeseed-fixtures` is the canonical integrated Treeseed project.

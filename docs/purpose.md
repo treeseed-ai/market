@@ -179,7 +179,7 @@ The authenticated app should remain centered on contextual dashboards plus focus
 /app/knowledge/artifacts     Knowledge artifacts
 ```
 
-No retired section-first navigation should return to the primary app experience. Teams remain real operational context in the backend and are managed through the persistent sidebar team selector and `/app/teams`, not as a primary navigation step. Hosts remain available as `/app/hosts` service drilldowns rather than primary navigation.
+No retired section-first navigation should return to the primary app experience. Teams remain real operational context in the backend and are managed through the persistent sidebar team selector and `/app/teams`. Provider connections are active-team scoped under `/app/services`.
 
 Project detail controls should keep deployment inside the selected project context. `/app/projects/:projectId/deploy` is the canonical place to inspect launch progress, readiness, staging and production deployment actions, monitor output, runner diagnostics, history, and events.
 

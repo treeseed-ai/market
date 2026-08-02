@@ -40,9 +40,9 @@ const componentTable = components.map((entry) => `| ${escapeCell(entry.owner)} |
 
 const architectureDoc = `# UI Architecture Inventory
 
-Generated from \`scripts/ui-architecture/inventory.ts\`. This is the current post-cleanup route and component inventory; the removed surface is archived in [legacy-routes.md](./legacy-routes.md), and redesign direction lives in [ui-redesign.md](./ui-redesign.md).
+Generated from \`scripts/ui-architecture/inventory.ts\`. This is the canonical current route and component inventory. Team service-management architecture is documented in [service-management.md](./service-management.md).
 
-Market currently owns no route files. Admin owns the authentication, account, team, active-team, invitation, and public user/team knowledge-profile surface. Core owns its public content routes, while reusable visual composition remains in \`@treeseed/ui\`.
+Market currently owns no route files. Admin owns authentication, accounts, teams, active-team services, invitations, and public user/team profiles. Core owns public content routes, while reusable visual composition remains in \`@treeseed/ui\`.
 
 ## Human-facing routes
 

@@ -110,13 +110,12 @@ const routeDescriptions: Record<string, string> = {
 	'/404': 'Explicit not-found page with a plain explanation and recovery links to the homepage, books library, and status content.',
 	'/agents': 'Public directory of configured software-agent contributors, including each agent’s name, summary, operator, runtime status, tags, and link to its profile.',
 	'/agents/:slug': 'Agent profile page with rendered narrative content, operator/runtime metadata, and resolved relationships to questions and objectives. Missing agents return the shared 404 presentation.',
-	'/books': 'Ordered public catalog of book records showing title, summary, section metadata, landing paths, and available download links.',
-	'/books/:slug': 'Long-form book reader. Resolves a book by ID or slug, renders local or published-runtime content in the reader layout, and returns a book-specific not-found state when absent.',
+	'/books': 'Searchable federated catalog of authorized repository-native books with topic, audience, status, visibility, and team ownership filters.',
+	'/t/:teamSlug/books/:bookSlug': 'Canonical Starlight book overview and authorized table of contents for one team-owned book.',
+	'/t/:teamSlug/books/:bookSlug/:pageSlug*': 'Canonical Starlight knowledge-page reader with TreeDX headings, navigation, relationships, backlinks, and source revision.',
 	'/contact': 'Public contact page and Core-owned contact form for questions, feedback, collaboration notes, and issue reports. It displays submission status returned by the Core form handler.',
 	'/decisions': 'Reverse-chronological public decision index showing title, summary, status, date, contributor, and tags for recorded accepted, rejected, deferred, or superseded choices.',
 	'/decisions/:slug': 'Decision detail with rationale, authority, type, implementation metadata, contributor, rendered body, and links to related objectives, questions, notes, proposals, books, and superseded decisions.',
-	'/docs-runtime': 'Root of the public knowledge reader. Selects local Astro docs or the published content runtime and renders the root document, with explicit 404 and upstream-unavailable states.',
-	'/docs-runtime/:slug*': 'Catch-all public knowledge reader for nested documentation paths. Resolves local or published content by the complete remaining path and distinguishes missing content from runtime unavailability.',
 	'/notes': 'Public working-notes index for implementation observations, framing, and documentation decisions, loaded from the local or published notes collection.',
 	'/notes/:slug': 'Working-note detail with metadata and rendered local or published content. Drafts are excluded and missing notes receive a note-specific 404 state.',
 	'/objectives': 'Public index of strategic objectives, including summaries, status/context metadata, contributors, and links into each objective record.',
@@ -160,7 +159,7 @@ function route(registered: SiteRouteContribution): RouteInventoryEntry {
 	const isAuth = routePattern.startsWith('/auth') || routePattern.startsWith('/team-invites');
 	const isApp = routePattern === '/app' || routePattern.startsWith('/app/');
 	const isTeam = routePattern.startsWith('/app/teams') || routePattern.startsWith('/t/');
-	const isReader = routePattern.startsWith('/books') || routePattern.startsWith('/docs-runtime');
+	const isReader = routePattern.startsWith('/books') || /^\/t\/[^/]+\/books(?:\/|$)/u.test(routePattern);
 	const contents = source(routeSourcePath);
 	const debt: ArchitectureDebt[] = [];
 	if (/<style(?:\s|>)/u.test(contents)) debt.push('page-local-css');
@@ -192,10 +191,10 @@ function route(registered: SiteRouteContribution): RouteInventoryEntry {
 		risk: isApp || isAuth ? 'medium' : 'low',
 		implementationStatus: 'active',
 		compatibilityWrapperPath: null,
-		architectureNotes: owner === 'admin' ? 'Retained identity/team foundation pending the comprehensive redesign.' : 'Core-owned route is unchanged by the Market/Admin cleanup.',
+		architectureNotes: owner === 'admin' ? 'Canonical Admin identity, team, and active-team service surface.' : 'Core-owned public content surface.',
 		requiredArchitectureChecks: ['route discovery', 'shell ownership', 'access policy', 'UI architecture guard'],
-		architectureStage: owner === 'admin' ? 'redesign foundation' : 'unchanged core surface',
-		architectureProof: routePattern.startsWith('/questions/') ? 'Direction resource detail proof' : routePattern.startsWith('/docs-runtime/') ? 'Public runtime reader proof' : null,
+		architectureStage: owner === 'admin' ? 'canonical admin surface' : 'canonical core surface',
+		architectureProof: routePattern.startsWith('/questions/') ? 'Direction resource detail proof' : isReader ? 'Canonical Starlight knowledge reader proof' : null,
 		architectureDebt: debt,
 	};
 }
@@ -222,10 +221,10 @@ function component(owner: PackageOwner, name: string, sourcePath: string, curren
 		sourcePath,
 		currentUse,
 		targetPackage,
-		architectureTarget: owner === 'ui' ? 'Preserve reusable package-owned primitives for the redesign.' : 'Retained identity/team composition only.',
+		architectureTarget: owner === 'ui' ? 'Canonical reusable package-owned primitives.' : 'Canonical package-owned composition.',
 		maturityLevel: 1,
 		implementationStatus: 'active',
-		replacementBlocker: 'Requires redesign acceptance before replacement.',
+		replacementBlocker: 'No replacement planned.',
 		requiredArchitectureChecks: ['package boundary', 'typecheck', 'UI architecture guard'],
 		architectureStage: 'active baseline',
 		architectureDebt: [],

@@ -149,22 +149,22 @@ When optional capacity-provider automation is running, the manager and worker sh
 
 ## 20-Minute Demo Flow
 
-### 1. Start, Team, and Hosts
+### 1. Start, Team, and Services
 
 Open:
 
 ```text
 /app
 /app/teams
-/app/hosts
+/app/services
 ```
 
-Show the guided start page, seeded team controls, and host forms for repository, web, processing, email, and AI providers.
+Show the guided start page, seeded team controls, and encrypted provider service connections.
 
 Narration:
 
 ```text
-TreeSeed starts with the team and hosting context required to run real projects.
+TreeSeed starts with team-scoped provider capabilities and client-encrypted credential custody.
 ```
 
 ### 2. Projects
