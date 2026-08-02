@@ -8,7 +8,7 @@ const retained = [
 	'/app', '/app/account', '/app/account/sessions', '/app/account/notifications', '/app/account/appearance', '/app/account/delete', '/app/teams', '/app/teams/new',
 	'/app/teams/active', '/app/teams/[teamId]', '/app/teams/[teamId]/edit', '/app/teams/[teamId]/delete', '/app/teams/[teamId]/members',
 	'/app/services', '/app/services/new', '/app/services/vault', '/app/services/[connectionId]',
-	'/app/projects', '/app/projects/[projectId]/books', '/app/capacity', '/app/work', '/app/knowledge',
+	'/app/projects', '/app/projects/[projectId]/books', '/app/projects/[projectId]/workflows', '/app/capacity', '/app/work', '/app/knowledge',
 	'/app/knowledge/packs/[buildId]/download', '/app/feedback', '/app/feedback/[feedbackId]', '/app/market',
 	'/auth/register', '/auth/check-email', '/auth/confirm-email', '/auth/sign-in', '/auth/logout',
 	'/auth/forgot-password', '/auth/reset-password', '/auth/username', '/auth/device/approve',
