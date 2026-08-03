@@ -8,6 +8,8 @@ See [Package Ownership](./package-ownership.md) for the current package map.
 
 Project topology reconciliation uses the logical model in [Project Architecture Migration Roadmap](./project-architecture-migration.md): repository identity plus `rootPath`, optional `sitePath`, optional `contentPath`, `contentRuntimeSource`, and `localContentMaterialization`. Submodules are local materialization details, not a required project shape. This keeps templates and imported live repositories usable without restructuring.
 
+Repository identity is the normalized provider, host, owner, and repository tuple, not a literal clone URL or a local path. SSH, HTTPS, `git+ssh`, trailing-`.git`, case, and relative-submodule forms of the same remote resolve to one canonical key. Checkout identity is separate: developer, capacity-provider, operations-runner, and TreeDX custody each use an independent checkout and Git common directory, even when they represent the same repository and commit.
+
 ## Package Ownership In Reconciliation
 
 - `@treeseed/sdk` owns the reconciliation engine, desired-state graph, provider adapters, package workflow discovery, config runtime, and live verification contracts.
@@ -87,6 +89,16 @@ The graph compiler is SDK-owned. Hosting graph APIs, config sync, dev orchestrat
 Task-branch Git workflow commands remain SDK-owned and GitRunner-backed. `trsd stage` is branch/ref promotion, not hosted reconciliation: it merges staging down into the current task branch across the root repo and checked-out package repos, runs local proof by default, promotes exact verified refs to staging, and does not wait for hosted CI/CD or provider checks unless explicitly requested. `trsd update --from staging` remains the standalone inverse/update command when operators want to integrate staging before staging promotion. These commands do not mutate providers or hosted resources; all Git reads and mutations go through GitRunner.
 
 Managed task worktrees use branch-aligned paths under `.treeseed/worktrees/<branch-slug>` and a branch may have only one active managed worktree. Stale or unregistered paths below `.treeseed/worktrees` must fail closed instead of resolving upward into the parent root repository. Save, update, stage, and close commands should therefore operate on the intended checkout or stop with a clear recovery message.
+
+## Repository Custody And Handoff
+
+Local repository storage has four non-overlapping custody domains. Human development uses the explicitly discovered project and package checkouts. The capacity provider owns mirrors and fresh assignment checkouts below `.treeseed/local-capacity-provider/data`. The operations runner owns mirrors and operation-specific integration checkouts below `.treeseed/local-operations-runner/data`. TreeDX owns repository and content-workspace state below `.treeseed/local-treedx/data`. Managed roots are host-browsable for diagnosis, carry a `treeseed.repository-storage/v1` marker, and are excluded from developer save discovery and source watchers.
+
+Services exchange repository identity, an exact source revision, and a digest—not a reusable filesystem path. A receiver fetches the requested object into its own object database, verifies the object ID, and creates a purpose-specific checkout. Cross-custody shared roots, shared Git common directories, writable source mounts, symlink escapes, and developer-checkout fallbacks are unsafe drift and fail reconciliation.
+
+Preparation and verification may run concurrently, but the final mutation of a repository ref is compare-and-swap work. The operation records the expected old revision and desired revision, serializes the ref mutation, observes the remote afterward, and treats an already-observed desired revision as successful replay. Unexpected advancement returns the operation to integration or review; it never causes a force push or silent merge.
+
+`trsd save` coordinates developer checkouts only. An agent returns an exact candidate revision from its provider-owned assignment checkout, TreeDX commits a content workspace in TreeDX custody, and the operations runner integrates or publishes an approved exact revision from its own checkout. `trsd stage` promotes verified commits and does not reconstruct content during promotion.
 
 Merge and rebase conflicts are expected workflow states, not partial failures to push through. `update` and `stage` must capture the conflicted files and package roots and report the smallest next command. `stage` must stop before staging is mutated when conflicts or local verification failures occur, preserving the feature branch/worktree for repair. Cleanup of source branches and managed worktrees is allowed only after promoted staging refs are verified.
 

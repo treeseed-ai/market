@@ -45,7 +45,7 @@ For every live starter run, the verifier:
 5. creates only run-scoped grant, allocation, workday, workflow, reservation, assignment, and workspace state; and
 6. deletes the disposable API project and terminalizes all run state during cleanup.
 
-The verifier does not initialize a fake repository per run and does not treat the Market root as the starter repository. Engineering mutation runs use isolated worktrees from the selected starter checkout and must prove the assignment's exact immutable base/effective ref. Research content runs mutate only the assignment's TreeDX workspace and commit through the project proxy.
+The verifier does not initialize a fake repository per run and does not treat the Market root as the starter repository. Engineering mutation runs use a fresh provider-owned checkout materialized from the provider's own mirror and must prove the assignment's exact immutable base/effective ref. The provider may inspect its read-only source installation but cannot fall back to or mutate the Market developer checkout. Research content runs mutate only the assignment's independently cloned TreeDX workspace and commit through the project proxy.
 
 ## Current Agent Architecture
 
