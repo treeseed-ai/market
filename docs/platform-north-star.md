@@ -751,6 +751,7 @@ Training Package
 Model Artifact
 Adapter Artifact
 Merge Recipe
+Adapter Weight Profile
 Evaluation Suite
 Guarantee
 Promotion Decision
@@ -772,6 +773,8 @@ A promotion decision should record:
 - Dataset versions.
 - Teacher versions.
 - Merge recipe.
+- Source-adapter weights and normalization policy.
+- Exact reference rank and deployed compressed rank.
 - Evaluation results.
 - Regressions.
 - Security checks.
@@ -828,6 +831,7 @@ A dedicated training interface should expose:
 - Replay proportions.
 - Candidate adapter lineage.
 - Merge recipe.
+- Source-adapter weights, normalization, and sensitivity analysis.
 - Evaluation comparisons.
 - Promotion and rollback controls.
 
@@ -1317,7 +1321,15 @@ Core
 + Policy
 ```
 
-The adapter compiler converts selected layers into one validated deployable adapter.
+The adapter compiler converts selected layers into one validated deployable adapter. It is not merely a file merger. It is a governed compilation system that:
+
+- Validates adapter lineage.
+- Normalizes their native scaling.
+- Applies explicit influence weights.
+- Produces an exact mathematical reference.
+- Compresses the result for efficient serving.
+- Repairs interaction problems through polish training.
+- Evaluates the final artifact against the unmerged inputs and stable production adapter.
 
 ### 13.1 Merge process
 
@@ -1326,15 +1338,17 @@ Source adapters
     ↓
 Lineage validation
     ↓
-Scaling normalization
+Scaling and norm analysis
     ↓
-Exact composition
+Explicit influence weighting
+    ↓
+Exact weighted composition
     ↓
 Compression or conflict-aware merge
     ↓
 Post-merge polish training
     ↓
-Evaluation
+Evaluation and sensitivity analysis
     ↓
 PEFT-compatible adapter package
     ↓
@@ -1359,22 +1373,209 @@ Adapters may be merged only when they have compatible:
 
 The compiler must detect parent-child relationships to avoid double-counting.
 
-### 13.3 Exact concatenation
+For example:
 
-For compatible LoRA updates, adapter deltas can be concatenated exactly. The resulting rank is the sum of the input ranks.
+```text
+engineer-v13 derived from engineer-v12
+```
 
-This provides a reference composition with no approximation loss, but may produce an adapter too large for efficient serving.
+means that `v13` replaces `v12`; the two versions must not be added together.
 
-### 13.4 SVD compression
+The registry should explicitly represent:
+
+```text
+replacement-of
+derived-from
+independent-of
+composed-from
+```
+
+### 13.3 Weighted adapter composition
+
+A LoRA adapter contributes a learned parameter update to a base-model layer:
+
+\[
+\Delta W_i^{(l)} = s_i B_i^{(l)}A_i^{(l)}
+\]
+
+where:
+
+- \(A_i\) and \(B_i\) are the low-rank adapter matrices.
+- \(s_i\) is the adapter's native LoRA scaling.
+- \(l\) identifies the target layer or module.
+
+A weighted compiled adapter represents:
+
+\[
+\Delta W_{\text{compiled}}^{(l)}
+=
+\sum_i \lambda_i \Delta W_i^{(l)}
+\]
+
+and the effective layer becomes:
+
+\[
+W_{\text{effective}}^{(l)}
+=
+W_{\text{base}}^{(l)}
++
+\Delta W_{\text{compiled}}^{(l)}
+\]
+
+The coefficient \(\lambda_i\) controls the magnitude of adapter \(i\)'s contribution.
+
+A compilation recipe may therefore express:
+
+```text
+TreeSeed core       × 1.00
+Project knowledge   × 0.85
+Backend role        × 1.10
+Tool recovery       × 0.45
+Security behavior   × 1.15
+```
+
+This permits compile-time balancing of project knowledge, role specialization, reusable capability, and learned policy behavior.
+
+However, adapter weights are **amplitude controls, not semantic authority controls**.
+
+A weight of `2.0` does not mean that:
+
+- The adapter is twice as intelligent.
+- Its facts are twice as reliable.
+- It receives twice as much inference compute.
+- It always overrides an adapter weighted `1.0`.
+- Its learned behavior may supersede current evidence or governance.
+
+Once compiled, the source updates participate in one model calculation. Formal authority remains in TreeSeed governance, current evidence, tool permissions, and deterministic controls.
+
+### 13.4 Native scale, normalized scale, and policy weight
+
+Raw merge coefficients are not directly comparable across adapters.
+
+Two adapters assigned weight `1.0` may have very different behavioral effects because they can differ in:
+
+- Rank.
+- LoRA alpha.
+- Standard LoRA versus rsLoRA scaling.
+- Number and type of target modules.
+- Parameter-update norms.
+- Training duration.
+- Dataset composition.
+- Learning rate.
+- Degree of convergence.
+
+The compiler should distinguish:
+
+1. **Native adapter scale** — the update implied by its rank, alpha, scaling mode, and learned matrices.
+2. **Normalization scale** — an optional adjustment that makes adapter magnitudes more comparable.
+3. **Policy weight** — the explicit TreeSeed compile-time preference for stronger or weaker influence.
+
+A normalized merge may be represented as:
+
+\[
+\Delta W_{\text{compiled}}^{(l)}
+=
+\sum_i p_i
+\frac{\Delta W_i^{(l)}}{n_i^{(l)}}
+\]
+
+where:
+
+- \(p_i\) is the policy weight.
+- \(n_i^{(l)}\) is a selected normalization quantity for adapter \(i\) at layer \(l\).
+
+Possible normalization policies include:
+
+- No normalization.
+- Global Frobenius-norm normalization.
+- Per-layer norm normalization.
+- Base-weight-relative normalization.
+- Percentile clipping of unusually large layer updates.
+- Calibration against a fixed behavioral evaluation set.
+
+No normalization policy should be assumed universally correct. The compiler must preserve both the unnormalized and normalized evaluation results.
+
+### 13.5 Global and per-module weights
+
+The first implementation should assign one global weight per adapter:
+
+```yaml
+inputs:
+  - adapter: core/v12
+    weight: 1.00
+
+  - adapter: project-alpha/v34
+    weight: 0.85
+
+  - adapter: backend-engineer/v18
+    weight: 1.10
+
+  - adapter: tool-recovery/v7
+    weight: 0.45
+```
+
+A later implementation may support per-module or per-layer weights:
+
+```yaml
+inputs:
+  - adapter: project-alpha/v34
+    default_weight: 0.80
+    module_weights:
+      attention: 0.70
+      mlp: 1.00
+
+  - adapter: tool-recovery/v7
+    default_weight: 0.45
+    module_weights:
+      attention: 0.80
+      mlp: 0.35
+```
+
+Per-module weighting greatly enlarges the optimization surface and should not be introduced until global weighting, manifest lineage, and evaluation are stable.
+
+### 13.6 Exact weighted concatenation
+
+Weighted concatenation provides the clean reference composition.
+
+For source adapters with ranks \(r_1, r_2, \ldots, r_n\), the exact adapter rank is:
+
+\[
+r_{\text{exact}} = \sum_i r_i
+\]
+
+The adapter matrices can be constructed so that:
+
+\[
+B_*A_*
+=
+\sum_i \lambda_i s_i B_iA_i
+\]
+
+This preserves the weighted sum exactly, without approximation or unintended cross terms.
+
+The disadvantage is additive rank. For example:
+
+```text
+Core:         rank 32
+Project:      rank 64
+Role:         rank 32
+Capability:   rank 16
+                         ----
+Exact result: rank 144
+```
+
+The exact adapter is valuable even when it is too large for production. It becomes the behavioral reference against which compressed candidates are compared.
+
+### 13.7 SVD compression
 
 The exact combined low-rank update can be compressed to a selected serving rank:
 
 ```text
-Exact rank 128
-    ↓
-SVD compression
-    ↓
-Deployable rank 32 or 64
+Exact weighted adapter, rank 144
+              ↓
+        truncated SVD
+              ↓
+Compiled serving adapter, rank 32 or 64
 ```
 
 The compiler should report:
@@ -1382,15 +1583,20 @@ The compiler should report:
 - Retained singular-value energy.
 - Per-layer reconstruction error.
 - Total adapter size.
+- Exact versus compressed task performance.
 - Expected vLLM rank allocation.
 - Capability-regression results.
 
-### 13.5 Conflict-aware merges
+The selected rank should be based on verified task performance, not reconstruction error alone.
+
+### 13.8 Conflict-aware merges
+
+Adapters trained independently may encode conflicting parameter directions or incompatible behavioral preferences.
 
 The compiler should support experiments with:
 
 - Weighted linear composition.
-- Concatenation.
+- Exact concatenation.
 - SVD.
 - TIES.
 - TIES-SVD.
@@ -1398,23 +1604,112 @@ The compiler should support experiments with:
 - Magnitude pruning.
 - Custom per-layer weights.
 
-No merge strategy should be assumed best globally.
+Conflict-aware algorithms can trim low-magnitude updates, resolve sign disagreements, or reduce redundant parameter changes before compression.
 
-### 13.6 Merge and polish
+No merge strategy should be assumed best globally. A method that preserves project recall may weaken tool behavior, while another may preserve role behavior but reduce general reasoning.
+
+### 13.9 Negative weights and subtraction
+
+A negative source weight can subtract an adapter's learned update:
+
+```text
+Compiled update
+=
+project adapter × 1.0
+− deprecated-policy adapter × 0.3
+```
+
+This may be useful for experimentation, ablation, or suppressing a known learned tendency.
+
+Negative weighting should be treated as high risk because reversing a learned parameter update does not necessarily cleanly reverse its semantic behavior. It requires the same evaluation and governance as any other compiled candidate.
+
+### 13.10 Merge and polish
 
 The recommended production process is:
 
 ```text
-Mathematical merge
+Mathematical weighted merge
     +
-Small balanced training corpus
+Small balanced interaction corpus
     ↓
 Short QLoRA polish run
 ```
 
-The polish corpus should contain examples exercising interactions among merged capabilities.
+The polish corpus should contain examples exercising interactions among the merged capabilities.
 
-### 13.7 Integration with vLLM
+For example, a project-engineer-tool-recovery adapter should be tested and polished on tasks requiring all three:
+
+- Project-specific architecture.
+- Engineering behavior.
+- Recovery from failed tools.
+
+Polish training should not obscure the mathematical source lineage. The resulting adapter manifest must identify both the merge recipe and the polish dataset.
+
+### 13.11 Weight selection and sensitivity analysis
+
+Adapter weights should be treated as hyperparameters, not hand-authored truths.
+
+The compiler should evaluate a small neighborhood around each proposed recipe:
+
+```text
+Project weight:
+0.60, 0.80, 1.00, 1.20
+
+Role weight:
+0.80, 1.00, 1.20
+
+Capability weight:
+0.25, 0.50, 0.75, 1.00
+```
+
+The search should proceed incrementally:
+
+1. Establish a one-adapter baseline.
+2. Add one independent adapter.
+3. Measure its marginal improvement and regressions.
+4. Search a narrow weight range.
+5. Add the next adapter.
+6. Repeat.
+7. Perform a final joint sensitivity test.
+
+The evaluation should measure:
+
+- Project recall.
+- Architecture comprehension.
+- Role task completion.
+- Tool-call validity.
+- No-tool accuracy.
+- Security and permission behavior.
+- General reasoning retention.
+- Context-management quality.
+- Token and tool efficiency.
+- Regression rate.
+
+A recipe should be rejected if its success depends on a very narrow, unstable weight value.
+
+### 13.12 Integration with vLLM
+
+The weighting and merging occur before deployment in the TreeSeed adapter compiler.
+
+```text
+Core adapter
+Project adapter
+Role adapter
+Capability adapter
+Policy weights
+        ↓
+Weighted merge
+        ↓
+Compression
+        ↓
+Polish training
+        ↓
+One PEFT-compatible adapter
+        ↓
+Artifact synchronization
+        ↓
+vLLM
+```
 
 The compiler output must be a normal PEFT-compatible adapter directory:
 
@@ -1423,15 +1718,69 @@ adapter_model.safetensors
 adapter_config.json
 manifest.json
 merge-recipe.yaml
+weight-profile.yaml
 evaluation-report.json
 checksums.txt
 ```
 
 TreeSeed registers the compiled artifact, synchronizes it to the awake node, and instructs vLLM to load it through the standard LoRA interface.
 
-vLLM does not need to understand that the adapter was produced from several conceptual layers.
+vLLM does not need to know the individual source adapters, their weights, or the merge method. It sees one immutable deployable adapter.
 
-### 13.8 Avoiding combination explosion
+### 13.13 Compiled-adapter manifest
+
+A compiled artifact should preserve its complete recipe:
+
+```yaml
+compiled_adapter:
+  name: project-alpha-backend-v24
+  base_model: treeseed-qwen35-core-v6
+
+  inputs:
+    - adapter: project-alpha/v34
+      digest: sha256:...
+      native_rank: 64
+      native_alpha: 128
+      policy_weight: 0.85
+
+    - adapter: backend-engineer/v18
+      digest: sha256:...
+      native_rank: 32
+      native_alpha: 64
+      policy_weight: 1.10
+
+    - adapter: tool-recovery/v7
+      digest: sha256:...
+      native_rank: 16
+      native_alpha: 32
+      policy_weight: 0.45
+
+    - adapter: security-policy/v9
+      digest: sha256:...
+      native_rank: 16
+      native_alpha: 32
+      policy_weight: 1.15
+
+  normalization:
+    method: per_layer_frobenius
+    clipping_percentile: 99.5
+
+  merge:
+    exact_rank: 128
+    method: ties_svd
+    density: 0.80
+    deployed_rank: 64
+
+  polish:
+    dataset: project-alpha-backend-polish-v11
+    token_budget: 500000
+
+  evaluation:
+    suite: project-alpha-backend-eval-v19
+    exact_reference: project-alpha-backend-exact-v24
+```
+
+### 13.14 Avoiding combination explosion
 
 TreeSeed should use:
 
@@ -1440,16 +1789,20 @@ TreeSeed should use:
 - On-demand compilation.
 - Usage-based adapter caching.
 - Expiration of unused combinations.
-- Recompilation only when an input layer changes.
+- Recompilation only when an input layer or weight profile changes.
 - Shared evaluation suites.
+- Reusable approved weight profiles.
 
 A practical initial arrangement is:
 
 ```text
 TreeSeed core behavior baked into canonical base
     +
-One project-role compiled adapter
+One weighted project-role compiled adapter
 ```
+
+Capabilities that can be expressed safely through prompts, tools, or workflow configuration should not automatically become adapter layers.
+
 
 ---
 
@@ -2336,6 +2689,9 @@ A candidate adapter should be rejected when it:
 - Requires materially more tools or tokens for the same work.
 - Fails vLLM serving parity.
 - Degrades context compression or continuation behavior.
+- Allows one source adapter to dominate unintentionally after normalization.
+- Performs materially worse than the exact weighted reference after compression.
+- Is highly unstable under small source-weight changes.
 
 ### 22.3 Deployment stages
 
@@ -2478,11 +2834,15 @@ TreeSeed control plane and artifact registry
 ### Phase 6: Adapter compiler
 
 - Implement lineage validation.
-- Implement exact concatenation.
+- Normalize native LoRA scaling and record update norms.
+- Implement explicit global source-adapter weights.
+- Implement exact weighted concatenation as the reference composition.
 - Implement SVD compression.
 - Integrate conflict-aware merge methods.
+- Add weight sensitivity analysis.
 - Add post-merge polish.
-- Publish compiled adapters to vLLM.
+- Publish weight profiles and compiled adapters to vLLM.
+- Add per-module weighting only after global weighting is proven stable.
 
 ### Phase 7: Dual-node awake/dream operation
 
@@ -2531,6 +2891,16 @@ TreeSeed control plane and artifact registry
 - Escalation accuracy.
 - Rework introduced.
 
+### Adapter compilation
+
+- Exact-versus-compressed task-performance gap.
+- Retained capability per deployed adapter rank.
+- Source-weight sensitivity.
+- Unintended adapter dominance.
+- Merge-interference regression rate.
+- Weight-profile reuse rate.
+- Compiled-adapter promotion rate.
+
 ### Continual learning
 
 - Improvement after each dream cycle.
@@ -2572,6 +2942,8 @@ TreeSeed Platform in a Box is not intended to:
 - Replace deterministic testing with model judgment.
 - Guarantee that continual training always improves performance.
 - Compose unlimited adapters without interference.
+- Treat numerical adapter weights as semantic authority, truth priority, or formal governance.
+- Assume equal numeric weights create equal behavioral influence without normalization and evaluation.
 - Treat unified memory as unlimited memory.
 - Treat two connected nodes as one transparent memory allocator.
 - Require maximum-context training to support maximum-context inference.
@@ -2598,7 +2970,7 @@ Teacher agents inspect experience and generate better learning material.
 
 Axolotl trains candidate project, role, capability, and context adapters.
 
-The adapter compiler assembles modular capabilities into deployable adapters.
+The adapter compiler weights, normalizes, merges, compresses, and polishes modular capabilities into deployable adapters.
 
 Guarantees and evaluations determine whether candidates improve the system.
 
