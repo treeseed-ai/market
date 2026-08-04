@@ -48,7 +48,7 @@ agentLab:
       title: Guide Writer Activity Profiles
       agentTests: [guide-editorial-cycle]
       objectiveRefs: [objective:harden-documentation-automation-workday-loop]
-      durationSeconds: 600
+      durationSeconds: 900
       availableCredits: 8
       maxActiveAssignments: 1
       planningOnly: true
