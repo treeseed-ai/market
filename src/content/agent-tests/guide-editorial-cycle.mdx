@@ -1,0 +1,34 @@
+---
+id: agent-test:guide-editorial-cycle
+agent: guide-steward
+kind: workday
+trigger:
+  planningOnly: true
+  agents:
+    - guide-steward
+    - knowledge-cartographer
+    - evidence-researcher
+    - guide-writer
+    - technical-verifier
+    - audience-reviewer
+    - publication-steward
+    - workday-reporter
+expect:
+  productionPath: true
+  everySelectedAgent: true
+  durableModeRuns: true
+  treeDxOnlyContentAccess: true
+  usageAndSettlement: true
+tags:
+  - production
+  - workday
+  - guide
+  - editorial
+---
+
+Run the complete TreeSeed Guide editorial roster through one real workday. The
+scheduler must exercise every enabled non-acting activity profile declared by the
+selected immutable agent definitions, including research, planning, estimating,
+reviewing, and reporting. It must produce evidence before synthesis and evaluation;
+acting is forbidden until humans establish approved governance separately. The local capacity provider executes each assignment
+through Codex and AgentKernel, and all content access remains mediated by TreeDX.

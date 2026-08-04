@@ -1,5 +1,9 @@
 # Agent Capacity Domain Model
 
+## Seeded local provider policy
+
+An environment-scoped seed capacity prerequisite names a team, a portable provider manifest, selected execution providers, allowed modes, and project resource keys. Reconciliation resolves those keys to durable API identities, keeps credentials in managed provider storage, and materializes a runtime-only connection overlay. The TreeSeed local portfolio uses one approved signed provider membership, one planning-and-acting grant per first-party project, and one shared allocation in which every project has zero minimum, an equal target share, and a 100 percent maximum and hard ceiling. Acting admission still requires approved decisions, readiness, and accepted capacity-plan provenance.
+
 **Status:** Canonical domain model for activity-profile capacity execution
 **Last updated:** 2026-07-21
 **Audience:** SDK, API, agent runtime, Admin, CLI, and integration implementers

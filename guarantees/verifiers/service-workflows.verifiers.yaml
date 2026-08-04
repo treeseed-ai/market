@@ -42,3 +42,8 @@ verifiers:
     testFile: tests/integration/capacity/capacity-failure-concurrency-service-workflow.test.ts
     testName: recovers interruption, fences stale leases, limits cross-project pressure, and preserves human policy
     timeoutSeconds: 60
+  market.agent-testing.production-lab-content:
+    kind: vitestCase
+    ownerPackage: "@treeseed/sdk"
+    testFile: tests/unit/scenes/agent-lab/agent-lab-contract.test.ts
+    timeoutSeconds: 120

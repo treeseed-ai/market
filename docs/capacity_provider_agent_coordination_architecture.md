@@ -1,5 +1,9 @@
 # Capacity Provider and Agent Coordination Architecture
 
+## Seed reconciliation boundary
+
+Local seeds may require a production-shaped capacity environment, but they do not become provider runtimes. SDK reconciliation provisions or adopts the signed identity and connection, the API remains authoritative for membership approval and capacity policy, and the Agent package starts the provider manager and runner from the generated runtime overlay. Reconciliation order prevents provider startup before team, project, TreeDX, membership-claim, grant, and allocation state exists. Matching unrelated providers are never adopted or revoked.
+
 **Status:** Canonical current architecture
 **Last updated:** 2026-07-21
 **Completion authority:** [Agent Capacity Completion and Production-Readiness Plan](./agent-capacity-completion.md)

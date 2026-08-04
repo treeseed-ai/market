@@ -1,0 +1,56 @@
+schemaVersion: treeseed.scene/v1
+id: guide-audience-reviewer-agent-lab
+title: Reader Experience Auditor Production Agent Lab
+description: Verify every production-eligible activity profile for the Reader Experience Auditor in one short workday before integrated Guide execution.
+audience: [operator, agent-developer, qa]
+
+journey:
+  kind: agent-lab
+  proves: [agent-testing/production-lab]
+
+mode: { test: true, demo: false, training: false }
+target:
+  app: market
+  environment: local
+  baseUrl: auto
+  browser: chromium
+  viewport: { width: 1600, height: 1000 }
+setup:
+  dev: { required: true, reuseExisting: true }
+  seeds:
+    - name: treeseed
+      environments: [local]
+      apply: true
+artifacts:
+  trace: false
+  video: false
+  screenshots: false
+  console: true
+  network: true
+  timeline: true
+  appLogs: true
+workflow: []
+
+agentLab:
+  scope:
+    kind: team
+    team: team:treeseed
+    capacityProvider: capacity-provider:treeseed/local
+  provider: local
+  executionProvider: codex
+  presentation: race-control
+  timeZone: America/New_York
+  repositories: [market]
+  agents: [audience-reviewer]
+  agentClasses: []
+  workdays:
+    - id: audience-reviewer-profiles
+      title: Audience Reviewer Activity Profiles
+      agentTests: [guide-editorial-cycle]
+      objectiveRefs: [objective:harden-documentation-automation-workday-loop]
+      durationSeconds: 900
+      availableCredits: 12
+      maxActiveAssignments: 1
+      planningOnly: true
+
+training: { enabled: false }

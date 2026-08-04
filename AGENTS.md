@@ -202,6 +202,20 @@ Architecture-changing capacity work must update the canonical docs above and `do
 
 ### Real Workday And Agent Content Rules
 
+#### Production agent simulation workflow
+
+Use the Agent Lab scene path to observe real production-shaped agent execution. Start the managed local stack, then run the Guide agents individually and do not advance until every enabled legal activity profile has succeeded:
+
+```bash
+npx trsd dev start --web-runtime local --json
+npx trsd scene run scenes/agent-lab/guide-steward.yaml --open
+npx trsd scene view <run-id-or-path> --open
+```
+
+The Agent Lab viewer uses the stable local URL `http://127.0.0.1:4760/`. Use `npx trsd scene status --json` to determine whether a simulation is active. `TREESEED_AGENT_SIMULATOR_PORT` may override the port when a worktree has an explicit stable port assignment.
+
+Continue through each manifest under `scenes/agent-lab/`, fixing assignment, provider, kernel, TreeDX, telemetry, accounting, or cleanup defects before running the next agent. Run `npx trsd scene run scenes/guide-agent-lab.yaml --open` only after individual coverage passes. These are live workdays through the normal API, signed local provider, provider manager, runners, AgentKernel, execution provider, and TreeDX paths; mock handlers and fabricated transcripts do not qualify.
+
 - Workday verification runs are real TreeSeed workdays, not scripted smoke tests. They must exercise the same API, provider, execution-provider, TreeDX, assignment, mode-run, usage, and settlement paths used by normal workdays.
 - A workday is duration- and budget-bounded. It must not stop merely because a fixed assignment count completed. While the workday window is open and capacity remains, the system should keep scheduling useful eligible planning work.
 - Planning mode must involve every eligible configured project agent before repeating agents. With no approved decisions, planning is still productive: agents propose work, ask questions, produce estimates, review proposals, generate notes, structure knowledge, and summarize the workday.

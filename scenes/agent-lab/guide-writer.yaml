@@ -1,0 +1,56 @@
+schemaVersion: treeseed.scene/v1
+id: guide-guide-writer-agent-lab
+title: Guide Learning Editor Production Agent Lab
+description: Verify the Guide Learning Editor through a short production-path discovery workday before integrated Guide execution.
+audience: [operator, agent-developer, qa]
+
+journey:
+  kind: agent-lab
+  proves: [agent-testing/production-lab]
+
+mode: { test: true, demo: false, training: false }
+target:
+  app: market
+  environment: local
+  baseUrl: auto
+  browser: chromium
+  viewport: { width: 1600, height: 1000 }
+setup:
+  dev: { required: true, reuseExisting: true }
+  seeds:
+    - name: treeseed
+      environments: [local]
+      apply: true
+artifacts:
+  trace: false
+  video: false
+  screenshots: false
+  console: true
+  network: true
+  timeline: true
+  appLogs: true
+workflow: []
+
+agentLab:
+  scope:
+    kind: team
+    team: team:treeseed
+    capacityProvider: capacity-provider:treeseed/local
+  provider: local
+  executionProvider: codex
+  presentation: race-control
+  timeZone: America/New_York
+  repositories: [market]
+  agents: [guide-writer]
+  agentClasses: []
+  workdays:
+    - id: guide-writer-profiles
+      title: Guide Writer Activity Profiles
+      agentTests: [guide-editorial-cycle]
+      objectiveRefs: [objective:harden-documentation-automation-workday-loop]
+      durationSeconds: 600
+      availableCredits: 8
+      maxActiveAssignments: 1
+      planningOnly: true
+
+training: { enabled: false }

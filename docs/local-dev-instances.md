@@ -76,6 +76,8 @@ For the Market root, the normal scope is `web-api`, which includes the web UI, A
 
 Managed workflow worktrees seed `.treeseed/config/machine.yaml` from the primary checkout when the worktree is created. Once present, the worktree-local config is authoritative for `trsd config`, launch environment resolution, provider wrappers, and status checks, so changing provider variables in one feature worktree does not rewrite the credentials used by sibling worktrees.
 
+Local Cloudflare callback tunnels use the manifest's tunnel name and hostname as base identities. SDK desired-state compilation appends a stable, opaque deployment scope derived from the machine identity and absolute worktree root to both the Tunnel name and the first DNS label. For example, `treeseed-local-connectors` and `connect.local.treeseed.dev` become `treeseed-local-connectors-<scope>` and `connect-<scope>.local.treeseed.dev`. This prevents developers, worktrees, and local deployments from adopting or rewriting one another's Tunnel and DNS resources. Legacy unscoped resources are retained with an explicit reconciliation warning because their ownership may have become shared before scoped identities were introduced.
+
 Validate the plan without starting processes:
 
 ```bash

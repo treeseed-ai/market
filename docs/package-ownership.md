@@ -1,5 +1,9 @@
 # Treeseed Package Ownership
 
+## Seeded operating environments
+
+`@treeseed/sdk` owns portable seed/runtime-prerequisite contracts, deterministic prerequisite ordering, and local reconciliation. `@treeseed/api` owns durable seed membership claims, verified-email attachment, team/project/TreeDX records, capacity grants, allocations, sessions, and audit events. `@treeseed/agent` remains the only owner of the running provider manager, runner, AgentKernel, and execution-provider adapters. `@treeseed/cli` launches these canonical operations and does not duplicate their lifecycle logic. Scene setup consumes ordered seeds before browser or Agent Lab execution; team-scoped Agent Lab runs retain production records, while ephemeral runs clone and clean isolated resources.
+
 This document is the canonical current-state map for where Treeseed functionality belongs. Use it when deciding where to add code, configuration, documentation, tests, package workflows, or hosting resources.
 
 For capacity-provider and agent completion work, [Agent Capacity Completion and Production-Readiness Plan](./agent-capacity-completion.md) is the active cross-package execution ledger. It preserves the ownership boundaries in this document while replacing the incomplete single-team registration, allocation, kernel, handler, and starter implementations.

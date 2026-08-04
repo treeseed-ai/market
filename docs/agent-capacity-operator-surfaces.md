@@ -1,10 +1,10 @@
 # Agent Capacity Operator Surfaces
 
 **Status:** Canonical Admin and CLI surface reference for activity-profile capacity runtime inspection
-**Last updated:** 2026-07-21
+**Last updated:** 2026-08-03
 **Audience:** Admin, CLI, SDK/API, and agent runtime implementers
 
-> Completion authority: [Agent Capacity Completion and Production-Readiness Plan](./agent-capacity-completion.md) defines the complete API/CLI/configuration parity target. Admin UI implementation is intentionally deferred until that backend contract is service-proven.
+> Completion authority: [Agent Capacity Completion and Production-Readiness Plan](./agent-capacity-completion.md) defines the complete API/CLI/configuration parity target. Agent Lab browser work proceeds in bounded slices over service-proven API projections and does not assume scheduler or provider ownership.
 
 Admin and CLI expose agent capacity state to humans and automation. They do not own scheduling, assignment selection, provider runtime internals, or ledger settlement.
 
@@ -43,6 +43,19 @@ Admin should provide:
 - explanation panels for why work was assigned, deferred, or blocked
 
 Admin may use reusable controls from `@treeseed/ui`, but product-specific capacity policy and view models belong in `@treeseed/admin`.
+
+### Agent Lab monitoring foundation
+
+`/app/work` is the team Agent Lab and remains inside the authenticated Product Shell and Command mode. Its first browser slice is deliberately monitoring-only:
+
+- API owns the revisioned operating-day overview, activity delta, metric-series delta, and typed entity-summary projections.
+- SDK owns the portable projection and account-preference contracts.
+- UI owns the compact status bar, nine-metric rail, monitor toggles, responsive chart dock, Agent Activity Gantt, metric-history chart, entity cards, filters, and one non-overlapping polling coordinator.
+- Admin owns authenticated server snapshots, active-team authorization, metric destinations, route composition, and Agent Lab terminology.
+
+Real-time cadence is an account preference with enabled/off and 2, 5, 15, or 30 second base intervals. Off means server-rendered snapshot only. Polling pauses while hidden or offline, uses ETags and opaque cursors, applies durable keyed changes without page replacement, and preserves focus, scroll, filters, dialogs, and chart state. Closed charts do not request their heavier projections. The activity chart groups project and agent identity while reserving one stable lane for each activity profile.
+
+The same monitoring header appears on the Agent Lab root, workday detail, agents, workdays, events, assignments, executions, and artifacts routes. These initial collection routes are intentionally card-based shells; specialized entity dialogs and authoring/governance operations remain later slices.
 
 Implemented Architecture Milestone M4 surfaces:
 

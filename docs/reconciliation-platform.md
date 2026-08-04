@@ -1,5 +1,9 @@
 # Treeseed Reconciliation Platform
 
+## Seed runtime prerequisites
+
+Seeds may declare local runtime prerequisites in addition to API-owned resources. Local reconciliation applies teams, projects, TreeDX bindings, and deferred verified-email membership claims first; it then adopts or provisions the declared signed capacity-provider connection, writes concrete identifiers only to the ignored managed runtime overlay, reconciles project grants and the portfolio allocation, and starts the provider runtime. A local seed apply is not converged until these declared prerequisites pass live verification. Portable seed and provider manifests never contain generated credentials or concrete provider membership identifiers.
+
 Treeseed infrastructure is reconciled from exact desired state. A command may inspect, plan, apply, verify, or destroy infrastructure, but it must do that through the SDK-owned reconciliation platform. Provider CLIs such as Railway, Wrangler, Docker, and GitHub CLI are diagnostic only unless they are invoked as private adapter primitives by the reconciler or live acceptance harness. They are not orchestration systems.
 
 This document is the canonical contract for hosting, configuration, local development, capacity providers, package workflows, TreeDX image publication, staging, and release.
@@ -21,6 +25,8 @@ Repository identity is the normalized provider, host, owner, and repository tupl
 - `@treeseed/agent` owns capacity-provider runtime artifacts, provider desired state, provider manager/runner behavior, AgentKernel execution, and provider-local lifecycle.
 - `packages/treedx` owns the TreeDX image/service artifact; API hosting consumes selected TreeDX images.
 - `@treeseed/ui` owns no infrastructure; it contributes components and styles only.
+
+Managed local web development observes checked-out package output as part of the live source closure. Core excludes workspace-linked TreeSeed packages from Vite dependency prebundling and uses a dedicated, build-stability-aware watcher to invalidate Vite's transformed client and SSR module graph before issuing one full reload after SDK, UI, Core, or Admin runtime output is complete. The watcher treats access errors caused by an in-progress package build as transient: it closes, retries, reattaches, and verifies complete runtime markers rather than terminating the web process. The ordinary Astro watcher continues to ignore transient `dist` mutations so route manifests are never rebuilt against a half-written package. This lets completed package builds reach the running browser without a process restart while `trsd dev status` continues to report source-closure drift when a process itself is stale.
 
 ## Non-Negotiable Rules
 

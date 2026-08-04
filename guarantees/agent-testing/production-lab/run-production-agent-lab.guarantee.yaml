@@ -1,0 +1,49 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.agent-testing.production-lab.run-production-agent-lab.740
+journeyIndex: 740
+type: agent-testing
+subtype: production-lab
+journey: Run The Production Agent Lab
+ownerPackage: "@treeseed/market"
+surface: agent-runtime
+summary: "Prove selected repository-defined agents execute in isolated real workdays through signed provider onboarding, API scheduling, provider manager and runners, AgentKernel, Codex, TreeDX, durable telemetry, usage, settlement, and verified cleanup while producing a complete sanitized standalone report."
+status: planned
+actors:
+  allowed: [team_owner, capacity_operator, capacity_provider]
+  forbidden: [unapproved_capacity_provider, revoked_capacity_provider]
+gates: [release]
+preconditions:
+  fixtures: [integrated_treeseed_project]
+  notes:
+    - "The managed local API, PostgreSQL, operations runner, TreeDX, local Codex credentials, and capacity-provider manifest must be ready."
+scene:
+  required: true
+  manifest: ../../../scenes/guide-agent-lab.yaml
+  mode:
+    acceptance: true
+    demo: false
+api:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle]
+content:
+  required: true
+  verifierRefs: [market.agent-testing.production-lab-content]
+audit:
+  required: true
+  verifierRefs: [market.capacity.full-local-lifecycle]
+negativeCases:
+  - id: mocks-cannot-satisfy-live-evidence
+    actor: capacity_operator
+    verifierRefs: [market.agent-testing.production-lab-content]
+  - id: acting-cannot-bypass-governance
+    actor: unapproved_capacity_provider
+    verifierRefs: [market.capacity.full-local-lifecycle]
+evidence:
+  required: [guarantee_report, verifier_evidence, api_verification_log, audit_event_id, scene_evidence, sanitized_transcript, content_artifact, capacity_settlement, cleanup_evidence]
+notes:
+  - "Keep planned until the Guide scene and the full enabled workday-kind catalog repeatedly produce report, API, sanitized transcript, content artifact, settlement, and zero-residue cleanup evidence."
+  - "Activation additionally requires agent/profile coverage, provider telemetry, stable exhaustive transcript paging, accessible live viewing, zero-external-request offline replay, and successful individual Guide agent scenes before the combined run."
+  - "Deterministic handler tests remain useful fast checks but cannot satisfy this production-path guarantee."
+run:
+  timeoutSeconds: 14400
+  requiredForRelease: false

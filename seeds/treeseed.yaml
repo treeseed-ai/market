@@ -20,6 +20,13 @@ resources:
       metadata:
         visibility: public
 
+  teamMemberships:
+    - key: membership:treeseed/adrian-webb
+      team: team:treeseed
+      email: adrian.webb@knowledge.coop
+      roles: [team_owner]
+      missingUser: defer
+
   projects:
     - key: project:treeseed/market
       team: team:treeseed
@@ -455,5 +462,32 @@ resources:
         owner: treeseed
         package: seed-pack
 
+runtime:
+  agentLabServicePrincipals:
+    - key: service-principal:treeseed/agent-lab
+      environments: [local]
+      team: team:treeseed
+      name: TreeSeed Agent Lab Operations Runner
+      roles: [team_owner]
+
+  capacityProviders:
+    - key: capacity-provider:treeseed/local
+      environments: [local]
+      team: team:treeseed
+      manifest: treeseed.capacity-provider.yaml
+      connectionId: primary-team
+      approval: trusted-local-owner
+      projects:
+        - project:treeseed/market
+        - project:treeseed/api
+        - project:treeseed/treedx
+        - project:treeseed/sdk
+        - project:treeseed/ui
+        - project:treeseed/cli
+        - project:treeseed/core
+        - project:treeseed/admin
+        - project:treeseed/agent
+      allowedModes: [planning, acting]
+      executionProviderIds: [codex]
 
 operationRecipes: []

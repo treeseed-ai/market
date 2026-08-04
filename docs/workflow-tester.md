@@ -1,5 +1,23 @@
 # Treeseed Workflow Tester And Scene Video Platform
 
+## Real-time agent simulation viewer
+
+Agent Lab scenes are non-browser production simulations. They provision an isolated team and repository-backed project, onboard a signed local capacity provider, and exercise the normal workday, scheduling, assignment, lease, runner, AgentKernel, execution-provider, TreeDX, usage, settlement, and cleanup paths. Run them only with the managed local stack and real execution-provider credentials available:
+
+```bash
+npx trsd dev start --web-runtime local --json
+npx trsd scene run scenes/agent-lab/guide-steward.yaml --open
+npx trsd scene view <run-id-or-path> --open
+```
+
+The run command prints the stable loopback URL `http://127.0.0.1:4760/` as soon as `report.html` exists. `scene view` resolves a run ID or run directory at that same URL, serves completed reports for offline replay, and follows atomic report rewrites when the originating run is still active. `trsd scene status --json` reports whether the endpoint owns an active simulation. A second run fails with the active URL rather than silently moving to another port. Worktree orchestration may assign `TREESEED_AGENT_SIMULATOR_PORT` when concurrent worktrees need stable isolated endpoints. Stop the viewer with Ctrl-C. The browser receives sanitized simulation snapshots and never API credentials.
+
+The report is a standalone display test bed with three interchangeable skins over one semantic model. A thin system banner, nine linked vital metrics, page tabs, and a workday selector remain available throughout the viewer. Monitor contains the live Gantt and vital-metric trend chart. Execution providers, Events, Assignments, and Artifacts use one filter and card system with record-specific modal inspectors. Selecting any vital metric opens its own workday trend and filtered record page. Provider messages, reasoning items, tool calls/results, context packs, artifacts, usage, accounting, assertions, and cleanup evidence all come from durable production records. Full sanitized records remain available under forensic disclosures; secrets and credential-bearing token fields are redacted while usage token counts remain visible.
+
+Live revisions reconcile only the identity values, vital counts, active page, and open record inspector. They do not replace the document, navigation, filter controls, or dialog host. The viewer preserves the selected page and workday, focused control, filter values, modal dismissal, modal scroll, and expanded disclosures while updates arrive. Workday ticks are hidden by default on the Events page and remain opt-in for scheduler diagnostics.
+
+Troubleshooting is evidence-first: a connectivity warning means the loopback delta stream is unavailable but the embedded snapshot remains usable; “not exercised” means no durable assignment covered that required profile; missing content means the authorized TreeDX read failed before cleanup; and a cleanup warning lists residual drift that must be removed through the canonical cleanup workflow. Run every individual Guide agent scene successfully before the combined `scenes/guide-agent-lab.yaml` scene.
+
 Treeseed workflow testing is the planned manifest-driven platform for automated browser acceptance, workflow evidence, and demo-video production. It will execute user workflows against Treeseed web applications with Playwright, capture debugging artifacts, and render education or demo videos from the same scene definition through a pluggable renderer model. Remotion is the first renderer plugin.
 
 The platform should become the central Treeseed tool for:

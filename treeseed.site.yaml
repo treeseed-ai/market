@@ -27,6 +27,7 @@ cloudflare:
   tunnel:
     local:
       enabled: true
+      # SDK scopes these base identities to the current machine/worktree deployment.
       name: treeseed-local-connectors
       hostname: connect.local.treeseed.dev
       originUrl: http://127.0.0.1:3000
