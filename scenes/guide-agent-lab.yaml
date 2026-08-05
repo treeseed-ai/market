@@ -54,17 +54,25 @@ agentLab:
   presentation: race-control
   timeZone: America/New_York
   repositories: [market]
-  agents: []
+  agents:
+    - evidence-researcher
+    - guide-steward
+    - guide-writer
+    - knowledge-cartographer
+    - technical-verifier
+    - audience-reviewer
+    - publication-steward
+    - workday-reporter
   agentClasses: []
   workdays:
     - id: guide-editorial-cycle
       title: Guide Editorial Cycle
       agentTests: [guide-editorial-cycle]
       objectiveRefs: [objective:harden-documentation-automation-workday-loop]
-      durationSeconds: 3600
+      durationSeconds: 10800
       timePolicy: { cooperativePlanningPercent: 90, governedExecutionPercent: 0, reservePercent: 10 }
       planningSession: { rounds: 3, assignmentTimeboxSeconds: 540, tokenWarning: 24000 }
-      maxActiveAssignments: 4
+      maxActiveAssignments: 2
       planningOnly: true
 
 training:
