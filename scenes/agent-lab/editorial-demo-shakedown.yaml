@@ -1,20 +1,21 @@
 schemaVersion: treeseed.scene/v1
-id: guide-audience-reviewer-agent-lab
-title: Reader Experience Auditor Production Agent Lab
-description: Verify every production-eligible activity profile for the Reader Experience Auditor in one short workday before integrated Guide execution.
-audience: [operator, agent-developer, qa]
+id: guide-editorial-demo-shakedown
+title: Guide Editorial Demo Shakedown
+description: Short retained production-path exercise of the complete Guide cooperative-planning signal graph.
+audience: [operator, agent-developer]
 
 journey:
   kind: agent-lab
-  proves: [agent-testing/production-lab]
+  proves: []
 
-mode: { test: true, demo: false, training: false }
+mode: { test: false, demo: true, training: false }
+runtime: { mode: demo }
 target:
   app: market
   environment: local
   baseUrl: auto
   browser: chromium
-  viewport: { width: 1600, height: 1000 }
+  viewport: { width: 1440, height: 900 }
 setup:
   dev: { required: true, reuseExisting: true }
   seeds:
@@ -41,17 +42,17 @@ agentLab:
   presentation: race-control
   timeZone: America/New_York
   repositories: [market]
-  agents: [audience-reviewer]
+  agents: [evidence-researcher, guide-steward, guide-writer, knowledge-cartographer, technical-verifier, audience-reviewer, publication-steward, workday-reporter]
   agentClasses: []
   workdays:
-    - id: audience-reviewer-profiles
-      title: Audience Reviewer Activity Profiles
+    - id: editorial-demo-shakedown
+      title: Guide Editorial Demo Shakedown
       agentTests: [guide-editorial-cycle]
       objectiveRefs: [objective:harden-documentation-automation-workday-loop]
-      durationSeconds: 900
+      durationSeconds: 1500
       timePolicy: { cooperativePlanningPercent: 90, governedExecutionPercent: 0, reservePercent: 10 }
-      planningSession: { rounds: 3, assignmentTimeboxSeconds: 900, tokenWarning: 24000 }
-      maxActiveAssignments: 1
+      planningSession: { rounds: 3, assignmentTimeboxSeconds: 240, tokenWarning: 6000 }
+      maxActiveAssignments: 4
       planningOnly: true
 
 training: { enabled: false }

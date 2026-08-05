@@ -32,7 +32,15 @@ activityProfiles:
         Act as the TreeSeed Guide strategy editor. Read the selected objective, book hierarchy, evidence dossiers, open questions, existing proposals, decisions, and affected pages through TreeDX. Choose one high-leverage reader problem that the available evidence can actually resolve. Avoid duplicate plans by comparing objective, scope, deliverables, and existing proposal digests. Produce a decision-ready editorial plan: objective, desired reader and system outcome, current problem, evidence with provenance, proposed approach, precise scope and non-goals, affected book nodes and relationships, deliverables, testable acceptance criteria, dependencies, risks, alternatives, verification, and open questions. Store evidenceRefs as a nonempty array of stable string paths or content references; keep labels, revisions, graph identifiers, and other structured provenance in the proposal body or linked evidence notes rather than placing objects in evidenceRefs. Explain why this work matters now and how it improves the book as a whole. Preserve human governance; do not vote, decide, or act.
       task: >-
         Author one substantive editorial proposal for the highest-value evidence-supported Guide improvement. The proposal must be understandable without opening raw runtime records and detailed enough for an independent estimator and reviewer to challenge it.
-    planningIntent: { stage: synthesis, objective: Author a complete objective-bound editorial plan from the workday evidence for human governance, artifactKind: planning_proposal, subjectModel: objective, subjectId: core }
+    planningIntent:
+      objective: Author and revise a complete objective-bound editorial plan from synchronized workday evidence for human governance
+      artifactKind: planning_proposal
+      subjectModel: objective
+      subjectId: core
+      proposalTypes: [editorial-strategy, audience-experience, evidence-research, editorial-operations, publication-readiness, technical-accuracy]
+      stages:
+        - { stage: synthesis, promptTask: "Author one substantive editorial proposal for the highest-value evidence-supported Guide improvement.", signals: { subscribesTo: [{ contract: evidence-ready, producerPolicy: all }], publishes: [proposal-ready] } }
+        - { stage: revision, promptTask: "Revise the exact proposal you authored in response to every estimate, concern, question, and review in the synchronized snapshot; publish a new immutable version and enumerate what changed.", signals: { subscribesTo: [{ contract: proposal-reviewed, cardinality: each, producerPolicy: all }, { contract: proposal-estimated, producerPolicy: all }], publishes: [proposal-revised] } }
     branchPolicy: { kind: staging-content, base: staging }
     contentAccess:
       read: { models: [objective, note, proposal, decision, knowledge, book, agent], actions: [describe, query, read], books: [treeseed-guide] }
@@ -40,8 +48,8 @@ activityProfiles:
       commit: { allowed: true }
     tools:
       allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace]
-    inputs: { artifactContracts: [planning-note], signalContracts: [evidence-ready] }
-    outputs: { messageTypes: [documentation_plan_updated], modelMutations: [linked_note:create, question:create, proposal:create], artifactContracts: [planning-proposal], signalContracts: [proposal-ready] }
+    signals: { subscribesTo: [{ contract: evidence-ready, producerPolicy: all }], publishes: [proposal-ready] }
+    outputs: { messageTypes: [documentation_plan_updated], modelMutations: [linked_note:create, question:create, proposal:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
     execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
   estimating:
@@ -50,7 +58,7 @@ activityProfiles:
     handler: estimate
     prompt:
       system: >-
-        Estimate the assigned Guide proposal as an independent planning activity. Inspect the complete proposal, evidence dossier, affected book nodes, existing page quality, dependencies, and unresolved questions. Break the work into deliverables, estimate credits and elapsed effort by activity profile, identify uncertainty ranges, prerequisite decisions, likely context volume, review burden, and the failure modes most likely to change the estimate. Do not improve the proposal silently, approve it, or execute it; attach assumptions and revision requests explicitly.
+        Estimate the assigned Guide proposal as an independent planning activity. Inspect the complete proposal, evidence dossier, affected book nodes, existing page quality, dependencies, and unresolved questions. Break the work into deliverables; estimate minimum, expected, and maximum agent-seconds by activity profile; identify independent token/context limits, uncertainty, prerequisite decisions, review burden, and failure modes. Do not improve the proposal silently, approve it, or execute it; attach assumptions and revision requests explicitly.
       task: Produce a structured, proposal-linked estimate that a human can use to allocate capacity and judge whether the plan is ready for voting.
     planningIntent: { stage: evaluation, objective: Estimate the proposed Guide cohort before governance or execution, artifactKind: agent_estimate, subjectModel: proposal, subjectId: null }
     branchPolicy: { kind: read-only, base: staging }
@@ -60,8 +68,8 @@ activityProfiles:
       commit: { allowed: false }
     tools:
       allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.status]
-    inputs: { artifactContracts: [planning-proposal], signalContracts: [proposal-ready] }
-    outputs: { messageTypes: [], modelMutations: [estimate:create, dependency_declaration:create], artifactContracts: [structured-agent-estimate], signalContracts: [estimate-ready] }
+    signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each }], publishes: [proposal-estimated] }
+    outputs: { messageTypes: [], modelMutations: [estimate:create, dependency_declaration:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
     execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
   acting:
@@ -78,8 +86,8 @@ activityProfiles:
       commit: { allowed: true }
     tools:
       allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace]
-    inputs: { signalContracts: [execution-handoff] }
-    outputs: { messageTypes: [project_summary_updated], modelMutations: [linked_note:create, knowledge_update:create], artifactContracts: [knowledge-update], signalContracts: [execution-handoff] }
+    signals: { subscribesTo: [{ contract: governed-execution-ready }], publishes: [] }
+    outputs: { messageTypes: [project_summary_updated], modelMutations: [linked_note:create, knowledge_update:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
     execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: true }
 ---

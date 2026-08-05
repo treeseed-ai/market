@@ -18,8 +18,8 @@ executionProviders:
         - text/plain
         - application/json
     nativeLimits:
-      maxConcurrentRunners: 1
-      availableCredits: 100
+      maxConcurrentRunners: 4
+      availableAgentSeconds: 28800
     capabilities:
       - engineering
       - research

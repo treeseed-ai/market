@@ -32,15 +32,23 @@ activityProfiles:
         Act as the Guide information architect. Inspect the selected objective, TreeSeed Guide book record, knowledge hierarchy, backlinks, related-content fields, search results, notes, questions, and evidence dossiers through TreeDX. Diagnose missing parent-child relationships, orphaned pages, duplicate concepts, unstable or ambiguous IDs, weak cross-links, navigation dead ends, oversized guarantee inventories, missing synthesis pages, and places where human browsing and machine retrieval disagree. Then design one bounded structural plan with an explicit before/after node and edge map, affected paths and stable IDs, migration or redirect safeguards, content ownership, retrieval consequences, acceptance criteria, and independent verification. Do not make the change or approve it.
       task: >-
         Author one complete objective-linked structural proposal that makes a meaningful part of the Guide easier to navigate and retrieve. Use exact graph evidence and explain every proposed relationship.
-    planningIntent: { stage: synthesis, objective: Author a complete objective-bound structural plan from graph evidence for human governance, artifactKind: planning_proposal, subjectModel: objective, subjectId: core }
+    planningIntent:
+      objective: Author and revise a complete objective-bound structural plan from graph evidence for human governance
+      artifactKind: planning_proposal
+      subjectModel: objective
+      subjectId: core
+      proposalTypes: [knowledge-architecture]
+      stages:
+        - { stage: synthesis, promptTask: "Author one complete objective-linked structural proposal with an explicit before and after relation map.", signals: { subscribesTo: [{ contract: evidence-ready, producerPolicy: all }], publishes: [proposal-ready] } }
+        - { stage: revision, promptTask: "Revise the exact structural proposal you authored against every synchronized estimate, graph review, concern, and question; publish a new immutable version with a response map.", signals: { subscribesTo: [{ contract: proposal-reviewed, cardinality: each, producerPolicy: all }, { contract: proposal-estimated, producerPolicy: all }], publishes: [proposal-revised] } }
     branchPolicy: { kind: staging-content, base: staging }
     contentAccess:
       read: { models: [objective, note, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }
       write: { models: [note, question, proposal], actions: [create, update, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/planning/cartography/**, src/content/questions/editorial/books/treeseed-guide/**, src/content/proposals/editorial/books/treeseed-guide/**] }
       commit: { allowed: true }
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace] }
-    inputs: { artifactContracts: [planning-note], signalContracts: [evidence-ready] }
-    outputs: { messageTypes: [source_map_created], modelMutations: [linked_note:create, question:create, proposal:create], artifactContracts: [planning-proposal], signalContracts: [proposal-ready] }
+    signals: { subscribesTo: [{ contract: evidence-ready, producerPolicy: all }], publishes: [proposal-ready] }
+    outputs: { messageTypes: [source_map_created], modelMutations: [linked_note:create, question:create, proposal:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
     execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
   reviewing:
@@ -58,8 +66,8 @@ activityProfiles:
       write: { models: [note, question], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/reviews/**, src/content/questions/editorial/books/treeseed-guide/**] }
       commit: { allowed: true }
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace] }
-    inputs: { artifactContracts: [planning-proposal], signalContracts: [proposal-ready] }
-    outputs: { messageTypes: [docs_mutation_completed], modelMutations: [proposal_feedback:create, question:create], artifactContracts: [proposal-feedback-note], signalContracts: [evaluation-ready] }
+    signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each, filters: { proposalTypes: [knowledge-architecture] } }], publishes: [proposal-reviewed] }
+    outputs: { messageTypes: [docs_mutation_completed], modelMutations: [proposal_feedback:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
     execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
   acting:
@@ -76,6 +84,18 @@ activityProfiles:
     outputs: { messageTypes: [docs_mutation_completed], modelMutations: [knowledge_update:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
     execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: true }
+  estimating:
+    activityType: estimating
+    enabled: true
+    handler: estimate
+    prompt: { system: "Estimate graph analysis, relation migration, navigation, redirect, and validation effort for every proposal you join in minimum, expected, and maximum agent-seconds. Identify dependencies, risks, assumptions, or give a structured not-applicable rationale. Never vote.", task: Submit an auditable proposal-linked knowledge-architecture estimate. }
+    planningIntent: { stage: evaluation, objective: Estimate graph and architecture work for each joined proposal, artifactKind: agent_estimate, subjectModel: proposal, subjectId: null }
+    branchPolicy: { kind: read-only, base: main }
+    contentAccess: { read: { models: [objective, note, question, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }, commit: { allowed: false } }
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files] }
+    signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each }], publishes: [proposal-estimated] }
+    outputs: { messageTypes: [], modelMutations: [estimate:create] }
+    execution: { providerPreference: [codex], maxRuntimeSeconds: 600, maxRetries: 1, verificationRequired: false }
 ---
 
 The Knowledge Cartographer owns graph quality, not product truth or publication authority.
