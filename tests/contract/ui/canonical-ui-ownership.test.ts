@@ -8,7 +8,13 @@ const retained = [
 	'/app', '/app/account', '/app/account/sessions', '/app/account/notifications', '/app/account/appearance', '/app/account/delete', '/app/teams', '/app/teams/new',
 	'/app/teams/active', '/app/teams/[teamId]', '/app/teams/[teamId]/edit', '/app/teams/[teamId]/delete', '/app/teams/[teamId]/members',
 	'/app/services', '/app/services/new', '/app/services/vault', '/app/services/[connectionId]',
-	'/app/projects', '/app/projects/[projectId]/books', '/app/projects/[projectId]/workflows', '/app/capacity', '/app/work', '/app/knowledge',
+	'/app/focus', '/app/focus/questions', '/app/focus/proposals', '/app/focus/proposals/[proposalId]', '/app/focus/decisions',
+	'/app/command', '/app/command/agents', '/app/command/assignments/[assignmentId]',
+	'/app/projects', '/app/projects/[projectId]', '/app/projects/[projectId]/agents', '/app/projects/[projectId]/agents/[agentId]',
+	'/app/projects/[projectId]/books', '/app/projects/[projectId]/workflows', '/app/capacity',
+	'/app/work', '/app/work/[runId]', '/app/work/agents', '/app/work/artifacts', '/app/work/assignments', '/app/work/build',
+	'/app/work/decisions', '/app/work/direction', '/app/work/events', '/app/work/executions', '/app/work/find', '/app/work/inbox',
+	'/app/work/results', '/app/work/workdays', '/app/knowledge',
 	'/app/knowledge/packs/[buildId]/download', '/app/feedback', '/app/feedback/[feedbackId]', '/app/market',
 	'/auth/register', '/auth/check-email', '/auth/confirm-email', '/auth/sign-in', '/auth/logout',
 	'/auth/forgot-password', '/auth/reset-password', '/auth/username', '/auth/device/approve',
@@ -59,7 +65,8 @@ describe('Market and Admin canonical UI ownership', () => {
 		expect(layout).not.toContain("label: 'Teams'");
 		expect(layout).toContain('aria-label="Manage teams"');
 		expect(layout.split('href="/app/teams"')).toHaveLength(2);
-		for (const label of ['Services', 'Projects', 'Capacity', 'Work', 'Knowledge']) expect(layout).toContain(`label: '${label}'`);
+		for (const label of ['Command', 'Focus', 'Services', 'Projects', 'Knowledge']) expect(layout).toContain(`label: '${label}'`);
+		for (const label of ['Capacity', 'Work']) expect(layout).not.toContain(`label: '${label}'`);
 		for (const label of ['Market', 'Cart', 'Seller']) expect(layout).not.toContain(`label: '${label}'`);
 		const activeTeamAction = readFileSync('packages/admin/src/pages/app/teams/active.ts', 'utf8');
 		expect(activeTeamAction).toContain("cookies.set('treeseed_active_team'");
