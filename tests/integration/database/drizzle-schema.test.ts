@@ -78,6 +78,8 @@ describe('Treeseed Drizzle schema baseline', () => {
 				'0007_transient_workflow_configuration.sql',
 				'0008_guide_editorial_review.sql',
 				'0009_capacity_workday_schedules.sql',
+				'0010_agent_lab_realtime_preferences.sql',
+				'0011_seed_team_membership_claims.sql',
 			]);
 		expect(existsSync(d1MigrationPath)).toBe(true);
 

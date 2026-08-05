@@ -50,9 +50,7 @@ describe('UI architecture inventory', () => {
 			expect(entry.architectureStage, `${entry.sourcePath} architecture stage`).toBeTruthy();
 			expect(entry.implementationStatus, `${entry.sourcePath} implementation status`).toBe('active');
 		}
-		expect(routeInventory.filter((entry) => entry.sourcePath.endsWith('/app/domain-overview.astro')).map((entry) => entry.routePattern).sort()).toEqual([
-			'/app/capacity', '/app/market', '/app/projects', '/app/work',
-		]);
+		expect(routeInventory.filter((entry) => entry.sourcePath.endsWith('/app/market.astro')).map((entry) => entry.routePattern)).toEqual(['/app/market']);
 	});
 
 	it('identifies canonical architecture proof surfaces', () => {
