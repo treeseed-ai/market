@@ -1,7 +1,7 @@
 schemaVersion: treeseed.scene/v1
 id: guide-agent-lab
 title: TreeSeed Guide Production Agent Lab
-description: Run the complete Guide editorial roster through isolated production workdays with a live, self-contained forensic report.
+description: Run the complete Guide editorial roster through a seeded team-scoped cooperative planning workday with live forensic evidence.
 audience: [operator, agent-developer, qa]
 
 journey:
@@ -10,9 +10,12 @@ journey:
     - agent-testing/production-lab
 
 mode:
-  test: true
-  demo: false
+  test: false
+  demo: true
   training: false
+
+runtime:
+  mode: demo
 
 target:
   app: market
@@ -51,16 +54,25 @@ agentLab:
   presentation: race-control
   timeZone: America/New_York
   repositories: [market]
-  agents: []
+  agents:
+    - evidence-researcher
+    - guide-steward
+    - guide-writer
+    - knowledge-cartographer
+    - technical-verifier
+    - audience-reviewer
+    - publication-steward
+    - workday-reporter
   agentClasses: []
   workdays:
     - id: guide-editorial-cycle
       title: Guide Editorial Cycle
       agentTests: [guide-editorial-cycle]
       objectiveRefs: [objective:harden-documentation-automation-workday-loop]
-      durationSeconds: 5400
-      availableCredits: 64
-      maxActiveAssignments: 4
+      durationSeconds: 10800
+      timePolicy: { cooperativePlanningPercent: 90, governedExecutionPercent: 0, reservePercent: 10 }
+      planningSession: { rounds: 3, assignmentTimeboxSeconds: 540, tokenWarning: 24000 }
+      maxActiveAssignments: 2
       planningOnly: true
 
 training:

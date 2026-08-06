@@ -49,7 +49,8 @@ agentLab:
       agentTests: [guide-editorial-cycle]
       objectiveRefs: [objective:harden-documentation-automation-workday-loop]
       durationSeconds: 900
-      availableCredits: 12
+      timePolicy: { cooperativePlanningPercent: 90, governedExecutionPercent: 0, reservePercent: 10 }
+      planningSession: { rounds: 3, assignmentTimeboxSeconds: 900, tokenWarning: 24000 }
       maxActiveAssignments: 1
       planningOnly: true
 

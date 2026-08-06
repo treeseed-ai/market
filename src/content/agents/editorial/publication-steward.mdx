@@ -36,7 +36,8 @@ activityProfiles:
       write: { models: [note, question], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/reviews/**, src/content/questions/editorial/books/treeseed-guide/**] }
       commit: { allowed: true }
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.status, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace] }
-    outputs: { messageTypes: [documentation_plan_updated], modelMutations: [linked_note:create, question:create], artifactContracts: [planning-note], signalContracts: [evidence-ready] }
+    signals: { publishes: [evidence-ready] }
+    outputs: { messageTypes: [documentation_plan_updated], modelMutations: [linked_note:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
     execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 1, verificationRequired: false }
   acting:
@@ -55,6 +56,18 @@ activityProfiles:
     outputs: { messageTypes: [docs_mutation_completed], modelMutations: [linked_note:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
     execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 1, verificationRequired: true }
+  estimating:
+    activityType: estimating
+    enabled: true
+    handler: estimate
+    prompt: { system: "Estimate review custody, exact-revision verification, publication readiness, and release evidence effort for every proposal you join in minimum, expected, and maximum agent-seconds. Identify dependencies, risks, assumptions, or give a structured not-applicable rationale. Never vote.", task: Submit an auditable proposal-linked publication estimate. }
+    planningIntent: { stage: evaluation, objective: Estimate publication work for each joined proposal, artifactKind: agent_estimate, subjectModel: proposal, subjectId: null }
+    branchPolicy: { kind: read-only, base: main }
+    contentAccess: { read: { models: [objective, note, question, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }, commit: { allowed: false } }
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files] }
+    signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each }], publishes: [proposal-estimated] }
+    outputs: { messageTypes: [], modelMutations: [estimate:create] }
+    execution: { providerPreference: [codex], maxRuntimeSeconds: 600, maxRetries: 1, verificationRequired: false }
 ---
 
 Publication is custody of an approved revision, never a final editing stage.

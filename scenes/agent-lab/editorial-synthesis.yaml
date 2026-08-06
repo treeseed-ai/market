@@ -1,7 +1,7 @@
 schemaVersion: treeseed.scene/v1
 id: guide-editorial-synthesis-agent-lab
-title: Guide Evidence to Proposal Production Agent Lab
-description: Verify the production evidence-to-proposal handoff between the Documentation Evidence Analyst and Guide Strategy Editor.
+title: Guide Cooperative Planning Agent Lab
+description: Exercise the complete Guide editorial signal graph through synchronized cooperative-planning waves.
 audience: [operator, agent-developer, qa]
 
 journey:
@@ -41,16 +41,17 @@ agentLab:
   presentation: race-control
   timeZone: America/New_York
   repositories: [market]
-  agents: [evidence-researcher, guide-steward]
+  agents: [evidence-researcher, guide-steward, guide-writer, knowledge-cartographer, technical-verifier, audience-reviewer, publication-steward, workday-reporter]
   agentClasses: []
   workdays:
     - id: editorial-synthesis
-      title: Guide Evidence to Proposal Handoff
+      title: Guide Cooperative Planning Session
       agentTests: [guide-editorial-cycle]
       objectiveRefs: [objective:harden-documentation-automation-workday-loop]
-      durationSeconds: 1200
-      availableCredits: 16
-      maxActiveAssignments: 1
+      durationSeconds: 3600
+      timePolicy: { cooperativePlanningPercent: 90, governedExecutionPercent: 0, reservePercent: 10 }
+      planningSession: { rounds: 3, assignmentTimeboxSeconds: 540, tokenWarning: 24000 }
+      maxActiveAssignments: 4
       planningOnly: true
 
 training: { enabled: false }

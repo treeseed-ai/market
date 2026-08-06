@@ -86,6 +86,8 @@ The kernel receives policy provenance selected by the API; it never creates or r
 
 The API's typed workday demand compiler selects the project agent, activity profile, handler, planning intent, source context, and durable participation entry before admission; the assignment function binds that demand to the admitted assignment. The kernel consumes that admitted envelope only; it does not rediscover projects, repair corrupt workday records, choose a different agent, or maintain a parallel workday scheduler.
 
+Planning inputs also contain the immutable graph revision, selected node, predecessor identities, and exact signal evidence that opened the node, including referenced commits or control-plane records. AgentKernel does not evaluate the DAG or search for substitute upstream evidence. It exposes the bound evidence to the handler and execution provider. A later planning edge opens only after an actual `treeseed.publish_signal` tool request is validated and durably accepted; successful assignment completion never manufactures declared signals.
+
 The API also compiles project/team/architecture/repository context before admission and fails on incomplete durable ownership or read uncertainty. The kernel consumes that admitted context and never synthesizes repository or team defaults.
 
 The admitted envelope is durably owned by one exact workday run. An uncertain scheduling or recovery transition prevents dispatch from being treated as ready; the kernel never infers run ownership from an envelope id or repairs missing scheduling evidence.
@@ -148,7 +150,7 @@ Planning budget can be used for:
 
 Planning outputs do not approve work. They feed proposal governance, immutable decisions, allocation policy, and later capacity plans.
 
-Planning assignments are reservation-backed. New planning assignments must carry a planning `reservationId`, positive `reservedCredits`, workday/allocation metadata when applicable, and mode-budget explanation metadata. Deterministic system reports may be explicitly marked as reservation-exempt only when they are reporting existing control-plane state and do not consume project planning budget.
+Planning assignments are reservation-backed. New planning assignments must carry a planning `reservationId`, positive `reservedSeconds`, workday/allocation metadata when applicable, and time-policy explanation metadata. Active and elapsed seconds, tokens, cost, and provider-native usage are reported independently. Deterministic system reports may be explicitly marked as reservation-exempt only when they report existing control-plane state and consume no project planning time.
 
 ## Acting Budget
 

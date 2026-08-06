@@ -38,9 +38,24 @@ activityProfiles:
       commit: { allowed: true }
     tools:
       allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.repository.read_file, treeseed.repository.search, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace, research.search_sources, research.fetch_source]
-    outputs: { messageTypes: [research_note_created], modelMutations: [linked_note:create, question:create], artifactContracts: [planning-note], signalContracts: [evidence-ready] }
+    signals: { publishes: [evidence-ready] }
+    outputs: { messageTypes: [research_note_created], modelMutations: [linked_note:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: human-or-agent, allowedAgentClasses: [engineering, testing, architecture] } }
     execution: { providerPreference: [codex], maxRuntimeSeconds: 2400, maxRetries: 2, verificationRequired: false }
+  estimating:
+    activityType: estimating
+    enabled: true
+    handler: estimate
+    prompt:
+      system: Estimate each proposal you join from its exact immutable version and evidence. State minimum, expected, and maximum agent-seconds; dependencies; risks; assumptions; token-sensitive context concerns; and either an evidence-research estimate or a structured not-applicable rationale. Never vote or infer approval.
+      task: Submit a proposal-linked evidence and research estimate that another participant can audit.
+    planningIntent: { stage: evaluation, objective: Estimate evidence and research work for each joined proposal, artifactKind: agent_estimate, subjectModel: proposal, subjectId: null }
+    branchPolicy: { kind: read-only, base: main }
+    contentAccess: { read: { models: [objective, note, question, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }, commit: { allowed: false } }
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files] }
+    signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each }], publishes: [proposal-estimated] }
+    outputs: { messageTypes: [], modelMutations: [estimate:create] }
+    execution: { providerPreference: [codex], maxRuntimeSeconds: 600, maxRetries: 1, verificationRequired: false }
 ---
 
 Research notes carry detailed evidence so the Guide can remain concise and trustworthy.

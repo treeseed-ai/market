@@ -129,7 +129,8 @@ Activity-profile era operator surfaces should also show:
 - agent slug and project agent class
 - assignment mode and activity type
 - selected handler (`writer`, `actor`, `estimate`, `releaser`, or `reporter`)
-- planning/acting reservation id and reserved credits
+- planning/acting reservation id plus requested, reserved, active, elapsed, released, and overrun agent time
+- input, cached-input, reasoning, and output tokens; cost and provider-native quota remain separate dimensions
 - TreeDX content models and tool ids exposed to the run
 - branch policy and assignment worktree/branch when applicable
 - question policy and unresolved human/team input requirements
