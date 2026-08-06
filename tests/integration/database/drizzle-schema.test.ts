@@ -78,6 +78,12 @@ describe('Treeseed Drizzle schema baseline', () => {
 				'0007_transient_workflow_configuration.sql',
 				'0008_guide_editorial_review.sql',
 				'0009_capacity_workday_schedules.sql',
+				'0010_agent_lab_realtime_preferences.sql',
+				'0011_seed_team_membership_claims.sql',
+				'0012_signal_time_planning.sql',
+				'0013_planning_participant_nodes.sql',
+				'0014_legacy_capacity_accounting_nullable.sql',
+				'0015_remove_platform_repository_claims.sql',
 			]);
 		expect(existsSync(d1MigrationPath)).toBe(true);
 
@@ -197,9 +203,9 @@ describe('Treeseed Drizzle schema baseline', () => {
 		expect(MarketSchema.capacityReservations.laneId.name).toBe('lane_id');
 		expect('laneId' in MarketSchema.capacityLedgerEntries).toBe(false);
 		expect(MarketSchema.capacityReservations.reservedNativeAmount.name).toBe('reserved_native_amount');
-		expect(MarketSchema.capacityUsageActuals.creditFormulaVersion.name).toBe('credit_formula_version');
+		expect('creditFormulaVersion' in MarketSchema.capacityUsageActuals).toBe(false);
 		expect(MarketSchema.capacityUsageActuals.nativeUsageJson.name).toBe('native_usage_json');
-		expect(MarketSchema.creditConversionProfiles.nativeUnitsPerCreditP50.name).toBe('native_units_per_credit_p50');
+		expect('creditConversionProfiles' in MarketSchema).toBe(false);
 		expect(marketSql).not.toContain('"team_id" text,\n\t"owner_team_id"');
 		for (const legacyTable of [
 			'capacity_provider_deployments',

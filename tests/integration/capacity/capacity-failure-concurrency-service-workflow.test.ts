@@ -42,17 +42,17 @@ function admission(project: 'a' | 'b', now: string): CapacityAdmissionInput {
 		request: {
 			teamId: 'matrix-team', providerId: 'matrix-provider', membershipId: 'matrix-membership',
 			projectId, environment: 'local', agentClassId: classId, mode: 'planning',
-			executionProviderId: 'matrix-execution', laneId: 'matrix-lane', requiredCapabilities: ['engineering'], requestedCredits: 1,
+			executionProviderId: 'matrix-execution', laneId: 'matrix-lane', requiredCapabilities: ['engineering'], requestedSeconds: 1,
 		},
 		membership: { id: 'matrix-membership', teamId: 'matrix-team', providerId: 'matrix-provider', status: 'approved' },
 		availability: { status: 'open', availableFrom: now, availableUntil: '2099-01-01T00:00:00.000Z' },
 		grant: {
 			schemaVersion: 2, id: grantId, membershipId: 'matrix-membership', teamId: 'matrix-team', providerId: 'matrix-provider',
 			projectId, environment: 'local', status: 'active', executionProviderIds: ['matrix-execution'], laneIds: ['matrix-lane'],
-			capabilities: ['engineering'], allowedModes: ['planning'], dailyCreditLimit: 10, monthlyCreditLimit: 20,
+			capabilities: ['engineering'], allowedModes: ['planning'], dailyAgentSecondsLimit: 10, monthlyAgentSecondsLimit: 20,
 			maxConcurrentAssignments: 1, unmetered: false,
 		},
-		workday: { id: workdayId, status: 'active', totalCredits: 10, committedCredits: 0 },
+		workday: { id: workdayId, status: 'active', totalSeconds: 10, committedSeconds: 0 },
 		allocationSet: {
 			schemaVersion: 2, id: 'matrix-allocation', teamId: 'matrix-team', version: 1, status: 'active', effectiveFrom: now,
 			reservePolicy: { percent: 0, overflow: 'deny' },
@@ -62,10 +62,10 @@ function admission(project: 'a' | 'b', now: string): CapacityAdmissionInput {
 			})),
 			borrowingRules: [],
 		},
-		allocationSliceIds: [sliceId], committedCreditsBySlice: { [sliceId]: 0 },
-		providerCapacity: { availableCredits: 10, availableConcurrentAssignments: 2 },
-		providerLocalLimits: { availableCredits: 10, availableConcurrentAssignments: 1 },
-		grantCommitted: { dailyCredits: 0, monthlyCredits: 0, activeAssignments: 0 },
+		allocationSliceIds: [sliceId], committedSecondsBySlice: { [sliceId]: 0 },
+		providerCapacity: { availableAgentSeconds: 10, availableConcurrentAssignments: 2 },
+		providerLocalLimits: { availableAgentSeconds: 10, availableConcurrentAssignments: 2 },
+		grantCommitted: { dailyAgentSeconds: 0, monthlyAgentSeconds: 0, activeAssignments: 0 },
 	};
 }
 
@@ -134,7 +134,7 @@ describe('capacity failure and concurrency service matrix', () => {
 			expect(resumed.assignment).toMatchObject({ id: 'matrix-assignment-a', status: 'leased', attemptCount: 1, runnerId: 'resumed-runner' });
 			expect(await store.renewProviderAssignmentLease(principal, 'matrix-assignment-a', { leaseToken: 'expired-lease', runnerId: 'stale-runner' })).toBeNull();
 			expect(await store.renewProviderAssignmentLease(principal, 'matrix-assignment-a', { leaseToken: resumed.leaseToken, runnerId: 'resumed-runner', leaseSeconds: 120 })).toMatchObject({ assignment: { status: 'leased' } });
-			await settleCapacityReservationExactlyOnce(store, { settlementKey: 'matrix-settle-a', teamId: 'matrix-team', membershipId: 'matrix-membership', reservationId: 'matrix-reservation-a', assignmentId: 'matrix-assignment-a', actualCredits: 1, source: 'matrix' });
+			await settleCapacityReservationExactlyOnce(store, { settlementKey: 'matrix-settle-a', teamId: 'matrix-team', membershipId: 'matrix-membership', reservationId: 'matrix-reservation-a', assignmentId: 'matrix-assignment-a', activeSeconds: 1, elapsedSeconds: 1, source: 'matrix' });
 			expect(await store.completeProviderAssignment(principal, 'matrix-assignment-a', { leaseToken: resumed.leaseToken, runnerId: 'resumed-runner' })).toMatchObject({ assignment: { status: 'completed' } });
 
 			await store.run(`UPDATE workday_capacity_envelopes SET status = 'active', updated_at = ? WHERE id = 'matrix-workday-b'`, [new Date().toISOString()]);

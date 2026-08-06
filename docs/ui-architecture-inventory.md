@@ -14,13 +14,24 @@ Market currently owns no route files. Admin owns authentication, accounts, teams
 | admin | `/app/account/delete` | `packages/admin/src/pages/app/account/delete.astro` | personal | AuthenticatedAppShell | settings | signed-in principal |
 | admin | `/app/account/notifications` | `packages/admin/src/pages/app/account/notifications.astro` | personal | AuthenticatedAppShell | settings | signed-in principal |
 | admin | `/app/account/sessions` | `packages/admin/src/pages/app/account/sessions.astro` | personal | AuthenticatedAppShell | settings | signed-in principal |
-| admin | `/app/capacity` | `packages/admin/src/pages/app/domain-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/capacity` | `packages/admin/src/pages/app/capacity/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/command` | `packages/admin/src/pages/app/command/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/command/agents` | `packages/admin/src/pages/app/command/agents/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/command/assignments/[assignmentId]` | `packages/admin/src/pages/app/command/assignments/[assignmentId].astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/feedback` | `packages/admin/src/pages/app/feedback/index.astro` | personal | AuthenticatedAppShell | collection | platform_admin |
 | admin | `/app/feedback/[feedbackId]` | `packages/admin/src/pages/app/feedback/[feedbackId].astro` | personal | AuthenticatedAppShell | collection | platform_admin |
+| admin | `/app/focus` | `packages/admin/src/pages/app/focus/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/focus/decisions` | `packages/admin/src/pages/app/focus/decisions.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/focus/proposals` | `packages/admin/src/pages/app/focus/proposals/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/focus/proposals/[proposalId]` | `packages/admin/src/pages/app/focus/proposals/[proposalId].astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/focus/questions` | `packages/admin/src/pages/app/focus/questions.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/knowledge` | `packages/admin/src/pages/app/knowledge/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/knowledge/packs/[buildId]/download` | `packages/admin/src/pages/app/knowledge/packs/[buildId]/download.ts` | personal | AuthenticatedAppShell | action | signed-in principal |
-| admin | `/app/market` | `packages/admin/src/pages/app/domain-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/projects` | `packages/admin/src/pages/app/domain-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/market` | `packages/admin/src/pages/app/market/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/projects` | `packages/admin/src/pages/app/projects/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/projects/[projectId]` | `packages/admin/src/pages/app/projects/[projectId]/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/projects/[projectId]/agents` | `packages/admin/src/pages/app/projects/[projectId]/agents/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/projects/[projectId]/agents/[agentId]` | `packages/admin/src/pages/app/projects/[projectId]/agents/[agentId].astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/projects/[projectId]/books` | `packages/admin/src/pages/app/projects/[projectId]/books/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/projects/[projectId]/workflows` | `packages/admin/src/pages/app/projects/[projectId]/workflows.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/services` | `packages/admin/src/pages/app/services/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
@@ -34,7 +45,20 @@ Market currently owns no route files. Admin owns authentication, accounts, teams
 | admin | `/app/teams/[teamId]/members` | `packages/admin/src/pages/app/teams/[teamId]/members.astro` | team | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/teams/active` | `packages/admin/src/pages/app/teams/active.ts` | team | AuthenticatedAppShell | action | signed-in principal |
 | admin | `/app/teams/new` | `packages/admin/src/pages/app/teams/new.astro` | team | AuthenticatedAppShell | wizard | signed-in principal |
-| admin | `/app/work` | `packages/admin/src/pages/app/domain-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work` | `packages/admin/src/pages/app/work/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/[runId]` | `packages/admin/src/pages/app/work/[runId].astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/agents` | `packages/admin/src/pages/app/work/agents/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/artifacts` | `packages/admin/src/pages/app/work/artifacts/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/assignments` | `packages/admin/src/pages/app/work/assignments/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/build` | `packages/admin/src/pages/app/work/build/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/decisions` | `packages/admin/src/pages/app/work/decisions/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/direction` | `packages/admin/src/pages/app/work/direction/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/events` | `packages/admin/src/pages/app/work/events/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/executions` | `packages/admin/src/pages/app/work/executions/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/find` | `packages/admin/src/pages/app/work/find/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/inbox` | `packages/admin/src/pages/app/work/inbox/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/results` | `packages/admin/src/pages/app/work/results/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/workdays` | `packages/admin/src/pages/app/work/workdays/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/auth/callback/[provider]` | `packages/admin/src/pages/auth/callback/[provider].ts` | auth | AuthShell | redirect | anonymous principal only; configured provider; one-time database state; nonce and PKCE validation; safe return URL |
 | admin | `/auth/check-email` | `packages/admin/src/pages/auth/check-email.astro` | auth | AuthShell | detail | anonymous principal only; safe return URL |
 | admin | `/auth/confirm-email` | `packages/admin/src/pages/auth/confirm-email.astro` | auth | AuthShell | detail | valid one-time confirmation token; anonymous or signed-in principal; safe return URL |
