@@ -64,7 +64,7 @@ function admission(project: 'a' | 'b', now: string): CapacityAdmissionInput {
 		},
 		allocationSliceIds: [sliceId], committedSecondsBySlice: { [sliceId]: 0 },
 		providerCapacity: { availableAgentSeconds: 10, availableConcurrentAssignments: 2 },
-		providerLocalLimits: { availableAgentSeconds: 10, availableConcurrentAssignments: 1 },
+		providerLocalLimits: { availableAgentSeconds: 10, availableConcurrentAssignments: 2 },
 		grantCommitted: { dailyAgentSeconds: 0, monthlyAgentSeconds: 0, activeAssignments: 0 },
 	};
 }

@@ -1,8 +1,8 @@
 ---
 schemaVersion: treeseed.knowledge-page/v1
-id: guide.guarantee.guarantee-knowledge-performance-millisecond-reader-latency-742
+id: guide.guarantee.guarantee-knowledge-performance-millisecond-reader-latency-750
 bookId: treeseed-guide
-slug: content/management/guarantee-knowledge-performance-millisecond-reader-latency-742
+slug: content/management/guarantee-knowledge-performance-millisecond-reader-latency-750
 title: "Millisecond Public Knowledge Reader Latency"
 summary: "Keep public knowledge reads within explicit p99 latency and throughput budgets under production-shaped load."
 status: draft
@@ -18,7 +18,7 @@ relatedQuestionIds: []
 relatedObjectiveIds: []
 relatedProposalIds: []
 relatedDecisionIds: []
-guaranteeIds: [guarantee.knowledge.performance.millisecond-reader-latency.742]
+guaranteeIds: [guarantee.knowledge.performance.millisecond-reader-latency.750]
 capabilityIds: []
 routePatterns: []
 resourceTypes: [treeseed-guide]
@@ -30,6 +30,6 @@ audiences: { primary: [operator, developer, ai-agent], secondary: [community], e
 
 # Millisecond Public Knowledge Reader Latency
 
-This page documents `guarantee.knowledge.performance.millisecond-reader-latency.742`.
+This page documents `guarantee.knowledge.performance.millisecond-reader-latency.750`.
 
 [Back to Management](/t/treeseed/books/treeseed-guide/content/management)
