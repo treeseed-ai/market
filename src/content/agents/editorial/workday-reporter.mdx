@@ -36,7 +36,7 @@ activityProfiles:
       read: { models: [objective, question, note, proposal, decision, knowledge, book, agent], actions: [describe, query, read], books: [treeseed-guide] }
       write: { models: [note, question], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/reports/**, src/content/questions/editorial/books/treeseed-guide/**] }
       commit: { allowed: true }
-    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.status, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace] }
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.status, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
     signals: { publishes: [evidence-ready] }
     outputs: { messageTypes: [documentation_plan_updated], modelMutations: [linked_note:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: false, defaultAnswerPolicy: { kind: human-or-agent } }
@@ -67,7 +67,7 @@ activityProfiles:
       read: { models: [objective, question, note, proposal, decision, knowledge, book, agent], actions: [describe, query, read], books: [treeseed-guide] }
       write: { models: [note], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/reports/**] }
       commit: { allowed: true }
-    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.status, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace] }
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.status, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
     signals:
       subscribesTo:
         - { contract: proposal-ready, producerPolicy: all }

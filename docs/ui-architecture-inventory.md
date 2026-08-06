@@ -27,7 +27,7 @@ Market currently owns no route files. Admin owns authentication, accounts, teams
 | admin | `/app/focus/questions` | `packages/admin/src/pages/app/focus/questions.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/knowledge` | `packages/admin/src/pages/app/knowledge/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/knowledge/packs/[buildId]/download` | `packages/admin/src/pages/app/knowledge/packs/[buildId]/download.ts` | personal | AuthenticatedAppShell | action | signed-in principal |
-| admin | `/app/market` | `packages/admin/src/pages/app/market.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/market` | `packages/admin/src/pages/app/market/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/projects` | `packages/admin/src/pages/app/projects/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/projects/[projectId]` | `packages/admin/src/pages/app/projects/[projectId]/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/projects/[projectId]/agents` | `packages/admin/src/pages/app/projects/[projectId]/agents/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
@@ -47,18 +47,18 @@ Market currently owns no route files. Admin owns authentication, accounts, teams
 | admin | `/app/teams/new` | `packages/admin/src/pages/app/teams/new.astro` | team | AuthenticatedAppShell | wizard | signed-in principal |
 | admin | `/app/work` | `packages/admin/src/pages/app/work/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/app/work/[runId]` | `packages/admin/src/pages/app/work/[runId].astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/work/agents` | `packages/admin/src/pages/app/work/entity-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/work/artifacts` | `packages/admin/src/pages/app/work/entity-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/work/assignments` | `packages/admin/src/pages/app/work/entity-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/work/build` | `packages/admin/src/pages/app/work/build.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/work/decisions` | `packages/admin/src/pages/app/work/decisions.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/work/direction` | `packages/admin/src/pages/app/work/direction.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/work/events` | `packages/admin/src/pages/app/work/entity-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/work/executions` | `packages/admin/src/pages/app/work/entity-overview.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/work/find` | `packages/admin/src/pages/app/work/find.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/work/inbox` | `packages/admin/src/pages/app/work/inbox.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/work/results` | `packages/admin/src/pages/app/work/results.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
-| admin | `/app/work/workdays` | `packages/admin/src/pages/app/work/workdays.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/agents` | `packages/admin/src/pages/app/work/agents/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/artifacts` | `packages/admin/src/pages/app/work/artifacts/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/assignments` | `packages/admin/src/pages/app/work/assignments/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/build` | `packages/admin/src/pages/app/work/build/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/decisions` | `packages/admin/src/pages/app/work/decisions/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/direction` | `packages/admin/src/pages/app/work/direction/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/events` | `packages/admin/src/pages/app/work/events/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/executions` | `packages/admin/src/pages/app/work/executions/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/find` | `packages/admin/src/pages/app/work/find/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/inbox` | `packages/admin/src/pages/app/work/inbox/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/results` | `packages/admin/src/pages/app/work/results/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
+| admin | `/app/work/workdays` | `packages/admin/src/pages/app/work/workdays/index.astro` | personal | AuthenticatedAppShell | collection | signed-in principal |
 | admin | `/auth/callback/[provider]` | `packages/admin/src/pages/auth/callback/[provider].ts` | auth | AuthShell | redirect | anonymous principal only; configured provider; one-time database state; nonce and PKCE validation; safe return URL |
 | admin | `/auth/check-email` | `packages/admin/src/pages/auth/check-email.astro` | auth | AuthShell | detail | anonymous principal only; safe return URL |
 | admin | `/auth/confirm-email` | `packages/admin/src/pages/auth/confirm-email.astro` | auth | AuthShell | detail | valid one-time confirmation token; anonymous or signed-in principal; safe return URL |
