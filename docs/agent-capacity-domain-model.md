@@ -448,6 +448,14 @@ Window selection and arithmetic are SDK-owned pure primitives. API admission and
 
 `WorkdayCapacityEnvelope` records can be started, paused, completed, and summarized through `/v1/workdays`. Summaries combine envelope policy with aggregate assignment, mode-run, reservation, usage, and ledger totals, release/refund calculations, native usage snapshots, provider-confidence warnings, and five bounded evidence windows. Each evidence collection is continued explicitly with `evidence`, `limit`, and opaque `cursor`; a summary never embeds an unbounded forensic history. The summary is an API control-plane read model; it is not reconciled infrastructure.
 
+## Discussion Content And Capacity Boundary
+
+`discussion`, `discussion-message`, and `discussion-event` are Git-backed Astro content models. A user message is committed through TreeDX before an assignment is eligible. The content commit SHA and message path freeze the shared snapshot used by every mentioned agent. Assignment receipt, reservation, lease, provider lifecycle, mode-run messages, tools/output summaries, artifacts, usage, settlement, completion, failure, and recovery are projected as immutable Discussion events; terminal agent responses are Discussion messages.
+
+Discussion content is never a PostgreSQL aggregate. The API database may retain a Discussion identifier and committed content reference on otherwise generic operational records so that lifecycle evidence can be projected and recovered, but it does not own session state, message bodies, event history, search, or navigation.
+
+Every assignment carries `treeseed.capacity-budget/v2`: requested/reserved/active/elapsed/released/overrun time, one immutable hard deadline, token classes and ceilings, cost/currency, provider-native units, concurrency, attempts, pricing generation, and enforcement confidence. Terminal disposition is one of `completed`, `completed_early`, `deadline_exhausted`, `budget_exhausted`, `blocked`, `cancelled`, or `failed`. `completed_early` additionally proves passed acceptance checks, durable artifact refs, remaining budget, a completion reason, and `noUsefulScopedWorkRemaining: true`.
+
 ## TreeDX Proxy Handle
 
 Assignments may carry a project-scoped `TreeDxProxyHandle`. The handle identifies project, assignment, repository/workspace scope, allowed operations, and expiry. It is not a TreeDX service credential.
