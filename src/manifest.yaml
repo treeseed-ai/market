@@ -10,6 +10,9 @@ content:
   decisions: ./src/content/decisions
   people: ./src/content/people
   agents: ./src/content/agents
+  discussions: ./src/content/discussions
+  discussion_messages: ./src/content/discussion-messages
+  discussion_events: ./src/content/discussion-events
   books: ./src/content/books
   templates: ./src/content/templates
   workdays: ./src/content/workdays

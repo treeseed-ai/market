@@ -189,6 +189,12 @@ Implemented surfaces:
 - CLI `trsd capacity treedx-proxy-audit --project <project-id> [--assignment <assignment-id>] --json` reads the same audit rows.
 - CLI `trsd capacity fallback-outputs --project <project-id> [--mode <planning|acting>] [--status <status>] --json` reads bounded fallback output records.
 
+## Discussion And Platform Manager Surfaces
+
+`trsd run [seed...]` is the local platform manager: it validates one conflict-checked exact seed set, invokes configuration when required, converges the full local topology, verifies readiness, installs login/reboot supervision, and returns detached unless `--foreground` is selected. `trsd config` may create a new immutable generation while the platform runs and waits for the supervisor result. `trsd platform status|logs|stop` owns inspection and shutdown. The supervisor observes the tracked branch with polling recovery, accepts only clean fast-forward convergence, drains dispatch through the local reconciler, and reports dirty/diverged/unavailable state as blocked drift.
+
+The authenticated shell exposes a non-overlapping Discussion dock beside Feedback. It loads sessions, messages, and assignment history from TreeDX, supports topic/agent/file search, reusable Markdown editing and preview, file refs, mentioned-agent dispatch, resizable composition, terminal status, and time/token/cost/native meters. Discuss, Propose, and Act communicate different governance intent; the UI never bypasses API readiness or allocation checks.
+
 ## Transition From Acceptance To Supervised Internal Development
 
 The first production use of the local Codex capacity provider is supervised development of the independently versioned Market and package projects. Starter acceptance is a prerequisite, not authority to start portfolio work. The transition begins only after the local production gate in the completion plan passes. Hosted-production readiness may remain blocked while hosted deployment is suspended, but local development must retain the same admission, execution, evidence, settlement, and cleanup contracts.

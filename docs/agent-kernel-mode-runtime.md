@@ -250,6 +250,12 @@ Every bounded attempt emits an `AgentModeRun` record with:
 
 The implemented Architecture Milestone M3 path emits a running mode-run event before handler execution and a terminal mode-run event after success, failure, cancellation, or bounded fallback. Terminal records include trace references to the lower-level `AgentRunTrace` when handler execution reaches the trace path. M3 is a roadmap milestone, not a completion-plan phase number.
 
+## Common Resource Stewardship
+
+Every resolved activity profile receives the same resource-stewardship instructions. The allocation is a maximum, not a consumption target. An agent finishes as soon as its acceptance criteria are satisfied and no important in-scope work remains; it must not invent work or prolong discussion to consume time or tokens. Before `completed_early`, it verifies outputs, persists required artifacts, reports the remaining budget and reason, and asserts `noUsefulScopedWorkRemaining`. Missing authority, evidence, credentials, or dependencies is `blocked`, not successful early completion. Near the immutable deadline the agent narrows scope, checkpoints valid work, and returns an honest partial or blocked result.
+
+The kernel receives requested and reserved duration, absolute hard deadline, remaining seconds, all token classes and ceilings, cost/currency, provider-native caps, concurrency, attempts, pricing generation, and enforcement confidence. Lease renewal never changes the hard deadline. Terminal status and usage are passed to the API for exactly-once settlement and immediate release of unused reservations.
+
 ## Verification Expectations
 
 Runtime verification should continue to prove:

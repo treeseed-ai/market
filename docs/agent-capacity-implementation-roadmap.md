@@ -285,6 +285,14 @@ Architecture-changing capacity work is not complete until the relevant canonical
 - Admin or CLI surface changes update [Agent Capacity Operator Surfaces](./agent-capacity-operator-surfaces.md).
 - Package boundary changes update [Package Ownership](./package-ownership.md) and [AGENTS.md](../AGENTS.md).
 
+## Discussion And Internal-Development Foundation
+
+The next local milestone moves the development control loop behind the running platform. `trsd config` owns validated immutable desired generations; `trsd run [seed...]` owns the exact local seed graph, complete runtime reconciliation, readiness, detached supervision, and tracked-branch convergence. `trsd platform status|logs|stop` owns inspection and shutdown. Configuration candidates that fail validation restore the prior machine configuration, and a live supervisor records whether the pending generation converged.
+
+Discussion sessions, messages, and append-only execution events are Astro content models in project Git and are read or committed only through TreeDX. PostgreSQL stores generic workday, assignment, lease, mode-run, reservation, usage, and settlement records plus opaque Discussion references needed to project their lifecycle into TreeDX. Mentioned agents are admitted from one committed snapshot through their explicit `chat` profiles. Discuss and Propose stay in planning authority; Act additionally requires approved decision readiness and accepted capacity-plan provenance.
+
+Capacity-budget v2 is required at admission for every activity profile. A single hard deadline is frozen before dispatch and lease renewal cannot extend it. Time, aggregate token ceilings with input/cached/reasoning/output actuals, cost/currency, native units, concurrency, and attempts remain independent dimensions. Completion releases unused claims exactly once. Calibration may recommend p50/p90 time, token, and cost estimates by task signature and provider/model, but it cannot widen team hard limits.
+
 ## Current Starter And Guarantee Gates
 
 The active first-party starters are `engineering` and `research`. The former `information-hub` starter is folded into `research` until knowledge-pack packaging has distinct deterministic workflow semantics.

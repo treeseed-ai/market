@@ -234,6 +234,12 @@ Human-machine execution provider adapters follow the same boundary. AI providers
 
 Infrastructure lifecycle and runtime assignment are separate concerns. `trsd capacity build/up/status/logs/down/test-local` manage provider runtime lifecycle and diagnostics through reconciliation. Provider availability sessions, assignments, leases, mode runs, usage actuals, and ledger entries are API control-plane records, not reconciled infrastructure resources.
 
+## Local Self-Hosting And Discussion Ownership
+
+`@treeseed/sdk` owns immutable configuration-generation contracts, the common `discussion-v1` chat foundation, Discussion model registry contracts, seed desired-graph primitives, multidimensional capacity budgets, and local reconciliation operations. `@treeseed/cli` owns `config`, `run`, and `platform` command presentation; it does not create a second runtime orchestrator. `@treeseed/api` owns authenticated Discussion intake, generic operational scheduling, governance admission, exactly-once settlement, and projection of operational evidence to TreeDX. `@treeseed/agent` owns Codex/OpenCode execution adapters, provider-local cancellation/streaming/usage receipts, prompt enrichment, and completion evidence. `@treeseed/ui` owns reusable dock, timeline, Markdown, file-reference, trace, and meter components; `@treeseed/admin` composes them into authenticated Agent Lab surfaces.
+
+Discussion sessions, messages, and events remain project content under `src/content/**` or `docs/src/content/**`; neither API nor Admin may introduce Discussion database tables. PostgreSQL may retain only generic workday/assignment records and opaque content refs needed for scheduling and event projection. TreeDX remains product-neutral.
+
 ## Verification Matrix
 
 | Change | Minimum Verification |
