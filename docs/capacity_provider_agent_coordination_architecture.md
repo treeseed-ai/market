@@ -160,7 +160,7 @@ An expired lease is never silently re-leased. Before assignment selection, the A
 
 There is no secondary project-runner task queue. The API exposes no task claim/event/complete lifecycle, the SDK exposes no runner-task client, and the clean schema contains no runtime task/event/output tables. Because the capacity system has not launched, the clean reset baseline omits those tables instead of retaining an additive compatibility cleanup migration; assignment and mode-run evidence remains authoritative.
 
-There is also no project-runner manager-lease, worker-runner, repository-claim, or runner-scale lifecycle. Provider availability sessions, assignments, leases, mode runs, and provider-manager telemetry are authoritative. Operations-runner workspace ownership remains separately modeled as `platform_repository_claims`; it is not an agent scheduling or capacity record.
+There is also no project-runner manager-lease, worker-runner, repository-claim, runner-scale lifecycle, or operations-runner repository checkout. Provider availability sessions, assignments, leases, mode runs, and provider-manager telemetry are authoritative.
 
 Provider-manager liveness and runner execution remain concurrent services. The manager keeps each exact membership session fresh while any runner holds work; the API rejects renewal once that short-lived authority expires. A synchronous acceptance executor therefore uses a refresh-only session heartbeat beside its runner. It never leaves a full manager scheduler running after the selected dispatch set, so session freshness cannot pre-lease later work.
 

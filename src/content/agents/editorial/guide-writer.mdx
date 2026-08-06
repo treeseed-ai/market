@@ -36,7 +36,7 @@ activityProfiles:
       read: { models: [objective, question, note, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }
       write: { models: [note, question], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/planning/drafts/**, src/content/questions/editorial/books/treeseed-guide/**] }
       commit: { allowed: true }
-    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace] }
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
     signals: { publishes: [evidence-ready] }
     outputs: { messageTypes: [draft_requires_context], modelMutations: [linked_note:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: human-or-agent, allowedAgentClasses: [guide-steward, evidence-research, technical-verification] } }
@@ -54,7 +54,7 @@ activityProfiles:
       read: { models: [objective, question, note, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }
       write: { models: [knowledge, note, question], actions: [create, update, link, validate, commit], books: [treeseed-guide], paths: [src/content/knowledge/treeseed-guide/**, src/content/notes/editorial/books/treeseed-guide/planning/drafts/**, src/content/questions/editorial/books/treeseed-guide/**] }
       commit: { allowed: true }
-    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace] }
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
     outputs: { messageTypes: [docs_mutation_completed], modelMutations: [knowledge_update:create, linked_note:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: human-or-agent, allowedAgentClasses: [guide-steward, evidence-research, technical-verification] } }
     execution: { providerPreference: [codex], maxRuntimeSeconds: 2400, maxRetries: 2, verificationRequired: true }

@@ -48,7 +48,7 @@ activityProfiles:
       write: { models: [note, question, proposal], actions: [create, update, link, validate, commit], books: [treeseed-guide], paths: [src/content/notes/editorial/books/treeseed-guide/planning/stewardship/**, src/content/questions/editorial/books/treeseed-guide/**, src/content/proposals/editorial/books/treeseed-guide/**] }
       commit: { allowed: true }
     tools:
-      allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace]
+      allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace]
     signals: { subscribesTo: [{ contract: evidence-ready, producerPolicy: all }], publishes: [proposal-ready] }
     outputs: { messageTypes: [documentation_plan_updated], modelMutations: [linked_note:create, question:create, proposal:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
@@ -86,7 +86,7 @@ activityProfiles:
       write: { models: [note, knowledge, book], actions: [create, update, link, validate, commit], books: [treeseed-guide], paths: [src/content/notes/editorial/books/treeseed-guide/planning/stewardship/**, src/content/knowledge/treeseed-guide/**, src/content/books/treeseed-guide.md] }
       commit: { allowed: true }
     tools:
-      allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.write_workspace_file, treedx.commit_workspace]
+      allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace]
     signals: { subscribesTo: [{ contract: governed-execution-ready }], publishes: [] }
     outputs: { messageTypes: [project_summary_updated], modelMutations: [linked_note:create, knowledge_update:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }

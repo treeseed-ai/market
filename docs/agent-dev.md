@@ -354,7 +354,7 @@ operations:
   tools_allowed:
     - treedx.build_context
     - treedx.read_workspace_file
-    - treedx.write_workspace_file
+    - treedx.apply_workspace_changeset
     - treedx.commit_workspace
     - treeseed.status
     - treeseed.dev_plan
