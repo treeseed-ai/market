@@ -26,7 +26,7 @@ function stableJson(value: unknown): string {
 async function policyFingerprint(store: ServiceStore) {
 	const [allocation, grants] = await Promise.all([
 		store.first(`SELECT version, status, effective_from, effective_until, reserve_policy_json, slices_json, borrowing_rules_json, metadata_json FROM capacity_allocation_sets WHERE id = 'matrix-allocation'`),
-		store.all(`SELECT id, status, execution_provider_ids_json, lane_ids_json, capabilities_json, allowed_modes_json, daily_credit_limit, monthly_credit_limit, max_concurrent_assignments, unmetered, metadata_json FROM capacity_grants WHERE id IN ('matrix-grant-a','matrix-grant-b') ORDER BY id`),
+		store.all(`SELECT id, status, execution_provider_ids_json, lane_ids_json, capabilities_json, allowed_modes_json, daily_agent_seconds_limit, monthly_agent_seconds_limit, max_concurrent_assignments, unmetered, metadata_json FROM capacity_grants WHERE id IN ('matrix-grant-a','matrix-grant-b') ORDER BY id`),
 	]);
 	return createHash('sha256').update(stableJson({ allocation, grants })).digest('hex');
 }
@@ -42,17 +42,17 @@ function admission(project: 'a' | 'b', now: string): CapacityAdmissionInput {
 		request: {
 			teamId: 'matrix-team', providerId: 'matrix-provider', membershipId: 'matrix-membership',
 			projectId, environment: 'local', agentClassId: classId, mode: 'planning',
-			executionProviderId: 'matrix-execution', laneId: 'matrix-lane', requiredCapabilities: ['engineering'], requestedCredits: 1,
+			executionProviderId: 'matrix-execution', laneId: 'matrix-lane', requiredCapabilities: ['engineering'], requestedSeconds: 1,
 		},
 		membership: { id: 'matrix-membership', teamId: 'matrix-team', providerId: 'matrix-provider', status: 'approved' },
 		availability: { status: 'open', availableFrom: now, availableUntil: '2099-01-01T00:00:00.000Z' },
 		grant: {
 			schemaVersion: 2, id: grantId, membershipId: 'matrix-membership', teamId: 'matrix-team', providerId: 'matrix-provider',
 			projectId, environment: 'local', status: 'active', executionProviderIds: ['matrix-execution'], laneIds: ['matrix-lane'],
-			capabilities: ['engineering'], allowedModes: ['planning'], dailyCreditLimit: 10, monthlyCreditLimit: 20,
+			capabilities: ['engineering'], allowedModes: ['planning'], dailyAgentSecondsLimit: 10, monthlyAgentSecondsLimit: 20,
 			maxConcurrentAssignments: 1, unmetered: false,
 		},
-		workday: { id: workdayId, status: 'active', totalCredits: 10, committedCredits: 0 },
+		workday: { id: workdayId, status: 'active', totalSeconds: 10, committedSeconds: 0 },
 		allocationSet: {
 			schemaVersion: 2, id: 'matrix-allocation', teamId: 'matrix-team', version: 1, status: 'active', effectiveFrom: now,
 			reservePolicy: { percent: 0, overflow: 'deny' },
@@ -62,10 +62,10 @@ function admission(project: 'a' | 'b', now: string): CapacityAdmissionInput {
 			})),
 			borrowingRules: [],
 		},
-		allocationSliceIds: [sliceId], committedCreditsBySlice: { [sliceId]: 0 },
-		providerCapacity: { availableCredits: 10, availableConcurrentAssignments: 2 },
-		providerLocalLimits: { availableCredits: 10, availableConcurrentAssignments: 1 },
-		grantCommitted: { dailyCredits: 0, monthlyCredits: 0, activeAssignments: 0 },
+		allocationSliceIds: [sliceId], committedSecondsBySlice: { [sliceId]: 0 },
+		providerCapacity: { availableAgentSeconds: 10, availableConcurrentAssignments: 2 },
+		providerLocalLimits: { availableAgentSeconds: 10, availableConcurrentAssignments: 1 },
+		grantCommitted: { dailyAgentSeconds: 0, monthlyAgentSeconds: 0, activeAssignments: 0 },
 	};
 }
 
@@ -73,7 +73,7 @@ async function seedMatrix(store: ServiceStore, now: string) {
 	await store.run(`INSERT INTO teams (id, slug, name, created_at, updated_at) VALUES ('matrix-team','matrix-team','Matrix-Team',?,?)`, [now, now]);
 	await store.run(`INSERT INTO capacity_providers (id, fingerprint, public_jwk_json, display_name, identity_version, status, metadata_json, created_at, updated_at) VALUES ('matrix-provider','sha256:matrix-provider','{}','Matrix Provider',1,'active','{}',?,?)`, [now, now]);
 	await store.run(`INSERT INTO capacity_provider_team_memberships (id, team_id, capacity_provider_id, status, approved_at, approved_by_id, metadata_json, created_at, updated_at) VALUES ('matrix-membership','matrix-team','matrix-provider','approved',?,'matrix-owner','{}',?,?)`, [now, now, now]);
-	await store.run(`INSERT INTO capacity_execution_providers (id, capacity_provider_id, display_name, adapter, status, capabilities_json, native_unit, quota_visibility, max_concurrent_runners, native_limits_json, metadata_json, created_at, updated_at) VALUES ('matrix-execution','matrix-provider','Matrix Execution','codex','active','["engineering"]','credit','exact',1,'[]','{}',?,?)`, [now, now]);
+	await store.run(`INSERT INTO capacity_execution_providers (id, capacity_provider_id, display_name, adapter, status, capabilities_json, native_unit, quota_visibility, max_concurrent_runners, native_limits_json, metadata_json, created_at, updated_at) VALUES ('matrix-execution','matrix-provider','Matrix Execution','codex','active','["engineering"]','wall_second','exact',1,'[]','{}',?,?)`, [now, now]);
 	await store.run(`INSERT INTO capacity_provider_lanes (id, capacity_provider_id, execution_provider_id, display_name, status, capabilities_json, max_concurrent_runners, native_limits_json, metadata_json, created_at, updated_at) VALUES ('matrix-lane','matrix-provider','matrix-execution','Matrix Lane','active','["engineering"]',1,'[]','{}',?,?)`, [now, now]);
 	for (const suffix of ['a', 'b']) {
 		await store.run(`INSERT INTO projects (id, team_id, slug, name, metadata_json, created_at, updated_at) VALUES (?, 'matrix-team', ?, ?, '{}', ?, ?)`, [`matrix-project-${suffix}`, `matrix-project-${suffix}`, `Matrix Project ${suffix.toUpperCase()}`, now, now]);
@@ -81,10 +81,10 @@ async function seedMatrix(store: ServiceStore, now: string) {
 	}
 	await store.run(`INSERT INTO capacity_allocation_sets (id, team_id, version, status, effective_from, reserve_policy_json, slices_json, borrowing_rules_json, metadata_json, created_at, updated_at) VALUES ('matrix-allocation','matrix-team',1,'active',?,'{"percent":0,"overflow":"deny"}','[{"id":"project:matrix-project-a","scope":"project","targetId":"matrix-project-a","policy":{"minPercent":0,"targetPercent":50,"maxPercent":50,"hardCapPercent":50}},{"id":"project:matrix-project-b","scope":"project","targetId":"matrix-project-b","policy":{"minPercent":0,"targetPercent":50,"maxPercent":50,"hardCapPercent":50}}]','[]','{}',?,?)`, [now, now, now]);
 	for (const suffix of ['a', 'b']) {
-		await store.run(`INSERT INTO capacity_grants (id, membership_id, capacity_provider_id, team_id, project_id, environment, status, execution_provider_ids_json, lane_ids_json, capabilities_json, allowed_modes_json, daily_credit_limit, monthly_credit_limit, max_concurrent_assignments, unmetered, metadata_json, created_at, updated_at) VALUES (?, 'matrix-membership','matrix-provider','matrix-team',?,'local','active','["matrix-execution"]','["matrix-lane"]','["engineering"]','["planning"]',10,20,1,0,'{}',?,?)`, [`matrix-grant-${suffix}`, `matrix-project-${suffix}`, now, now]);
-		await store.run(`INSERT INTO workday_capacity_envelopes (id, team_id, project_id, allocation_set_id, status, started_at, envelope_json, metadata_json, created_at, updated_at) VALUES (?, 'matrix-team', ?, 'matrix-allocation', 'active', ?, '{"totalCredits":10}', ?, ?, ?)`, [`matrix-workday-${suffix}`, `matrix-project-${suffix}`, now, JSON.stringify({ grantId: `matrix-grant-${suffix}` }), now, now]);
+		await store.run(`INSERT INTO capacity_grants (id, membership_id, capacity_provider_id, team_id, project_id, environment, status, execution_provider_ids_json, lane_ids_json, capabilities_json, allowed_modes_json, daily_agent_seconds_limit, monthly_agent_seconds_limit, max_concurrent_assignments, unmetered, metadata_json, created_at, updated_at) VALUES (?, 'matrix-membership','matrix-provider','matrix-team',?,'local','active','["matrix-execution"]','["matrix-lane"]','["engineering"]','["planning"]',10,20,1,0,'{}',?,?)`, [`matrix-grant-${suffix}`, `matrix-project-${suffix}`, now, now]);
+		await store.run(`INSERT INTO workday_capacity_envelopes (id, team_id, project_id, allocation_set_id, status, started_at, envelope_json, metadata_json, created_at, updated_at) VALUES (?, 'matrix-team', ?, 'matrix-allocation', 'active', ?, '{"availableSeconds":10}', ?, ?, ?)`, [`matrix-workday-${suffix}`, `matrix-project-${suffix}`, now, JSON.stringify({ grantId: `matrix-grant-${suffix}` }), now, now]);
 	}
-	await store.run(`INSERT INTO capacity_provider_availability_sessions (id, membership_id, team_id, capacity_provider_id, environment, status, sequence, opened_at, refreshed_at, expires_at, available_from, available_until, execution_providers_json, capabilities_json, native_limits_json, runner_pressure_json, constraints_json, metadata_json, created_at, updated_at) VALUES ('matrix-session','matrix-membership','matrix-team','matrix-provider','local','open',1,?,?,?,?,'2099-01-01T00:00:00.000Z','[{"id":"matrix-execution"}]','["engineering"]','{"availableCredits":10,"maxConcurrentRunners":1}','{"activeRunners":0,"maxConcurrentRunners":1}','{}','{}',?,?)`, [now, now, '2099-01-01T00:00:00.000Z', now, now, now]);
+	await store.run(`INSERT INTO capacity_provider_availability_sessions (id, membership_id, team_id, capacity_provider_id, environment, status, sequence, opened_at, refreshed_at, expires_at, available_from, available_until, execution_providers_json, capabilities_json, native_limits_json, runner_pressure_json, constraints_json, metadata_json, created_at, updated_at) VALUES ('matrix-session','matrix-membership','matrix-team','matrix-provider','local','open',1,?,?,?,?,'2099-01-01T00:00:00.000Z','[{"id":"matrix-execution"}]','["engineering"]','{"availableAgentSeconds":10,"maxConcurrentRunners":1}','{"activeRunners":0,"maxConcurrentRunners":1}','{"availableAgentSeconds":10}','{}',?,?)`, [now, now, '2099-01-01T00:00:00.000Z', now, now, now]);
 }
 
 describe('capacity failure and concurrency service matrix', () => {
@@ -134,7 +134,7 @@ describe('capacity failure and concurrency service matrix', () => {
 			expect(resumed.assignment).toMatchObject({ id: 'matrix-assignment-a', status: 'leased', attemptCount: 1, runnerId: 'resumed-runner' });
 			expect(await store.renewProviderAssignmentLease(principal, 'matrix-assignment-a', { leaseToken: 'expired-lease', runnerId: 'stale-runner' })).toBeNull();
 			expect(await store.renewProviderAssignmentLease(principal, 'matrix-assignment-a', { leaseToken: resumed.leaseToken, runnerId: 'resumed-runner', leaseSeconds: 120 })).toMatchObject({ assignment: { status: 'leased' } });
-			await settleCapacityReservationExactlyOnce(store, { settlementKey: 'matrix-settle-a', teamId: 'matrix-team', membershipId: 'matrix-membership', reservationId: 'matrix-reservation-a', assignmentId: 'matrix-assignment-a', actualCredits: 1, source: 'matrix' });
+			await settleCapacityReservationExactlyOnce(store, { settlementKey: 'matrix-settle-a', teamId: 'matrix-team', membershipId: 'matrix-membership', reservationId: 'matrix-reservation-a', assignmentId: 'matrix-assignment-a', activeSeconds: 1, elapsedSeconds: 1, source: 'matrix' });
 			expect(await store.completeProviderAssignment(principal, 'matrix-assignment-a', { leaseToken: resumed.leaseToken, runnerId: 'resumed-runner' })).toMatchObject({ assignment: { status: 'completed' } });
 
 			await store.run(`UPDATE workday_capacity_envelopes SET status = 'active', updated_at = ? WHERE id = 'matrix-workday-b'`, [new Date().toISOString()]);

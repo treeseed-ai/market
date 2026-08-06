@@ -65,8 +65,8 @@ describe('Market and Admin canonical UI ownership', () => {
 		expect(layout).not.toContain("label: 'Teams'");
 		expect(layout).toContain('aria-label="Manage teams"');
 		expect(layout.split('href="/app/teams"')).toHaveLength(2);
-		for (const label of ['Command', 'Focus', 'Services', 'Projects', 'Knowledge']) expect(layout).toContain(`label: '${label}'`);
-		for (const label of ['Capacity', 'Work']) expect(layout).not.toContain(`label: '${label}'`);
+		for (const label of ['Agent Lab', 'Services', 'Projects', 'Knowledge']) expect(layout).toContain(`label: '${label}'`);
+		for (const label of ['Capacity', 'Work', 'Command', 'Focus']) expect(layout).not.toContain(`label: '${label}'`);
 		for (const label of ['Market', 'Cart', 'Seller']) expect(layout).not.toContain(`label: '${label}'`);
 		const activeTeamAction = readFileSync('packages/admin/src/pages/app/teams/active.ts', 'utf8');
 		expect(activeTeamAction).toContain("cookies.set('treeseed_active_team'");

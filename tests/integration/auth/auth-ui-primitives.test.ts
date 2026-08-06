@@ -80,13 +80,14 @@ describe('auth and account UI primitive conversion', () => {
 		expect(register).not.toContain('Create an internal login for the market control plane.');
 		expect(registrationForm).toContain('name="colorScheme"');
 		expect(registrationForm).toContain('name="themeMode"');
-		expect(registrationForm).toContain('treeseed:theme-change');
+		const availabilityIsland = readFileSync(resolve(process.cwd(), 'packages/ui/src/react/progressive/AvailabilityIsland.tsx'), 'utf8');
+		expect(availabilityIsland).toContain('treeseed:theme-change');
 		expect(register).toContain('submittedFirstName');
 		expect(registrationForm).toContain('data-availability-status="username"');
 		expect(registrationForm).toContain('data-availability-status="email"');
 		expect(registrationForm).toContain('cannot be changed after registration');
-		expect(registrationForm).toContain('data-astro-rerun');
-		expect(registrationForm).toContain("form.dataset.registrationReady === 'true'");
+		expect(registrationForm).toContain('AvailabilityIsland');
+		expect(availabilityIsland).toContain("form.addEventListener('submit', validateSubmit)");
 		expect(registrationForm).toContain('<PasswordSetupFields');
 		expect(passwordSetup).toContain('data-ts-password-match-status');
 		expect(passwordSetup).toContain("confirm.dataset.matchState = matches ? 'match' : 'mismatch'");
@@ -95,7 +96,7 @@ describe('auth and account UI primitive conversion', () => {
 		expect(registrationForm).not.toContain('Enter an email to check availability.');
 		expect(registrationForm).not.toContain('Username is available.');
 		expect(registrationForm).not.toContain('Email is available.');
-		expect(registrationForm).toContain('isn’t available for registration.');
+		expect(availabilityIsland).toContain('isn’t available for registration.');
 		const passwordMeter = source('packages/ui/src/astro/forms/fields/PasswordMeter.astro');
 		expect(passwordMeter).toContain('data-astro-rerun');
 		expect(passwordMeter).toContain("Symbol.for('ui.password-meter-controller')");
@@ -123,10 +124,11 @@ describe('auth and account UI primitive conversion', () => {
 		expect(identity).toContain('value="delete-email"');
 
 		const appLayout = source('packages/admin/src/layouts/AppLayout.astro');
-		expect(appLayout).toContain('treeseed:theme-change');
+		expect(appLayout).toContain('AppearancePersistenceIsland');
 		expect(appLayout).toContain('/v1/auth/web/appearance');
-		expect(appLayout).toContain('colorScheme: detail.scheme');
-		expect(appLayout).toContain('themeMode: detail.mode');
+		const appearanceIsland = source('packages/ui/src/react/progressive/AppearancePersistenceIsland.tsx');
+		expect(appearanceIsland).toContain('colorScheme: detail.scheme');
+		expect(appearanceIsland).toContain('themeMode: detail.mode');
 	});
 
 	it('keeps the sign-in form focused on authentication controls', () => {
