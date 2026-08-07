@@ -6,6 +6,7 @@
 **Updated:** 2026-08-04  
 **Primary deployment targets:** Affordable unified-memory AI computers, including NVIDIA DGX Spark and connected dual-Spark systems  
 **Reference model family:** Qwen3.5-27B and future compatible open-weight models  
+**Bootstrap model:** Qwen3.5-4B for machines with approximately 16 GB of usable accelerator memory
 **Inference system:** vLLM  
 **Training system:** Axolotl, PyTorch, Transformers, PEFT, TRL, and related post-training libraries  
 **Control plane:** TreeSeed governance, knowledge, capacity, and agent-management platform  
@@ -42,6 +43,14 @@ The system alternates between two computational states:
 - **Dreaming:** accumulated knowledge and experience are consolidated into improved adapters, datasets, summaries, and evaluations.
 
 On a single AI computer, these states are usually time-multiplexed. On a dual-node system, one node can remain awake while the other remains dedicated to dream workloads, evaluation, and adapter production.
+
+### 1.1 Package and process boundary
+
+`@treeseed/ai` is the independently installable appliance boundary for the future vLLM, Axolotl, adapter, diagnostic, and machine-supervision processes. Its repository begins as a metadata-only package and does not yet claim those runtime capabilities. It may later be installed with TreeSeed or operated separately on a GPU host or GPU-enabled virtual machine.
+
+TreeSeed API remains the durable governance and control-plane scheduler. `@treeseed/agent` remains the capacity-provider manager, runner, and AgentKernel owner. Those systems integrate with the appliance through portable SDK contracts and authenticated HTTP/execution-provider protocols, never imports of appliance internals. The appliance accepts only assignment-scoped work and does not directly mutate project repositories: TreeDX remains the governed knowledge path, while raw experience stays in appliance/provider storage until teachers and packagers produce curated, provenance-bearing artifacts.
+
+The first constrained-hardware profile targets Qwen3.5-4B and roughly 16 GB of usable accelerator memory. Installation diagnostics must distinguish bare-metal access from virtualized hosts and warn when QEMU/KVM or another hypervisor has not exposed the accelerator, IOMMU, drivers, memory, and storage required by the selected profile. Larger models and multi-node layouts remain optional capacity expansions rather than bootstrap requirements.
 
 ---
 

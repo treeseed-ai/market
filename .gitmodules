@@ -31,3 +31,6 @@
 [submodule "packages/reviewer"]
 	path = packages/reviewer
 	url = git@github.com:treeseed-ai/reviewer.git
+[submodule "packages/ai"]
+	path = packages/ai
+	url = git@github.com:treeseed-ai/ai.git

@@ -87,6 +87,7 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 - `@treeseed/admin`: distributable AGPLv3 administration portal layered on core/ui; owns admin routes, middleware, auth/session glue, API client facades, admin view models, catalog display, and secret-manager UI/contracts
 - `@treeseed/market`: root hosted Treeseed tenant; owns public site, content, docs, page overrides, the root web tenant `treeseed.site.yaml`, Treeseed branding, and future ecommerce/business policy
 - `@treeseed/agent`: processing runtime, provider API, provider manager, provider runner, worker runtime, AgentKernel execution, mode scheduling, built-in handlers, agent testing harnesses, provider-local capacity enforcement, runtime images/templates, and runtime support modules
+- `@treeseed/ai`: independently installable local AI appliance; will own vLLM inference, Axolotl training, hardware diagnostics, and appliance supervision while consuming SDK contracts and API-governed capacity assignments; currently metadata-only
 - `@treeseed/api`: Treeseed backend API, package-local backend `treeseed.site.yaml`, Treeseed PostgreSQL adapter, migrations, operation lifecycle, route descriptors, and Treeseed operations runner
 - `@treeseed/cli`: operator and developer CLI workflows
 - `@treeseed/reviewer`: local-only guarantee run review UI, screenshot/log triage, reviewer notes, evidence bundling, and AI-agent workplan generation
@@ -180,6 +181,7 @@ Canonical implementation docs:
 Package ownership for the capacity rearchitecture is fixed:
 
 - `@treeseed/agent` owns provider runtime, provider API, provider manager, provider runner, AgentKernel execution, mode scheduling, provider-local lifecycle, runtime images/templates, and runtime tests.
+- `@treeseed/ai` is the separable model data plane for future inference, training, adapter lifecycle, appliance supervision, and hardware diagnostics; it never owns project scheduling, assignment authority, or repository mutation.
 - `@treeseed/sdk` owns portable capacity contracts, reconciliation contracts, config, and provider-neutral helper logic.
 - `@treeseed/api` owns durable provider availability sessions, assignment leases, reservations, mode-run records, usage actuals, ledger settlement, and project-scoped TreeDX proxy authorization.
 - `@treeseed/admin` and `@treeseed/cli` own operator surfaces over SDK/API/agent public contracts; they must not become schedulers.

@@ -46,6 +46,7 @@ Capacity acceptance follows the same independent-project rule. `starters/enginee
 | `@treeseed/cli` | Human/operator command surface | `treeseed`/`trsd` command parsing, help, command handlers, terminal reporting, workflow entrypoints over SDK/Core/Agent. CLI exposes stage options and reporting but must not reimplement SDK-owned save/stage/release orchestration. |
 | `@treeseed/reviewer` | Local guarantee run review and AI workplan packaging | Standalone local web app, guarantee run selection/review UI, reviewer notes, evidence browsing, copied local evidence bundles, directive/workplan schemas, and Codex-ready handoff packages. It invokes existing CLI guarantee commands and must not own guarantee execution or release gating. |
 | `@treeseed/agent` | Capacity-provider and agent runtime | Provider manager/runner runtime, sole-entrypoint AgentKernel execution, canonical mode-run lifecycle telemetry, activity-profile and research-stage resolution, execution-provider adapters, required replay-safe provider telemetry delivery, assignment-scoped fail-closed tool catalogs, model-aware content and governed research tools, exact-ref worktree/checkpoint execution, provider-local capacity enforcement, runtime images/templates |
+| `@treeseed/ai` | Installable local AI appliance | Planned vLLM inference, Axolotl training, model/adapter lifecycle, hardware diagnostics, and appliance supervision. The current package is metadata-only: it owns no scheduler, API endpoints, images, services, or Debian artifacts yet. |
 | `packages/treedx` | Generic repository data/index/query service consumed by Treeseed | TreeDX API, atomic unified-diff changeset application, storage, Git/repository graph/indexing, federation, Docker image, language SDKs; no Treeseed product semantics |
 
 ### Book knowledge ownership
@@ -74,6 +75,7 @@ api -> sdk
 cli -> sdk + core + selected public agent surfaces
 reviewer -> cli + sdk + ui
 agent -> sdk
+ai -> sdk
 treedx -> consumed through sdk clients and api hosting
 ```
 
@@ -88,6 +90,7 @@ Boundary rules:
 - `cli` may depend on `sdk`, `core`, and narrow public `agent` surfaces where command execution requires them.
 - `reviewer` may depend on `cli`, `sdk`, and `ui`; it must remain local-only and must not become a release gate or hosted control plane.
 - `agent` may depend on `sdk`; it must not depend on `core`, `admin`, root market, or API implementation.
+- `ai` may depend on portable `sdk` contracts. Agent and API integrations use public contracts and HTTP/provider protocols rather than importing appliance internals.
 - TreeDX must remain product-neutral and must not encode Treeseed market/admin/agent semantics.
 
 ## Hosted Runtime Topology
@@ -109,6 +112,7 @@ Railway
 
 Capacity providers
   packages/agent agent and platform-operation provider manager/runner roles
+  packages/ai local model inference/training appliance (planned; not yet runnable)
 
 TreeDX
   packages/treedx images consumed by API hosting
