@@ -1,4 +1,11 @@
 schemaVersion: 2
+providerClass: agent
+ownership:
+  type: external
+configuration:
+  generation: local-v1
+supplyCeilings:
+  maxConcurrentAssignments: 4
 identity:
   privateKeyRef: data://identity.json
   displayName: Treeseed local engineering and research provider
