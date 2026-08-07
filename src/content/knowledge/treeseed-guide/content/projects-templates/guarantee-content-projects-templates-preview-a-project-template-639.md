@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 4
 parentId: guide.content.projects-templates
-tags: ["content","projects-templates","guarantee"]
+groupIds:
+  - content
+  - guarantee
+  - projects-templates
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.content.projects-templates"]

@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 5
 parentId: guide.deployment.knowledge
-tags: ["deployment","knowledge","guarantee"]
+groupIds:
+  - deployment
+  - guarantee
+  - knowledge
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.deployment.knowledge"]

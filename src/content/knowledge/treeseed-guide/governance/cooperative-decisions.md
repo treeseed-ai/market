@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 200
 parentId: guide.governance
-tags: ["governance","cooperative-decisions","guide"]
+groupIds:
+  - cooperative-decisions
+  - governance
+  - guide
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.governance","guide.foundation.platform","architecture.commons-governance","guide.guarantee.guarantee-governance-cooperative-decisions-calculate-a-deterministic-outcome-722","guide.guarantee.guarantee-governance-cooperative-decisions-close-voting-at-the-declared-boundary-721","guide.guarantee.guarantee-governance-cooperative-decisions-define-a-cooperative-electorate-717","guide.guarantee.guarantee-governance-cooperative-decisions-open-a-cooperative-vote-718","guide.guarantee.guarantee-governance-cooperative-decisions-prevent-duplicate-voting-720","guide.guarantee.guarantee-governance-cooperative-decisions-record-a-member-vote-719","guide.guarantee.guarantee-governance-cooperative-decisions-record-an-approved-cooperative-decision-723"]

@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 100
 parentId: guide.governance
-tags: ["governance","proposal-discussion","guide"]
+groupIds:
+  - governance
+  - guide
+  - proposal-discussion
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.governance","guide.guarantee.guarantee-governance-proposal-discussion-close-a-proposal-without-decision-715","guide.guarantee.guarantee-governance-proposal-discussion-comment-on-a-proposal-712","guide.guarantee.guarantee-governance-proposal-discussion-create-a-project-proposal-709","guide.guarantee.guarantee-governance-proposal-discussion-edit-a-draft-proposal-710","guide.guarantee.guarantee-governance-proposal-discussion-open-a-proposal-for-discussion-711","guide.guarantee.guarantee-governance-proposal-discussion-preserve-proposal-discussion-history-716","guide.guarantee.guarantee-governance-proposal-discussion-request-proposal-revision-714","guide.guarantee.guarantee-governance-proposal-discussion-resolve-a-discussion-thread-713"]

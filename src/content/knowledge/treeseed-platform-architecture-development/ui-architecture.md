@@ -9,10 +9,9 @@ summary: The current package ownership, composition boundaries, and reusable
 status: published
 visibility: public
 order: 10
-tags:
+groupIds:
   - architecture
   - ui
-  - architecture
 contributors: []
 relatedBookIds: []
 relatedKnowledgeIds:

@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 12
 parentId: guide.security.monitoring-auditing
-tags: ["security","monitoring-auditing","guarantee"]
+groupIds:
+  - guarantee
+  - monitoring-auditing
+  - security
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.security.monitoring-auditing"]

@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 100
 parentId: guide.content
-tags: ["content","projects-templates","guide"]
+groupIds:
+  - content
+  - guide
+  - projects-templates
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.content","guide.foundation.frameworks","guide.foundation.treedx","guide.foundation.platform","guide.deployment.knowledge","guide.guarantee.guarantee-api-endpoints-catalog-templates-and-seeds-412","guide.guarantee.guarantee-content-projects-templates-create-a-project-from-a-template-638","guide.guarantee.guarantee-content-projects-templates-import-an-existing-project-643","guide.guarantee.guarantee-content-projects-templates-preview-a-project-template-639","guide.guarantee.guarantee-content-projects-templates-publish-a-project-template-642","guide.guarantee.guarantee-content-projects-templates-seed-required-project-content-644","guide.guarantee.guarantee-content-projects-templates-upgrade-a-project-from-its-template-645","guide.guarantee.guarantee-content-projects-templates-validate-template-compatibility-640","guide.guarantee.guarantee-content-projects-templates-version-a-project-template-641"]

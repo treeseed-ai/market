@@ -9,7 +9,9 @@ status: draft
 visibility: public
 order: 400
 parentId: guide.overview
-tags: ["content","guide"]
+groupIds:
+  - content
+  - guide
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.overview","guide.foundation.purpose","guide.foundation.architecture","guide.foundation.platform","guide.content.projects-templates","guide.content.management","guide.content.export-integration"]

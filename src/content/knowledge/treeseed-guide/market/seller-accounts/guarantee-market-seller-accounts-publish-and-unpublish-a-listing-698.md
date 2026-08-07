@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 5
 parentId: guide.market.seller-accounts
-tags: ["market","seller-accounts","guarantee"]
+groupIds:
+  - guarantee
+  - market
+  - seller-accounts
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.market.seller-accounts"]

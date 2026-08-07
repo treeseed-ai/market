@@ -7,7 +7,7 @@ The original dynamic-capacity implementation record was removed because it claim
 
 Current capacity is derived from:
 
-- provider-global execution-provider declarations in `treeseed.capacity-provider.yaml`;
+- provider-global execution-provider declarations in `treeseed.agents-capacity-provider.yaml`;
 - membership-scoped, expiring availability snapshots;
 - team-owned active grants and versioned allocation sets;
 - active workday envelopes and transactional admission counters;

@@ -9,7 +9,11 @@ status: draft
 visibility: public
 order: 400
 parentId: guide.deployment
-tags: ["deployment","capacity","capacity-providers","guide"]
+groupIds:
+  - capacity
+  - capacity-providers
+  - deployment
+  - guide
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.deployment","guide.foundation.platform","guide.work.capacity-providers","guide.guarantee.guarantee-deployment-remote-capacity-providers-provision-a-remote-capacity-provider-595","guide.guarantee.guarantee-deployment-remote-capacity-providers-publish-a-provider-runtime-image-597","guide.guarantee.guarantee-deployment-remote-capacity-providers-configure-provider-runtime-identity-596","guide.guarantee.guarantee-deployment-remote-capacity-providers-connect-a-provider-to-the-control-plane-598","guide.guarantee.guarantee-deployment-remote-capacity-providers-verify-remote-provider-readiness-599","guide.guarantee.guarantee-deployment-remote-capacity-providers-upgrade-a-remote-provider-safely-600","guide.guarantee.guarantee-deployment-remote-capacity-providers-retire-a-remote-capacity-provider-601"]

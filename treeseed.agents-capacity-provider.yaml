@@ -1,0 +1,63 @@
+schemaVersion: 2
+providerClass: agent
+ownership:
+  type: team
+  teamId: team:treeseed
+configuration:
+  generation: local-agents-v1
+identity:
+  privateKeyRef: data://identity.json
+  displayName: TreeSeed local agent capacity provider
+supplyCeilings:
+  maxConcurrentAssignments: 4
+  maxActiveSeconds: 28800
+  maxInputTokens: 4000000
+  maxOutputTokens: 1000000
+  maxCost: 100
+  currency: USD
+  maxAttempts: 3
+credentialBindings:
+  - id: codex-auth
+    source: process-environment
+    reference: TREESEED_CODEX_AUTH_FILE
+    required: true
+  - id: openrouter-api
+    source: process-environment
+    reference: TREESEED_OPENROUTER_API_KEY
+    required: false
+  - id: github-copilot-auth
+    source: process-environment
+    reference: TREESEED_GITHUB_COPILOT_TOKEN
+    required: false
+executionProviders:
+  - id: codex
+    adapter: codex
+    nativeLimits:
+      maxConcurrentRunners: 4
+      availableAgentSeconds: 28800
+    capabilities: &agent-capabilities
+      - engineering
+      - research
+      - planning
+      - acting
+      - verification
+      - agent_mode_run
+      - repo_read
+      - repo_write
+      - repository_work
+  - id: opencode
+    adapter: opencode
+    nativeLimits:
+      maxConcurrentRunners: 2
+      availableInputTokens: 4000000
+      availableOutputTokens: 1000000
+      availableCost: 100
+      currency: USD
+    capabilities: *agent-capabilities
+  - id: copilot
+    adapter: copilot
+    nativeLimits:
+      maxConcurrentRunners: 2
+      availableAgentSeconds: 28800
+    capabilities: *agent-capabilities
+connections: []

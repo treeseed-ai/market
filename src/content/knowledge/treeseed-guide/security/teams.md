@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 300
 parentId: guide.security
-tags: ["security","teams","guide"]
+groupIds:
+  - guide
+  - security
+  - teams
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.security","guide.foundation.platform","architecture.notification-architecture","guide.guarantee.guarantee-api-endpoints-teams-and-members-402","guide.guarantee.guarantee-security-teams-archive-and-restore-a-team-623","guide.guarantee.guarantee-security-teams-manage-team-profile-visibility-622","guide.guarantee.guarantee-security-teams-protect-the-last-team-owner-621","guide.guarantee.guarantee-security-teams-resend-or-cancel-a-team-invitation-620","guide.guarantee.guarantee-security-teams-review-team-membership-history-624","guide.guarantee.guarantee-team-membership-accept-team-invitation-018","guide.guarantee.guarantee-team-membership-change-member-role-019","guide.guarantee.guarantee-team-membership-invite-team-members-017","guide.guarantee.guarantee-team-membership-remove-team-member-020","guide.guarantee.guarantee-team-team-create-team-012","guide.guarantee.guarantee-team-team-delete-team-016","guide.guarantee.guarantee-team-team-edit-team-settings-014","guide.guarantee.guarantee-team-team-switch-active-team-013","guide.guarantee.guarantee-team-team-team-management-production-readiness-022","guide.guarantee.guarantee-team-team-view-public-team-profile-021","guide.guarantee.guarantee-team-team-view-team-overview-015"]

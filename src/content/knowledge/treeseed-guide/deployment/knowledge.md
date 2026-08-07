@@ -9,7 +9,12 @@ status: draft
 visibility: public
 order: 300
 parentId: guide.deployment
-tags: ["deployment","knowledge","treedx","content-routing","guide"]
+groupIds:
+  - content-routing
+  - deployment
+  - guide
+  - knowledge
+  - treedx
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.deployment","guide.foundation.treedx","guide.foundation.architecture","guide.content.projects-templates","guide.content.management","guide.content.export-integration","guide.security.authentication","guide.work.agents","architecture.auth-and-content-proxy","architecture.content-runtime-architecture","architecture.overlay-editing-architecture","guide.guarantee.guarantee-api-endpoints-dx-repository-workspaces-409","guide.guarantee.guarantee-deployment-remote-projects-configure-project-content-routing-589","guide.guarantee.guarantee-project-treedx-configure-treedx-routing-088","guide.guarantee.guarantee-project-treedx-preserve-markdown-frontmatter-730","guide.guarantee.guarantee-project-treedx-verify-treedx-access-089"]

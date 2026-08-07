@@ -8,7 +8,12 @@ description: A living technical book for contributors building TreeSeed as an in
 status: published
 visibility: public
 order: 60
-topics: [architecture, development, security, content, governance]
+groupIds:
+  - architecture
+  - content
+  - development
+  - governance
+  - security
 audience: [contributors, platform administrators, integrators]
 relatedBookIds: [treeseed-guide]
 packPolicy: allowed

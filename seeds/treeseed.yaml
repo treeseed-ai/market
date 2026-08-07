@@ -467,27 +467,9 @@ runtime:
     - key: service-principal:treeseed/agent-lab
       environments: [local]
       team: team:treeseed
-      name: TreeSeed Agent Lab Operations Runner
+      name: TreeSeed Agent Lab Service Principal
       roles: [team_owner]
 
-  capacityProviders:
-    - key: capacity-provider:treeseed/local
-      environments: [local]
-      team: team:treeseed
-      manifest: treeseed.capacity-provider.yaml
-      connectionId: primary-team
-      approval: trusted-local-owner
-      projects:
-        - project:treeseed/market
-        - project:treeseed/api
-        - project:treeseed/treedx
-        - project:treeseed/sdk
-        - project:treeseed/ui
-        - project:treeseed/cli
-        - project:treeseed/core
-        - project:treeseed/admin
-        - project:treeseed/agent
-      allowedModes: [planning, acting]
-      executionProviderIds: [codex]
+  capacityProviders: []
 
 operationRecipes: []

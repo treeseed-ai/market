@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 6
 parentId: guide.content.management
-tags: ["content","management","guarantee"]
+groupIds:
+  - content
+  - guarantee
+  - management
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.content.management"]

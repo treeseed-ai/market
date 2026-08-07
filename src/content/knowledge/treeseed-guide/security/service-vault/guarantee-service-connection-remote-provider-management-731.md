@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 15
 parentId: guide.security.service-vault
-tags: ["security","service-vault","guarantee"]
+groupIds:
+  - guarantee
+  - security
+  - service-vault
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.security.service-vault"]

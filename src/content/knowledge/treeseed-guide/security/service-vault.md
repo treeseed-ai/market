@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 400
 parentId: guide.security
-tags: ["security","service-vault","guide"]
+groupIds:
+  - guide
+  - security
+  - service-vault
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.security","guide.foundation.treedx","guide.guarantee.guarantee-api-endpoints-services-and-vaults-410","guide.guarantee.guarantee-security-service-vault-audit-secret-access-without-revealing-values-629","guide.guarantee.guarantee-security-service-vault-create-a-team-service-vault-625","guide.guarantee.guarantee-security-service-vault-destroy-a-service-vault-safely-630","guide.guarantee.guarantee-security-service-vault-grant-scoped-vault-access-626","guide.guarantee.guarantee-security-service-vault-revoke-a-stored-service-credential-628","guide.guarantee.guarantee-security-service-vault-rotate-a-stored-service-credential-627","guide.guarantee.guarantee-service-connection-connect-service-023","guide.guarantee.guarantee-service-connection-disconnect-service-025","guide.guarantee.guarantee-service-connection-edit-service-024","guide.guarantee.guarantee-service-connection-service-management-production-readiness-026","guide.guarantee.guarantee-service-vault-initialize-personal-vault-021","guide.guarantee.guarantee-service-vault-recover-vault-access-022","guide.guarantee.guarantee-security-credential-custody-workflow-secret-custody-734","guide.guarantee.guarantee-service-connection-remote-provider-management-731"]

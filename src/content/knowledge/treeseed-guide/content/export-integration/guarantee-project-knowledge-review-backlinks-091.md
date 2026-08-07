@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 26
 parentId: guide.content.export-integration
-tags: ["content","export-integration","guarantee"]
+groupIds:
+  - content
+  - export-integration
+  - guarantee
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.content.export-integration"]

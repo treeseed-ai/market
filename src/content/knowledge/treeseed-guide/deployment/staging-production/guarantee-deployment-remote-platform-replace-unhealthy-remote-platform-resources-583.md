@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 7
 parentId: guide.deployment.staging-production
-tags: ["deployment","staging-production","guarantee"]
+groupIds:
+  - deployment
+  - guarantee
+  - staging-production
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.deployment.staging-production"]

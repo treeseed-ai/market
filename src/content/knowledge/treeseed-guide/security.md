@@ -9,7 +9,9 @@ status: draft
 visibility: public
 order: 300
 parentId: guide.overview
-tags: ["security","guide"]
+groupIds:
+  - guide
+  - security
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.overview","guide.foundation.purpose","guide.foundation.architecture","guide.foundation.platform","guide.security.authentication","guide.security.accounts","guide.security.teams","guide.security.service-vault","guide.security.monitoring-auditing"]

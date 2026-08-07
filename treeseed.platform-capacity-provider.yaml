@@ -1,0 +1,46 @@
+schemaVersion: 2
+providerClass: platform-operation
+ownership:
+  type: team
+  teamId: team:treeseed
+configuration:
+  generation: local-platform-v1
+identity:
+  privateKeyRef: data://identity.json
+  displayName: Treeseed local platform operations provider
+supplyCeilings:
+  maxConcurrentAssignments: 2
+  maxActiveSeconds: 14400
+  maxInputTokens: 100000
+  maxOutputTokens: 100000
+  maxCost: 25
+  currency: USD
+  maxAttempts: 3
+credentialBindings:
+  - id: cloudflare-api
+    source: process-environment
+    reference: TREESEED_CLOUDFLARE_API_TOKEN
+    required: true
+  - id: content-bucket
+    source: process-environment
+    reference: TREESEED_CONTENT_BUCKET_NAME
+    required: true
+  - id: github-api
+    source: process-environment
+    reference: TREESEED_GITHUB_TOKEN
+    required: true
+executionProviders:
+  - id: platform-operation
+    adapter: platform-operation
+    nativeLimits:
+      maxConcurrentRunners: 2
+      availableAgentSeconds: 14400
+    capabilities:
+      - platform_operation
+      - infrastructure_reconciliation
+      - repository_reconciliation
+      - treedx_reconciliation
+      - github_configuration
+      - r2_publication
+      - service_vault_validation
+connections: []

@@ -8,10 +8,9 @@ summary: Notification scope, preference, filtering, digest, and interface behavi
 status: published
 visibility: public
 order: 60
-tags:
+groupIds:
   - architecture
   - notification
-  - architecture
 contributors: []
 relatedBookIds: []
 relatedKnowledgeIds:

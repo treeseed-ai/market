@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 23
 parentId: guide.work.capacity-providers
-tags: ["work","capacity-providers","guarantee"]
+groupIds:
+  - capacity-providers
+  - guarantee
+  - work
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.work.capacity-providers"]

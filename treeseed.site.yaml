@@ -21,6 +21,7 @@ cloudflare:
     stagingBranch: staging
     buildOutputDir: dist
   r2:
+    bucketName: treeseed-market-content
     manifestKeyTemplate: teams/{teamId}/published/common.json
     previewRootTemplate: teams/{teamId}/previews
     previewTtlHours: 168

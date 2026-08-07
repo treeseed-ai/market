@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 6
 parentId: guide.governance.cooperative-decisions
-tags: ["governance","cooperative-decisions","guarantee"]
+groupIds:
+  - cooperative-decisions
+  - governance
+  - guarantee
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.governance.cooperative-decisions"]

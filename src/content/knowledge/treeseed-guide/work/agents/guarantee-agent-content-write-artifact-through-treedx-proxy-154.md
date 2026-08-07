@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 10
 parentId: guide.work.agents
-tags: ["work","agents","guarantee"]
+groupIds:
+  - agents
+  - guarantee
+  - work
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.work.agents"]

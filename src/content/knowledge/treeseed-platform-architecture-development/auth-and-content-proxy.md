@@ -8,10 +8,10 @@ summary: How Knowledge Hubs authenticate and securely serve private content.
 status: published
 visibility: public
 order: 40
-tags:
+groupIds:
+  - and
   - architecture
   - auth
-  - and
   - content
   - proxy
 contributors: []

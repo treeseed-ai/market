@@ -8,7 +8,14 @@ description: A hierarchical guide that introduces people and machines to TreeSee
 status: draft
 visibility: public
 order: 10
-topics: [foundation, deployment, security, content, work, governance, market]
+groupIds:
+  - content
+  - deployment
+  - foundation
+  - governance
+  - market
+  - security
+  - work
 audience: [users, team owners, project managers, operators, contributors, machine agents]
 relatedBookIds: [treeseed-platform-architecture-development]
 editorialCoreNoteId: note:market:editorial:treeseed-guide:core

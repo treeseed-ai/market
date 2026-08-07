@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 1
 parentId: guide.governance.decision-tracking
-tags: ["governance","decision-tracking","guarantee"]
+groupIds:
+  - decision-tracking
+  - governance
+  - guarantee
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.governance.decision-tracking"]

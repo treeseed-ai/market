@@ -9,7 +9,11 @@ status: draft
 visibility: public
 order: 100
 parentId: guide.deployment
-tags: ["deployment","development","local-platform","guide"]
+groupIds:
+  - deployment
+  - development
+  - guide
+  - local-platform
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.deployment","guide.foundation.frameworks","guide.guarantee.guarantee-deployment-local-platform-install-the-local-platform-570","guide.guarantee.guarantee-deployment-local-platform-start-the-managed-local-platform-571","guide.guarantee.guarantee-deployment-local-platform-inspect-local-platform-status-573","guide.guarantee.guarantee-deployment-local-platform-reconcile-local-dependencies-576","guide.guarantee.guarantee-deployment-local-platform-recover-interrupted-local-services-574","guide.guarantee.guarantee-deployment-local-platform-stop-the-managed-local-platform-572","guide.guarantee.guarantee-deployment-local-platform-remove-stale-local-resources-577","guide.guarantee.guarantee-deployment-local-platform-preserve-local-operator-tooling-575","guide.guarantee.guarantee-deployment-local-platform-local-provider-webhook-tunnel-735"]

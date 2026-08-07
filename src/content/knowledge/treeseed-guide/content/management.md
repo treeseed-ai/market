@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 200
 parentId: guide.content
-tags: ["content","management","guide"]
+groupIds:
+  - content
+  - guide
+  - management
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.content","guide.foundation.treedx","guide.deployment.knowledge","architecture.content-runtime-architecture","architecture.overlay-editing-architecture","guide.guarantee.guarantee-content-management-archive-and-restore-a-book-648","guide.guarantee.guarantee-content-management-create-a-hierarchical-knowledge-page-649","guide.guarantee.guarantee-content-management-create-a-knowledge-book-646","guide.guarantee.guarantee-content-management-edit-book-metadata-647","guide.guarantee.guarantee-content-management-move-a-page-within-a-book-650","guide.guarantee.guarantee-content-management-publish-an-atomic-knowledge-revision-653","guide.guarantee.guarantee-content-management-review-knowledge-backlinks-652","guide.guarantee.guarantee-content-management-validate-a-knowledge-hierarchy-651","guide.guarantee.guarantee-content-management-validate-knowledge-page-frontmatter-contracts-654","guide.guarantee.guarantee-api-endpoints-knowledge-collaboration-415"]

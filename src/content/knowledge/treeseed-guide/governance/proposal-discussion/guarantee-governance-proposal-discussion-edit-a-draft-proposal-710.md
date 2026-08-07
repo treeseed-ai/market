@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 4
 parentId: guide.governance.proposal-discussion
-tags: ["governance","proposal-discussion","guarantee"]
+groupIds:
+  - governance
+  - guarantee
+  - proposal-discussion
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.governance.proposal-discussion"]

@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 100
 parentId: guide.market
-tags: ["market","ecommerce","guide"]
+groupIds:
+  - ecommerce
+  - guide
+  - market
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.market","guide.foundation.platform","architecture.ecommerce","guide.guarantee.guarantee-market-ecommerce-add-an-offer-to-a-cart-687","guide.guarantee.guarantee-market-ecommerce-browse-the-product-catalog-685","guide.guarantee.guarantee-market-ecommerce-calculate-taxes-and-totals-688","guide.guarantee.guarantee-market-ecommerce-complete-a-checkout-689","guide.guarantee.guarantee-market-ecommerce-confirm-an-order-690","guide.guarantee.guarantee-market-ecommerce-manage-a-subscription-691","guide.guarantee.guarantee-market-ecommerce-request-a-refund-692","guide.guarantee.guarantee-market-ecommerce-review-commerce-transaction-history-693","guide.guarantee.guarantee-market-ecommerce-view-a-product-offer-686"]
