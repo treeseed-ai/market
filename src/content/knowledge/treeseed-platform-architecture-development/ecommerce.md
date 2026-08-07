@@ -9,7 +9,7 @@ summary: Commerce, ownership, entitlement, seller, catalog, and fulfillment
 status: published
 visibility: public
 order: 80
-tags:
+groupIds:
   - architecture
   - ecommerce
 contributors: []

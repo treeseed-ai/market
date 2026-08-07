@@ -8,7 +8,7 @@ summary: Participation, governance, voting, and bounded steward decision archite
 status: published
 visibility: public
 order: 70
-tags:
+groupIds:
   - architecture
   - commons
   - governance

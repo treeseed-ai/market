@@ -8,7 +8,9 @@ summary: "A human- and machine-readable guide to TreeSeed's foundations, guarant
 status: draft
 visibility: public
 order: 0
-tags: ["overview","guide"]
+groupIds:
+  - guide
+  - overview
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.foundation","guide.foundation.purpose","guide.deployment","guide.security","guide.content","guide.work","guide.governance","guide.market"]

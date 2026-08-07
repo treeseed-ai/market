@@ -9,11 +9,11 @@ summary: The shared interface primitives, tokens, shells, forms, overlays, and
 status: published
 visibility: public
 order: 20
-tags:
+groupIds:
   - architecture
-  - ui
-  - foundation
   - baseline
+  - foundation
+  - ui
 contributors: []
 relatedBookIds: []
 relatedKnowledgeIds:

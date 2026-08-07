@@ -9,7 +9,9 @@ status: draft
 visibility: public
 order: 600
 parentId: guide.overview
-tags: ["governance","guide"]
+groupIds:
+  - governance
+  - guide
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.overview","guide.foundation.purpose","guide.foundation.architecture","guide.foundation.platform","architecture.commons-governance","guide.governance.proposal-discussion","guide.governance.cooperative-decisions","guide.governance.decision-tracking"]

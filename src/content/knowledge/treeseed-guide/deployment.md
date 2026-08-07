@@ -9,7 +9,9 @@ status: draft
 visibility: public
 order: 200
 parentId: guide.overview
-tags: ["deployment","guide"]
+groupIds:
+  - deployment
+  - guide
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.overview","guide.foundation.purpose","guide.foundation.architecture","guide.foundation.platform","guide.deployment.development","guide.deployment.staging-production","guide.deployment.knowledge","guide.deployment.capacity","guide.deployment.private-platform"]

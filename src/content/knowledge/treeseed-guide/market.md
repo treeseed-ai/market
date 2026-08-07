@@ -9,7 +9,9 @@ status: draft
 visibility: public
 order: 700
 parentId: guide.overview
-tags: ["market","guide"]
+groupIds:
+  - guide
+  - market
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.overview","guide.foundation.purpose","guide.foundation.architecture","guide.foundation.platform","guide.market.ecommerce","guide.market.seller-accounts","guide.market.referrals"]

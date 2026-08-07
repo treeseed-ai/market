@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 500
 parentId: guide.security
-tags: ["security","monitoring-auditing","guide"]
+groupIds:
+  - guide
+  - monitoring-auditing
+  - security
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.security","guide.foundation.architecture","architecture.notification-architecture","guide.guarantee.guarantee-admin-feedback-authenticated-submission-028","guide.guarantee.guarantee-admin-feedback-manage-feedback-030","guide.guarantee.guarantee-admin-feedback-privacy-safe-export-031","guide.guarantee.guarantee-admin-feedback-production-readiness-032","guide.guarantee.guarantee-admin-feedback-screenshot-privacy-029","guide.guarantee.guarantee-agent-audit-record-agent-runtime-audit-events-179","guide.guarantee.guarantee-agent-trace-correlate-assignment-mode-run-artifacts-170","guide.guarantee.guarantee-agent-trace-inspect-agent-execution-trace-168","guide.guarantee.guarantee-agent-trace-redact-provider-secrets-169","guide.guarantee.guarantee-api-endpoints-feedback-management-416","guide.guarantee.guarantee-api-endpoints-health-and-markets-400","guide.guarantee.guarantee-project-agent-monitor-agent-060","guide.guarantee.guarantee-security-monitoring-auditing-correlate-user-and-service-activity-633","guide.guarantee.guarantee-security-monitoring-auditing-detect-suspicious-access-patterns-636","guide.guarantee.guarantee-security-monitoring-auditing-export-privacy-safe-audit-evidence-634","guide.guarantee.guarantee-security-monitoring-auditing-inspect-platform-health-631","guide.guarantee.guarantee-security-monitoring-auditing-retain-audit-evidence-by-policy-635","guide.guarantee.guarantee-security-monitoring-auditing-review-failed-operation-diagnostics-637","guide.guarantee.guarantee-security-monitoring-auditing-search-security-audit-events-632","guide.guarantee.guarantee-workday-diagnostics-inspect-mode-run-trace-087"]

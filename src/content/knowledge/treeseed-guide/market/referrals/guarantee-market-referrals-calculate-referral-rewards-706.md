@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 2
 parentId: guide.market.referrals
-tags: ["market","referrals","guarantee"]
+groupIds:
+  - guarantee
+  - market
+  - referrals
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.market.referrals"]

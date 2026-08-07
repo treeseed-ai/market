@@ -363,37 +363,37 @@ training:
       - term: team
         definition: A TreeSeed ownership boundary for projects, hosts, work, and knowledge.
         sourceStep: open-new-team
-        tags:
+        groupIds:
           - portfolio
       - term: project
         definition: A managed TreeSeed work surface that can own content, repositories, hosting, and launch evidence.
         sourceStep: open-new-project-bylaws
-        tags:
+        groupIds:
           - portfolio
       - term: research template
         definition: The starter used for research and knowledge-oriented projects such as Bylaws.
         sourceStep: choose-research-template
-        tags:
+        groupIds:
           - template
       - term: linked repository
         definition: An existing upstream repository that should be connected to a TreeSeed project instead of creating a new source repository.
         sourceStep: capture-sdk-linking-gap
-        tags:
+        groupIds:
           - gap
       - term: docs repository
         definition: A documentation repository expected for the linked SDK software project.
         sourceStep: capture-sdk-linking-gap
-        tags:
+        groupIds:
           - gap
       - term: Mailpit
         definition: The local email inbox used to confirm registration during the demo.
         sourceStep: open-mailpit
-        tags:
+        groupIds:
           - local-dev
       - term: checkpoint
         definition: A resumable scene runtime marker that helps diagnose and continue long workflows.
         sourceStep: review-gap-summary
-        tags:
+        groupIds:
           - scene-runtime
   chapterClips:
     enabled: true

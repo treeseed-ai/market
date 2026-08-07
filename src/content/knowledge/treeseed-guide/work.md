@@ -9,7 +9,9 @@ status: draft
 visibility: public
 order: 500
 parentId: guide.overview
-tags: ["work","guide"]
+groupIds:
+  - guide
+  - work
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.overview","guide.foundation.purpose","guide.foundation.architecture","guide.foundation.platform","guide.work.agents","guide.work.capacity-providers","guide.work.workdays"]

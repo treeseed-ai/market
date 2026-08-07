@@ -1,0 +1,45 @@
+name: agents
+version: 1
+description: Local multi-execution-provider agent capacity for TreeSeed development
+
+defaultEnvironments: [local]
+environments: [local]
+
+references:
+  - team:treeseed
+  - project:treeseed/market
+  - project:treeseed/api
+  - project:treeseed/treedx
+  - project:treeseed/sdk
+  - project:treeseed/ui
+  - project:treeseed/cli
+  - project:treeseed/core
+  - project:treeseed/admin
+  - project:treeseed/agent
+
+resources: {}
+
+runtime:
+  capacityProviders:
+    - key: capacity-provider:treeseed/agents
+      providerClass: agent
+      environments: [local]
+      team: team:treeseed
+      manifest: treeseed.agents-capacity-provider.yaml
+      connectionId: primary-team-agents
+      approval: trusted-local-owner
+      projects:
+        - project:treeseed/market
+        - project:treeseed/api
+        - project:treeseed/treedx
+        - project:treeseed/sdk
+        - project:treeseed/ui
+        - project:treeseed/cli
+        - project:treeseed/core
+        - project:treeseed/admin
+        - project:treeseed/agent
+      allowedModes: [planning, acting]
+      executionProviderIds: [codex, opencode, copilot]
+  agentLabServicePrincipals: []
+
+operationRecipes: []

@@ -9,11 +9,10 @@ summary: The authenticated content-management overlay and collaborative editing
 status: published
 visibility: public
 order: 50
-tags:
+groupIds:
   - architecture
-  - overlay
   - editing
-  - architecture
+  - overlay
 contributors: []
 relatedBookIds: []
 relatedKnowledgeIds:

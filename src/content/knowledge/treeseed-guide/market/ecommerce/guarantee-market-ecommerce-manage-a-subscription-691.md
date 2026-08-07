@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 6
 parentId: guide.market.ecommerce
-tags: ["market","ecommerce","guarantee"]
+groupIds:
+  - ecommerce
+  - guarantee
+  - market
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.market.ecommerce"]

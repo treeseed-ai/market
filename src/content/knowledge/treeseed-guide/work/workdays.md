@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 300
 parentId: guide.work
-tags: ["work","workdays","guide"]
+groupIds:
+  - guide
+  - work
+  - workdays
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.work","guide.guarantee.guarantee-api-endpoints-agent-graphs-and-workdays-407","guide.guarantee.guarantee-work-workdays-close-and-settle-a-workday-683","guide.guarantee.guarantee-work-workdays-continue-useful-work-while-capacity-remains-681","guide.guarantee.guarantee-work-workdays-gate-acting-work-on-approved-decisions-682","guide.guarantee.guarantee-work-workdays-include-every-eligible-planning-agent-680","guide.guarantee.guarantee-work-workdays-publish-a-workday-summary-684","guide.guarantee.guarantee-work-workdays-schedule-a-workday-678","guide.guarantee.guarantee-work-workdays-set-workday-duration-and-budget-679","guide.guarantee.guarantee-workday-agent-continue-until-duration-or-budget-bound-167","guide.guarantee.guarantee-workday-agent-exercise-every-eligible-planning-agent-166","guide.guarantee.guarantee-workday-agent-produce-workday-summary-165","guide.guarantee.guarantee-workday-artifacts-review-workday-artifacts-086","guide.guarantee.guarantee-workday-decision-approve-acting-decision-085"]

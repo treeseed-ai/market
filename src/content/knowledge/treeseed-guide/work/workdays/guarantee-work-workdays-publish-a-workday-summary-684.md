@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 6
 parentId: guide.work.workdays
-tags: ["work","workdays","guarantee"]
+groupIds:
+  - guarantee
+  - work
+  - workdays
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.work.workdays"]

@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 200
 parentId: guide.market
-tags: ["market","seller-accounts","guide"]
+groupIds:
+  - guide
+  - market
+  - seller-accounts
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.market","guide.guarantee.guarantee-market-seller-accounts-configure-seller-payout-details-696","guide.guarantee.guarantee-market-seller-accounts-create-a-marketplace-listing-697","guide.guarantee.guarantee-market-seller-accounts-create-a-seller-account-694","guide.guarantee.guarantee-market-seller-accounts-manage-listing-inventory-699","guide.guarantee.guarantee-market-seller-accounts-publish-and-unpublish-a-listing-698","guide.guarantee.guarantee-market-seller-accounts-review-seller-orders-700","guide.guarantee.guarantee-market-seller-accounts-suspend-or-close-a-seller-account-701","guide.guarantee.guarantee-market-seller-accounts-verify-seller-identity-695"]

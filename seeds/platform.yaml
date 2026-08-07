@@ -1,0 +1,35 @@
+name: platform
+version: 1
+description: Privileged platform-operation capacity for TreeSeed infrastructure work
+
+defaultEnvironments: [local]
+environments: [local]
+
+references:
+  - team:treeseed
+  - project:treeseed/market
+  - project:treeseed/api
+  - project:treeseed/treedx
+  - project:treeseed/sdk
+
+resources: {}
+
+runtime:
+  capacityProviders:
+    - key: capacity-provider:treeseed/platform
+      providerClass: platform-operation
+      environments: [local]
+      team: team:treeseed
+      manifest: treeseed.platform-capacity-provider.yaml
+      connectionId: primary-team-platform
+      approval: trusted-local-owner
+      projects:
+        - project:treeseed/market
+        - project:treeseed/api
+        - project:treeseed/treedx
+        - project:treeseed/sdk
+      allowedModes: [acting]
+      executionProviderIds: [platform-operation]
+  agentLabServicePrincipals: []
+
+operationRecipes: []

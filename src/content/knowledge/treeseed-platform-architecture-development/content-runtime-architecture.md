@@ -9,11 +9,10 @@ summary: How repository content, TreeDX, published manifests, previews, books,
 status: published
 visibility: public
 order: 30
-tags:
+groupIds:
   - architecture
   - content
   - runtime
-  - architecture
 contributors: []
 relatedBookIds: []
 relatedKnowledgeIds:

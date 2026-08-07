@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 12
 parentId: guide.security.teams
-tags: ["security","teams","guarantee"]
+groupIds:
+  - guarantee
+  - security
+  - teams
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.security.teams"]

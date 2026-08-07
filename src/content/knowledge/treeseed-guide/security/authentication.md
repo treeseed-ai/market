@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 100
 parentId: guide.security
-tags: ["security","authentication","guide"]
+groupIds:
+  - authentication
+  - guide
+  - security
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.security","guide.foundation.treedx","guide.foundation.architecture","guide.deployment.knowledge","architecture.auth-and-content-proxy","architecture.notification-architecture","guide.guarantee.guarantee-api-endpoints-auth-and-sessions-401","guide.guarantee.guarantee-security-authentication-complete-a-multi-factor-challenge-611","guide.guarantee.guarantee-security-authentication-enroll-multi-factor-authentication-610","guide.guarantee.guarantee-security-authentication-link-an-external-identity-provider-613","guide.guarantee.guarantee-security-authentication-preserve-safe-authentication-return-paths-615","guide.guarantee.guarantee-security-authentication-recover-multi-factor-access-612","guide.guarantee.guarantee-security-authentication-require-recent-authentication-for-sensitive-actions-609","guide.guarantee.guarantee-security-authentication-throttle-repeated-authentication-failures-614","guide.guarantee.guarantee-user-auth-forgot-reset-password-003","guide.guarantee.guarantee-user-auth-register-user-001","guide.guarantee.guarantee-user-auth-user-login-004","guide.guarantee.guarantee-user-auth-user-logout-005","guide.guarantee.guarantee-user-auth-verify-email-002"]

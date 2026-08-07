@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 200
 parentId: guide.foundation
-tags: ["foundation","architecture","guide"]
+groupIds:
+  - architecture
+  - foundation
+  - guide
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.foundation","guide.foundation.purpose","guide.foundation.frameworks","guide.foundation.treedx","guide.foundation.platform","guide.deployment","guide.deployment.knowledge","guide.security","guide.content","guide.work","guide.governance","guide.market","architecture.auth-and-content-proxy","architecture.content-runtime-architecture","architecture.notification-architecture","architecture.overlay-editing-architecture","architecture.ui-architecture","architecture.ui-foundation-baseline","architecture.commons-governance","architecture.ecommerce"]

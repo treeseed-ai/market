@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 3
 parentId: guide.deployment.private-platform
-tags: ["deployment","private-platform","guarantee"]
+groupIds:
+  - deployment
+  - guarantee
+  - private-platform
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.deployment.private-platform"]

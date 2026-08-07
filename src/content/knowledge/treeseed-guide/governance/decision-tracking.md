@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 300
 parentId: guide.governance
-tags: ["governance","decision-tracking","guide"]
+groupIds:
+  - decision-tracking
+  - governance
+  - guide
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.governance","guide.guarantee.guarantee-governance-decision-tracking-audit-the-complete-decision-history-729","guide.guarantee.guarantee-governance-decision-tracking-link-a-decision-to-its-proposal-724","guide.guarantee.guarantee-governance-decision-tracking-link-acting-work-to-an-approved-decision-726","guide.guarantee.guarantee-governance-decision-tracking-record-decision-evidence-727","guide.guarantee.guarantee-governance-decision-tracking-supersede-a-prior-decision-728","guide.guarantee.guarantee-governance-decision-tracking-track-decision-implementation-state-725"]

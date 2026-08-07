@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 8
 parentId: guide.security.authentication
-tags: ["security","authentication","guarantee"]
+groupIds:
+  - authentication
+  - guarantee
+  - security
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.security.authentication"]

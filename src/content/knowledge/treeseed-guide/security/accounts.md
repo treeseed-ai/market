@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 200
 parentId: guide.security
-tags: ["security","accounts","guide"]
+groupIds:
+  - accounts
+  - guide
+  - security
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.security","guide.foundation.platform","architecture.notification-architecture","guide.guarantee.guarantee-security-accounts-export-account-data-617","guide.guarantee.guarantee-security-accounts-manage-account-email-addresses-616","guide.guarantee.guarantee-security-accounts-recover-an-account-with-changed-identity-details-619","guide.guarantee.guarantee-security-accounts-transfer-responsibilities-before-account-deletion-618","guide.guarantee.guarantee-user-account-delete-user-011","guide.guarantee.guarantee-user-account-edit-account-settings-006","guide.guarantee.guarantee-user-account-manage-appearance-009","guide.guarantee.guarantee-user-account-manage-notifications-008","guide.guarantee.guarantee-user-account-manage-sessions-007","guide.guarantee.guarantee-user-account-view-user-profile-010"]

@@ -9,7 +9,10 @@ status: draft
 visibility: public
 order: 3
 parentId: guide.security.accounts
-tags: ["security","accounts","guarantee"]
+groupIds:
+  - accounts
+  - guarantee
+  - security
 contributors: []
 relatedBookIds: [treeseed-platform-architecture-development]
 relatedKnowledgeIds: ["guide.security.accounts"]
