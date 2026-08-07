@@ -19,14 +19,14 @@ This document defines the single coordination architecture for external capacity
 | `@treeseed/sdk` | Portable contracts, validation, allocation/admission policy, lifecycle primitives, provider-neutral helpers |
 | `@treeseed/api` | Durable governance, availability, allocation, admission, reservations, assignment leases, workdays, usage, settlement, audit, TreeDX authorization |
 | `@treeseed/agent` | Provider identity and manifest, multi-team provider manager, global runner scheduling, provider-local enforcement, AgentKernel, handlers and execution adapters |
-| `@treeseed/ai` | Planned local model-serving and training appliance behind execution-provider protocols; no assignment, lease, governance, or repository-mutation authority |
+| `@treeseed/ai` | Separable local model-serving appliance behind execution-provider protocols, with vLLM reconciliation, authenticated inference gateway, diagnostics, and install supervision implemented; training remains planned; no assignment, lease, governance, or repository-mutation authority |
 | `@treeseed/cli` | Complete human/provider operator surface over API, SDK, and reconciliation contracts |
 | Projects/starters | Agents, classes, prompts, activity profiles, planning/acting permissions, output contracts, and project work semantics |
 | TreeDX | Product-neutral content/repository storage and operations |
 
 Admin UI is a future consumer. It is not a scheduler or source of policy. Every backend action exists first as API and CLI/config behavior.
 
-The AI appliance is likewise not a scheduler or project worker. Provider runners call its future inference surface under an assignment, and future training work is admitted and accounted for through the same capacity lifecycle. Curated knowledge and experience reach it through governed TreeDX/artifact references; raw traces remain outside project Git, and the appliance never commits or pushes project repositories.
+The AI appliance is likewise not a scheduler or project worker. Provider runners call its authenticated OpenAI-compatible inference surface under an assignment; future training work is admitted and accounted for through the same capacity lifecycle. Curated knowledge and experience reach it through governed TreeDX/artifact references; raw traces remain outside project Git, and the appliance never commits or pushes project repositories.
 
 ## Trust and Registration
 

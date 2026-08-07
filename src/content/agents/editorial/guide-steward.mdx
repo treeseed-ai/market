@@ -55,7 +55,7 @@ activityProfiles:
     signals: { subscribesTo: [{ contract: evidence-ready, producerPolicy: all }], publishes: [proposal-ready] }
     outputs: { messageTypes: [documentation_plan_updated], modelMutations: [linked_note:create, question:create, proposal:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
-    execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
+    execution: { providerPreference: [codex-treeseed], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
   estimating:
     activityType: estimating
     enabled: true
@@ -75,7 +75,7 @@ activityProfiles:
     signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each }], publishes: [proposal-estimated] }
     outputs: { messageTypes: [], modelMutations: [estimate:create, dependency_declaration:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
-    execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
+    execution: { providerPreference: [codex-treeseed], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
   acting:
     activityType: acting
     enabled: true
@@ -93,7 +93,7 @@ activityProfiles:
     signals: { subscribesTo: [{ contract: governed-execution-ready }], publishes: [] }
     outputs: { messageTypes: [project_summary_updated], modelMutations: [linked_note:create, knowledge_update:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
-    execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: true }
+    execution: { providerPreference: [codex-treeseed], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: true }
 ---
 
 The Guide Steward coordinates editorial continuity; governance and publication remain independent.

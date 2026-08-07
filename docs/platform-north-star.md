@@ -46,7 +46,11 @@ On a single AI computer, these states are usually time-multiplexed. On a dual-no
 
 ### 1.1 Package and process boundary
 
-`@treeseed/ai` is the independently installable appliance boundary for the future vLLM, Axolotl, adapter, diagnostic, and machine-supervision processes. Its repository begins as a metadata-only package and does not yet claim those runtime capabilities. It may later be installed with TreeSeed or operated separately on a GPU host or GPU-enabled virtual machine.
+`@treeseed/ai` is the independently installable appliance boundary for vLLM, future Axolotl training, adapter lifecycle, hardware diagnostics, and machine supervision. The first runtime foundation now supplies a Debian/systemd launcher, an SDK-reconciled Docker Compose vLLM service, an authenticated loopback OpenAI-compatible gateway, and a management/status API. It can operate beside the complete local stack or on a separate GPU host while maintaining one or more capacity-provider connections to the canonical Market control plane. Training, experience curation, adapter competition, and LoRA promotion remain planned and must enter through governed capacity and TreeDX/artifact contracts.
+
+The appliance is a model data plane, not a second scheduler. `@treeseed/api` continues to own workdays, deterministic assignment, leases, usage, and settlement; `@treeseed/agent` owns provider managers, runners, AgentKernel, and execution-provider adapters. The initial provider catalog exposes subscription, key, and TreeSeed-model profiles for Codex, GitHub Copilot, and OpenCode. TreeSeed-model profiles call the authenticated appliance gateway using the stable `treeseed-qwen3.5-4b` alias; raw vLLM stays loopback-only.
+
+The phased implementation and acceptance contract is maintained in [AI Platform Implementation Roadmap](./ai-platform-implementation-roadmap.md).
 
 TreeSeed API remains the durable governance and control-plane scheduler. `@treeseed/agent` remains the capacity-provider manager, runner, and AgentKernel owner. Those systems integrate with the appliance through portable SDK contracts and authenticated HTTP/execution-provider protocols, never imports of appliance internals. The appliance accepts only assignment-scoped work and does not directly mutate project repositories: TreeDX remains the governed knowledge path, while raw experience stays in appliance/provider storage until teachers and packagers produce curated, provenance-bearing artifacts.
 

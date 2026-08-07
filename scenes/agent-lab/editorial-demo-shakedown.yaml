@@ -38,7 +38,7 @@ agentLab:
     team: team:treeseed
     capacityProvider: capacity-provider:treeseed/local
   provider: local
-  executionProvider: codex
+  executionProvider: codex-treeseed
   presentation: race-control
   timeZone: America/New_York
   repositories: [market]

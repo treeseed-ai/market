@@ -43,7 +43,7 @@ activityProfiles:
     signals: { publishes: [evidence-ready] }
     outputs: { messageTypes: [documentation_plan_updated], modelMutations: [review_note:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
-    execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
+    execution: { providerPreference: [codex-treeseed], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
   reviewing:
     activityType: reviewing
     enabled: true
@@ -62,7 +62,7 @@ activityProfiles:
     signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each, filters: { proposalTypes: [audience-experience] } }], publishes: [proposal-reviewed] }
     outputs: { messageTypes: [docs_mutation_completed], modelMutations: [proposal_feedback:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
-    execution: { providerPreference: [codex], maxRuntimeSeconds: 2400, maxRetries: 2, verificationRequired: false }
+    execution: { providerPreference: [codex-treeseed], maxRuntimeSeconds: 2400, maxRetries: 2, verificationRequired: false }
   estimating:
     activityType: estimating
     enabled: true
@@ -76,7 +76,7 @@ activityProfiles:
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files] }
     signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each }], publishes: [proposal-estimated] }
     outputs: { messageTypes: [], modelMutations: [estimate:create] }
-    execution: { providerPreference: [codex], maxRuntimeSeconds: 600, maxRetries: 1, verificationRequired: false }
+    execution: { providerPreference: [codex-treeseed], maxRuntimeSeconds: 600, maxRetries: 1, verificationRequired: false }
 ---
 
 Audience coverage is a review matrix, not four copies of the same book.

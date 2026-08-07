@@ -43,7 +43,7 @@ activityProfiles:
     signals: { publishes: [evidence-ready] }
     outputs: { messageTypes: [documentation_plan_updated], modelMutations: [linked_note:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
-    execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 1, verificationRequired: false }
+    execution: { providerPreference: [codex-treeseed], maxRuntimeSeconds: 1800, maxRetries: 1, verificationRequired: false }
   acting:
     activityType: acting
     enabled: true
@@ -59,7 +59,7 @@ activityProfiles:
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.status, treeseed.changed_paths, treeseed.verify] }
     outputs: { messageTypes: [docs_mutation_completed], modelMutations: [linked_note:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
-    execution: { providerPreference: [codex], maxRuntimeSeconds: 1800, maxRetries: 1, verificationRequired: true }
+    execution: { providerPreference: [codex-treeseed], maxRuntimeSeconds: 1800, maxRetries: 1, verificationRequired: true }
   estimating:
     activityType: estimating
     enabled: true
@@ -71,7 +71,7 @@ activityProfiles:
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files] }
     signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each }], publishes: [proposal-estimated] }
     outputs: { messageTypes: [], modelMutations: [estimate:create] }
-    execution: { providerPreference: [codex], maxRuntimeSeconds: 600, maxRetries: 1, verificationRequired: false }
+    execution: { providerPreference: [codex-treeseed], maxRuntimeSeconds: 600, maxRetries: 1, verificationRequired: false }
 ---
 
 Publication is custody of an approved revision, never a final editing stage.

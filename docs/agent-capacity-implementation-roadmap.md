@@ -23,7 +23,7 @@ Related architecture:
 The implementation boundary is:
 
 - `@treeseed/agent` owns the provider runtime, provider manager, provider runner, sole-entrypoint AgentKernel execution, activity-profile resolution, fallback behavior, runtime images, runtime tests, and provider-local lifecycle behavior.
-- `@treeseed/ai` is the planned, separable model data plane behind execution-provider protocols: local vLLM inference, Axolotl training, adapter lifecycle, and appliance diagnostics. It does not assign project work, own leases, or replace the provider manager.
+- `@treeseed/ai` is the separable model data plane behind execution-provider protocols. Its first foundation implements local vLLM reconciliation, an authenticated OpenAI-compatible gateway, hardware diagnostics, management status, and Debian/systemd packaging. Axolotl training and adapter lifecycle remain planned. It does not assign project work, own leases, or replace the provider manager.
 - `@treeseed/sdk` owns portable contracts, domain types, reconciliation contracts, package discovery, config, and provider-neutral helper logic.
 - `@treeseed/api` owns durable control-plane state, API routes, request-scoped demand compilation, the assignment function, provider sessions, leases, reservations, usage settlement, decision readiness records, governed workday scheduling, exact run-owned workday envelopes, scheduling-failure recovery, and TreeDX proxy authorization.
 - `@treeseed/admin` owns browser operator surfaces over API contracts.
