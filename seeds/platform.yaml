@@ -11,6 +11,17 @@ references:
   - project:treeseed/api
   - project:treeseed/treedx
   - project:treeseed/sdk
+  - project:treeseed/ui
+  - project:treeseed/cli
+  - project:treeseed/core
+  - project:treeseed/admin
+  - project:treeseed/agent
+  - project:treeseed/reviewer
+  - project:treeseed/ai
+  - project:treeseed/market-api
+  - project:treeseed/engineering
+  - project:treeseed/research
+  - project:treeseed/information-hub
 
 resources: {}
 
@@ -28,6 +39,17 @@ runtime:
         - project:treeseed/api
         - project:treeseed/treedx
         - project:treeseed/sdk
+        - project:treeseed/ui
+        - project:treeseed/cli
+        - project:treeseed/core
+        - project:treeseed/admin
+        - project:treeseed/agent
+        - project:treeseed/reviewer
+        - project:treeseed/ai
+        - project:treeseed/market-api
+        - project:treeseed/engineering
+        - project:treeseed/research
+        - project:treeseed/information-hub
       allowedModes: [acting]
       executionProviderIds: [platform-operation]
   agentLabServicePrincipals: []

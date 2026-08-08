@@ -10,7 +10,7 @@ This document is the canonical contract for hosting, configuration, local develo
 
 See [Package Ownership](./package-ownership.md) for the current package map.
 
-Project topology reconciliation uses the logical model in [Project Architecture Migration Roadmap](./project-architecture-migration.md): repository identity plus `rootPath`, optional `sitePath`, optional `contentPath`, `contentRuntimeSource`, and `localContentMaterialization`. Submodules are local materialization details, not a required project shape. This keeps templates and imported live repositories usable without restructuring.
+Project topology reconciliation uses [Project Architecture Migration](./project-architecture-migration.md). The seed compiles primary and content repository identities into GitHub units. Content is not locally materialized for build or runtime; TreeDX owns operational workspaces and R2 owns published runtime manifests.
 
 Repository identity is the normalized provider, host, owner, and repository tuple, not a literal clone URL or a local path. SSH, HTTPS, `git+ssh`, trailing-`.git`, case, and relative-submodule forms of the same remote resolve to one canonical key. Checkout identity is separate: developer, capacity-provider, and TreeDX custody each use an independent checkout and Git common directory, even when they represent the same repository and commit.
 
@@ -19,8 +19,8 @@ Repository identity is the normalized provider, host, owner, and repository tupl
 - `@treeseed/sdk` owns the reconciliation engine, desired-state graph, provider adapters, package workflow discovery, config runtime, and live verification contracts.
 - `@treeseed/cli` exposes the command surface that invokes SDK reconciliation.
 - `@treeseed/core` contributes web runtime and web-only desired state.
-- `@treeseed/admin` contributes site/plugin/runtime/admin surfaces, routes, middleware, and env schema; it does not own hosted infrastructure and has no package-local `treeseed.site.yaml`.
-- root `@treeseed/market` owns the real hostable `treeseed.site.yaml`, public content, page overrides, authenticated operational marketplace/cart/checkout/service/capacity/Commons participant pages, public marketing/profile/knowledge pages, and business policy.
+- `@treeseed/admin` owns its independently buildable application manifest and Admin surfaces. Market still consumes its package during migration; that compatibility path is removed only after standalone acceptance.
+- root `@treeseed/market` currently owns the combined hosted tenant and is migrating toward ecommerce/public-market-only scope and Market API integration.
 - `@treeseed/api` owns the package-local backend `treeseed.site.yaml`, API, operations runner, PostgreSQL, backend route descriptors, public TreeDX federation app desired state, capacity-provider service bindings, and durable capacity coordination records such as provider sessions, assignments, mode runs, reservations, and usage settlement.
 - `@treeseed/agent` owns capacity-provider runtime artifacts, provider desired state, provider manager/runner behavior, AgentKernel execution, and provider-local lifecycle.
 - `@treeseed/ai` will own the separable local inference/training appliance and its machine-level supervision. Its future processes must be declared through package-owned desired state and reconciled by SDK operations; the initialization scaffold declares no runtime resources.
@@ -193,6 +193,7 @@ Package save and stage flows use `github:owner/repo#<commit-sha>` for developmen
 ## Ownership Boundaries
 
 - Root web app owns Cloudflare web resources, web build/deploy, proxy metadata, and the configured API connection.
+- An application-scoped hosting command resolves the selected application's repository root before reconciliation. `--app admin` therefore reads and persists Admin state against `packages/admin`, and cannot select or mutate the root Market content store merely because Market is the integration workspace.
 - `packages/api` owns the API service, operations runner, PostgreSQL, Railway project, API domains, and public TreeDX federation hosting.
 - `packages/treedx` owns TreeDX implementation, Docker image workflows, generated SDK publication, and profile image gates.
 - `packages/agent` owns capacity-provider runtime resources.

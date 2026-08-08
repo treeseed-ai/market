@@ -43,12 +43,13 @@ resources:
         defaultBranch: main
         checkoutPath: .
       architecture:
-        topology: single_repository_site
+        topology: split_site_content
         rootPath: .
         sitePath: .
-        contentPath: src/content
-        contentRuntimeSource: r2_published_manifest
-        localContentMaterialization: existing_path
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
         contentPublishTarget:
           kind: cloudflare_r2
           prefix: market
@@ -72,12 +73,13 @@ resources:
         checkoutPath: packages/api
         submodulePath: packages/api
       architecture:
-        topology: single_repository_site
+        topology: split_site_content
         rootPath: .
         sitePath: docs
-        contentPath: docs/src/content
-        contentRuntimeSource: r2_published_manifest
-        localContentMaterialization: existing_path
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
         contentPublishTarget:
           kind: cloudflare_r2
           prefix: packages/api
@@ -104,12 +106,13 @@ resources:
         checkoutPath: packages/treedx
         submodulePath: packages/treedx
       architecture:
-        topology: single_repository_site
+        topology: split_site_content
         rootPath: .
         sitePath: docs
-        contentPath: docs/src/content
-        contentRuntimeSource: r2_published_manifest
-        localContentMaterialization: existing_path
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
         contentPublishTarget:
           kind: cloudflare_r2
           prefix: packages/treedx
@@ -136,12 +139,13 @@ resources:
         checkoutPath: packages/sdk
         submodulePath: packages/sdk
       architecture:
-        topology: single_repository_site
+        topology: split_site_content
         rootPath: .
         sitePath: docs
-        contentPath: docs/src/content
-        contentRuntimeSource: r2_published_manifest
-        localContentMaterialization: existing_path
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
         contentPublishTarget:
           kind: cloudflare_r2
           prefix: packages/sdk
@@ -168,12 +172,13 @@ resources:
         checkoutPath: packages/ui
         submodulePath: packages/ui
       architecture:
-        topology: single_repository_site
+        topology: split_site_content
         rootPath: .
         sitePath: docs
-        contentPath: docs/src/content
-        contentRuntimeSource: r2_published_manifest
-        localContentMaterialization: existing_path
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
         contentPublishTarget:
           kind: cloudflare_r2
           prefix: packages/ui
@@ -200,12 +205,13 @@ resources:
         checkoutPath: packages/cli
         submodulePath: packages/cli
       architecture:
-        topology: single_repository_site
+        topology: split_site_content
         rootPath: .
         sitePath: docs
-        contentPath: docs/src/content
-        contentRuntimeSource: r2_published_manifest
-        localContentMaterialization: existing_path
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
         contentPublishTarget:
           kind: cloudflare_r2
           prefix: packages/cli
@@ -232,12 +238,13 @@ resources:
         checkoutPath: packages/core
         submodulePath: packages/core
       architecture:
-        topology: single_repository_site
+        topology: split_site_content
         rootPath: .
         sitePath: docs
-        contentPath: docs/src/content
-        contentRuntimeSource: r2_published_manifest
-        localContentMaterialization: existing_path
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
         contentPublishTarget:
           kind: cloudflare_r2
           prefix: packages/core
@@ -264,12 +271,13 @@ resources:
         checkoutPath: packages/admin
         submodulePath: packages/admin
       architecture:
-        topology: single_repository_site
+        topology: split_site_content
         rootPath: .
         sitePath: docs
-        contentPath: docs/src/content
-        contentRuntimeSource: r2_published_manifest
-        localContentMaterialization: existing_path
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
         contentPublishTarget:
           kind: cloudflare_r2
           prefix: packages/admin
@@ -296,12 +304,13 @@ resources:
         checkoutPath: packages/agent
         submodulePath: packages/agent
       architecture:
-        topology: single_repository_site
+        topology: split_site_content
         rootPath: .
         sitePath: docs
-        contentPath: docs/src/content
-        contentRuntimeSource: r2_published_manifest
-        localContentMaterialization: existing_path
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
         contentPublishTarget:
           kind: cloudflare_r2
           prefix: packages/agent
@@ -312,7 +321,352 @@ resources:
         docsSiteReadiness: ready
         releaseOwnership: treeseed.package.yaml
 
-  hubRepositories: []
+    - key: project:treeseed/reviewer
+      team: team:treeseed
+      slug: reviewer
+      name: TreeSeed Reviewer
+      description: Local guarantee evidence review application.
+      kind: package
+      repository:
+        role: primary
+        provider: github
+        owner: treeseed-ai
+        name: reviewer
+        gitUrl: https://github.com/treeseed-ai/reviewer.git
+        defaultBranch: main
+        checkoutPath: packages/reviewer
+        submodulePath: packages/reviewer
+      architecture:
+        topology: split_site_content
+        rootPath: .
+        sitePath: docs
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
+        contentPublishTarget: { kind: cloudflare_r2, prefix: packages/reviewer }
+      metadata:
+        packageId: "@treeseed/reviewer"
+        packagePath: packages/reviewer
+        visibility: public
+        docsSiteReadiness: not-prepared
+        releaseOwnership: treeseed.package.yaml
+
+    - key: project:treeseed/ai
+      team: team:treeseed
+      slug: ai
+      name: TreeSeed AI
+      description: Independently installable local AI appliance.
+      kind: package
+      repository:
+        role: primary
+        provider: github
+        owner: treeseed-ai
+        name: ai
+        gitUrl: https://github.com/treeseed-ai/ai.git
+        defaultBranch: main
+        checkoutPath: packages/ai
+        submodulePath: packages/ai
+      architecture:
+        topology: split_site_content
+        rootPath: .
+        sitePath: docs
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
+        contentPublishTarget: { kind: cloudflare_r2, prefix: packages/ai }
+      metadata:
+        packageId: "@treeseed/ai"
+        packagePath: packages/ai
+        visibility: public
+        docsSiteReadiness: not-prepared
+        releaseOwnership: treeseed.package.yaml
+
+    - key: project:treeseed/market-api
+      team: team:treeseed
+      slug: market-api
+      name: TreeSeed Market API
+      description: Private commerce extension and Admin API-compatible gateway.
+      kind: service
+      repository:
+        role: primary
+        provider: github
+        owner: knowledge-coop
+        name: market-api
+        gitUrl: https://github.com/knowledge-coop/market-api.git
+        defaultBranch: main
+        repositoryPolicy:
+          visibility: private
+          lifecycle: create-or-adopt
+          deletionPolicy: retain
+          defaultBranch: main
+          stagingBranch: staging
+          issues: true
+          actions: true
+      architecture:
+        topology: split_site_content
+        rootPath: .
+        sitePath: docs
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
+        contentPublishTarget: { kind: cloudflare_r2, prefix: services/market-api }
+      metadata:
+        visibility: private
+        docsSiteReadiness: not-prepared
+
+    - key: project:treeseed/engineering
+      team: team:treeseed
+      slug: engineering
+      name: TreeSeed Engineering Starter
+      description: Governed engineering project starter.
+      kind: template
+      repository: { role: primary, provider: github, owner: treeseed-templates, name: engineering, gitUrl: https://github.com/treeseed-templates/engineering.git, defaultBranch: main, checkoutPath: starters/engineering, submodulePath: starters/engineering }
+      architecture:
+        topology: split_site_content
+        rootPath: .
+        sitePath: .
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
+        contentPublishTarget: { kind: cloudflare_r2, prefix: starters/engineering }
+      metadata: { visibility: public }
+
+    - key: project:treeseed/research
+      team: team:treeseed
+      slug: research
+      name: TreeSeed Research Starter
+      description: Governed research project starter.
+      kind: template
+      repository: { role: primary, provider: github, owner: treeseed-templates, name: research, gitUrl: https://github.com/treeseed-templates/research.git, defaultBranch: main, checkoutPath: starters/research, submodulePath: starters/research }
+      architecture:
+        topology: split_site_content
+        rootPath: .
+        sitePath: .
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
+        contentPublishTarget: { kind: cloudflare_r2, prefix: starters/research }
+      metadata: { visibility: public }
+
+    - key: project:treeseed/information-hub
+      team: team:treeseed
+      slug: information-hub
+      name: TreeSeed Information Hub Starter
+      description: Public information hub project starter.
+      kind: template
+      repository:
+        role: primary
+        provider: github
+        owner: treeseed-templates
+        name: information-hub
+        gitUrl: https://github.com/treeseed-templates/information-hub.git
+        defaultBranch: main
+        repositoryPolicy:
+          visibility: public
+          lifecycle: create-or-adopt
+          deletionPolicy: retain
+          defaultBranch: main
+          stagingBranch: staging
+          issues: true
+          actions: true
+      architecture:
+        topology: split_site_content
+        rootPath: .
+        sitePath: .
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
+        contentPublishTarget: { kind: cloudflare_r2, prefix: starters/information-hub }
+      metadata: { visibility: public }
+
+  hubRepositories:
+    - key: repository:treeseed/market-content
+      project: project:treeseed/market
+      role: content
+      provider: github
+      owner: knowledge-coop
+      name: market-content
+      gitUrl: https://github.com/knowledge-coop/market-content.git
+      defaultBranch: main
+      repositoryPolicy: &public-content-policy
+        visibility: public
+        lifecycle: create-or-adopt
+        deletionPolicy: retain
+        defaultBranch: main
+        stagingBranch: staging
+        issues: true
+        actions: true
+      publishPolicy: &r2-content-policy
+        provider: cloudflare_r2
+        environments: [staging, prod]
+        previews: true
+
+    - key: repository:treeseed/market-api-content
+      project: project:treeseed/market-api
+      role: content
+      provider: github
+      owner: knowledge-coop
+      name: market-api-content
+      gitUrl: https://github.com/knowledge-coop/market-api-content.git
+      defaultBranch: main
+      repositoryPolicy:
+        visibility: private
+        lifecycle: create-or-adopt
+        deletionPolicy: retain
+        defaultBranch: main
+        stagingBranch: staging
+        issues: true
+        actions: true
+      publishPolicy: *r2-content-policy
+
+    - key: repository:treeseed/api-content
+      project: project:treeseed/api
+      role: content
+      provider: github
+      owner: treeseed-ai
+      name: api-content
+      gitUrl: https://github.com/treeseed-ai/api-content.git
+      defaultBranch: main
+      repositoryPolicy: *public-content-policy
+      publishPolicy: *r2-content-policy
+
+    - key: repository:treeseed/treedx-content
+      project: project:treeseed/treedx
+      role: content
+      provider: github
+      owner: treeseed-ai
+      name: treedx-content
+      gitUrl: https://github.com/treeseed-ai/treedx-content.git
+      defaultBranch: main
+      repositoryPolicy: *public-content-policy
+      publishPolicy: *r2-content-policy
+
+    - key: repository:treeseed/sdk-content
+      project: project:treeseed/sdk
+      role: content
+      provider: github
+      owner: treeseed-ai
+      name: sdk-content
+      gitUrl: https://github.com/treeseed-ai/sdk-content.git
+      defaultBranch: main
+      repositoryPolicy: *public-content-policy
+      publishPolicy: *r2-content-policy
+
+    - key: repository:treeseed/ui-content
+      project: project:treeseed/ui
+      role: content
+      provider: github
+      owner: treeseed-ai
+      name: ui-content
+      gitUrl: https://github.com/treeseed-ai/ui-content.git
+      defaultBranch: main
+      repositoryPolicy: *public-content-policy
+      publishPolicy: *r2-content-policy
+
+    - key: repository:treeseed/cli-content
+      project: project:treeseed/cli
+      role: content
+      provider: github
+      owner: treeseed-ai
+      name: cli-content
+      gitUrl: https://github.com/treeseed-ai/cli-content.git
+      defaultBranch: main
+      repositoryPolicy: *public-content-policy
+      publishPolicy: *r2-content-policy
+
+    - key: repository:treeseed/core-content
+      project: project:treeseed/core
+      role: content
+      provider: github
+      owner: treeseed-ai
+      name: core-content
+      gitUrl: https://github.com/treeseed-ai/core-content.git
+      defaultBranch: main
+      repositoryPolicy: *public-content-policy
+      publishPolicy: *r2-content-policy
+
+    - key: repository:treeseed/admin-content
+      project: project:treeseed/admin
+      role: content
+      provider: github
+      owner: treeseed-ai
+      name: admin-content
+      gitUrl: https://github.com/treeseed-ai/admin-content.git
+      defaultBranch: main
+      repositoryPolicy: *public-content-policy
+      publishPolicy: *r2-content-policy
+
+    - key: repository:treeseed/agent-content
+      project: project:treeseed/agent
+      role: content
+      provider: github
+      owner: treeseed-ai
+      name: agent-content
+      gitUrl: https://github.com/treeseed-ai/agent-content.git
+      defaultBranch: main
+      repositoryPolicy: *public-content-policy
+      publishPolicy: *r2-content-policy
+
+    - key: repository:treeseed/reviewer-content
+      project: project:treeseed/reviewer
+      role: content
+      provider: github
+      owner: treeseed-ai
+      name: reviewer-content
+      gitUrl: https://github.com/treeseed-ai/reviewer-content.git
+      defaultBranch: main
+      repositoryPolicy: *public-content-policy
+      publishPolicy: *r2-content-policy
+
+    - key: repository:treeseed/ai-content
+      project: project:treeseed/ai
+      role: content
+      provider: github
+      owner: treeseed-ai
+      name: ai-content
+      gitUrl: https://github.com/treeseed-ai/ai-content.git
+      defaultBranch: main
+      repositoryPolicy: *public-content-policy
+      publishPolicy: *r2-content-policy
+
+    - key: repository:treeseed/engineering-content
+      project: project:treeseed/engineering
+      role: content
+      provider: github
+      owner: treeseed-templates
+      name: engineering-content
+      gitUrl: https://github.com/treeseed-templates/engineering-content.git
+      defaultBranch: main
+      repositoryPolicy: *public-content-policy
+      publishPolicy: *r2-content-policy
+
+    - key: repository:treeseed/research-content
+      project: project:treeseed/research
+      role: content
+      provider: github
+      owner: treeseed-templates
+      name: research-content
+      gitUrl: https://github.com/treeseed-templates/research-content.git
+      defaultBranch: main
+      repositoryPolicy: *public-content-policy
+      publishPolicy: *r2-content-policy
+
+    - key: repository:treeseed/information-hub-content
+      project: project:treeseed/information-hub
+      role: content
+      provider: github
+      owner: treeseed-templates
+      name: information-hub-content
+      gitUrl: https://github.com/treeseed-templates/information-hub-content.git
+      defaultBranch: main
+      repositoryPolicy: *public-content-policy
+      publishPolicy: *r2-content-policy
 
   products:
     - key: product:treeseed/market-template
@@ -470,6 +824,57 @@ runtime:
       name: TreeSeed Agent Lab Service Principal
       roles: [team_owner]
 
-  capacityProviders: []
+  capacityProviders:
+    - key: capacity-provider:treeseed/agents
+      providerClass: agent
+      environments: [local]
+      team: team:treeseed
+      manifest: treeseed.agents-capacity-provider.yaml
+      connectionId: primary-team-agents
+      approval: trusted-local-owner
+      projects:
+        - project:treeseed/market
+        - project:treeseed/api
+        - project:treeseed/market-api
+        - project:treeseed/treedx
+        - project:treeseed/sdk
+        - project:treeseed/ui
+        - project:treeseed/cli
+        - project:treeseed/core
+        - project:treeseed/admin
+        - project:treeseed/agent
+        - project:treeseed/reviewer
+        - project:treeseed/ai
+        - project:treeseed/engineering
+        - project:treeseed/research
+        - project:treeseed/information-hub
+      allowedModes: [planning, acting]
+      executionProviderIds: [codex, opencode, copilot, treeseed]
+
+    - key: capacity-provider:treeseed/platform
+      providerClass: platform-operation
+      environments: [local]
+      team: team:treeseed
+      manifest: treeseed.platform-capacity-provider.yaml
+      connectionId: primary-team-platform
+      approval: trusted-local-owner
+      projects:
+        - project:treeseed/market
+        - project:treeseed/api
+        - project:treeseed/market-api
+        - project:treeseed/treedx
+        - project:treeseed/sdk
+        - project:treeseed/ui
+        - project:treeseed/cli
+        - project:treeseed/core
+        - project:treeseed/admin
+        - project:treeseed/agent
+        - project:treeseed/reviewer
+        - project:treeseed/ai
+        - project:treeseed/engineering
+        - project:treeseed/research
+        - project:treeseed/information-hub
+      allowedModes: [acting]
+      executionProviderIds: [platform-operation]
 
 operationRecipes: []

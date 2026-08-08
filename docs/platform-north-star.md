@@ -56,6 +56,14 @@ TreeSeed API remains the durable governance and control-plane scheduler. `@trees
 
 The first constrained-hardware profile targets Qwen3.5-4B and roughly 16 GB of usable accelerator memory. Installation diagnostics must distinguish bare-metal access from virtualized hosts and warn when QEMU/KVM or another hypervisor has not exposed the accelerator, IOMMU, drivers, memory, and storage required by the selected profile. Larger models and multi-node layouts remain optional capacity expansions rather than bootstrap requirements.
 
+### 1.2 Application and knowledge separation
+
+The target architecture makes Market, Admin, and the AI appliance separable applications. Market will own ecommerce and the central public market. Admin now has a freestanding build and will connect either to the canonical Market API or to an independently deployed open Admin API. The planned Market API is a private HTTP superset of Admin API; compatibility is a protocol contract rather than a source-code inheritance relationship.
+
+Every project separates its software workbench from its knowledge repository. The paired `{repository}-content` repository stores content history and assets, TreeDX is the governed operational path, and R2 is the runtime publication plane. Software builds never clone content repositories. Local development consumes staging R2 plus an immutable feature preview overlay, so missing remote content is reported as platform drift rather than hidden by a filesystem fallback.
+
+The TreeSeed seed declares both repository identities and both capacity-provider principals. Platform operations and agent work remain different authorities and credential domains even when one local supervisor launches them together.
+
 ---
 
 ## 2. Core Thesis

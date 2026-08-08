@@ -14,12 +14,12 @@ For Guide-specific editorial roles, deterministic layered context, review indepe
 
 Treeseed is a unified system made from independently releasable package projects plus the root hosted market tenant.
 
-The root `@treeseed/market` app is the hosted Treeseed-operated site. It composes:
+The root `@treeseed/market` app is currently the hosted Treeseed-operated tenant. During the staged separation it still composes:
 
 - `@treeseed/core` for the Astro/Starlight runtime and site layering
-- `@treeseed/admin` for the distributable administration portal
+- `@treeseed/admin` for the administration portal until Market route extraction completes
 - `@treeseed/ui` for reusable components and styles
-- `@treeseed/api` over HTTP/proxy surfaces for backend control-plane state
+- `@treeseed/api` over HTTP/proxy surfaces; commerce has not yet moved to the private Market API repository
 - `@treeseed/sdk` through package-owned public APIs for platform primitives
 - `@treeseed/agent` through capacity-provider workflows, not in-process runtime imports
 - `@treeseed/reviewer` as a local-only operator tool, not a hosted runtime
@@ -27,7 +27,7 @@ The root `@treeseed/market` app is the hosted Treeseed-operated site. It compose
 
 The root market app owns the real hostable web tenant `treeseed.site.yaml` in this workspace. Deployable package apps may own package-local hostable manifests when they operate an independently released runtime surface; `packages/api/treeseed.site.yaml` owns only the API control plane, Treeseed PostgreSQL, provider protocol bindings, and public TreeDX federation topology; agent and platform-operation execution services are capacity providers owned by `@treeseed/agent`, never API sibling processes. SDK/CLI workflows compose the root and package manifests into one integrated desired-state graph, but the web and API release pipelines remain independently deployable.
 
-Project architecture is logical, not submodule-first. A project is described by repository identity plus `rootPath`, optional `sitePath`, optional `contentPath`, `contentRuntimeSource`, and `localContentMaterialization`. The Market project uses `sitePath: "."`; first-party package projects default to `sitePath: "docs"` even when a docs site is not prepared yet. Submodules are allowed as one local materialization strategy, but projects should be easy to create from templates and easy to import from live projects without restructuring.
+Project architecture is logical and split by default. Every primary software repository has a separately governed `{repository}-content` repository. Content repositories are never Market workspace submodules. Git stores content history, TreeDX owns operational content access and mutation, and R2 serves immutable publications. See [Project Architecture Migration](./project-architecture-migration.md).
 
 First-party package repositories declare their future project shape in `treeseed.package.yaml` under `projectArchitecture`. That metadata prepares packages for Admin/seed integration without changing package release gates: missing `docs/` sites report `site_not_prepared`, while package CI and publishing continue to follow the manifest's existing `verify`, `releaseGate`, and artifact settings.
 
@@ -37,12 +37,13 @@ Capacity acceptance follows the same independent-project rule. `starters/enginee
 
 | Package | Audience-Level Purpose | Implementation Ownership |
 | --- | --- | --- |
-| `@treeseed/market` | Treeseed-operated hosted tenant, docs/content, configuration, and future business-policy presentation | Root app, `treeseed.site.yaml`, content, public messaging, and tenant configuration. It temporarily owns no route files while the UI is redesigned. |
-| `@treeseed/admin` | Distributable AGPLv3 identity and team administration foundation | Typed auth/account/team route registry, auth/session and CSRF glue, focused API facades/controllers, five focused account routes including account time-zone selection and session metadata presentation, active-team management, privacy-safe public knowledge-profile composition, and retained non-UI commerce/secret-manager contracts |
+| `@treeseed/market` | Treeseed-operated hosted tenant migrating to ecommerce and public-market scope | Root app, Market branding, public content, and `treeseed.site.yaml`; it currently composes Admin and must remove that composition after equivalent standalone Admin verification. |
+| `@treeseed/admin` | Freestanding AGPLv3 administration application | Independently buildable and deployable Admin UI, auth/session glue, API client facades, project/knowledge/capacity/operations/secret-management views, and a package-local hostable manifest. Reusable components and portable contracts belong in UI and SDK. |
 | `@treeseed/ui` | Reusable Treeseed UI system | Layout-down Astro/React components, current shell primitives, public stacked-section and knowledge-profile components, tabs, forms, controls, cards, dashboards, CSS/theme primitives, canonical account-time-zone-aware timestamp rendering, and the canonical enhanced form submission, field-validation, and toast lifecycle |
 | `@treeseed/core` | Installable Astro/Starlight Treeseed web runtime | Site layering, public content/runtime integration through UI public layouts, tenant config loading, plugin hooks, web-only runtime composition, foreground dev entrypoint delegation; does not own authenticated app chrome, agent scheduling, or provider execution |
 | `@treeseed/sdk` | Programmatic platform substrate | Config, reconciliation, workflow engine, hosting graph, package workflow discovery, SDK-managed local dev supervisor, shared contracts, canonical repository identity and custody contracts, graph/content APIs, TreeDX changeset clients, the canonical content-publication manifest and R2 provider, model-aware content operation contracts/rendering/validation, portable agent-capacity and artifact-reference contracts, the canonical TreeDX proxy-handle policy evaluator, and pure native accounting-window policy. SDK owns save/update/stage/close/release/recover/worktree safety; `stage` must merge staging down before mutation, preserve failed feature branches/worktrees, and clean up only after staging refs are verified. |
-| `@treeseed/api` | Deployed backend control-plane API | Hono API, package-local backend `treeseed.site.yaml`, PostgreSQL adapter/migrations, backend auth/provider state/reauthentication, account policy and time-zone persistence, trusted session client metadata, personal themes, notification projections/outbox, operation lifecycle, narrow transactional maintenance scans, one strict capacity mutation request-object boundary, governed workday scheduling as a read-only policy consumer, exact run-owned workday envelopes and required scheduling-failure recovery, one request-scoped durable demand compiler and assignment function, engineering graph/review projection, finite cyclic eleven-stage research workflow coordination with durable review-attempt and limit-blocked projection, typed admission/demand/participation/repository/lease/lifecycle services, strict workday-run and usage-evidence persistence, one lease-authority evaluator, one settlement-before-transition workday terminalizer, durable pre-admission capacity audit evidence, assignment-scoped idempotent mode-run/fallback persistence, token-owned admission/sole task-usage settlement transactions, recoverable post-admission TreeDX workspace/handle provisioning and authorization, reservation/phase-unique capacity ledger coordination, native-window reservation/settlement aggregation, and bounded diagnostic evidence |
+| `@treeseed/api` | Current combined backend migrating to the open Admin and platform control-plane API | It currently owns control-plane and commerce behavior. The migration retains identity, teams, projects, governance, TreeDX authorization, knowledge publication, capacity, operations, audit, realtime, PostgreSQL state, and operations runner here while moving commerce out. |
+| Market API | Planned private commerce extension and Admin-compatible gateway | `knowledge-coop/market-api` is declared but not yet created. It will proxy the complete Admin API baseline and own `/v1/market/**`, catalog, vendor, checkout, Stripe, orders, subscriptions, refunds, fulfillment, and central Market policy. |
 | `@treeseed/cli` | Human/operator command surface | `treeseed`/`trsd` command parsing, help, command handlers, terminal reporting, workflow entrypoints over SDK/Core/Agent. CLI exposes stage options and reporting but must not reimplement SDK-owned save/stage/release orchestration. |
 | `@treeseed/reviewer` | Local guarantee run review and AI workplan packaging | Standalone local web app, guarantee run selection/review UI, reviewer notes, evidence browsing, copied local evidence bundles, directive/workplan schemas, and Codex-ready handoff packages. It invokes existing CLI guarantee commands and must not own guarantee execution or release gating. |
 | `@treeseed/agent` | Capacity-provider and agent runtime | Provider manager/runner runtime, sole-entrypoint AgentKernel execution, canonical mode-run lifecycle telemetry, activity-profile and research-stage resolution, execution-provider adapters, required replay-safe provider telemetry delivery, assignment-scoped fail-closed tool catalogs, model-aware content and governed research tools, exact-ref worktree/checkpoint execution, provider-local capacity enforcement, runtime images/templates |
@@ -70,8 +71,10 @@ Allowed dependency direction:
 ui -> consumed by admin/core/market
 sdk -> core/admin/api/cli/agent
 core -> sdk + ui
-admin -> core + sdk + ui
-market -> admin + core + ui + HTTP/API client surfaces
+admin -> core + sdk + ui + Admin-compatible HTTP
+market -> admin + core + sdk + ui + current API HTTP (transition)
+market -> core + sdk + ui + Market API HTTP (target)
+market-api -> sdk + Admin API HTTP (target)
 api -> sdk
 cli -> sdk + core + selected public agent surfaces
 reviewer -> cli + sdk + ui
@@ -86,7 +89,8 @@ Boundary rules:
 - `ui` must not import from root market, `admin`, `core`, `api`, `agent`, or `cli`.
 - `core` may depend on `sdk` and `ui`; it must not depend on `admin`, `api`, `cli`, or `agent`.
 - `admin` may depend on `sdk`, `core`, and `ui`; it must not import root market source. `api` belongs behind HTTP/API facades or optional dev/test-only helpers.
-- `market` may consume public exports from `admin`, `core`, `ui`, and `sdk`, and may call the API through HTTP/proxy/client surfaces. It must not import backend implementation from `api`.
+- During migration, `market` may consume public Admin exports but must not add new Admin coupling. The target removes Admin imports and retains only `core`, `ui`, `sdk`, and Market API HTTP surfaces.
+- The future Market API extends Admin API by HTTP/protocol composition, never by importing Admin API implementation.
 - `api` may depend on `sdk`; it must not own web UI, admin routes, or reusable component primitives.
 - `cli` may depend on `sdk`, `core`, and narrow public `agent` surfaces where command execution requires them.
 - `reviewer` may depend on `cli`, `sdk`, and `ui`; it must remain local-only and must not become a release gate or hosted control plane.
