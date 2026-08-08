@@ -84,6 +84,7 @@ describe('Treeseed Drizzle schema baseline', () => {
 				'0013_planning_participant_nodes.sql',
 				'0014_legacy_capacity_accounting_nullable.sql',
 				'0015_remove_platform_repository_claims.sql',
+				'0016_session_events.sql',
 			]);
 		expect(existsSync(d1MigrationPath)).toBe(true);
 
