@@ -100,18 +100,20 @@ describe('anonymous auth appearance', () => {
 	it('locks the selected auth appearance into registration payload fields', () => {
 		const route = readFileSync(resolve(process.cwd(), 'packages/admin/src/pages/auth/register.astro'), 'utf8');
 		const form = readFileSync(resolve(process.cwd(), 'packages/ui/src/astro/auth/RegistrationForm.astro'), 'utf8');
+		const availability = readFileSync(resolve(process.cwd(), 'packages/ui/src/react/progressive/AvailabilityIsland.tsx'), 'utf8');
 		expect(route).not.toContain('Default appearance');
 		expect(route).toContain('appearance,');
 		expect(form).toContain('name="colorScheme"');
 		expect(form).toContain('name="themeMode"');
 		expect(form).toContain('data-auth-theme-scheme-field');
-		expect(form).toContain('treeseed:theme-change');
+		expect(availability).toContain('treeseed:theme-change');
 	});
 
 	it('returns anonymous defaults when no market user preference is available', async () => {
 		await expect(resolveUserThemePreference(createContext() as any, 'user-1')).resolves.toEqual({
 			scheme: 'fern',
 			mode: 'system',
+			workspace: { enabled: false, scheme: 'fern', mode: 'system' },
 		});
 	});
 
@@ -123,6 +125,7 @@ describe('anonymous auth appearance', () => {
 		await expect(resolveUserThemePreference(context as any, 'user-1')).resolves.toEqual({
 			scheme: 'tidepool',
 			mode: 'dark',
+			workspace: { enabled: false, scheme: 'tidepool', mode: 'dark' },
 		});
 	});
 
@@ -134,6 +137,7 @@ describe('anonymous auth appearance', () => {
 		await expect(setUserThemeCookies(context as any, 'user-1')).resolves.toEqual({
 			scheme: 'tidepool',
 			mode: 'dark',
+			workspace: { enabled: false, scheme: 'tidepool', mode: 'dark' },
 		});
 		expect(context.set).toHaveBeenCalledWith(COLOR_SCHEME_COOKIE, 'tidepool', expect.any(Object));
 		expect(context.set).toHaveBeenCalledWith(THEME_MODE_COOKIE, 'dark', expect.any(Object));
@@ -147,20 +151,20 @@ describe('anonymous auth appearance', () => {
 		expect(source).toContain('PersonalThemeManager');
 
 		const layout = readFileSync(resolve(process.cwd(), 'packages/admin/src/layouts/AppLayout.astro'), 'utf8');
-		expect(layout).toContain('treeseed:theme-change');
+		expect(layout).toContain('AppearancePersistenceIsland');
 		expect(layout).toContain('/v1/auth/web/appearance');
 	});
 
 	it('only persists explicit theme changes to the authenticated appearance API', () => {
 		const selector = readFileSync(resolve(process.cwd(), 'packages/ui/src/astro/theme/ThemeSelector.astro'), 'utf8');
-		expect(selector).toContain('persist }');
+		expect(selector).toContain('sync(true)');
 
-		const layout = readFileSync(resolve(process.cwd(), 'packages/admin/src/layouts/AppLayout.astro'), 'utf8');
-		expect(layout).toContain('detail.persist !== true');
-		expect(layout).toContain('colorScheme: detail.scheme');
-		expect(layout).toContain('themeMode: detail.mode');
-		expect(layout).toContain('shouldReloadAppearancePage(window.location.pathname, response.ok)');
-		expect(layout).toContain('window.location.reload()');
+		const island = readFileSync(resolve(process.cwd(), 'packages/ui/src/react/progressive/AppearancePersistenceIsland.tsx'), 'utf8');
+		expect(island).toContain('detail.persist !== true');
+		expect(island).toContain('colorScheme: detail.scheme');
+		expect(island).toContain('themeMode: detail.mode');
+		expect(island).toContain('reloadOnSuccessPath');
+		expect(island).toContain('window.location.reload()');
 	});
 
 	it('reloads successful theme changes only on the appearance account page', () => {

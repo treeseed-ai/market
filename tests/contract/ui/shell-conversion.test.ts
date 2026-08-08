@@ -9,7 +9,7 @@ describe('retained Admin shells', () => {
 		expect(activeTeamAction).toContain("cookies.set('treeseed_active_team'");
 		expect(activeTeamAction).toContain("path: '/app'");
 		for (const target of ['/app/', '/app/account', '/app/teams', '/app/teams/new']) expect(source).toContain(target);
-		for (const target of ['/app/projects', '/app/services', '/app/capacity', '/app/work', '/app/knowledge']) expect(source).toContain(target);
+		for (const target of ['/app/work', '/app/projects', '/app/services', '/app/knowledge']) expect(source).toContain(target);
 		expect(source).not.toContain('SensitiveDataUnlock');
 		expect(source).not.toContain('<style');
 	});
