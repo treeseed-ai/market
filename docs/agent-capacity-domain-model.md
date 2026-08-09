@@ -82,7 +82,7 @@ Every workday envelope created by a governed schedule stores the exact owning wo
 
 ## ProjectAgentClass
 
-A `ProjectAgentClass` groups project-owned agents by work semantics and capability needs.
+A `ProjectAgentClass` is a capacity-allocation category for project-owned execution demand. It supplies allocation and capability requirements only. It is not a content classification, group membership, signal filter, discussion audience, or Atlas containment mechanism.
 
 It includes:
 
@@ -134,7 +134,11 @@ It includes:
 
 Profiles are the source of prompt/tool/content variation. Handler id is implementation routing and cannot widen mode, tool, content, branch, or output scope.
 
-For planning coordination, `signals.subscribesTo` and `signals.publishes` are the only executable graph declarations. The SDK compiles selected activity profiles and immutable `treeseed.agent-signal/v1` contracts into one acyclic planning graph. Profiles without subscriptions and explicit external signals are roots. Every subscription must have an allowed producer; producer class, subscriber activity profile, filters, self-dependencies, joins, and cycles are validated before scheduling. `cardinality: each` instantiates one downstream assignment per matching signal subject. Artifacts remain durable outputs and evidence, never dependency edges.
+For planning coordination, `signals.subscribesTo` and `signals.publishes` are the only executable graph declarations. The SDK compiles selected activity profiles and immutable `treeseed.agent-signal/v1` contracts into one acyclic planning graph. Profiles without subscriptions and explicit external signals are roots. Every subscription must have an allowed producer; producer activity profile, subscriber activity profile, filters, self-dependencies, joins, and cycles are validated before scheduling. `cardinality: each` instantiates one downstream assignment per matching signal subject. Artifacts remain durable outputs and evidence, never dependency edges.
+
+Groups and signals are deliberately orthogonal. A signal is an immutable event and causal edge candidate. A group is durable project-local classification and membership metadata used to filter that evidence. A subscription may add `groupScope` after selecting its signal contract; group scope never creates an edge or assignment by itself. Eligibility is the intersection of signal evidence, group scope, activity-profile eligibility, estimate/decision/readiness state, and capacity admission. Agents declare direct membership plus one primary group. Agent class never contributes implicit membership. Content, agents, and people use the same project group identities; cross-project group references are semantic links and never propagate membership across project boundaries. Signal publication snapshots the subject content's explicit project groups at its immutable evidence revision. A legacy output without subject groups inherits only the producing agent's frozen primary group, with that fallback recorded in signal metadata; it never inherits the agent's full membership set.
+
+Group coordination policy owns proposal types, eligible activity profiles, participation bounds, human and agent roles, review quorum, handoffs, and allocation defaults. It does not repeat models, events, signal contracts, or subscriptions. When several groups match one signal, coordination resolves explicit scope first, then a shared primary group, then the most-specific shared direct or effective group. Equal-specificity ambiguity blocks rather than choosing lexically.
 
 The API freezes normalized profiles, signal contracts, proposal types, graph nodes, edges, immutable repository refs, and a digest into the workday before admission. Later repository or agent-definition changes cannot alter a running workday. A predecessor satisfies an edge only with a durable signal that validates against the frozen contract and carries its required commit or control-plane evidence. Downstream assignments receive the exact producer node, signal, subject, assignment, immutable reference, and evidence selected for every subscription.
 
@@ -206,7 +210,7 @@ It includes:
 
 The kernel must not expand beyond the envelope. Actual usage is reported against the same envelope.
 
-Planning and acting assignments both require reservation-backed envelopes for new work. Planning reservations use `mode: planning` and include planning-source metadata, workday id, allocation set id, project agent class id, agent id, and mode-budget details. Acting reservations remain tied to accepted decision execution work and capacity-plan provenance.
+Planning and acting assignments both require reservation-backed envelopes for new work. Planning reservations use `mode: planning` and include planning-source metadata, workday id, allocation set id, project agent class id, agent id, and mode-budget details. Estimate-producing planning is the bounded bootstrap exception: it needs no prior estimate but must reserve capacity and produce the declared structured estimate output. Every acting work unit and demand carries an exact accepted estimate id for the same project and approved decision, plus graph-node and capacity-plan provenance; admission and failover revalidate that estimate.
 
 ## DecisionExecutionInput
 
@@ -451,6 +455,8 @@ Window selection and arithmetic are SDK-owned pure primitives. API admission and
 ## Discussion Content And Capacity Boundary
 
 `discussion`, `discussion-message`, and `discussion-event` are Git-backed Astro content models. A user message is committed through TreeDX before an assignment is eligible. The content commit SHA and message path freeze the shared snapshot used by every mentioned agent. Assignment receipt, reservation, lease, provider lifecycle, mode-run messages, tools/output summaries, artifacts, usage, settlement, completion, failure, and recovery are projected as immutable Discussion events; terminal agent responses are Discussion messages.
+
+Discussion messages may also carry validated Atlas context references for a project, group, agent/profile, workday event position, signal, assignment, artifact, proposal, or decision. Historical references preserve immutable refs, paths, digests, and replay positions as evidence. They never confer mutation authority: Act rechecks current approval, readiness, permissions, and exact content revisions before dispatch.
 
 Discussion content is never a PostgreSQL aggregate. The API database may retain a Discussion identifier and committed content reference on otherwise generic operational records so that lifecycle evidence can be projected and recovered, but it does not own session state, message bodies, event history, search, or navigation.
 

@@ -46,16 +46,16 @@ Admin may use reusable controls from `@treeseed/ui`, but product-specific capaci
 
 ### Agent Lab monitoring foundation
 
-`/app/work` is the team Agent Lab and remains inside the authenticated Product Shell and Command mode. Its first browser slice is deliberately monitoring-only:
+`/app/work` is the team Agent Lab and remains inside the authenticated Product Shell and Command mode. Its primary workspace is the Agent Atlas:
 
-- API owns the revisioned operating-day overview, activity delta, metric-series delta, and typed entity-summary projections.
-- SDK owns the portable projection and account-preference contracts.
-- UI owns the compact status bar, nine-metric rail, monitor toggles, responsive chart dock, Agent Activity Gantt, metric-history chart, entity cards, filters, and one non-overlapping polling coordinator.
-- Admin owns authenticated server snapshots, active-team authorization, metric destinations, route composition, and Agent Lab terminology.
+- API owns frozen workday topology, live/as-of reduction, deterministic portfolio replay, assignment-graph aggregation, durable event projection, and authorized detail projections.
+- SDK owns presentation-neutral Atlas scope, topology, cursor, delta, event, assignment-lineage, authoring, and Discussion-context contracts.
+- UI owns reusable circuit layout, viewport controls, metric sizing, replay controls, operation docks, full-content overlays, compact vitals, and research-mode presentation without importing SDK or API code.
+- Admin owns authenticated server bootstrap, URL state, active-team authorization, shell composition, authoring permission, and the bridge into Discussion.
 
-Real-time cadence is an account preference with enabled/off and 2, 5, 15, or 30 second base intervals. Off means server-rendered snapshot only. Polling pauses while hidden or offline, uses ETags and opaque cursors, applies durable keyed changes without page replacement, and preserves focus, scroll, filters, dialogs, and chart state. Closed charts do not request their heavier projections. The activity chart groups project and agent identity while reserving one stable lane for each activity profile.
+Historical playback always uses the topology frozen into the workday parameters beside the planning graph. Live portfolio mode uses current scopes plus active frozen revisions and exposes incompatible variants rather than merging them. The browser applies API-owned projections and deltas; it does not reconstruct as-of state. Event and assignment lists retain durable order, and moving away from the live edge is never interrupted by newly arriving events.
 
-The same monitoring header appears on the Agent Lab root, workday detail, agents, workdays, events, assignments, executions, and artifacts routes. These initial collection routes are intentionally card-based shells; specialized entity dialogs and authoring/governance operations remain later slices.
+The same monitoring header appears on the Agent Lab root and specialized entity routes. Vital metrics support expanded and compact density. Metric history remains available through monitor overlays rather than competing with the Atlas as a second homepage. Standard and research layouts compose the same workspace instance.
 
 Implemented Architecture Milestone M4 surfaces:
 

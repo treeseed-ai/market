@@ -220,6 +220,7 @@ Goal: give operators enough visibility to trust allocation, assignment, and runt
 Implemented boundaries:
 
 - Admin displays allocation-set versions, portfolio/project/agent-class allocation, planning/acting splits, provider sessions, assignment status, mode runs, usage, fallback outputs, TreeDX proxy audit rows, blockers, and drift between policy and actual usage.
+- Agent Lab composes the API-owned Atlas projection into live portfolio and immutable historical replay views, with scoped durable events, assignment lineage, TreeDX authoring, and evidence-bound Discussion context.
 - CLI exposes JSON-first commands for capacity plan inspection, provider status, session/assignment diagnostics, decision readiness, execution inputs, workday summaries, assignment explanations, fallback outputs, TreeDX proxy audits, local runtime proof, and mode-run inspection.
 - UI and CLI must distinguish configuration, live observation, reconciler-backed lifecycle, and durable runtime records.
 - Avoid making Admin or CLI own scheduling logic; both consume API/SDK contracts.
@@ -227,6 +228,7 @@ Implemented boundaries:
 Acceptance criteria:
 
 - Admin exposes `/app/capacity/runtime` with allocation-set versions, project agent classes, provider sessions, provider assignments, project mode-run telemetry, fallback outputs, and TreeDX proxy audit evidence.
+- Admin exposes one reusable `/app/work` Atlas workspace in standard, compact-vitals, and research modes; no metric-dashboard or alternate Atlas implementation owns the homepage in parallel.
 - CLI exposes `trsd capacity allocation-sets`, `agent-classes`, `availability-sessions`, `assignments`, `mode-runs`, `execution-runs`, `workday-log`, `decision-planning`, `execution-inputs`, `workday`, `workday-summary`, `assignment-explanation`, `fallback-outputs`, and `treedx-proxy-audit` as JSON-first read commands beside the existing lifecycle verbs. Forensic reads fail visibly on API or storage uncertainty rather than substituting an empty trace.
 - A developer can debug local provider lifecycle from CLI and inspect API-owned coordination records without reading provider-local files directly.
 - Allocation policy and actual usage can be compared by project, agent class, mode, provider, and execution provider as the API emits those records.
