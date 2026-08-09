@@ -274,6 +274,7 @@ Runtime verification should continue to prove:
 - research source tools expose only the provider/project domain intersection, and the eleven-stage workflow advances only from authenticated citation, claim, review, TreeDX artifact, publication, and reporting evidence
 - two-slot acceptance runs distinct project assignments through separate runners and TreeDX workspaces, with overlapping durable claim intervals and independently settled usage
 - availability authority remains fresh throughout any assignment longer than the short session TTL, without a background acceptance scheduler pre-leasing later graph work
+- every forensic runtime phase continues through the canonical workday event stream with assignment, agent/profile, provider, runner, execution-provider, signal, TreeDX artifact, usage, and failure references needed for Atlas replay; the runtime does not create an Atlas event store
 
 AgentKernel authority ends at the assignment checkpoint and artifact manifest. It never integrates that checkpoint into an operator branch. The separate SDK/CLI supervisor operation reads the API-selected deliverable manifest and repository topology, revalidates the completed graph and immutable Git evidence, and stops at a local task-branch integration. Normal `trsd save`, stage, release, and deployment controls remain outside AgentKernel and the provider runtime.
 
