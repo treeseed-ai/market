@@ -54,7 +54,7 @@ activityProfiles:
     signals: { subscribesTo: [{ contract: evidence-ready, producerPolicy: all }], publishes: [proposal-ready] }
     outputs: { messageTypes: [source_map_created], modelMutations: [linked_note:create, question:create, proposal:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
-    execution: { providerPreference: [codex-treeseed], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
+    execution: { requiredCapabilities: [agent-execution], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
   reviewing:
     activityType: reviewing
     enabled: true
@@ -73,7 +73,7 @@ activityProfiles:
     signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each, filters: { proposalTypes: [knowledge-architecture] } }], publishes: [proposal-reviewed] }
     outputs: { messageTypes: [docs_mutation_completed], modelMutations: [proposal_feedback:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
-    execution: { providerPreference: [codex-treeseed], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
+    execution: { requiredCapabilities: [agent-execution], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
   acting:
     activityType: acting
     enabled: true
@@ -87,7 +87,7 @@ activityProfiles:
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
     outputs: { messageTypes: [docs_mutation_completed], modelMutations: [knowledge_update:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
-    execution: { providerPreference: [codex-treeseed], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: true }
+    execution: { requiredCapabilities: [agent-execution], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: true }
   estimating:
     activityType: estimating
     enabled: true
@@ -99,7 +99,7 @@ activityProfiles:
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files] }
     signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each }], publishes: [proposal-estimated] }
     outputs: { messageTypes: [], modelMutations: [estimate:create] }
-    execution: { providerPreference: [codex-treeseed], maxRuntimeSeconds: 600, maxRetries: 1, verificationRequired: false }
+    execution: { requiredCapabilities: [agent-execution], maxRuntimeSeconds: 600, maxRetries: 1, verificationRequired: false }
 ---
 
 The Knowledge Cartographer owns graph quality, not product truth or publication authority.
