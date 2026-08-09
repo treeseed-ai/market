@@ -179,8 +179,8 @@ describe('web runtime boundaries', () => {
 			},
 		});
 		expect(site.publicTreeDxFederation?.railway?.nodePool).toEqual({
-			bootstrapCount: 2,
-			maxNodes: 4,
+			bootstrapCount: 3,
+			maxNodes: 12,
 		});
 		const serialized = JSON.stringify(site.services?.operationsRunner ?? {});
 		expect(serialized).not.toMatch(/provider:|capacity|TREESEED_CAPACITY_PROVIDER_API_KEY|provider:tasks|provider:heartbeat/u);
