@@ -87,7 +87,7 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 - `@treeseed/admin`: distributable AGPLv3 administration portal layered on core/ui; owns admin routes, middleware, auth/session glue, API client facades, admin view models, catalog display, and secret-manager UI/contracts
 - `@treeseed/market`: root hosted Treeseed tenant; owns public site, content, docs, page overrides, the root web tenant `treeseed.site.yaml`, Treeseed branding, and future ecommerce/business policy
 - `@treeseed/agent`: processing runtime, provider API, provider manager, provider runner, worker runtime, AgentKernel execution, mode scheduling, built-in handlers, agent testing harnesses, provider-local capacity enforcement, runtime images/templates, and runtime support modules
-- `@treeseed/ai`: independently installable local AI appliance; will own vLLM inference, Axolotl training, hardware diagnostics, and appliance supervision while consuming SDK contracts and API-governed capacity assignments; currently metadata-only
+- `@treeseed/ai`: independently installable local AI appliance; owns SDK-reconciled vLLM inference, the authenticated inference gateway, hardware diagnostics, appliance supervision, and packaging while consuming SDK contracts and API-governed capacity assignments; Axolotl training and adapter lifecycle remain planned
 - `@treeseed/api`: Treeseed backend API, package-local backend `treeseed.site.yaml`, Treeseed PostgreSQL adapter, migrations, operation lifecycle, route descriptors, and Treeseed operations runner
 - `@treeseed/cli`: operator and developer CLI workflows
 - `@treeseed/reviewer`: local-only guarantee run review UI, screenshot/log triage, reviewer notes, evidence bundling, and AI-agent workplan generation

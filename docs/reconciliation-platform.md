@@ -23,7 +23,7 @@ Repository identity is the normalized provider, host, owner, and repository tupl
 - root `@treeseed/market` currently owns the combined hosted tenant and is migrating toward ecommerce/public-market-only scope and Market API integration.
 - `@treeseed/api` owns the package-local backend `treeseed.site.yaml`, API, operations runner, PostgreSQL, backend route descriptors, public TreeDX federation app desired state, capacity-provider service bindings, and durable capacity coordination records such as provider sessions, assignments, mode runs, reservations, and usage settlement.
 - `@treeseed/agent` owns capacity-provider runtime artifacts, provider desired state, provider manager/runner behavior, AgentKernel execution, and provider-local lifecycle.
-- `@treeseed/ai` will own the separable local inference/training appliance and its machine-level supervision. Its future processes must be declared through package-owned desired state and reconciled by SDK operations; the initialization scaffold declares no runtime resources.
+- `@treeseed/ai` owns the separable local inference appliance and its machine-level supervision. Its package-owned vLLM Compose resource is reconciled through SDK operations; the authenticated gateway, diagnostics, management API, systemd service, and Debian artifact remain outside project scheduling and repository mutation. Training and adapter lifecycle remain planned and must use the same reconciliation boundary.
 - `packages/treedx` owns the TreeDX image/service artifact; API hosting consumes selected TreeDX images.
 - `@treeseed/ui` owns no infrastructure; it contributes components and styles only.
 
