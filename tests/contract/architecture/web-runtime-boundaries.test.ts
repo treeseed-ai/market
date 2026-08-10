@@ -73,15 +73,22 @@ describe('web runtime boundaries', () => {
 		expect(siteConfig).not.toMatch(/\bworkdayManager:|\bworkerRunner:|treeseed-processing/u);
 	});
 
-	it('keeps root Market as the only hosted site manifest layered on admin', () => {
+	it('keeps Market and standalone Admin manifests independently owned', () => {
 		const rootSite = parse(readFileSync('treeseed.site.yaml', 'utf8')) as any;
+		const adminSite = parse(readFileSync('packages/admin/treeseed.site.yaml', 'utf8')) as any;
 		const siteManifests = files('.')
 			.filter((path) => path.endsWith('treeseed.site.yaml'))
 			.filter((path) => !path.includes('/node_modules/'))
 			.filter((path) => !path.includes('/dist/'));
 
 		expect(siteManifests).toContain('treeseed.site.yaml');
-		expect(siteManifests).not.toContain('packages/admin/treeseed.site.yaml');
+		expect(siteManifests).toContain('packages/admin/treeseed.site.yaml');
+		expect(adminSite).toMatchObject({
+			slug: 'treeseed-admin',
+			siteUrl: 'https://admin.treeseed.dev',
+			surfaces: { web: { rootDir: '.', environments: { staging: { domain: 'admin.preview.treeseed.dev' } } } },
+		});
+		expect(existsSync('packages/admin/.github/workflows/deploy.yml')).toBe(false);
 		expect(rootSite.plugins?.map((plugin: any) => plugin.package)).toContain('@treeseed/admin/plugin');
 		const forbiddenRootAdminPaths = [
 			'src/pages/app',
