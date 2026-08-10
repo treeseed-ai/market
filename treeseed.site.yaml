@@ -2,6 +2,12 @@ name: TreeSeed Market
 slug: treeseed-market
 siteUrl: https://treeseed.dev
 contactEmail: hello@treeseed.email
+authority:
+  kind: market-singleton
+market:
+  profile: treeseed
+controlPlane:
+  mode: market-passthrough
 hosting:
   kind: self_hosted_project
   registration: none
