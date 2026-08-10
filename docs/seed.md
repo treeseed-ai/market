@@ -984,7 +984,7 @@ CREATE project treeseed/agent
 CREATE capacity provider treeseed-local-dev
 CREATE grant treeseed/local-dev -> treeseed portfolio
 CREATE work policy treeseed portfolio/local
-CREATE repository host github/knowledge-coop
+CREATE repository host github/treeseed-ai
 CREATE repository host github/treeseed-ai
 CREATE product template/treeseed-market
 CREATE catalog artifact treeseed/market-template@1.0.0

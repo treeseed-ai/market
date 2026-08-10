@@ -1000,4 +1000,4 @@ Do not reuse directly:
 * task credit/capacity reservation model for platform jobs
 * team/provider budget and lane UI concepts
 
-The clean result is a Market that can operate itself through deterministic platform jobs while keeping the knowledge-coop execution model intact: teams get capacity providers for their project work; TreeSeed gets a platform runner for Market operations.
+The clean result is a Market that can operate itself through deterministic platform jobs while keeping the treeseed-ai execution model intact: teams get capacity providers for their project work; TreeSeed gets a platform runner for Market operations.

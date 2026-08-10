@@ -334,20 +334,20 @@ Goal: seed the TreeSeed private team with the Market project and all first-party
 
 Status: implemented as the exact-nine TreeSeed first-party portfolio seed.
 
-Implementation note: `seeds/treeseed.yaml` and the API seed mirror now seed exactly nine TreeSeed projects: the private Market project from `knowledge-coop/market` plus the public API, TreeDX, SDK, UI, CLI, Core, Admin, and Agent package projects from `treeseed-ai/*`. The previous Karyon live-proof project and content repository are intentionally removed from this seed. Repository access is represented only by `credentialRef: env:TREESEED_GITHUB_TOKEN` on the `knowledge-coop` and `treeseed-ai` repository hosts. Package projects use their `treeseed.package.yaml` architecture values with `sitePath: "docs"` and docs readiness as diagnostics, not blockers.
+Implementation note: `seeds/treeseed.yaml` and the API seed mirror now seed exactly nine TreeSeed projects: the private Market project from `treeseed-ai/market` plus the public API, TreeDX, SDK, UI, CLI, Core, Admin, and Agent package projects from `treeseed-ai/*`. The previous Karyon live-proof project and content repository are intentionally removed from this seed. Repository access is represented only by `credentialRef: env:TREESEED_GITHUB_TOKEN` on the `treeseed-ai` and `treeseed-ai` repository hosts. Package projects use their `treeseed.package.yaml` architecture values with `sitePath: "docs"` and docs readiness as diagnostics, not blockers.
 
 Implementation scope:
 
 - Update `seeds/treeseed.yaml`.
 - Keep `team:treeseed` as the private TreeSeed team.
 - Add or update repository hosts:
-  - `knowledge-coop` with `credentialRef: env:TREESEED_GITHUB_TOKEN`.
+  - `treeseed-ai` with `credentialRef: env:TREESEED_GITHUB_TOKEN`.
   - `treeseed-ai` with `credentialRef: env:TREESEED_GITHUB_TOKEN`.
 - Add these projects:
 
 | Project | Visibility | Repository | Site Path | Topology |
 | --- | --- | --- | --- | --- |
-| TreeSeed Market | private | `knowledge-coop/market` | `.` | `single_repository_site` |
+| TreeSeed Market | private | `treeseed-ai/market` | `.` | `single_repository_site` |
 | TreeSeed API | public | `treeseed-ai/api` | `docs` | `single_repository_site` |
 | TreeDX | public | `treeseed-ai/treedx` | `docs` | `single_repository_site` |
 | TreeSeed SDK | public | `treeseed-ai/sdk` | `docs` | `single_repository_site` |

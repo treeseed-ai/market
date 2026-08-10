@@ -2600,7 +2600,7 @@ One staging deploy can be run against a real disposable GitHub/Cloudflare target
 
 ## 21. Architectural Rationale
 
-This plan benefits TreeSeed’s knowledge-coop direction because deployment becomes part of the same governable operational memory chain as workdays, decisions, and knowledge artifacts.
+This plan benefits TreeSeed’s treeseed-ai direction because deployment becomes part of the same governable operational memory chain as workdays, decisions, and knowledge artifacts.
 
 A deployment is not just a button. It becomes a durable operational event connected to:
 
