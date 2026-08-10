@@ -51,7 +51,15 @@ runtime:
         - project:treeseed/research
         - project:treeseed/information-hub
       allowedModes: [planning, acting]
-      executionProviderIds: [codex, opencode, copilot, treeseed]
+      executionProviderIds:
+        - codex-sub
+        - codex-key
+        - codex-treeseed
+        - ghcopilot-key
+        - ghcopilot-treeseed
+        - opencode-sub
+        - opencode-key
+        - opencode-treeseed
   agentLabServicePrincipals: []
 
 operationRecipes: []
