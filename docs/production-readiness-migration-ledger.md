@@ -65,6 +65,7 @@ Updated: 2026-08-11
 
 ### Repository federation
 
+- Latest verified full federation before this ledger-only checkpoint: `3768153910c1bedb3986d18d916828a4441418035c8f7d5de55dd7c5aac83340`; root `12918d30e5437cbfa22ca87ba283ade81730d9a5`; 14 repositories with fresh remote proof. SDK authority implementation: `26551496454f36a32dfbbb92d328ca967e8a1e08`; CLI reporting: `5a9b5c0aa5bd3e6098bbf99f7728c88004634c4d`.
 - Latest verified full federation after the API runtime-plane gate: `9239393aed7436a965c5a0321ab5baff5f2ac26e649c5c9e4d4866e7c6586c0f`; root `cd599155ba61cfbdb0d8d79d92d1fd2314710365`; 14 repositories with fresh remote proof.
 - Latest verified full federation before the ledger-only checkpoint: `acc41b230fc5f37d22bc5fb6c05e713f0518b4210e1dc33854b9ec070b8edf02`; root `0d4c3e94de21d17953876aad15930c468150a305`; 14 repositories with fresh remote proof.
 - Latest verified full federation before the singleton gateway reconciliation: `2e3726da4242bfb170862911150f6d6be36b86ebac531db25a61ed8d91739178`.
