@@ -69,6 +69,14 @@ The operation authenticates every `treeseed-ai/*` read and push with the central
 
 The old software-repository content workflow remains in place until the matching content repository and R2 publication verify. After cutover, content publication is manual or release-driven through `trsd content publish`; a Git push does not directly mutate R2.
 
+## Live authority checkpoint
+
+The staging migration now treats the live GitHub repositories as input, not the seed manifest as evidence. The Platform portfolio has thirteen paired content repositories with verified `main`, `staging`, and migration-history refs. `trsd content publish --seed treeseed --branch staging` fetches each exact live staging commit into an isolated checkout, verifies the ref before and after publication, and writes project-scoped immutable R2 releases. Replays reuse every object and upload zero objects.
+
+Local TreeDX reconciliation derives each paired content repository from the seed, fetches only its validated `refs/heads/staging` ref, compares the resolved TreeDX commit with fresh GitHub observations before and after fetch, and indexes that exact commit. Split-content projects never seed TreeDX from the software checkout. Interrupted Git fetch recovery is limited to an expired lock for the exact validated destination ref; unsafe or broad refspecs remain rejected. A converged replay must report `noop` for the TreeDX unit and an exact live-ref verification for every project.
+
+This checkpoint authorizes package metadata cutover to `split_site_content`, `src/content`, `r2_preview_overlay`, and `localContentMaterialization: none`. It does not yet authorize deleting the old software content paths: each runtime must first prove it serves the R2 staging publication without a disk fallback.
+
 ## Runtime paths
 
 Published objects are immutable:

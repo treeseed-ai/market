@@ -36,6 +36,7 @@ resources:
         topology: split_site_content
         rootPath: .
         sitePath: .
+        contentPath: src/content
         contentRuntimeSource: r2_preview_overlay
         localContentMaterialization: none
         requiresLocalContentForCi: false
@@ -69,6 +70,7 @@ resources:
         topology: split_site_content
         rootPath: .
         sitePath: docs
+        contentPath: src/content
         contentRuntimeSource: r2_preview_overlay
         localContentMaterialization: none
         requiresLocalContentForCi: false
