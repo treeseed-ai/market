@@ -63,6 +63,7 @@ Updated: 2026-08-11
 
 ### Repository federation
 
+- Latest verified full federation after the API runtime-plane gate: `9239393aed7436a965c5a0321ab5baff5f2ac26e649c5c9e4d4866e7c6586c0f`; root `cd599155ba61cfbdb0d8d79d92d1fd2314710365`; 14 repositories with fresh remote proof.
 - Latest verified full federation before the ledger-only checkpoint: `acc41b230fc5f37d22bc5fb6c05e713f0518b4210e1dc33854b9ec070b8edf02`; root `0d4c3e94de21d17953876aad15930c468150a305`; 14 repositories with fresh remote proof.
 - Latest verified full federation before the singleton gateway reconciliation: `2e3726da4242bfb170862911150f6d6be36b86ebac531db25a61ed8d91739178`.
 - Transitional integration root ref at that checkpoint: `ee852d4b5cdd94184b9b22497535e159abc8254b`.
@@ -81,6 +82,7 @@ Updated: 2026-08-11
 
 ### Control-plane and singleton gateway
 
+- Public Admin API feature ref `25807b1371e4493da467de617e8da330cdbc31ad` classifies every descriptor route by runtime plane. The generated 579-route artifact currently reports 429 Admin routes, 150 Market routes, and `migrationReady: false`; full local verification passed 504 tests with 4 intentional skips plus the isolated acceptance matrix.
 - The Platform compiler supports `market-passthrough`, `external`, and `managed` modes and rejects inconsistent explicitly declared topology. Managed mode requires API, database, operations runner, and public TreeDX federation; pass-through and external modes reject those Platform-owned control-plane resources.
 - Market operations remain fixed to the immutable `treeseed` singleton profile and customer plans cannot declare a Market API service.
 - Bounded SDK staging gateway contract: `93690c1bcb569ac11554c16a03ba253dd8a8a141`; bounded CLI staging migration contract: `5e1b165814e22b81726cb2e68743a5c3bd4eac06`.
