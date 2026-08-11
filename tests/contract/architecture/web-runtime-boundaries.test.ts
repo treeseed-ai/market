@@ -364,6 +364,7 @@ describe('web runtime boundaries', () => {
 		}
 		const intentionallyShared = new Set([
 			'TREESEED_API_BASE_URL',
+			'TREESEED_GITHUB_TOKEN',
 			'TREESEED_CAPACITY_ACCEPTANCE_ADMIN_TOKEN',
 			'TREESEED_CAPACITY_ACCEPTANCE_AGENT_CLASS_ID',
 			'TREESEED_CAPACITY_ACCEPTANCE_API_URL',

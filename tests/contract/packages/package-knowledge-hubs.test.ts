@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import yaml from 'yaml';
@@ -16,23 +16,11 @@ const packageSlugs = [
 	'treedx',
 ] as const;
 
-const agentSlugs = [
-	'architect',
-	'engineer',
-	'releaser',
-	'reporter',
-	'researcher',
-	'reviewer',
-	'technical-writer',
-	'tester',
-] as const;
-
 describe('first-party package knowledge hubs', () => {
-	it('prepares each package as a standalone docs knowledge hub project', () => {
+	it('prepares each package docs runtime for its authoritative published content repository', () => {
 		for (const slug of packageSlugs) {
 			const packageRoot = resolve(repoRoot, 'packages', slug);
 			const docsRoot = resolve(packageRoot, 'docs');
-			const contentRoot = resolve(docsRoot, 'src/content');
 			const manifest = yaml.parse(readFileSync(resolve(docsRoot, 'src/manifest.yaml'), 'utf8'));
 			const packageManifest = yaml.parse(readFileSync(resolve(packageRoot, 'treeseed.package.yaml'), 'utf8'));
 
@@ -45,22 +33,10 @@ describe('first-party package knowledge hubs', () => {
 			expect(manifest.content.agents).toBe('./src/content/agents');
 			expect(packageManifest.projectArchitecture).toMatchObject({
 				sitePath: 'docs',
-				contentPath: 'docs/src/content',
-				localContentMaterialization: 'existing_path',
+				contentPath: 'src/content',
+				contentRuntimeSource: 'r2_preview_overlay',
+				localContentMaterialization: 'none',
 			});
-
-			const objectiveFiles = readdirSync(resolve(contentRoot, 'objectives')).filter((file) => file.endsWith('.md') || file.endsWith('.mdx'));
-			expect(objectiveFiles, slug).toEqual(['core.md']);
-			expect(readFileSync(resolve(contentRoot, 'objectives/core.md'), 'utf8')).toContain('Core Objective');
-
-			const agentFiles = readdirSync(resolve(contentRoot, 'agents')).filter((file) => file.endsWith('.mdx')).sort();
-			expect(agentFiles, slug).toEqual(agentSlugs.map((agentSlug) => `${agentSlug}.mdx`).sort());
-			for (const agentSlug of agentSlugs) {
-				const source = readFileSync(resolve(contentRoot, 'agents', `${agentSlug}.mdx`), 'utf8');
-				expect(source).toContain(`slug: ${agentSlug}`);
-				expect(source).toContain('TreeSeed project');
-				expect(source).toContain('TreeDX-backed content');
-			}
 		}
 	});
 });
