@@ -53,8 +53,8 @@ Updated: 2026-08-11
 
 ### Platform extraction
 
-- Live Platform `main` at this checkpoint: `e74d6f05ca8a6bc2d96c32c8ad07f9a75e0650a4`.
-- Live Platform `staging` at this checkpoint: `bd9fa82a901dfa66ec8758547398749d8e5fb3cc`.
+- Verified Platform snapshot immediately before this ledger update: main `a86a73ef3723ef20ff70e054929be611ce66637d`; staging `25ebbff2ab83117b27369a05316b2c508b9fdc3d`.
+- The latest Platform refs are intentionally authoritative in `.treeseed/repository-migrations/treeseed-ai--platform--platform-workspace.json` and fresh GitHub read-back rather than copied back into this file: this ledger is itself part of the filtered Platform snapshot, so embedding its post-update target commit would be self-referential.
 - Both branches have verified migration receipts and the extraction replay is all `noop`.
 - A clean Platform clone passes `npm run verify`.
 - A live workset materializes 13 exact, detached repositories and replays as 13 `noop` actions.
@@ -83,12 +83,13 @@ Updated: 2026-08-11
 
 - The Platform compiler supports `market-passthrough`, `external`, and `managed` modes and rejects inconsistent explicitly declared topology. Managed mode requires API, database, operations runner, and public TreeDX federation; pass-through and external modes reject those Platform-owned control-plane resources.
 - Market operations remain fixed to the immutable `treeseed` singleton profile and customer plans cannot declare a Market API service.
-- Bounded SDK staging gateway contract: `ae3efe1bd91ebc0e0ea50fb460a89f8abbc227a0`; bounded CLI staging migration contract: `da8bf211fa65410c1a5d4bb855703af753c954c4`.
-- Private Market API main: `6a2d1f701c20cdbdd8ec3b3988beb7c9fe8cd720`; staging: `db363697e0df2f2fdefc75c2fdc2c6cbbed9d138`.
+- Bounded SDK staging gateway contract: `93690c1bcb569ac11554c16a03ba253dd8a8a141`; bounded CLI staging migration contract: `154d962138b8432e0e4f7cfb132fca5dc5321bdd`.
+- Private Market API main: `200d08c55e78254d2ccd4bf49d9329adde3b1368`; staging: `d221c7b6a41c7cef7af726665eeb7c3a3e7e3286`.
 - The singleton manifest pins Admin API `76508e4d55a179340899a58cb1bafc1dab7c8be4` and descriptor `sha256:a1db527487273f6a531551cfdc6d1be2ae84353a9e0dc37391729983c98a2090`.
 - A clean private staging clone passes `npm ci`, TypeScript build, and all five gateway/descriptor tests. The managed lockfile pins the exact SDK commit and CI uses the lockfile.
 - A built-server acceptance run against a disposable local Admin upstream proves exact descriptor routing, HTTP `429` and structured body propagation, two independent `Set-Cookie` headers, rate-limit propagation, internal-secret stripping, signed identity forwarding, and a real `101` WebSocket upgrade through the generated private server.
 - SDK transport coverage proves streaming request/response bounds, immediate SSE delivery, client cancellation distinct from timeout, contained assertion failure, hop-by-hop removal, exact method/path admission, WebSocket route rejection, bidirectional socket data, and structured upgrade timeout. The complete fast suite passes 1,394 tests across 367 files.
+- SDK feature `57c333a3d8ceb38dcf60dbbfe41c427a5fdf6ff5` and repository receipt `984c7dbc4014d631741cea5f1d19bfbb94e3c93f169c74d54c75c287d93552c9` separate capacity-provider `TREESEED_MARKET_API_BASE_URL` from the resolved `TREESEED_API_BASE_URL`. Pass-through, external, and managed reconciliation cases pass; the bounded staging overlay includes the resolver and test.
 - This is repository and contract acceptance only. No hosted Railway or Cloudflare deployment occurred.
 
 ### Content repositories
@@ -194,7 +195,7 @@ The HTTP proxy exposed an injectable WebSocket callback, but the generated Node 
 
 ### Managed control-plane configuration is ahead of its lifecycle command
 
-The typed deploy configuration and generic reconciler already distinguish `market-passthrough`, `external`, and `managed`, reject customer-owned Market resources, and can compile API, PostgreSQL, operations-runner, public TreeDX, DNS, secrets, and runtime variables. The audit found no journaled `trsd control-plane migrate` workflow yet. It also found capacity-provider paths that still use the legacy `marketUrl` name for control-plane connectivity and can assign that value to `TREESEED_API_BASE_URL`. Those paths must consume an explicitly resolved control-plane URL, while `TREESEED_MARKET_API_BASE_URL` remains fixed to the singleton, before sovereignty guarantees can become active.
+The typed deploy configuration and generic reconciler already distinguish `market-passthrough`, `external`, and `managed`, reject customer-owned Market resources, and can compile API, PostgreSQL, operations-runner, public TreeDX, DNS, secrets, and runtime variables. The audit found no journaled `trsd control-plane migrate` workflow yet. Capacity-provider deployment variables now preserve the central Market URL separately from the resolved control plane, including root-managed API domains. Agent provider manifests and persisted connection state still use the legacy `marketUrl` name for control-plane connectivity; that terminology and end-to-end protocol wiring must be migrated atomically before sovereignty guarantees can become active.
 
 ### Receipt graph refreshes cascade by exact dependency
 
