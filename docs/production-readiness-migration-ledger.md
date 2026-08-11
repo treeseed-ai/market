@@ -83,10 +83,12 @@ Updated: 2026-08-11
 
 - The Platform compiler supports `market-passthrough`, `external`, and `managed` modes and rejects inconsistent explicitly declared topology. Managed mode requires API, database, operations runner, and public TreeDX federation; pass-through and external modes reject those Platform-owned control-plane resources.
 - Market operations remain fixed to the immutable `treeseed` singleton profile and customer plans cannot declare a Market API service.
-- Bounded SDK staging gateway contract: `7406c10e7010a719b6fea8f5710c59f2371cd8e5`; bounded CLI staging migration contract: `2aebb0c6921b621025fabf7f550c5503952e395c`.
-- Private Market API main: `3e1a8497bf671a8c3b2d0809b135a105f3ab15e3`; staging: `e0ed700642b2dc1d60e2ca666c8ffbfc329588f8`.
+- Bounded SDK staging gateway contract: `ae3efe1bd91ebc0e0ea50fb460a89f8abbc227a0`; bounded CLI staging migration contract: `03aadafd8512fa7c6e818041a45d8f23108294fd`.
+- Private Market API main: `6a2d1f701c20cdbdd8ec3b3988beb7c9fe8cd720`; staging: `db363697e0df2f2fdefc75c2fdc2c6cbbed9d138`.
 - The singleton manifest pins Admin API `76508e4d55a179340899a58cb1bafc1dab7c8be4` and descriptor `sha256:a1db527487273f6a531551cfdc6d1be2ae84353a9e0dc37391729983c98a2090`.
 - A clean private staging clone passes `npm ci`, TypeScript build, and all five gateway/descriptor tests. The managed lockfile pins the exact SDK commit and CI uses the lockfile.
+- A built-server acceptance run against a disposable local Admin upstream proves exact descriptor routing, HTTP `429` and structured body propagation, two independent `Set-Cookie` headers, rate-limit propagation, internal-secret stripping, signed identity forwarding, and a real `101` WebSocket upgrade through the generated private server.
+- SDK transport coverage proves streaming request/response bounds, immediate SSE delivery, client cancellation distinct from timeout, contained assertion failure, hop-by-hop removal, exact method/path admission, WebSocket route rejection, bidirectional socket data, and structured upgrade timeout. The complete fast suite passes 1,394 tests across 367 files.
 - This is repository and contract acceptance only. No hosted Railway or Cloudflare deployment occurred.
 
 ### Content repositories
@@ -120,7 +122,7 @@ Updated: 2026-08-11
 | Standalone Platform root | Operational, cutover pending | Normal development starts from Platform; transitional Market gitlinks and orchestration are removed. |
 | Receipt-based federation | Implemented | Stage consumes the reviewed receipt in a real promotion and repeat execution remains `noop`. |
 | Control-plane modes | In progress | Typed routing and explicit topology validation compile; full managed reconciliation and sovereignty acceptance remain. |
-| Market gateway/Admin pass-through | In progress | Generated private workspace, exact descriptor pin, route admission, health/readiness, lockfile, and clean-clone verification pass; cookie, SSE, WebSocket, timeout, cancellation, size-bound, and deployed integration acceptance remain. |
+| Market gateway/Admin pass-through | In progress | Repository-level HTTP, cookie, SSE, WebSocket, timeout, cancellation, size-bound, error, idempotency, rate-limit, descriptor, health/readiness, and clean-clone acceptance pass; hosted integration remains suspended and unproven. |
 | Market/Admin UI split | Not complete | Admin contains no Market implementation; Market owns commerce and ecosystem-governance routes. |
 | Routed SDK transport | Not complete | One client routes Market and control-plane methods correctly in every control-plane mode. |
 | Sovereign migration | Not complete | Journaled export/import/digest verification and atomic configuration switch pass without commerce-data migration. |
@@ -132,7 +134,7 @@ Updated: 2026-08-11
 ## Production Blockers
 
 1. Hosted Railway/Cloudflare topology remains intentionally suspended pending reviewed OpenTofu design.
-2. Market API gateway foundation is live and independently verified, but complete HTTP/cookie/SSE/WebSocket/timeout/cancellation/size-bound and hosted integration acceptance is unfinished.
+2. Market API gateway transport is live and independently verified at repository and local built-server boundaries, but hosted Railway/Cloudflare integration remains suspended and unproven.
 3. Market/Admin UI and API ownership extraction is incomplete.
 4. Customer control-plane modes and sovereign-data migration are incomplete.
 5. Content cutover remains incomplete across the portfolio, although the Admin cutover-aware replay gap is closed.
@@ -186,16 +188,19 @@ After the lockfile fix, a clean clone installed but could not resolve `@treeseed
 
 The next clone had the correct export but `npm ci --ignore-scripts` suppressed the exact Git SDK dependency's required prepare/build step, leaving no `dist/gateway` export. Generated CI now uses `npm ci`; lockfile generation continues to use `--ignore-scripts`. Clean-clone build and five tests pass. npm reports 12 transitive audit findings (1 low, 1 moderate, 9 high, 1 critical); dependency provenance and upgrade impact require a separate bounded security audit rather than an unreviewed lock rewrite.
 
+### WebSocket support was declared but not bound to the generated server
+
+The HTTP proxy exposed an injectable WebSocket callback, but the generated Node singleton server never handled the `upgrade` event. Real clients therefore had no operational pass-through despite interface-level tests. SDK now owns a descriptor-gated Node WebSocket bridge with shared header/secret policy, assertion forwarding, timeout and cancellation behavior, raw multi-cookie handshake propagation, and bidirectional socket piping. The generated private server binds it explicitly. A real local handshake and echo path passes through the built clean clone.
+
 ## Ordered Next Work
 
 1. Record a final `noop` Market API workspace replay, federate the SDK and this ledger, refresh the filtered Platform snapshot, and repeat clean-clone workset verification.
-2. Expand gateway acceptance for exact headers/cookies, request and response streaming, SSE, WebSocket upgrade, cancellation, timeouts, bounded bodies, structured errors, idempotency, and rate-limit propagation.
-3. Complete full managed control-plane reconciliation and sovereign traffic/data-separation acceptance, including the journaled migration command.
-4. Extract Market UI/API ownership from Admin and remove Market implementation dependencies.
-5. Complete TreeDX/R2 content authority project by project, then remove software content workflows and paths only through verified cutover receipts.
-6. Run isolated GitHub and Cloudflare acceptance with cleanup before and after; repair lifecycle drift and require final `noop` plans. Include a bounded dependency security audit for the generated Market API graph.
-7. Execute a reviewed receipt-only staging promotion after all non-hosted guarantees pass; do not use gitlinks as authority.
-8. Finish and review OpenTofu topology, then explicitly restore protected singleton hosted staging only. Production release remains fail-closed until that review completes.
+2. Complete full managed control-plane reconciliation and sovereign traffic/data-separation acceptance, including the journaled migration command.
+3. Extract Market UI/API ownership from Admin and remove Market implementation dependencies.
+4. Complete TreeDX/R2 content authority project by project, then remove software content workflows and paths only through verified cutover receipts.
+5. Run isolated GitHub and Cloudflare acceptance with cleanup before and after; repair lifecycle drift and require final `noop` plans. Include a bounded dependency security audit for the generated Market API graph.
+6. Execute a reviewed receipt-only staging promotion after all non-hosted guarantees pass; do not use gitlinks as authority.
+7. Finish and review OpenTofu topology, then explicitly restore protected singleton hosted staging and run the same gateway suite through `api.treeseed.dev`. Production release remains fail-closed until that review completes.
 
 ## Update Discipline
 
