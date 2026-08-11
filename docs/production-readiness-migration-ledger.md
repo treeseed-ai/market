@@ -53,8 +53,8 @@ Updated: 2026-08-11
 
 ### Platform extraction
 
-- Live Platform `main` at this checkpoint: `15fb787628bc9d4a33d29ed9d8c9757e032f963d`.
-- Live Platform `staging` at this checkpoint: `c327ae614435c921d95589dd607606fa27311a98`.
+- Live Platform `main` at this checkpoint: `e74d6f05ca8a6bc2d96c32c8ad07f9a75e0650a4`.
+- Live Platform `staging` at this checkpoint: `bd9fa82a901dfa66ec8758547398749d8e5fb3cc`.
 - Both branches have verified migration receipts and the extraction replay is all `noop`.
 - A clean Platform clone passes `npm run verify`.
 - A live workset materializes 13 exact, detached repositories and replays as 13 `noop` actions.
@@ -83,7 +83,7 @@ Updated: 2026-08-11
 
 - The Platform compiler supports `market-passthrough`, `external`, and `managed` modes and rejects inconsistent explicitly declared topology. Managed mode requires API, database, operations runner, and public TreeDX federation; pass-through and external modes reject those Platform-owned control-plane resources.
 - Market operations remain fixed to the immutable `treeseed` singleton profile and customer plans cannot declare a Market API service.
-- Bounded SDK staging gateway contract: `ae3efe1bd91ebc0e0ea50fb460a89f8abbc227a0`; bounded CLI staging migration contract: `03aadafd8512fa7c6e818041a45d8f23108294fd`.
+- Bounded SDK staging gateway contract: `ae3efe1bd91ebc0e0ea50fb460a89f8abbc227a0`; bounded CLI staging migration contract: `da8bf211fa65410c1a5d4bb855703af753c954c4`.
 - Private Market API main: `6a2d1f701c20cdbdd8ec3b3988beb7c9fe8cd720`; staging: `db363697e0df2f2fdefc75c2fdc2c6cbbed9d138`.
 - The singleton manifest pins Admin API `76508e4d55a179340899a58cb1bafc1dab7c8be4` and descriptor `sha256:a1db527487273f6a531551cfdc6d1be2ae84353a9e0dc37391729983c98a2090`.
 - A clean private staging clone passes `npm ci`, TypeScript build, and all five gateway/descriptor tests. The managed lockfile pins the exact SDK commit and CI uses the lockfile.
@@ -192,15 +192,22 @@ The next clone had the correct export but `npm ci --ignore-scripts` suppressed t
 
 The HTTP proxy exposed an injectable WebSocket callback, but the generated Node singleton server never handled the `upgrade` event. Real clients therefore had no operational pass-through despite interface-level tests. SDK now owns a descriptor-gated Node WebSocket bridge with shared header/secret policy, assertion forwarding, timeout and cancellation behavior, raw multi-cookie handshake propagation, and bidirectional socket piping. The generated private server binds it explicitly. A real local handshake and echo path passes through the built clean clone.
 
+### Managed control-plane configuration is ahead of its lifecycle command
+
+The typed deploy configuration and generic reconciler already distinguish `market-passthrough`, `external`, and `managed`, reject customer-owned Market resources, and can compile API, PostgreSQL, operations-runner, public TreeDX, DNS, secrets, and runtime variables. The audit found no journaled `trsd control-plane migrate` workflow yet. It also found capacity-provider paths that still use the legacy `marketUrl` name for control-plane connectivity and can assign that value to `TREESEED_API_BASE_URL`. Those paths must consume an explicitly resolved control-plane URL, while `TREESEED_MARKET_API_BASE_URL` remains fixed to the singleton, before sovereignty guarantees can become active.
+
+### Receipt graph refreshes cascade by exact dependency
+
+Federation advanced CLI dependency pointers after the first gateway staging overlay. Gateway reconciliation correctly reported bounded CLI drift, advanced CLI staging to `da8bf211fa65410c1a5d4bb855703af753c954c4`, and replayed as `noop`. Platform then detected that exact downstream ref change and advanced only its staging snapshot to `bd9fa82a901dfa66ec8758547398749d8e5fb3cc`. This is expected receipt-graph behavior and demonstrates why a final plan must be taken after all upstream receipts settle.
+
 ## Ordered Next Work
 
-1. Record a final `noop` Market API workspace replay, federate the SDK and this ledger, refresh the filtered Platform snapshot, and repeat clean-clone workset verification.
-2. Complete full managed control-plane reconciliation and sovereign traffic/data-separation acceptance, including the journaled migration command.
-3. Extract Market UI/API ownership from Admin and remove Market implementation dependencies.
-4. Complete TreeDX/R2 content authority project by project, then remove software content workflows and paths only through verified cutover receipts.
-5. Run isolated GitHub and Cloudflare acceptance with cleanup before and after; repair lifecycle drift and require final `noop` plans. Include a bounded dependency security audit for the generated Market API graph.
-6. Execute a reviewed receipt-only staging promotion after all non-hosted guarantees pass; do not use gitlinks as authority.
-7. Finish and review OpenTofu topology, then explicitly restore protected singleton hosted staging and run the same gateway suite through `api.treeseed.dev`. Production release remains fail-closed until that review completes.
+1. Complete full managed control-plane reconciliation and sovereign traffic/data-separation acceptance, including explicit provider-protocol URL separation and the journaled migration command.
+2. Extract Market UI/API ownership from Admin and remove Market implementation dependencies.
+3. Complete TreeDX/R2 content authority project by project, then remove software content workflows and paths only through verified cutover receipts.
+4. Run isolated GitHub and Cloudflare acceptance with cleanup before and after; repair lifecycle drift and require final `noop` plans. Include a bounded dependency security audit for the generated Market API graph.
+5. Execute a reviewed receipt-only staging promotion after all non-hosted guarantees pass; do not use gitlinks as authority.
+6. Finish and review OpenTofu topology, then explicitly restore protected singleton hosted staging and run the same gateway suite through `api.treeseed.dev`. Production release remains fail-closed until that review completes.
 
 ## Update Discipline
 
