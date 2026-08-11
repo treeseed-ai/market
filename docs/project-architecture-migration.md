@@ -24,7 +24,7 @@ No service receives both a software checkout and a content checkout as an implic
 
 ## Repository federation and local worksets
 
-The final development model does not use a parent repository's gitlinks as portfolio authority. Software repositories remain independent and are joined by an SDK-owned `treeseed.integration-change-set/v1` receipt. Each receipt records normalized remote identity, role, source branch, exact commit, dependency names, package/lockfile contract digests, verification disposition, and fresh remote read-back. Its identifier is derived from that canonical state rather than from local paths or a parent commit.
+The final development model does not use a parent repository's gitlinks as portfolio authority. Software repositories remain independent and are joined by an SDK-owned `treeseed.integration-change-set/v1` receipt. Each receipt records normalized remote identity, role, source branch, exact commit, dependency names, package/lockfile contract digests, verification disposition, governed execution authorities, and fresh remote read-back. Its identifier is derived from that canonical state rather than from local paths or a parent commit.
 
 `trsd save` is single-repository scoped by default: it saves only the independent repository containing the invocation directory and emits a repository-scoped receipt. Cross-project work is performed in an ephemeral workset materialized from the Platform portfolio manifest; `trsd save --federated` records and pushes the checked-out repositories in dependency order and emits the integration receipt required by stage. `trsd stage` rejects repository-scoped receipts, verifies that every federated remote still matches the receipt, runs the integration proof, and promotes those exact commits. `trsd release` consumes the staged receipt and its proof instead of reconstructing a portfolio from a checkout.
 
@@ -39,6 +39,22 @@ npx trsd platform workset --apply --yes --branch feature/cross-project-change --
 The manifest permits only unique, workspace-contained software paths at exact commits. Apply uses the central token when configured, creates independent repositories atomically, and records `.treeseed/worksets/platform/latest.json`. It never resets or deletes an existing path. A dirty checkout, wrong origin, unexpected branch, moved commit, nested repository, Market identity, or content-repository identity is blocking drift. Repeating an exact successful apply produces thirteen `noop` actions for the canonical Platform portfolio.
 
 During the transition, the existing Market workspace may retain software submodules and the recursive save adapter. That adapter emits the same receipt and may update gitlinks for compatibility, but stage identity is the receipt, not the gitlinks. Content repositories, Market, and Market API are never materialized into a Platform workset. Clean-clone workset, stage, close, recovery, and release-plan acceptance now passes without `.gitmodules`; the compatibility adapter remains only until active development has cut over from the Market workspace to Platform worksets.
+
+### Governance and autonomous project teams
+
+The portfolio contains 31 repositories, not one 31-way writable checkout: thirteen Platform-managed primary repositories, their thirteen content repositories, the fixture repository, and the four singleton Market repositories. A project team owns one primary/content pair and publishes contracts other teams can consume. The seed declares membership and policy; the portfolio selects exact software refs; a workset materializes only the repositories needed for a task; TreeDX mediates content; proposals and decisions authorize work; integration receipts bind the resulting exact refs.
+
+The governed execution chain is:
+
+```text
+proposal revision -> accepted decision -> assignment graph -> reviewed checkpoint
+  -> governed execution-authority receipt -> repository save
+  -> federated integration receipt -> stage candidate
+```
+
+An execution-authority receipt contains project, proposal revision/hash when available, decision, upstream decision dependencies, assignment graph/node, approved deliverable, canonical repository, exact base/checkpoint/integrated commits, and changed paths. It is stored in workset-local state so an independent repository is never dirtied by coordination metadata. Save embeds it only after proving that its integrated commit remains in the saved repository history. Replaying the same checkpoint preserves its stable authority identifier.
+
+Cross-project execution therefore has two dependency layers. Decision dependencies express that Project B is not authorized until Project A's decision or contract is accepted. Repository dependencies express that B's exact source candidate consumes A's exact commit or package contract. The current implementation records both forms and preserves the checkpoint-to-save evidence chain. Remaining production gates are to make decision-dependency compilation canonical in the API, require complete authority coverage for governed changes, revalidate decision freshness/revocation at stage, and coordinate content-repository publication receipts with the same candidate.
 
 ## Repository policy
 
