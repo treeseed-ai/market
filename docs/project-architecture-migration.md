@@ -74,10 +74,10 @@ The old software-repository content workflow remains in place until the matching
 Published objects are immutable:
 
 ```text
-content/<project-id>/<environment>/releases/<content-sha>/manifest.json
-content/<project-id>/<environment>/releases/<content-sha>/content/**
-content/<project-id>/<environment>/channels/current.json
-content/<project-id>/previews/<preview-id>/manifest.json
+content/<team-id>/<project-id>/<environment>/releases/<content-sha>/manifest.json
+content/<team-id>/<project-id>/<environment>/releases/<content-sha>/content/**
+content/<team-id>/<project-id>/<environment>/channels/current.json
+content/<team-id>/<project-id>/previews/<preview-id>/manifest.json
 ```
 
 Production reads the production channel. Staging reads the staging channel. Local development reads staging plus an exact preview overlay when declared. Missing staging content is a readiness blocker, not permission to fall back to disk.

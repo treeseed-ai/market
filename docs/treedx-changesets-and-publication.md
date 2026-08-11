@@ -18,17 +18,17 @@ Content changes use assignment-scoped TreeDX operations or a future explicit con
 
 ## Publication layout
 
-The SDK-owned publication reconciler writes only these canonical R2 keys:
+The SDK-owned repository-content publication reconciler writes only these project-scoped canonical R2 keys. These keys are separate from the team-wide Knowledge Publication manifest used by the Admin API:
 
-- `teams/{teamId}/objects/sha256/{digest}` for immutable objects;
-- `teams/{teamId}/published/manifests/{revision}.json` for immutable manifests;
-- `teams/{teamId}/published/common.json` for the production pointer;
-- `teams/{teamId}/published/staging.json` for the staging pointer;
-- `teams/{teamId}/previews/{projectId}/{refDigest}/manifest.json` for task previews.
+- `content/{teamId}/{projectId}/{environment}/releases/{revision}/content/**` for immutable content;
+- `content/{teamId}/{projectId}/{environment}/releases/{revision}/manifest.json` for immutable release manifests;
+- `content/{teamId}/{projectId}/{environment}/channels/current.json` for staging and production pointers;
+- `content/{teamId}/{projectId}/previews/{refDigest}/releases/{revision}/**` for immutable preview releases;
+- `content/{teamId}/{projectId}/previews/{refDigest}/manifest.json` for the selected task preview.
 
 Objects are uploaded only when their digest key is absent. Immutable manifests use create-only writes. Mutable pointers use conditional replacement against the observed ETag. The reconciler reads the manifest and pointer back and compares their exact bytes before issuing a secret-free receipt. Signed URLs and credentials are never durable artifacts.
 
-The legacy `knowledge-publications/**` namespace and its fallback reader are removed. All readers and writers use the canonical team layout.
+The Admin API's team-wide published Knowledge catalog continues to use `teams/{teamId}/published/**`. Repository-content publication must never write that namespace because a one-project snapshot cannot safely replace the team's multi-project Knowledge Publication manifest.
 
 ## CI and local convergence
 
