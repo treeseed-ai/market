@@ -63,7 +63,7 @@ Updated: 2026-08-11
 
 ### Repository federation
 
-- Current verified federation: `8552c11be26d66a11aa6c619c57db4ef58a21c3f0a4a3df5e89f01547655ad50`; root `6184bf6bd2e651893043ee18bd9f0a6b4c19a437`; 14 repositories with fresh remote proof.
+- Latest verified full federation before the ledger-only checkpoint: `acc41b230fc5f37d22bc5fb6c05e713f0518b4210e1dc33854b9ec070b8edf02`; root `0d4c3e94de21d17953876aad15930c468150a305`; 14 repositories with fresh remote proof.
 - Latest verified full federation before the singleton gateway reconciliation: `2e3726da4242bfb170862911150f6d6be36b86ebac531db25a61ed8d91739178`.
 - Transitional integration root ref at that checkpoint: `ee852d4b5cdd94184b9b22497535e159abc8254b`.
 - Receipt scope: `federated`; repository count: 14; every remote proof verified.
