@@ -49,8 +49,8 @@ Updated: 2026-08-11
 
 ### Repository federation
 
-- Latest verified feature receipt: `68635cfc39741d79da3a4d5fff0487869f412764aecafdcfb6a8e99992ea9bda`.
-- Transitional integration root ref: `e14f7e9866ac4ad6c6b4d8d7e7a499112f1fae18`.
+- Verified federation baseline recorded by this ledger: `8504a407213fe35b09dc509a477a860ecc897c29aff27a1228285a958c614a17`.
+- Transitional integration root ref at that baseline: `7aa920291c884f5e1b5936b653e2edd6a99d8efa`.
 - Receipt scope: `federated`; repository count: 14; every remote proof verified.
 - Market API and content repositories are absent from the receipt checkout graph.
 - Repository-scoped saves cannot stage; stage verifies a federated receipt against live refs; release verifies staged refs.
@@ -81,7 +81,7 @@ Updated: 2026-08-11
 - Root tests: 102 passed.
 - CLI tests: 200 passed.
 - SDK lifecycle tests: 55 passed.
-- SDK non-lifecycle suite at the federation checkpoint: 1,382 passed.
+- SDK fast suite at the cutover-replay checkpoint: 1,384 passed across 366 test files.
 - API suite: 503 passed and 4 skipped.
 - File-size, architecture, and TypeScript-source policies pass.
 
