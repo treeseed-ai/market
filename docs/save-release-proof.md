@@ -10,7 +10,11 @@ Guarantees are authoritative live acceptance evidence, but they do not run durin
 
 ## Save Contract
 
-Save discovers the dirty repository closure, commits repositories in dependency order, updates exact internal refs and submodule pointers, validates lock metadata without a network install, and pushes only after the complete local graph is coherent. It does not deploy, wait for hosted workflows, delete caches, prune Docker, or delete guarantee evidence.
+Save defaults to the independent repository containing the invocation directory. It commits and pushes that repository and writes a repository-scoped `treeseed.integration-change-set/v1` receipt without sweeping sibling or parent changes. `trsd save --federated` explicitly discovers the checked-out repository closure, commits repositories in dependency order, updates exact internal refs, validates lock metadata without a network install, and pushes only after the complete local graph is coherent. It then freshly reads every selected remote ref and writes a federated receipt containing exact repository identities, commits, dependency edges, contract digests, and verification dispositions. It does not deploy, wait for hosted workflows, delete caches, prune Docker, or delete guarantee evidence.
+
+Recursive workspace save and gitlink refresh remain a compatibility adapter while local worksets are introduced. They are not the candidate identity: stage consumes the integration receipt, and a moved or mismatched remote ref invalidates that receipt before promotion.
+
+Platform worksets are reconstructed from `treeseed.portfolio.json` with `trsd platform workset --plan|--apply`. The workset receipt under `.treeseed/worksets/platform/` proves local materialization only; the integration change-set receipt under `.treeseed/workflow/integration-receipts/` proves a pushed candidate. Neither receipt substitutes for the other.
 
 Use `--verify local` when a checkpoint also needs package-local verification. An interrupted save records its journal as interrupted and reports the exact `trsd resume <run-id>` command.
 
@@ -58,6 +62,12 @@ Routine checkpoint:
 
 ```bash
 npx trsd save --json "message"
+```
+
+Reviewed integration checkpoint required before stage:
+
+```bash
+npx trsd save --federated --json "integrate repository checkpoints"
 ```
 
 Local confidence check:
