@@ -94,7 +94,7 @@ Updated: 2026-08-11
 | Central GitHub authentication | Implemented, acceptance pending | Cross-repository live acceptance proves only the central token is used and artifacts contain no secrets. |
 | Standalone Platform root | Operational, cutover pending | Normal development starts from Platform; transitional Market gitlinks and orchestration are removed. |
 | Receipt-based federation | Implemented | Stage consumes the reviewed receipt in a real promotion and repeat execution remains `noop`. |
-| Control-plane modes | Not complete | `market-passthrough`, `external`, and `managed` compile, reconcile, and satisfy sovereignty guarantees. |
+| Control-plane modes | In progress | Typed routing and explicit topology validation compile; full managed reconciliation and sovereignty acceptance remain. |
 | Market gateway/Admin pass-through | Not complete | Descriptor-pinned HTTP, cookie, SSE, WebSocket, timeout, error, and readiness acceptance passes. |
 | Market/Admin UI split | Not complete | Admin contains no Market implementation; Market owns commerce and ecosystem-governance routes. |
 | Routed SDK transport | Not complete | One client routes Market and control-plane methods correctly in every control-plane mode. |
