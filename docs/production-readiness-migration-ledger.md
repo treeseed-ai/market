@@ -39,8 +39,8 @@ Updated: 2026-08-11
 
 ### Platform extraction
 
-- Live Platform `main`: `b921d2b55d665a9edbfa55cf4fed9e00e8e5b95a`.
-- Live Platform `staging`: `a00a62e4e3938576a475ec58e13dc01fdd5aa2ea`.
+- Live Platform `main` at this checkpoint: `15fb787628bc9d4a33d29ed9d8c9757e032f963d`.
+- Live Platform `staging` at this checkpoint: `c327ae614435c921d95589dd607606fa27311a98`.
 - Both branches have verified migration receipts and the extraction replay is all `noop`.
 - A clean Platform clone passes `npm run verify`.
 - A live workset materializes 13 exact, detached repositories and replays as 13 `noop` actions.
@@ -49,8 +49,8 @@ Updated: 2026-08-11
 
 ### Repository federation
 
-- Verified federation baseline recorded by this ledger: `8504a407213fe35b09dc509a477a860ecc897c29aff27a1228285a958c614a17`.
-- Transitional integration root ref at that baseline: `7aa920291c884f5e1b5936b653e2edd6a99d8efa`.
+- Verified federation baseline recorded by this ledger: `caf37b99d08e9909460f1e865def7e46d83f690673295f38ab5ce3f3019fdf8a`.
+- Transitional integration root ref at that baseline: `25913b3aa6df95e873f1469529c23721b7212db2`.
 - Receipt scope: `federated`; repository count: 14; every remote proof verified.
 - Market API and content repositories are absent from the receipt checkout graph.
 - Repository-scoped saves cannot stage; stage verifies a federated receipt against live refs; release verifies staged refs.
@@ -70,7 +70,7 @@ Updated: 2026-08-11
 - `ui-content` feature history was created and verified at `329d9e8b74e7078a1cc1f20201a484236ebcb84b`.
 - Admin staging content cutover is verified: source and target tree `a9e3c0520a9aba9a19b49aa2ba5c9721c36f1510`, R2 publication verified, TreeDX ref verified, and the software path removed.
 - Admin feature history now replays as `noop` after software-path removal. The history planner requires the exact verified cutover contract, project/repository/path identity, Git tree digest, R2 verification, and TreeDX verification, and preserves the original authoritative path in its journal.
-- Singleton Market content migration is declared separately in `seeds/market-singleton.yaml` and must be audited independently from the Platform portfolio.
+- Singleton Market content migration is declared separately in `seeds/market-singleton.yaml`; its independent live replay is 5/5 `noop`. Market feature content is verified at `76cce13fa82763a2edf19987d8d62f550b5dd72c`, while private proprietary Market API content remains isolated from the public content plane.
 - History verification does not by itself authorize software-path removal; TreeDX, R2, runtime, and cutover receipts remain mandatory.
 
 ### Local runtime and verification
