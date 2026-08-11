@@ -24,6 +24,20 @@ The seed is the logical successor to the old parent-repository submodule map, bu
 
 The remaining transition is to stop using the Market workspace's compatibility gitlinks after active development moves to Platform worksets and the Platform snapshot can be promoted from reviewed federation evidence.
 
+### Submodule-to-seed transition map
+
+| Capability | State | Remaining cutover |
+| --- | --- | --- |
+| Logical project bundle | Current architecture | Seeds own repository identity, role, visibility, content pairing, and policy. |
+| Exact integrated version | Current architecture | Portfolio snapshots and federation receipts own commits and contract digests instead of gitlinks. |
+| Disposable local checkout | Proven | Platform worksets materialize 13 independent repositories with no `.gitmodules`; make this the normal developer entry point. |
+| Repository save | Implemented | Repository-scoped saves and federated receipts work; remove reliance on the compatibility parent checkout. |
+| Stage authority | Implemented, promotion proof pending | Execute a reviewed real staging promotion using only a verified federation receipt. |
+| Release authority | Designed, suspended | Restore only after reviewed OpenTofu topology and release guarantees permit it. |
+| Legacy Market gitlinks | Transitional | Remove after Platform becomes the normal integration workspace and the filtered snapshot is receipt-promoted. |
+
+The seed is therefore already the canonical successor to submodule configuration. The architecture is not fully cut over because the old Market checkout still provides compatibility materialization and some operator habits, while production promotion has not yet consumed a reviewed receipt end to end.
+
 ## Current Checkpoint
 
 Updated: 2026-08-11
@@ -49,8 +63,8 @@ Updated: 2026-08-11
 
 ### Repository federation
 
-- Verified federation baseline recorded by this ledger: `caf37b99d08e9909460f1e865def7e46d83f690673295f38ab5ce3f3019fdf8a`.
-- Transitional integration root ref at that baseline: `25913b3aa6df95e873f1469529c23721b7212db2`.
+- Latest verified full federation before the singleton gateway reconciliation: `2e3726da4242bfb170862911150f6d6be36b86ebac531db25a61ed8d91739178`.
+- Transitional integration root ref at that checkpoint: `ee852d4b5cdd94184b9b22497535e159abc8254b`.
 - Receipt scope: `federated`; repository count: 14; every remote proof verified.
 - Market API and content repositories are absent from the receipt checkout graph.
 - Repository-scoped saves cannot stage; stage verifies a federated receipt against live refs; release verifies staged refs.
@@ -63,6 +77,16 @@ Updated: 2026-08-11
 - Contributor provenance and a contributor-grant workflow are present.
 - `api-content` remains public Apache-2.0.
 - License migration replay is `noop` on `main` and `staging`.
+
+### Control-plane and singleton gateway
+
+- The Platform compiler supports `market-passthrough`, `external`, and `managed` modes and rejects inconsistent explicitly declared topology. Managed mode requires API, database, operations runner, and public TreeDX federation; pass-through and external modes reject those Platform-owned control-plane resources.
+- Market operations remain fixed to the immutable `treeseed` singleton profile and customer plans cannot declare a Market API service.
+- Bounded SDK staging gateway contract: `7406c10e7010a719b6fea8f5710c59f2371cd8e5`; bounded CLI staging migration contract: `2aebb0c6921b621025fabf7f550c5503952e395c`.
+- Private Market API main: `3e1a8497bf671a8c3b2d0809b135a105f3ab15e3`; staging: `e0ed700642b2dc1d60e2ca666c8ffbfc329588f8`.
+- The singleton manifest pins Admin API `76508e4d55a179340899a58cb1bafc1dab7c8be4` and descriptor `sha256:a1db527487273f6a531551cfdc6d1be2ae84353a9e0dc37391729983c98a2090`.
+- A clean private staging clone passes `npm ci`, TypeScript build, and all five gateway/descriptor tests. The managed lockfile pins the exact SDK commit and CI uses the lockfile.
+- This is repository and contract acceptance only. No hosted Railway or Cloudflare deployment occurred.
 
 ### Content repositories
 
@@ -95,7 +119,7 @@ Updated: 2026-08-11
 | Standalone Platform root | Operational, cutover pending | Normal development starts from Platform; transitional Market gitlinks and orchestration are removed. |
 | Receipt-based federation | Implemented | Stage consumes the reviewed receipt in a real promotion and repeat execution remains `noop`. |
 | Control-plane modes | In progress | Typed routing and explicit topology validation compile; full managed reconciliation and sovereignty acceptance remain. |
-| Market gateway/Admin pass-through | Not complete | Descriptor-pinned HTTP, cookie, SSE, WebSocket, timeout, error, and readiness acceptance passes. |
+| Market gateway/Admin pass-through | In progress | Generated private workspace, exact descriptor pin, route admission, health/readiness, lockfile, and clean-clone verification pass; cookie, SSE, WebSocket, timeout, cancellation, size-bound, and deployed integration acceptance remain. |
 | Market/Admin UI split | Not complete | Admin contains no Market implementation; Market owns commerce and ecosystem-governance routes. |
 | Routed SDK transport | Not complete | One client routes Market and control-plane methods correctly in every control-plane mode. |
 | Sovereign migration | Not complete | Journaled export/import/digest verification and atomic configuration switch pass without commerce-data migration. |
@@ -107,7 +131,7 @@ Updated: 2026-08-11
 ## Production Blockers
 
 1. Hosted Railway/Cloudflare topology remains intentionally suspended pending reviewed OpenTofu design.
-2. Market API gateway and complete hosted Admin pass-through are not implemented and contract-tested.
+2. Market API gateway foundation is live and independently verified, but complete HTTP/cookie/SSE/WebSocket/timeout/cancellation/size-bound and hosted integration acceptance is unfinished.
 3. Market/Admin UI and API ownership extraction is incomplete.
 4. Customer control-plane modes and sovereign-data migration are incomplete.
 5. Content cutover remains incomplete across the portfolio, although the Admin cutover-aware replay gap is closed.
@@ -149,15 +173,27 @@ The integrated restart rebuilt dependencies after computing the first API closur
 
 The first cutover-aware plan correctly retained Admin's original `docs/src/content` path, but after apply the source receipt pointed at a commit where that path no longer existed. Replay therefore lacked a readable prior tree and blocked. Classification now uses the immutable cutover tree as the authority after removal, requires the live target tree to match it, and treats an available prior tree as an additional equality check. Apply preserves the original path in the migration journal; live Admin apply and the subsequent 38-branch portfolio plan are entirely `noop`.
 
+### Generated Market API repository was live but not reproducible
+
+The first private repository reconciliation reached `noop`, but a clean clone could not run `npm ci` because the generated overlay had no lockfile. The workspace reconciler now generates one lockfile per changed plan from the exact SDK ref, verifies npm v3 structure and manifest parity, manages it through the singleton manifest, and reuses immutable receipts for network-free replay. Unused direct dependencies were removed.
+
+### Bounded SDK gateway migration omitted its public export
+
+After the lockfile fix, a clean clone installed but could not resolve `@treeseed/sdk/market-gateway`. The bounded staging overlay had copied implementation files without `package.json` and `package-lock.json`. Those package contracts are now part of the gateway migration inventory and have regression coverage.
+
+### CI suppressed the pinned SDK build
+
+The next clone had the correct export but `npm ci --ignore-scripts` suppressed the exact Git SDK dependency's required prepare/build step, leaving no `dist/gateway` export. Generated CI now uses `npm ci`; lockfile generation continues to use `--ignore-scripts`. Clean-clone build and five tests pass. npm reports 12 transitive audit findings (1 low, 1 moderate, 9 high, 1 critical); dependency provenance and upgrade impact require a separate bounded security audit rather than an unreviewed lock rewrite.
+
 ## Ordered Next Work
 
-1. Audit and reconcile `market-singleton.yaml` content history independently, preserving Market API privacy and proprietary licensing.
-2. Promote this ledger and the cutover-replay fix through repository federation, then refresh the filtered Platform snapshot and verify a clean-clone workset replay.
-3. Complete the Platform configuration compiler for `market-passthrough`, `external`, and `managed`, with static rejection of singleton Market resources.
-4. Generate the exact Admin API descriptor and implement the private gateway route union and pass-through acceptance suite.
-5. Extract Market UI/API ownership from Admin and remove Market implementation dependencies.
-6. Complete TreeDX/R2 content authority project by project, then remove software content workflows and paths only through verified cutover receipts.
-7. Run isolated GitHub and Cloudflare acceptance with cleanup before and after; repair any lifecycle drift and require final `noop` plans.
+1. Record a final `noop` Market API workspace replay, federate the SDK and this ledger, refresh the filtered Platform snapshot, and repeat clean-clone workset verification.
+2. Expand gateway acceptance for exact headers/cookies, request and response streaming, SSE, WebSocket upgrade, cancellation, timeouts, bounded bodies, structured errors, idempotency, and rate-limit propagation.
+3. Complete full managed control-plane reconciliation and sovereign traffic/data-separation acceptance, including the journaled migration command.
+4. Extract Market UI/API ownership from Admin and remove Market implementation dependencies.
+5. Complete TreeDX/R2 content authority project by project, then remove software content workflows and paths only through verified cutover receipts.
+6. Run isolated GitHub and Cloudflare acceptance with cleanup before and after; repair lifecycle drift and require final `noop` plans. Include a bounded dependency security audit for the generated Market API graph.
+7. Execute a reviewed receipt-only staging promotion after all non-hosted guarantees pass; do not use gitlinks as authority.
 8. Finish and review OpenTofu topology, then explicitly restore protected singleton hosted staging only. Production release remains fail-closed until that review completes.
 
 ## Update Discipline
