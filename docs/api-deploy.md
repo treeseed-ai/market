@@ -251,8 +251,8 @@ Staging acceptance:
 - Railway API builds from `packages/api`
 - Railway runner builds from `packages/api`
 - existing Railway service names are reused
-- API `/healthz`, `/healthz/deep`, and `/v1/markets/current` pass
-- web proxy `/v1/healthz` and `/v1/markets/current` pass
+- Admin API `/healthz` and `/healthz/deep` pass through the singleton gateway
+- singleton Market `/v1/market/profile` responds directly without an Admin pass-through
 - runner smoke passes
 - hosted-service check report has no failed required checks
 
@@ -298,7 +298,7 @@ Production acceptance:
 curl -fsS https://api.treeseed.ai/healthz
 curl -fsS https://api.treeseed.ai/healthz/deep
 curl -fsS https://treeseed.ai/v1/healthz
-curl -fsS https://treeseed.ai/v1/markets/current
+curl -fsS https://api.treeseed.dev/v1/market/profile
 TREESEED_MARKET_ACCEPTANCE_BASE_URL=https://api.treeseed.ai npm -w packages/api run test:acceptance
 npx trsd audit hosting --environment prod --live --json
 ```

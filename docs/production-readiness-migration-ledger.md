@@ -82,13 +82,15 @@ Updated: 2026-08-11
 
 ### Control-plane and singleton gateway
 
-- Public Admin API feature ref `25807b1371e4493da467de617e8da330cdbc31ad` classifies every descriptor route by runtime plane. The generated 579-route artifact currently reports 429 Admin routes, 150 Market routes, and `migrationReady: false`; full local verification passed 504 tests with 4 intentional skips plus the isolated acceptance matrix.
+- Public Admin API feature ref `a2cfc3b65b6f0651cde928345865a3ad24d252de` removes the first singleton-owned route from Admin. The generated 578-route artifact currently reports 429 Admin routes, 149 Market routes, and `migrationReady: false`; full local verification passed 505 tests with 4 intentional skips plus the isolated acceptance matrix. Repository receipt: `3874379fc6d64e6654acf426d618d88960530bb74d00a398350c92e7507ab306`.
 - The Platform compiler supports `market-passthrough`, `external`, and `managed` modes and rejects inconsistent explicitly declared topology. Managed mode requires API, database, operations runner, and public TreeDX federation; pass-through and external modes reject those Platform-owned control-plane resources.
 - Market operations remain fixed to the immutable `treeseed` singleton profile and customer plans cannot declare a Market API service.
-- Bounded SDK staging gateway contract: `93690c1bcb569ac11554c16a03ba253dd8a8a141`; bounded CLI staging migration contract: `5e1b165814e22b81726cb2e68743a5c3bd4eac06`.
-- Private Market API main: `200d08c55e78254d2ccd4bf49d9329adde3b1368`; staging: `d221c7b6a41c7cef7af726665eeb7c3a3e7e3286`.
-- The singleton manifest pins Admin API `76508e4d55a179340899a58cb1bafc1dab7c8be4` and descriptor `sha256:a1db527487273f6a531551cfdc6d1be2ae84353a9e0dc37391729983c98a2090`.
-- A clean private staging clone passes `npm ci`, TypeScript build, and all five gateway/descriptor tests. The managed lockfile pins the exact SDK commit and CI uses the lockfile.
+- SDK feature `4abb2dfe0f18b7cfe8636c405cb177501bc03ced` makes bounded overlay comparison byte-exact after the first Market route extraction; its repository receipt is `7246ae7014d60b56f2480bb3e472fa83427a6265b0eb0f31915f962eb72c542d`.
+- Bounded SDK staging gateway contract: `d8d1a1c52303128f7c9d8a49863d4b280b75a77b`; bounded CLI staging migration contract: `cbb3044ea90f78ea55755fd50d2f58317b2a3437`; both replay as `noop`.
+- Bounded Admin staging runtime/descriptor contract: `5e9b323a597b7d148d77b1172ffc894ef8e41e42`; replay is `noop` against the exact SDK staging ref.
+- Private Market API main: `efe56ed753f26b037c98fbbcfb2b3f02da8a0f11`; staging: `9193fbd809f11708914475cb52bffd6147782e74`; both replay as `noop`.
+- The singleton manifest pins Admin API `5e9b323a597b7d148d77b1172ffc894ef8e41e42` and descriptor `sha256:810cccc26feaf12fe437e102274b78878d4a420325c666b418ed297bcdca3f8e`.
+- A clean private staging clone passes `npm ci`, TypeScript build, and all six gateway/profile/descriptor tests. The canonical `GET /v1/market/profile` is now implemented directly by the singleton and is absent from Admin. The managed lockfile pins the exact SDK commit and CI uses the lockfile.
 - A built-server acceptance run against a disposable local Admin upstream proves exact descriptor routing, HTTP `429` and structured body propagation, two independent `Set-Cookie` headers, rate-limit propagation, internal-secret stripping, signed identity forwarding, and a real `101` WebSocket upgrade through the generated private server.
 - SDK transport coverage proves streaming request/response bounds, immediate SSE delivery, client cancellation distinct from timeout, contained assertion failure, hop-by-hop removal, exact method/path admission, WebSocket route rejection, bidirectional socket data, and structured upgrade timeout. The complete fast suite passes 1,394 tests across 367 files.
 - SDK feature `57c333a3d8ceb38dcf60dbbfe41c427a5fdf6ff5` and repository receipt `984c7dbc4014d631741cea5f1d19bfbb94e3c93f169c74d54c75c287d93552c9` separate capacity-provider `TREESEED_MARKET_API_BASE_URL` from the resolved `TREESEED_API_BASE_URL`. Pass-through, external, and managed reconciliation cases pass; the bounded staging overlay includes the resolver and test.
@@ -144,7 +146,7 @@ Updated: 2026-08-11
 6. Stable Platform promotion is still derived from stable branch heads rather than a reviewed feature federation receipt.
 7. Full GitHub and Cloudflare isolated acceptance, cleanup, and repeated `noop` evidence remain outstanding.
 8. Railway project/environment resolution must be proven against the rebuilt topology before hosted readiness can be claimed.
-9. The public Admin API descriptor currently contains Market-owned commerce, catalog, registry-seed, commons-governance, Market-profile, and template routes. Each route now carries an explicit `runtimePlane`, and the built descriptor reports `adminRouteCount`, `marketRouteCount`, and `migrationReady`; sovereign migration apply must remain blocked until `marketRouteCount` is zero and those routes are owned by the private Market API.
+9. The public Admin API descriptor still contains 149 Market-owned commerce, catalog, registry-seed, commons-governance, and template routes. The former Market-profile route is now singleton-owned. Each remaining route carries an explicit `runtimePlane`, and the built descriptor reports `adminRouteCount`, `marketRouteCount`, and `migrationReady`; sovereign migration apply must remain blocked until `marketRouteCount` is zero and those routes are owned by the private Market API.
 
 ## Issues and Incident Log
 
@@ -207,6 +209,20 @@ The route audit found that the artifact named `admin-api-descriptor.json` still 
 ### Receipt graph refreshes cascade by exact dependency
 
 Federation advanced CLI dependency pointers after the first gateway staging overlay. Gateway reconciliation correctly reported bounded CLI drift, advanced CLI staging to `da8bf211fa65410c1a5d4bb855703af753c954c4`, and replayed as `noop`. Platform then detected that exact downstream ref change and advanced only its staging snapshot to `bd9fa82a901dfa66ec8758547398749d8e5fb3cc`. This is expected receipt-graph behavior and demonstrates why a final plan must be taken after all upstream receipts settle.
+
+### Bounded overlay comparison trimmed authoritative source
+
+The first Market-profile extraction correctly updated Admin staging, but an immediate plan reported perpetual drift. The Git read helper normalized output with `trim()`, while `sdk-route-map.ts` intentionally began with two blank lines; comparison therefore discarded authoritative leading bytes. Both bounded overlay comparators now request byte-preserving Git output and compare exact content. SDK, CLI, Admin, and private Market API were reconciled again in dependency order, and every final plan is `noop`.
+
+## Execution Log
+
+| Date | Checkpoint | Evidence | Result / next gate |
+| --- | --- | --- | --- |
+| 2026-08-11 | Live portfolio established | 31 `treeseed-ai` repositories with branch and visibility read-back | Seeds now reconcile existing GitHub authority rather than hypothetical repository names. |
+| 2026-08-11 | Platform workset federation proven | 13 detached repositories, no `.gitmodules`, repeated 13-action `noop` | Make this the normal local entry point, then retire Market-root compatibility gitlinks. |
+| 2026-08-11 | Receipt federation proven | 14-repository receipts with fresh remote proof; stage lifecycle scenarios pass | Perform the first reviewed real staging promotion from a full receipt after non-hosted gates settle. |
+| 2026-08-11 | Singleton gateway contract proven | Private clean clone, descriptor pin, HTTP/cookie/SSE/WebSocket tests | Continue route and persistence extraction; hosted proof remains suspended. |
+| 2026-08-11 | First Market route extracted | `/v1/market/profile`; Admin 578 routes / 149 Market; private staging `9193fbd809f11708914475cb52bffd6147782e74`; six tests | Extract the next cohesive Market route/persistence family without increasing cross-plane coupling. |
 
 ## Ordered Next Work
 
