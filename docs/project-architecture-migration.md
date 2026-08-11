@@ -77,6 +77,17 @@ Local TreeDX reconciliation derives each paired content repository from the seed
 
 This checkpoint authorizes package metadata cutover to `split_site_content`, `src/content`, `r2_preview_overlay`, and `localContentMaterialization: none`. It does not yet authorize deleting the old software content paths: each runtime must first prove it serves the R2 staging publication without a disk fallback.
 
+The exact-ref publication manifest is also the canonical web-runtime manifest. Contract v3 includes immutable raw source objects plus a deterministic runtime projection (path-qualified entry identities, collection indexes, rendered source payloads, docs tree, and search index) under the same release root. Book-local knowledge slugs remain in entry data while repository-path-qualified runtime slugs prevent collisions between common page names such as `overview`. The environment-scoped channel pointer is `content/{teamId}/{projectId}/{environment}/channels/current.json`, where `prod` resolves to `production`. Published web builds register empty Astro collections and read that exact pointer from `TREESEED_CONTENT_MANIFEST_KEY`; they never probe a local content directory as a fallback.
+
+Software-path removal requires a journaled four-plane gate:
+
+```bash
+npx trsd content cutover --seed treeseed --project admin --branch staging --plan --json
+npx trsd content cutover --seed treeseed --project admin --branch staging --apply --yes --remove-software-content --json
+```
+
+The apply reconciles only the local TreeDX content unit, freshly verifies graph, search, frontmatter, and exact Git ref, compares the live software and content Git trees, requires the current R2 publication receipt, and writes `.treeseed/content-cutovers/<repository>--<branch>.json`. Removal is additionally blocked when the local legacy path is dirty or its `HEAD` tree differs from the verified live source tree.
+
 ## Runtime paths
 
 Published objects are immutable:
