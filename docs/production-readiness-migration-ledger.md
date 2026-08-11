@@ -83,7 +83,7 @@ Updated: 2026-08-11
 
 - The Platform compiler supports `market-passthrough`, `external`, and `managed` modes and rejects inconsistent explicitly declared topology. Managed mode requires API, database, operations runner, and public TreeDX federation; pass-through and external modes reject those Platform-owned control-plane resources.
 - Market operations remain fixed to the immutable `treeseed` singleton profile and customer plans cannot declare a Market API service.
-- Bounded SDK staging gateway contract: `93690c1bcb569ac11554c16a03ba253dd8a8a141`; bounded CLI staging migration contract: `154d962138b8432e0e4f7cfb132fca5dc5321bdd`.
+- Bounded SDK staging gateway contract: `93690c1bcb569ac11554c16a03ba253dd8a8a141`; bounded CLI staging migration contract: `5e1b165814e22b81726cb2e68743a5c3bd4eac06`.
 - Private Market API main: `200d08c55e78254d2ccd4bf49d9329adde3b1368`; staging: `d221c7b6a41c7cef7af726665eeb7c3a3e7e3286`.
 - The singleton manifest pins Admin API `76508e4d55a179340899a58cb1bafc1dab7c8be4` and descriptor `sha256:a1db527487273f6a531551cfdc6d1be2ae84353a9e0dc37391729983c98a2090`.
 - A clean private staging clone passes `npm ci`, TypeScript build, and all five gateway/descriptor tests. The managed lockfile pins the exact SDK commit and CI uses the lockfile.
