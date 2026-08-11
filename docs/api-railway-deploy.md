@@ -6,7 +6,7 @@ Capacity-provider runtime behavior is owned by `@treeseed/agent`. The API hostin
 
 Current package ownership:
 
-- root market hosts the web/admin tenant and `/v1/*` proxy/client surfaces.
+- during extraction, the checked-out root hosts the Market web tenant; the target singleton gateway is the only public `api.treeseed.dev` entry point.
 - `@treeseed/admin` owns admin UI/routes/view-models and reaches backend behavior through API facades.
 - `@treeseed/api` owns backend control-plane state, PostgreSQL access, route descriptors, and operations runner implementation.
 - TreeDX federation/public nodes are hosted through API app reconciliation.
@@ -14,9 +14,9 @@ Current package ownership:
 
 See [Package Ownership](./package-ownership.md) for the full system map.
 
-## Market Railway Services
+## Hosted Admin API Railway Services
 
-`packages/api/treeseed.site.yaml` should reconcile these services in place. Do not create replacement services with new names. The root Market `treeseed.site.yaml` owns the Cloudflare web/admin tenant and `/v1/*` proxy/client surfaces; the API package manifest owns the independently released Railway backend runtime.
+`packages/api/treeseed.site.yaml` describes the independently released Admin control-plane runtime. During the deployment suspension it is inventory only. After reviewed OpenTofu restoration, the protected singleton Market workflow pins this service and its descriptor digest; customer Platform workflows may separately reconcile a sovereign instance but cannot mutate the singleton Market gateway.
 
 ```text
 api

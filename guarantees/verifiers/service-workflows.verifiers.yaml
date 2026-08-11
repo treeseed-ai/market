@@ -1,6 +1,21 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/market"
 verifiers:
+  market.portfolio.licensing:
+    kind: vitestCase
+    ownerPackage: "@treeseed/market"
+    testFile: tests/contract/architecture/portfolio-licensing.test.ts
+    timeoutSeconds: 60
+  market.gateway.admin-route-inventory:
+    kind: vitestCase
+    ownerPackage: "@treeseed/sdk"
+    testFile: tests/unit/gateway/admin-passthrough.test.ts
+    timeoutSeconds: 60
+  market.gateway.private-workspace-overlay:
+    kind: vitestCase
+    ownerPackage: "@treeseed/sdk"
+    testFile: tests/unit/seeds/managed-workspace-overlay.test.ts
+    timeoutSeconds: 60
   market.capacity.sdk-operator-contract:
     kind: vitestCase
     ownerPackage: "@treeseed/sdk"

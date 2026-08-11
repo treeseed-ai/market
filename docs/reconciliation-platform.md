@@ -12,6 +12,14 @@ See [Package Ownership](./package-ownership.md) for the current package map.
 
 Project topology reconciliation uses [Project Architecture Migration](./project-architecture-migration.md). The seed compiles primary and content repository identities into GitHub units. Content is not locally materialized for build or runtime; TreeDX owns operational workspaces and R2 owns published runtime manifests.
 
+The portfolio is compiled in two mutually exclusive authority domains. The Platform seed owns thirteen public primary repositories, their thirteen public content repositories, and the unpaired fixtures support repository. The singleton Market seed owns Market, Market content, the private Market API, and its private content repository. Platform compilation must reject Market service, repository, DNS, or deployment identities before provider planning. The built-in `treeseed` Market profile is immutable outside process-scoped local fixtures and contributes no infrastructure resources.
+
+GitHub repository reconciliation orders exact lifecycle units as repository, bootstrap observation, branches, rules/environments, secrets/variables, and workflow observation. A missing prerequisite is blocking drift; it is never papered over by a later unit. Every successful apply is followed by fresh read-back and a repeated plan must converge to `noop`.
+
+Singleton gateway reconciliation pins an exact Admin API ref and descriptor digest. SDK-owned admission compiles the descriptor's unique method/path templates and rejects undeclared routes, method mismatches, duplicate entries, and any Admin descriptor entry under `/v1/market/**`. Market API CI enumerates the complete pinned inventory before either singleton branch can verify. The gateway remains a protocol consumer and never imports Admin API implementation.
+
+The singleton repository is not a generated disposable tree. Its manifest declares the exact paths owned by reconciliation. Apply overlays those paths onto the live parent tree, removes only paths explicitly released by the prior managed manifest, and preserves private application files. Recovery accepts repository-owned additions only when every declared managed file still matches its pinned SDK/Admin inputs; managed drift remains blocked. Reconciliation also owns standalone `treeseed.site.yaml` and `treeseed.package.yaml` contracts plus a root self-workspace, so an isolated checkout supports package validation and canonical `trsd save`; package capabilities keep hosted deployment disabled. The private Market handler entrypoint is bootstrapped only when absent and is never reclaimed after application ownership begins.
+
 Repository identity is the normalized provider, host, owner, and repository tuple, not a literal clone URL or a local path. SSH, HTTPS, `git+ssh`, trailing-`.git`, case, and relative-submodule forms of the same remote resolve to one canonical key. Checkout identity is separate: developer, capacity-provider, and TreeDX custody each use an independent checkout and Git common directory, even when they represent the same repository and commit.
 
 ## Package Ownership In Reconciliation
@@ -208,7 +216,7 @@ Cloudflare adapters cover Pages, Workers, D1, R2, KV, Queues, Turnstile, DNS, ca
 
 Cloudflare token setup should use the dashboard permission names when configuring Treeseed credentials. Account-level live acceptance needs Pages Write, Workers Scripts Write, Workers KV Storage Write, Workers R2 Storage Write, D1 Write, Queues Write, Turnstile Sites Write, Account Rulesets Write, and Account Rule Lists Write. The target zone needs Zone Read, DNS Write, Cache Settings Write, and SSL and Certificates Write. Cloudflare API docs may call Cache Settings the Cache Rules permission, and Account Rule Lists the Account Filter Lists permission.
 
-GitHub adapters cover repository-scoped credentials, environments, secrets, variables, workflow dispatch, workflow observation, package release workflows, and image workflows.
+GitHub adapters cover repository metadata, bootstrap/branches, branch rules, environments, secrets, variables, workflow dispatch and observation, package release workflows, and image workflows. First-party repositories resolve the single central token; repository-scoped overrides are limited to imported third-party projects.
 
 Local adapters cover local web, local API, local DB, local runner, Mailpit, Docker Compose, SDK-managed process supervisors, ports, and generated config.
 
@@ -269,7 +277,7 @@ Live scenarios include:
 
 - Railway project, environment, service, image service, PostgreSQL, volume attach/reattach/delete, generated domain, custom domain, variables, deployment health. Railway creates at most one test project per provider run and tests every project-scoped resource inside that single project because Railway project creation is capped.
 - Cloudflare Pages, Worker, D1, R2, KV, Queue, DNS, Turnstile, secrets, and cache rules.
-- GitHub environment, secret, variable, workflow dispatch, workflow observation, and repository-scoped token routing.
+- GitHub repository/bootstrap/branch/rule/environment lifecycle, secret and variable bindings, workflow dispatch/observation, and central-token routing for `treeseed-ai/*`.
 - Local process, port, local DB, local runner, Docker Compose capacity provider, and `capacity-provider-assignment-proof`.
 - Railway `capacity-provider-runtime-assignment-proof`, which uses an approved provider membership and short-lived access token, leases a tagged assignment through the canonical provider protocol, emits mode-run and artifact-manifest telemetry, settles usage, completes the assignment, and verifies durable project evidence.
 - TreeDX Railway source build consumed by the API-hosted public node and verified over HTTP.

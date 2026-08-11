@@ -40,6 +40,33 @@ validate -> observe source/target -> extract exact refs -> push target -> verify
 
 The operation preserves content history from `main`, `staging`, and the active migration branch, maps package `docs/src/content` to content-repository `src/content`, and does not copy software release tags. Replay succeeds only when source, target, branch, tree, TreeDX, and R2 digests match the journal. Unexpected content or ref movement is blocking conflict.
 
+History bootstrap is deliberately applied one project at a time after live repository reconciliation:
+
+```bash
+npx trsd seed content-repositories treeseed --project admin --plan --json
+npx trsd seed content-repositories treeseed --project admin --apply --yes --json
+```
+
+Repository renames and organization moves use the parallel source-history operation before content extraction:
+
+```bash
+npx trsd seed source-repositories treeseed --project template-engineering --plan --json
+npx trsd seed source-repositories treeseed --project template-engineering --apply --yes --json
+```
+
+The source operation pushes exact historical refs into empty targets, permits only journal-proven fast-forward augmentation for a required workflow, and blocks unexpected target history. This is the path used to move the template repositories and the public Market repository into `treeseed-ai`; it does not deploy either repository.
+
+Platform is intentionally not migrated with the generic source operation because this transitional workspace still contains the Market application. Its dedicated extraction composes a filtered workspace snapshot from live package/template/fixture refs and excludes Market code, assets, content, host manifests, singleton seeds, and Market repositories:
+
+```bash
+npx trsd seed platform-workspace treeseed --plan --json
+npx trsd seed platform-workspace treeseed --apply --yes --json
+```
+
+Platform content uses an explicit skeleton migration mode so root Market content can never be mistaken for Platform-owned content.
+
+The operation authenticates every `treeseed-ai/*` read and push with the central `TREESEED_GITHUB_TOKEN`, never overwrites an existing target branch, persists partial branch receipts under `.treeseed/repository-migrations/`, and reports `noop` on replay only when the source commit, normalized content path, live target commit, and verified journal receipt all match. A `history_verified` receipt covers Git history bootstrap only; TreeDX binding and immutable R2 publication remain separate required cutover gates.
+
 The old software-repository content workflow remains in place until the matching content repository and R2 publication verify. After cutover, content publication is manual or release-driven through `trsd content publish`; a Git push does not directly mutate R2.
 
 ## Runtime paths

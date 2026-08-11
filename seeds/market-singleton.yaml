@@ -1,0 +1,133 @@
+name: market-singleton
+version: 1
+description: Protected singleton Market web and Market API repository portfolio
+
+defaultEnvironments: [staging]
+environments: [staging, prod]
+
+references:
+  - team:treeseed
+
+resources:
+  projects:
+    - key: project:treeseed/market
+      team: team:treeseed
+      slug: market
+      name: TreeSeed Market
+      description: Public singleton Market web application.
+      kind: market_app
+      repository:
+        role: primary
+        provider: github
+        owner: treeseed-ai
+        name: market
+        gitUrl: https://github.com/treeseed-ai/market.git
+        defaultBranch: main
+        repositoryPolicy: &public-repository-policy
+          visibility: public
+          lifecycle: create-or-adopt
+          deletionPolicy: retain
+          defaultBranch: main
+          stagingBranch: staging
+          issues: true
+          actions: true
+          workflows: [verify.yml]
+      architecture:
+        topology: split_site_content
+        rootPath: .
+        sitePath: .
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
+        contentPublishTarget: { kind: cloudflare_r2, prefix: market }
+      metadata: { visibility: public, deploymentAuthority: market-singleton, migrationSourcePath: . }
+
+    - key: project:treeseed/market-api
+      team: team:treeseed
+      slug: market-api
+      name: TreeSeed Market API
+      description: Private singleton commerce extension and hosted Admin API gateway.
+      kind: service
+      repository:
+        role: primary
+        provider: github
+        owner: treeseed-ai
+        name: market-api
+        gitUrl: https://github.com/treeseed-ai/market-api.git
+        defaultBranch: main
+        repositoryPolicy: &private-repository-policy
+          visibility: private
+          lifecycle: create-or-adopt
+          deletionPolicy: retain
+          defaultBranch: main
+          stagingBranch: staging
+          issues: true
+          actions: true
+          workflows: [verify.yml]
+      architecture:
+        topology: split_site_content
+        rootPath: .
+        sitePath: docs
+        contentRuntimeSource: r2_preview_overlay
+        localContentMaterialization: none
+        requiresLocalContentForCi: false
+        requiresLocalContentForDeploy: false
+        contentPublishTarget: { kind: cloudflare_r2, prefix: market-api }
+      metadata: { visibility: private, deploymentAuthority: market-singleton, contentMigrationMode: skeleton }
+
+  hubRepositories:
+    - key: repository:treeseed/market-content
+      project: project:treeseed/market
+      role: content
+      provider: github
+      owner: treeseed-ai
+      name: market-content
+      gitUrl: https://github.com/treeseed-ai/market-content.git
+      defaultBranch: main
+      repositoryPolicy:
+        visibility: public
+        lifecycle: create-or-adopt
+        deletionPolicy: retain
+        defaultBranch: main
+        stagingBranch: staging
+        issues: true
+        actions: true
+        workflows: [publish-content.yml]
+      publishPolicy: &public-content-policy
+        provider: cloudflare_r2
+        environments: [staging, prod]
+        previews: true
+
+    - key: repository:treeseed/market-api-content
+      project: project:treeseed/market-api
+      role: content
+      provider: github
+      owner: treeseed-ai
+      name: market-api-content
+      gitUrl: https://github.com/treeseed-ai/market-api-content.git
+      defaultBranch: main
+      repositoryPolicy:
+        visibility: private
+        lifecycle: create-or-adopt
+        deletionPolicy: retain
+        defaultBranch: main
+        stagingBranch: staging
+        issues: true
+        actions: true
+        workflows: [publish-content.yml]
+      publishPolicy:
+        provider: cloudflare_r2
+        environments: [staging, prod]
+        previews: false
+
+  supportRepositories: []
+
+  products: []
+  catalogArtifacts: []
+
+runtime:
+  capacityProviders: []
+  agentLabServicePrincipals: []
+
+operationRecipes: []

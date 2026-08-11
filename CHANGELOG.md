@@ -986,7 +986,7 @@
 
 ### Infrastructure
 
-- chore(starters): move starter submodules to treeseed-templates (4cc7d518732a)
+- chore(starters): move starter submodules to treeseed-ai (4cc7d518732a)
 - release: sync package staging heads (a876220ee863)
 
 ### Tests

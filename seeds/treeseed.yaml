@@ -16,32 +16,41 @@ resources:
       slug: treeseed
       name: treeseed
       displayName: TreeSeed
-      profileSummary: TreeSeed platform market, integrated package, and agent operations.
+      profileSummary: TreeSeed platform, package, and agent operations.
       metadata:
         visibility: public
 
   teamMemberships:
     - key: membership:treeseed/adrian-webb
       team: team:treeseed
-      email: adrian.webb@knowledge.coop
+      email: adrian.webb@treeseed.dev
       roles: [team_owner]
       missingUser: defer
 
   projects:
-    - key: project:treeseed/market
+    - key: project:treeseed/platform
       team: team:treeseed
-      slug: market
-      name: TreeSeed Market
-      description: Top-level market application and control plane.
-      kind: market_app
+      slug: platform
+      name: TreeSeed Platform
+      description: Public installer, integration workspace, and manager for customer-centric TreeSeed deployments.
+      kind: platform
       repository:
         role: primary
         provider: github
-        owner: knowledge-coop
-        name: market
-        gitUrl: https://github.com/knowledge-coop/market.git
+        owner: treeseed-ai
+        name: platform
+        gitUrl: https://github.com/treeseed-ai/platform.git
         defaultBranch: main
         checkoutPath: .
+        repositoryPolicy: &public-repository-policy
+          visibility: public
+          lifecycle: create-or-adopt
+          deletionPolicy: retain
+          defaultBranch: main
+          stagingBranch: staging
+          issues: true
+          actions: true
+          workflows: [verify.yml]
       architecture:
         topology: split_site_content
         rootPath: .
@@ -52,10 +61,11 @@ resources:
         requiresLocalContentForDeploy: false
         contentPublishTarget:
           kind: cloudflare_r2
-          prefix: market
+          prefix: platform
       metadata:
-        demoRole: market-control-plane
+        demoRole: platform-installer
         visibility: public
+        contentMigrationMode: skeleton
 
     - key: project:treeseed/api
       team: team:treeseed
@@ -105,6 +115,15 @@ resources:
         defaultBranch: main
         checkoutPath: packages/treedx
         submodulePath: packages/treedx
+        repositoryPolicy:
+          visibility: public
+          lifecycle: adopt-only
+          deletionPolicy: retain
+          defaultBranch: main
+          stagingBranch: staging
+          issues: true
+          actions: true
+          workflows: [release-gate.yml]
       architecture:
         topology: split_site_content
         rootPath: .
@@ -383,47 +402,13 @@ resources:
         docsSiteReadiness: not-prepared
         releaseOwnership: treeseed.package.yaml
 
-    - key: project:treeseed/market-api
+    - key: project:treeseed/template-engineering
       team: team:treeseed
-      slug: market-api
-      name: TreeSeed Market API
-      description: Private commerce extension and Admin API-compatible gateway.
-      kind: service
-      repository:
-        role: primary
-        provider: github
-        owner: knowledge-coop
-        name: market-api
-        gitUrl: https://github.com/knowledge-coop/market-api.git
-        defaultBranch: main
-        repositoryPolicy:
-          visibility: private
-          lifecycle: create-or-adopt
-          deletionPolicy: retain
-          defaultBranch: main
-          stagingBranch: staging
-          issues: true
-          actions: true
-      architecture:
-        topology: split_site_content
-        rootPath: .
-        sitePath: docs
-        contentRuntimeSource: r2_preview_overlay
-        localContentMaterialization: none
-        requiresLocalContentForCi: false
-        requiresLocalContentForDeploy: false
-        contentPublishTarget: { kind: cloudflare_r2, prefix: services/market-api }
-      metadata:
-        visibility: private
-        docsSiteReadiness: not-prepared
-
-    - key: project:treeseed/engineering
-      team: team:treeseed
-      slug: engineering
-      name: TreeSeed Engineering Starter
+      slug: template-engineering
+      name: TreeSeed Engineering Template
       description: Governed engineering project starter.
       kind: template
-      repository: { role: primary, provider: github, owner: treeseed-templates, name: engineering, gitUrl: https://github.com/treeseed-templates/engineering.git, defaultBranch: main, checkoutPath: starters/engineering, submodulePath: starters/engineering }
+      repository: { role: primary, provider: github, owner: treeseed-ai, name: template-engineering, gitUrl: https://github.com/treeseed-ai/template-engineering.git, defaultBranch: main, checkoutPath: templates/engineering, submodulePath: templates/engineering, repositoryPolicy: *public-repository-policy }
       architecture:
         topology: split_site_content
         rootPath: .
@@ -433,15 +418,15 @@ resources:
         requiresLocalContentForCi: false
         requiresLocalContentForDeploy: false
         contentPublishTarget: { kind: cloudflare_r2, prefix: starters/engineering }
-      metadata: { visibility: public }
+      metadata: { visibility: public, migrationSourcePath: starters/engineering }
 
-    - key: project:treeseed/research
+    - key: project:treeseed/template-research
       team: team:treeseed
-      slug: research
-      name: TreeSeed Research Starter
+      slug: template-research
+      name: TreeSeed Research Template
       description: Governed research project starter.
       kind: template
-      repository: { role: primary, provider: github, owner: treeseed-templates, name: research, gitUrl: https://github.com/treeseed-templates/research.git, defaultBranch: main, checkoutPath: starters/research, submodulePath: starters/research }
+      repository: { role: primary, provider: github, owner: treeseed-ai, name: template-research, gitUrl: https://github.com/treeseed-ai/template-research.git, defaultBranch: main, checkoutPath: templates/research, submodulePath: templates/research, repositoryPolicy: *public-repository-policy }
       architecture:
         topology: split_site_content
         rootPath: .
@@ -451,48 +436,16 @@ resources:
         requiresLocalContentForCi: false
         requiresLocalContentForDeploy: false
         contentPublishTarget: { kind: cloudflare_r2, prefix: starters/research }
-      metadata: { visibility: public }
-
-    - key: project:treeseed/information-hub
-      team: team:treeseed
-      slug: information-hub
-      name: TreeSeed Information Hub Starter
-      description: Public information hub project starter.
-      kind: template
-      repository:
-        role: primary
-        provider: github
-        owner: treeseed-templates
-        name: information-hub
-        gitUrl: https://github.com/treeseed-templates/information-hub.git
-        defaultBranch: main
-        repositoryPolicy:
-          visibility: public
-          lifecycle: create-or-adopt
-          deletionPolicy: retain
-          defaultBranch: main
-          stagingBranch: staging
-          issues: true
-          actions: true
-      architecture:
-        topology: split_site_content
-        rootPath: .
-        sitePath: .
-        contentRuntimeSource: r2_preview_overlay
-        localContentMaterialization: none
-        requiresLocalContentForCi: false
-        requiresLocalContentForDeploy: false
-        contentPublishTarget: { kind: cloudflare_r2, prefix: starters/information-hub }
-      metadata: { visibility: public }
+      metadata: { visibility: public, migrationSourcePath: starters/research }
 
   hubRepositories:
-    - key: repository:treeseed/market-content
-      project: project:treeseed/market
+    - key: repository:treeseed/platform-content
+      project: project:treeseed/platform
       role: content
       provider: github
-      owner: knowledge-coop
-      name: market-content
-      gitUrl: https://github.com/knowledge-coop/market-content.git
+      owner: treeseed-ai
+      name: platform-content
+      gitUrl: https://github.com/treeseed-ai/platform-content.git
       defaultBranch: main
       repositoryPolicy: &public-content-policy
         visibility: public
@@ -502,28 +455,11 @@ resources:
         stagingBranch: staging
         issues: true
         actions: true
+        workflows: [publish-content.yml]
       publishPolicy: &r2-content-policy
         provider: cloudflare_r2
         environments: [staging, prod]
         previews: true
-
-    - key: repository:treeseed/market-api-content
-      project: project:treeseed/market-api
-      role: content
-      provider: github
-      owner: knowledge-coop
-      name: market-api-content
-      gitUrl: https://github.com/knowledge-coop/market-api-content.git
-      defaultBranch: main
-      repositoryPolicy:
-        visibility: private
-        lifecycle: create-or-adopt
-        deletionPolicy: retain
-        defaultBranch: main
-        stagingBranch: staging
-        issues: true
-        actions: true
-      publishPolicy: *r2-content-policy
 
     - key: repository:treeseed/api-content
       project: project:treeseed/api
@@ -635,186 +571,41 @@ resources:
       repositoryPolicy: *public-content-policy
       publishPolicy: *r2-content-policy
 
-    - key: repository:treeseed/engineering-content
-      project: project:treeseed/engineering
+    - key: repository:treeseed/template-engineering-content
+      project: project:treeseed/template-engineering
       role: content
       provider: github
-      owner: treeseed-templates
-      name: engineering-content
-      gitUrl: https://github.com/treeseed-templates/engineering-content.git
+      owner: treeseed-ai
+      name: template-engineering-content
+      gitUrl: https://github.com/treeseed-ai/template-engineering-content.git
       defaultBranch: main
       repositoryPolicy: *public-content-policy
       publishPolicy: *r2-content-policy
 
-    - key: repository:treeseed/research-content
-      project: project:treeseed/research
+    - key: repository:treeseed/template-research-content
+      project: project:treeseed/template-research
       role: content
       provider: github
-      owner: treeseed-templates
-      name: research-content
-      gitUrl: https://github.com/treeseed-templates/research-content.git
+      owner: treeseed-ai
+      name: template-research-content
+      gitUrl: https://github.com/treeseed-ai/template-research-content.git
       defaultBranch: main
       repositoryPolicy: *public-content-policy
       publishPolicy: *r2-content-policy
 
-    - key: repository:treeseed/information-hub-content
-      project: project:treeseed/information-hub
-      role: content
+  supportRepositories:
+    - key: repository:treeseed/fixtures
       provider: github
-      owner: treeseed-templates
-      name: information-hub-content
-      gitUrl: https://github.com/treeseed-templates/information-hub-content.git
+      owner: treeseed-ai
+      name: fixtures
+      gitUrl: https://github.com/treeseed-ai/fixtures.git
       defaultBranch: main
-      repositoryPolicy: *public-content-policy
-      publishPolicy: *r2-content-policy
+      description: Public integrated verification fixtures shared by independently buildable TreeSeed projects.
+      repositoryPolicy: *public-repository-policy
+      metadata: { visibility: public, unpairedSupportRepository: true }
 
-  products:
-    - key: product:treeseed/market-template
-      team: team:treeseed
-      kind: template
-      slug: treeseed-market
-      title: TreeSeed Market Starter
-      summary: First-party TreeSeed market control plane starter bundle.
-      visibility: public
-      listingEnabled: true
-      offerMode: free
-      manifestKey: seeds/treeseed.yaml
-      artifactKey: catalog/treeseed-market/1.0.0/template
-      searchText: TreeSeed market control plane starter template
-      metadata:
-        provider: github
-        owner: knowledge-coop
-        repository: market
-        gitUrl: https://github.com/knowledge-coop/market.git
-    - key: product:treeseed/engineering-template
-      team: team:treeseed
-      kind: template
-      slug: engineering
-      title: Engineering Workflow Import
-      summary: First-party starter for governed engineering work, release checks, and operational memory.
-      visibility: public
-      listingEnabled: true
-      offerMode: free
-      manifestKey: src/content/templates/engineering.mdx
-      artifactKey: catalog/treeseed-engineering/1.0.0/template
-      searchText: TreeSeed engineering workflow import template capacity governance release checks
-      metadata:
-        provider: github
-        owner: treeseed-templates
-        repository: engineering
-        gitUrl: https://github.com/treeseed-templates/engineering.git
-
-    - key: product:treeseed/research-template
-      team: team:treeseed
-      kind: template
-      slug: research
-      title: Research Workflow Import
-      summary: First-party starter for source-backed research bodies, synthesis notes, and reusable knowledge packs.
-      visibility: public
-      listingEnabled: true
-      offerMode: free
-      manifestKey: src/content/templates/research.mdx
-      artifactKey: catalog/treeseed-research/1.0.0/template
-      searchText: TreeSeed research workflow import template knowledge pack source backed
-      metadata:
-        provider: github
-        owner: treeseed-templates
-        repository: research
-        gitUrl: https://github.com/treeseed-templates/research.git
-
-    - key: product:treeseed/information-hub-template
-      team: team:treeseed
-      kind: template
-      slug: information-hub
-      title: Information Hub Workflow Import
-      summary: First-party starter for public knowledge hubs, docs, and durable publishing workflows.
-      visibility: public
-      listingEnabled: true
-      offerMode: free
-      manifestKey: src/content/templates/information-hub.mdx
-      artifactKey: catalog/treeseed-information-hub/1.0.0/template
-      searchText: TreeSeed information hub workflow import template docs knowledge publishing
-      metadata:
-        provider: github
-        owner: treeseed-templates
-        repository: information-hub
-        gitUrl: https://github.com/treeseed-templates/information-hub.git
-
-    - key: product:treeseed/seed-knowledge-pack
-      team: team:treeseed
-      kind: knowledge_pack
-      slug: seed-pack
-      title: TreeSeed Seed Knowledge Pack
-      summary: First-party knowledge import used to prove public pack acquisition, entitlement, and project import workflows.
-      visibility: public
-      listingEnabled: true
-      offerMode: free
-      manifestKey: src/content/knowledge-packs/seed-pack.mdx
-      artifactKey: catalog/treeseed-seed-pack/1.0.0/knowledge-pack
-      searchText: TreeSeed seed knowledge pack public import entitlement project knowledge
-      metadata:
-        provider: treedx
-        owner: treeseed
-        package: seed-pack
-
-  catalogArtifacts:
-    - key: catalog-artifact:treeseed/market-template/1.0.0
-      product: product:treeseed/market-template
-      version: 1.0.0
-      kind: template
-      contentKey: catalog/treeseed-market/1.0.0/template
-      manifestKey: seeds/treeseed.yaml
-      metadata:
-        provider: github
-        owner: knowledge-coop
-        repository: market
-        gitUrl: https://github.com/knowledge-coop/market.git
-    - key: catalog-artifact:treeseed/engineering-template/1.0.0
-      product: product:treeseed/engineering-template
-      version: 1.0.0
-      kind: template
-      contentKey: catalog/treeseed-engineering/1.0.0/template
-      manifestKey: src/content/templates/engineering.mdx
-      metadata:
-        provider: github
-        owner: treeseed-templates
-        repository: engineering
-        gitUrl: https://github.com/treeseed-templates/engineering.git
-
-    - key: catalog-artifact:treeseed/research-template/1.0.0
-      product: product:treeseed/research-template
-      version: 1.0.0
-      kind: template
-      contentKey: catalog/treeseed-research/1.0.0/template
-      manifestKey: src/content/templates/research.mdx
-      metadata:
-        provider: github
-        owner: treeseed-templates
-        repository: research
-        gitUrl: https://github.com/treeseed-templates/research.git
-
-    - key: catalog-artifact:treeseed/information-hub-template/1.0.0
-      product: product:treeseed/information-hub-template
-      version: 1.0.0
-      kind: template
-      contentKey: catalog/treeseed-information-hub/1.0.0/template
-      manifestKey: src/content/templates/information-hub.mdx
-      metadata:
-        provider: github
-        owner: treeseed-templates
-        repository: information-hub
-        gitUrl: https://github.com/treeseed-templates/information-hub.git
-
-    - key: catalog-artifact:treeseed/seed-knowledge-pack/1.0.0
-      product: product:treeseed/seed-knowledge-pack
-      version: 1.0.0
-      kind: knowledge_pack
-      contentKey: catalog/treeseed-seed-pack/1.0.0/knowledge-pack
-      manifestKey: src/content/knowledge-packs/seed-pack.mdx
-      metadata:
-        provider: treedx
-        owner: treeseed
-        package: seed-pack
+  products: []
+  catalogArtifacts: []
 
 runtime:
   agentLabServicePrincipals:

@@ -21,7 +21,6 @@ references:
   - project:treeseed/market-api
   - project:treeseed/engineering
   - project:treeseed/research
-  - project:treeseed/information-hub
 
 resources: {}
 
@@ -49,7 +48,6 @@ runtime:
         - project:treeseed/market-api
         - project:treeseed/engineering
         - project:treeseed/research
-        - project:treeseed/information-hub
       allowedModes: [planning, acting]
       executionProviderIds:
         - codex-sub

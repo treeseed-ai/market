@@ -53,5 +53,5 @@ packs:
       - docs/purpose.md
       - docs/demo.md
       - src/overrides/pages/index.astro
-      - src/content/templates/engineering.mdx
-      - src/content/templates/research.mdx
+      - src/content/starters/engineering.mdx
+      - src/content/starters/research.mdx
