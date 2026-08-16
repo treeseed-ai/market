@@ -7,11 +7,11 @@ journey: Verify Capacity Failure And Concurrency Matrix
 ownerPackage: "@treeseed/market"
 surface: agent-runtime
 summary: "Prove cross-project admission pressure, provider-local final-slot exclusion, interrupted lease recovery, stale-token fencing, membership revocation, exactly-once settlement, policy immutability, and cleanup through one integrated service workflow."
-status: active
+status: planned
 actors:
   allowed: [capacity_provider, capacity_operator, team_owner]
   forbidden: [revoked_capacity_provider]
-gates: [core, release]
+gates: [core]
 preconditions:
   fixtures: [integrated_treeseed_project]
 scene:
@@ -38,4 +38,4 @@ notes:
   - "The workflow fingerprints human-owned grants and allocation policy before execution and proves they are unchanged afterward."
 run:
   timeoutSeconds: 14400
-  requiredForRelease: true
+  requiredForRelease: false

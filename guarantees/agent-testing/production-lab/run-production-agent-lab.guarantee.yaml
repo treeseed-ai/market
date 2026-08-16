@@ -35,6 +35,9 @@ negativeCases:
   - id: mocks-cannot-satisfy-live-evidence
     actor: capacity_operator
     verifierRefs: [market.agent-testing.production-lab-content]
+  - id: invalid-question-content-cannot-be-scheduled-or-answered
+    actor: capacity_operator
+    verifierRefs: [market.agent-testing.production-lab-content]
   - id: acting-cannot-bypass-governance
     actor: unapproved_capacity_provider
     verifierRefs: [market.capacity.full-local-lifecycle]
@@ -44,6 +47,7 @@ notes:
   - "Keep planned until the Guide scene and the full enabled workday-kind catalog repeatedly produce report, API, sanitized transcript, content artifact, settlement, and zero-residue cleanup evidence."
   - "Activation additionally requires agent/profile coverage, provider telemetry, stable exhaustive transcript paging, accessible live viewing, zero-external-request offline replay, and successful individual Guide agent scenes before the combined run."
   - "Deterministic handler tests remain useful fast checks but cannot satisfy this production-path guarantee."
+  - "Agent Lab must surface SDK-owned Zod model and field diagnostics for malformed TreeDX content, and no answer changeset may be created until the resulting question validates."
 run:
   timeoutSeconds: 14400
   requiredForRelease: false

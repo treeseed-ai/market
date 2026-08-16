@@ -35,7 +35,7 @@ agentLab:
   scope:
     kind: team
     team: team:treeseed
-    capacityProvider: capacity-provider:treeseed/local
+    capacityProvider: capacity-provider:treeseed/agents
   provider: local
   executionProvider: codex-treeseed
   presentation: race-control

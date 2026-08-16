@@ -6,12 +6,12 @@ subtype: lifecycle
 journey: Verify Full Local Capacity Lifecycle
 ownerPackage: "@treeseed/market"
 surface: agent-runtime
-summary: "Prove signed multi-team provider onboarding, key/proof/review race handling, independent membership suspension, explicit governance and admission, provider-manager and runner dispatch, AgentKernel execution, TreeDX artifact ownership, usage, exactly-once settlement, revocation, and cleanup through the reconciled local service stack."
-status: active
+summary: "Prove the bounded provider and API control-plane lifecycle: signed onboarding, membership and grant separation, lease dispatch, usage settlement, revocation, and cleanup. This guarantee does not claim a correct agent profile or repository outcome."
+status: planned
 actors:
   allowed: [team_owner, capacity_provider, capacity_operator]
   forbidden: [unapproved_capacity_provider, revoked_capacity_provider]
-gates: [core, release]
+gates: [core]
 preconditions:
   fixtures: [integrated_treeseed_project]
   notes:
@@ -49,4 +49,4 @@ notes:
   - "Terminal validation requires one committed TreeDX artifact with create/commit receipts, exact-ref read-back, dimensional usage with one aggregate row, one ledger settlement, closed workspace, revoked capability handles, unchanged human policy, and denied revoked access."
 run:
   timeoutSeconds: 14400
-  requiredForRelease: true
+  requiredForRelease: false

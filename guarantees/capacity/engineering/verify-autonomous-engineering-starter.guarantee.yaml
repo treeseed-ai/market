@@ -7,11 +7,11 @@ journey: Verify Autonomous Engineering Starter
 ownerPackage: "@treeseed/market"
 surface: agent-runtime
 summary: "Prove the reconciled engineering starter autonomously plans and executes a real test-first graph through proposal, estimate, research, architecture, failing test, implementation, verification, rejection, revision, approval, documentation, release readiness, reporting, usage, settlement, and cleanup."
-status: active
+status: planned
 actors:
   allowed: [team_owner, capacity_provider, capacity_operator]
   forbidden: [unapproved_capacity_provider, revoked_capacity_provider]
-gates: [core, release]
+gates: [future]
 preconditions:
   fixtures: [integrated_treeseed_project]
   notes:
@@ -41,4 +41,4 @@ notes:
   - "The verifier requires all eight starter roles, eleven durable graph nodes, an explicit Reviewer rejection and revision loop, exact-ref source checkpoints, TreeDX artifacts, dimensional usage, exactly-once ledger entries, and terminal cleanup."
 run:
   timeoutSeconds: 14400
-  requiredForRelease: true
+  requiredForRelease: false

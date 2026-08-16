@@ -15,6 +15,11 @@ groupIds:
   - agent
   - editorial-team
   - reporting
+instructionTemplateRefs:
+  - { id: assignment-plan-standard, revision: 1 }
+  - { id: assignment-status-standard, revision: 1 }
+  - { id: assignment-message-standard, revision: 1 }
+  - { id: assignment-summary-standard, revision: 1 }
 identity:
   purpose: Make planning progress and orchestration quality legible even when human governance correctly prevents acting work.
   responsibilities: [Establish closeout evidence requirements, correlate assignments and handoffs, summarize research and proposals, compare estimates and reviews, report coverage and costs, expose failures and missing evidence, recommend the next governance and planning queue]
@@ -35,10 +40,79 @@ activityProfiles:
       task: Produce a closeout evidence plan linked to the objective, including required records, coverage expectations, readiness tests, accounting fields, and failure questions.
     planningIntent: { stage: discovery, objective: Identify the evidence required to report the selected planning workday completely, artifactKind: planning_note, subjectModel: objective, subjectId: core }
     branchPolicy: { kind: read-only, base: main }
-    contentAccess:
-      read: { models: [objective, question, note, proposal, decision, knowledge, book, agent], actions: [describe, query, read], books: [treeseed-guide] }
-      write: { models: [note, question], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/reports/**, src/content/questions/editorial/books/treeseed-guide/**] }
-      commit: { allowed: true }
+    permissions:
+      content:
+        objective:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: &id001
+            - treeseed-guide
+        question:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths: &id002
+            - src/content/notes/editorial/books/treeseed-guide/reports/**
+            - src/content/questions/editorial/books/treeseed-guide/**
+        note:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths: *id002
+        proposal:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        decision:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        knowledge:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        book:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        agent:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+      commit:
+        allowed: true
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.status, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
     signals: { publishes: [evidence-ready] }
     outputs: { messageTypes: [documentation_plan_updated], modelMutations: [linked_note:create, question:create] }
@@ -51,7 +125,7 @@ activityProfiles:
     prompt: { system: "Estimate observability, synthesis, coverage accounting, and workday closeout effort for every proposal you join in minimum, expected, and maximum agent-seconds. Identify evidence dependencies, risks, assumptions, or give a structured not-applicable rationale. Never vote.", task: Submit an auditable proposal-linked reporting estimate. }
     planningIntent: { stage: evaluation, objective: Estimate reporting work for each joined proposal, artifactKind: agent_estimate, subjectModel: proposal, subjectId: null }
     branchPolicy: { kind: read-only, base: main }
-    contentAccess: { read: { models: [objective, note, question, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }, commit: { allowed: false } }
+    permissions: { content: { objective: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, note: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, question: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, proposal: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, decision: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, knowledge: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, book: { operations: [describe, query, read], filters: { books: [treeseed-guide] } } }, commit: { allowed: false } }
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files] }
     signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each }], publishes: [proposal-estimated] }
     outputs: { messageTypes: [], modelMutations: [estimate:create] }
@@ -66,10 +140,73 @@ activityProfiles:
       task: Produce a concise human-readable workday report plus complete linked evidence inventory, proposal readiness matrix, cost and coverage summary, unresolved risks and questions, and a prioritized next queue without duplicating completed plans.
     planningIntent: { stage: closeout, objective: "Summarize proposals, evidence, estimates, reviews, concerns, questions, costs, and readiness", artifactKind: workday_summary, subjectModel: objective, subjectId: core, includeWorkdayArtifacts: true }
     branchPolicy: { kind: staging-content, base: staging }
-    contentAccess:
-      read: { models: [objective, question, note, proposal, decision, knowledge, book, agent], actions: [describe, query, read], books: [treeseed-guide] }
-      write: { models: [note], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/reports/**] }
-      commit: { allowed: true }
+    permissions:
+      content:
+        objective:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: &id001
+            - treeseed-guide
+        question:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        note:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths:
+            - src/content/notes/editorial/books/treeseed-guide/reports/**
+        proposal:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        decision:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        knowledge:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        book:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        agent:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+      commit:
+        allowed: true
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.status, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
     signals:
       subscribesTo:

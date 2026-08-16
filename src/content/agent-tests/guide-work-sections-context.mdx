@@ -1,0 +1,31 @@
+---
+id: guide-work-sections-context
+agent: guide-steward
+kind: context-query
+queryRef:
+  id: guide-work-sections
+  revision: 2
+testRef: treeseed-guide-work-sections-v3
+expectedIdentities:
+  - guide.work.agents
+  - guide.work.workdays
+  - guide.work.capacity-providers
+expectedRelations: []
+expectedPaths:
+  - src/content/knowledge/treeseed-guide/work/agents.md
+  - src/content/knowledge/treeseed-guide/work/workdays.md
+  - src/content/knowledge/treeseed-guide/work/capacity-providers.md
+expectedSchemaVersions:
+  - treeseed.knowledge-page/v1
+resultBounds:
+  min: 3
+  max: 3
+budget:
+  maxContextItems: 3
+  maxTokens: 4000
+groupIds: [editorial, guide, work]
+---
+
+This isolated test proves the exact Work-section query returns Agents,
+Workdays, and Capacity Providers—and no unrelated page—within its declared
+budgets. It does not start an agent or mutate Guide content.

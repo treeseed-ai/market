@@ -35,7 +35,7 @@ agentLab:
   scope:
     kind: team
     team: team:treeseed
-    capacityProvider: capacity-provider:treeseed/local
+    capacityProvider: capacity-provider:treeseed/agents
   provider: local
   executionProvider: codex-treeseed
   presentation: race-control
@@ -50,8 +50,9 @@ agentLab:
       objectiveRefs: [objective:harden-documentation-automation-workday-loop]
       durationSeconds: 900
       timePolicy: { cooperativePlanningPercent: 90, governedExecutionPercent: 0, reservePercent: 10 }
-      planningSession: { rounds: 3, assignmentTimeboxSeconds: 900, tokenWarning: 24000 }
+      planningSession: { rounds: 3, assignmentTimeboxSeconds: 720, tokenWarning: 24000 }
       maxActiveAssignments: 1
       planningOnly: true
+      activityTypes: [planning]
 
 training: { enabled: false }

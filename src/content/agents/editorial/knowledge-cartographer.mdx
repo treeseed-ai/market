@@ -15,6 +15,11 @@ groupIds:
   - agent
   - editorial-team
   - knowledge-graph
+instructionTemplateRefs:
+  - { id: assignment-plan-standard, revision: 1 }
+  - { id: assignment-status-standard, revision: 1 }
+  - { id: assignment-message-standard, revision: 1 }
+  - { id: assignment-summary-standard, revision: 1 }
 identity:
   purpose: Make every important Guide concept easy to locate, understand in context, and traverse through stable book and graph relationships.
   responsibilities: [Map the current book and relation graph, diagnose structural and retrieval defects, design stable hierarchy and reciprocal links, specify migrations and redirect needs, independently review graph changes]
@@ -46,10 +51,77 @@ activityProfiles:
         - { stage: synthesis, promptTask: "Author one complete objective-linked structural proposal with an explicit before and after relation map.", signals: { subscribesTo: [{ contract: evidence-ready, producerPolicy: all }], publishes: [proposal-ready] } }
         - { stage: revision, promptTask: "Revise the exact structural proposal you authored against every synchronized estimate, graph review, concern, and question; publish a new immutable version with a response map.", signals: { subscribesTo: [{ contract: proposal-reviewed, cardinality: each, producerPolicy: all }, { contract: proposal-estimated, producerPolicy: all }], publishes: [proposal-revised] } }
     branchPolicy: { kind: staging-content, base: staging }
-    contentAccess:
-      read: { models: [objective, note, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }
-      write: { models: [note, question, proposal], actions: [create, update, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/planning/cartography/**, src/content/questions/editorial/books/treeseed-guide/**, src/content/proposals/editorial/books/treeseed-guide/**] }
-      commit: { allowed: true }
+    permissions:
+      content:
+        objective:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: &id001
+            - treeseed-guide
+        note:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths: &id002
+            - src/content/notes/editorial/books/treeseed-guide/planning/cartography/**
+            - src/content/questions/editorial/books/treeseed-guide/**
+            - src/content/proposals/editorial/books/treeseed-guide/**
+        proposal:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths: *id002
+        decision:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        knowledge:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        book:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        question:
+          operations:
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            paths: *id002
+      commit:
+        allowed: true
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
     signals: { subscribesTo: [{ contract: evidence-ready, producerPolicy: all }], publishes: [proposal-ready] }
     outputs: { messageTypes: [source_map_created], modelMutations: [linked_note:create, question:create, proposal:create] }
@@ -65,10 +137,61 @@ activityProfiles:
       task: Produce a proposal-linked graph review with explicit pass, fail, or not-applicable findings and bounded revision requests.
     planningIntent: { stage: evaluation, objective: Review the least-covered generated proposal and record linked structural feedback, artifactKind: proposal_feedback_note, subjectModel: proposal, subjectId: null }
     branchPolicy: { kind: read-only, base: main }
-    contentAccess:
-      read: { models: [note, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }
-      write: { models: [note, question], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/reviews/**, src/content/questions/editorial/books/treeseed-guide/**] }
-      commit: { allowed: true }
+    permissions:
+      content:
+        note:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - link
+          - validate
+          - commit
+          filters:
+            books: &id001
+            - treeseed-guide
+            paths: &id002
+            - src/content/notes/editorial/books/treeseed-guide/reviews/**
+            - src/content/questions/editorial/books/treeseed-guide/**
+        proposal:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        decision:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        knowledge:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        book:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        question:
+          operations:
+          - create
+          - link
+          - validate
+          - commit
+          filters:
+            paths: *id002
+      commit:
+        allowed: true
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
     signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each, filters: { proposalTypes: [knowledge-architecture] } }], publishes: [proposal-reviewed] }
     outputs: { messageTypes: [docs_mutation_completed], modelMutations: [proposal_feedback:create, question:create] }
@@ -80,10 +203,59 @@ activityProfiles:
     handler: writer
     prompt: { system: "Apply only the approved structural patch. Preserve stable IDs unless the decision explicitly changes them and leave reciprocal graph and navigation links.", task: "Apply the approved graph change." }
     branchPolicy: { kind: staging-content, base: staging }
-    contentAccess:
-      read: { models: [note, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }
-      write: { models: [knowledge, book], actions: [update, link, validate, commit], books: [treeseed-guide], paths: [src/content/knowledge/treeseed-guide/**, src/content/books/treeseed-guide.md] }
-      commit: { allowed: true }
+    permissions:
+      content:
+        note:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: &id001
+            - treeseed-guide
+        proposal:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        decision:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        knowledge:
+          operations:
+          - describe
+          - query
+          - read
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: &id002
+            - treeseed-guide
+            paths: &id003
+            - src/content/knowledge/treeseed-guide/**
+            - src/content/books/treeseed-guide.md
+        book:
+          operations:
+          - describe
+          - query
+          - read
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id002
+            paths: *id003
+      commit:
+        allowed: true
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
     outputs: { messageTypes: [docs_mutation_completed], modelMutations: [knowledge_update:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
@@ -95,7 +267,7 @@ activityProfiles:
     prompt: { system: "Estimate graph analysis, relation migration, navigation, redirect, and validation effort for every proposal you join in minimum, expected, and maximum agent-seconds. Identify dependencies, risks, assumptions, or give a structured not-applicable rationale. Never vote.", task: Submit an auditable proposal-linked knowledge-architecture estimate. }
     planningIntent: { stage: evaluation, objective: Estimate graph and architecture work for each joined proposal, artifactKind: agent_estimate, subjectModel: proposal, subjectId: null }
     branchPolicy: { kind: read-only, base: main }
-    contentAccess: { read: { models: [objective, note, question, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }, commit: { allowed: false } }
+    permissions: { content: { objective: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, note: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, question: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, proposal: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, decision: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, knowledge: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, book: { operations: [describe, query, read], filters: { books: [treeseed-guide] } } }, commit: { allowed: false } }
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files] }
     signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each }], publishes: [proposal-estimated] }
     outputs: { messageTypes: [], modelMutations: [estimate:create] }

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "id": "platform-market-codex",
+  "displayName": "Market-connected Platform with Codex",
+  "description": "A TreeSeed Platform using the immutable Market gateway and external Codex execution.",
+  "category": "platform",
+  "tags": ["platform", "market", "codex"],
+  "templateVersion": "1.0.0",
+  "templateApiVersion": 2,
+  "minCliVersion": "0.12.0",
+  "variables": [],
+  "managedSurface": {
+    "coreManaged": ["treeseed.site.yaml", "seeds/platform.yaml", "scenes/team-project-portfolio-demo.yaml"],
+    "validatedOnly": ["treeseed.site.yaml", "seeds/platform.yaml", "scenes/team-project-portfolio-demo.yaml"]
+  },
+  "platform": {
+    "controlPlane": { "mode": "market-passthrough" },
+    "processing": { "mode": "market-assigned" },
+    "admin": { "enabled": true },
+    "executionProvider": "codex",
+    "aiAppliance": false,
+    "services": ["admin"],
+    "seeds": ["seeds/platform.yaml"],
+    "scenes": ["scenes/team-project-portfolio-demo.yaml"]
+  },
+  "testing": { "smokeCommand": "npx trsd platform status --json", "buildCommand": "npm run verify" }
+}

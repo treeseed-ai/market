@@ -19,6 +19,47 @@ expect:
   durableModeRuns: true
   treeDxOnlyContentAccess: true
   usageAndSettlement: true
+  semanticArtifacts:
+    - id: guide-work-writing-gap-assessment
+      agentId: guide-writer
+      activityType: planning
+      model: note
+      pathPrefix: src/content/notes/editorial/books/treeseed-guide/planning/drafts/
+      subjectRefs: [core]
+      relationFields: [relatedObjectives]
+      requiredClaims: [Reader Journey, Prioritized Reader Problems, Evidence Constraints, Measurable criterion]
+    - id: evidence-dossier
+      agentId: evidence-researcher
+      activityType: planning
+      model: note
+      pathPrefix: src/content/notes/editorial/books/treeseed-guide/evidence/
+      subjectRefs: [objective:harden-documentation-automation-workday-loop]
+      relationFields: [about, relatedObjectives]
+      requiredClaims: [Research Questions, Evidence, Unresolved]
+    - id: technical-claim-audit
+      agentId: technical-verifier
+      activityType: planning
+      model: note
+      pathPrefix: src/content/notes/editorial/books/treeseed-guide/reviews/
+      subjectRefs: [objective:harden-documentation-automation-workday-loop]
+      relationFields: [about, relatedObjectives]
+      requiredClaims: [Scope, Evidence, Risk]
+    - id: audience-journey-assessment
+      agentId: audience-reviewer
+      activityType: planning
+      model: note
+      pathPrefix: src/content/notes/editorial/books/treeseed-guide/reviews/
+      subjectRefs: [objective:harden-documentation-automation-workday-loop]
+      relationFields: [about, relatedObjectives]
+      requiredClaims: [Audience, Journey, Criteria]
+    - id: governed-editorial-proposal
+      agentId: guide-steward
+      activityType: planning
+      model: proposal
+      pathPrefix: src/content/proposals/editorial/books/treeseed-guide/
+      subjectRefs: [objective:harden-documentation-automation-workday-loop]
+      relationFields: [relatedObjectives, evidence_refs]
+      requiredClaims: [Desired Outcome, Scope, Acceptance Criteria, Verification]
 groupIds:
   - editorial
   - guide

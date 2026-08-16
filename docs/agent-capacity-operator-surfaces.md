@@ -50,12 +50,18 @@ Admin may use reusable controls from `@treeseed/ui`, but product-specific capaci
 
 - API owns frozen workday topology, live/as-of reduction, deterministic portfolio replay, assignment-graph aggregation, durable event projection, and authorized detail projections.
 - SDK owns presentation-neutral Atlas scope, topology, cursor, delta, event, assignment-lineage, authoring, and Discussion-context contracts.
-- UI owns reusable circuit layout, viewport controls, metric sizing, replay controls, operation docks, full-content overlays, compact vitals, and research-mode presentation without importing SDK or API code.
+- UI owns reusable circuit layout, viewport controls, metric sizing, replay controls, operation docks, authenticated vital-density presentation, content-region focus surfaces, and bounded overlay coordination without importing SDK or API code.
 - Admin owns authenticated server bootstrap, URL state, active-team authorization, shell composition, authoring permission, and the bridge into Discussion.
 
 Historical playback always uses the topology frozen into the workday parameters beside the planning graph. Live portfolio mode uses current scopes plus active frozen revisions and exposes incompatible variants rather than merging them. The browser applies API-owned projections and deltas; it does not reconstruct as-of state. Event and assignment lists retain durable order, and moving away from the live edge is never interrupted by newly arriving events.
 
-The same monitoring header appears on the Agent Lab root and specialized entity routes. Vital metrics support expanded and compact density. Metric history remains available through monitor overlays rather than competing with the Atlas as a second homepage. Standard and research layouts compose the same workspace instance.
+The same monitoring header appears on the Agent Lab root and specialized entity routes. Vital metrics support expanded and compact density persisted per signed-in user and team in the existing Agent Lab view-state record; browser storage is migration and outage fallback only. Metric history remains available through workspace focus surfaces rather than competing with Atlas as a second homepage.
+
+Agent Lab layout uses three independent axes: Easy or Diagnostic interface detail, expanded or compact vital density, and inline or focused application layout. Focusing Atlas, Agent Designer, a rich editor, Simulation Bay, or a forensic explorer covers the complete Agent Lab content region while preserving global Product Shell navigation. Focus changes layout without remounting the application, so canvas transforms, replay cursors, dock choices, selections, drafts, editor history, diagnostics, and scroll positions remain intact. Shrink restores the prior layout and never means Close or Discard.
+
+`WorkspaceFocusSurface` and the workspace overlay coordinator in `@treeseed/ui` are the only focus and nested-overlay presentation contract. One surface may be focused at a time. Escape and browser Back close the top overlay first and shrink only after the overlay stack is empty. URL state uses `focus=atlas|designer|simulation` plus exact `workday` and `inspect` context; the former `research=1` Atlas link is read once and canonicalized to `focus=atlas`, and focused mode is not saved as an automatic account preference.
+
+The coordinated design studies map to production as follows: `design/agent-atlas.html` redirects to `/app/work`; `design/agent-lab-collapsed.html` defines compact vitals; `design/agent-lab-expanded.html` defines focused Atlas inside global chrome; `design/agent-lab.html` guides replay, simulation evaluation, docks, and detail overlays; and `design/agent-manager.html` guides the focused Agent Designer with nested simulation, help, and editor surfaces. They remain reference artifacts and are never runtime imports. The standalone port-4760 viewer remains only until the integrated Atlas supplies equivalent live, replay, evaluation, and forensic evidence through UI, API, CLI JSON/JSONL, and authorized agent tools.
 
 Implemented Architecture Milestone M4 surfaces:
 
@@ -82,6 +88,8 @@ CLI should provide JSON-first commands for:
 - usage and ledger summaries
 - explicit `trsd capacity overrun-approve|overrun-reject` decisions over team-managed API operations; provider credentials cannot make these decisions
 - local provider proof
+- governed portability through `capacity agent-deploy`, `capacity agent-deployment`, `capacity agent-deployment-activate`, and `capacity agent-deployment-upgrade`; plans select one exact agent or group, portfolio targets journal independently, activation consumes exact prerequisite evidence, and upgrades report three-way divergence rather than merging automatically
+- explicit workday execution mode: simulation is the default, while `--production --yes` permits only the reviewed platform path to publish an exact approved ref; assignment agents remain checkpoint-only
 
 `trsd capacity build/up/status/logs/down/test-local` remain lifecycle commands. Assignment policy and runtime records should be exposed through explicit inspection or diagnostic commands rather than hidden inside lifecycle output.
 
@@ -120,6 +128,8 @@ The execution-visibility work extends existing inspection commands without addin
 - Project-context compilation failures are admission failures. Missing owning teams and unreadable architecture/repository state remain visible through API/CLI diagnostics and are never rendered as an assignment with fabricated defaults.
 - TreeDX workspace preparation reports stable upstream HTTP, response-size, JSON, and deterministic-identity error codes. Operator clients must preserve these errors and must not retry with a different workspace identity.
 - Workday inspection exposes exact run-owned envelope state and scheduling recovery failures. A missing failure event, unconfirmed failed-run transition, or unclosed exact envelope is a failed control-plane operation, never a successful partial schedule or empty result.
+- Workday completion first closes admission through the idempotent API fence, then rereads durable envelopes, assignments, mode runs, and settlements. A failed assignment makes successful completion impossible. The default summary is aggregate-only; detailed evidence requires one named collection, a bounded limit, and cursor continuation.
+- The SDK operation registry is the parity owner for API descriptors, CLI actions, required access, mutation mode, confirmation policy, UI availability, and operator-agent visibility. API, CLI, and UI parity tests must fail when a lifecycle operation is omitted or assigned a conflicting permission class.
 - Provider runners report assignment-attempt usage dimensions through `POST /v1/provider/assignments/:assignmentId/usage` before calling terminal settlement. Reports are explicitly informational or incremental; aggregate accounting is terminal-only. Usage and settlement inspection reads one typed bounded evidence contract. Corrupt usage JSON/numeric/accounting state or a database failure is surfaced to CLI/API callers and never rendered as zero usage, an empty successful collection, or an inferred execution-provider kind.
 - Renew, return, complete, and fail consume one typed lifecycle contract. A 409 after expiry or a concurrent state-version change is a real lost-authority result; CLI/API clients must not retry it as though the stale runner still owns the assignment.
 - `trsd capacity assignment-explanation --json` includes an `executionCapabilityMatch` summary derived from the assignment explanation gates.
@@ -193,7 +203,13 @@ Implemented surfaces:
 
 `trsd run [seed...]` is the local platform manager: it validates one conflict-checked exact seed set, invokes configuration when required, converges the full local topology, verifies readiness, installs login/reboot supervision, and returns detached unless `--foreground` is selected. `trsd config` may create a new immutable generation while the platform runs and waits for the supervisor result. `trsd platform status|logs|stop` owns inspection and shutdown. The supervisor observes the tracked branch with polling recovery, accepts only clean fast-forward convergence, drains dispatch through the local reconciler, and reports dirty/diverged/unavailable state as blocked drift.
 
-The authenticated shell exposes a non-overlapping Discussion dock beside Feedback. It loads sessions, messages, and assignment history from TreeDX, supports topic/agent/file search, reusable Markdown editing and preview, file refs, mentioned-agent dispatch, resizable composition, terminal status, and time/token/cost/native meters. Discuss, Propose, and Act communicate different governance intent; the UI never bypasses API readiness or allocation checks.
+The authenticated shell exposes a non-overlapping Discussion dock beside Feedback. It loads sessions, messages, and assignment history from TreeDX. Discuss and Propose remain communication intents. Direct `Act` is removed: an agent may prepare an operation handoff, but durable approval and the existing proposal/estimate/capacity-plan lifecycle alone can schedule operation-lane work.
+
+CLI is the acceptance surface for this phase. Registry-backed commands inspect and cancel canonical invocations, filter workday executions explicitly, and expose lane readiness, overflow, exact containment, handoff ancestry, usage, settlement, and final-message evidence. Normal workday and Atlas views default to `executionKind=workday`; conversations require an explicit filter. The minimal Admin bridge registers one expiring user/team/project/route session and executes only semantic navigation, resource reveal, view filter, draft population, or confirmation presentation. Missing clients return `client_unavailable` without holding agent capacity.
+
+For `discussion-send`, `--workday` identifies the workday that authorizes and records simulated-human evidence; it does not contain the resulting conversation. Containment is opt-in through `--parent-workday` and, when applicable, `--parent-assignment`. The API rejects an explicit parent that is not active, does not match the assignment, or does not freeze the addressed agent. A standalone conversation therefore carries simulated-human evidence without acquiring an accidental workday parent.
+
+`content-integrate` and `content-abandon` are the only operator transitions for assignment-authored TreeDX state. Integration requires an exact reviewed base/checkpoint and authoritative target-ref read-back. Abandonment requires the complete exact unpublished commit set from a failed, cancelled, expired, or explicitly rejected completed assignment and may discard only its `refs/heads/{assignmentId}` ref. A completed checkpoint is disposable only while no integration receipt exists. Both operations require authenticated simulated-human evidence, the owning workday, an idempotency key, plan/execute mode, and binding confirmation. Abandonment never accepts a canonical authoring ref and never converts rejected or failed work into an integrated outcome.
 
 ## Transition From Acceptance To Supervised Internal Development
 
@@ -240,10 +256,18 @@ The operator surface work is complete when:
 
 - a steward can explain allocation, assignment, and usage by project, agent class, mode, provider, and execution provider
 - a developer can debug a local provider without reading provider-local state files directly
+- a developer can see total, available, reserve, assignment-headroom, required, and deficit disk bytes before the provider stops accepting work
 - Admin and CLI display configuration, live observation, runtime records, and reconciliation lifecycle as separate concepts
 - no UI or CLI command becomes a hidden scheduler or provider orchestration path
 
 ## Guarantee Observability
+
+`trsd guarantees preflight --json` is the fail-fast local proof gate. It is
+read-only and reports exact blockers for API/operations source closure,
+provider-manager and TreeDX reconciliation, Codex authentication, bindings,
+disk reserve, and remote read access before a harness spends provider capacity.
+The report exposes only bounded status evidence and must not serialize process
+environment variables or credentials.
 
 API endpoint reliability is represented by endpoint-family guarantees backed by route descriptor matrices. UI/Admin guarantees should depend on API endpoint guarantees through `dependsOnGuarantees` instead of duplicating endpoint proof. Agent guarantee output must identify the selected real-provider mode (`live-codex` or `auto`) and whether local dev/acceptance seed preflight was used. `auto` fails closed when real provider authentication is unavailable.
 

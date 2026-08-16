@@ -7,6 +7,7 @@ environments: [local]
 
 references:
   - team:treeseed
+  - project:treeseed/platform
   - project:treeseed/market
   - project:treeseed/api
   - project:treeseed/treedx
@@ -19,8 +20,8 @@ references:
   - project:treeseed/reviewer
   - project:treeseed/ai
   - project:treeseed/market-api
-  - project:treeseed/engineering
-  - project:treeseed/research
+  - project:treeseed/template-engineering
+  - project:treeseed/template-research
 
 resources: {}
 
@@ -34,6 +35,7 @@ runtime:
       connectionId: primary-team-agents
       approval: trusted-local-owner
       projects:
+        - project:treeseed/platform
         - project:treeseed/market
         - project:treeseed/api
         - project:treeseed/treedx
@@ -46,8 +48,8 @@ runtime:
         - project:treeseed/reviewer
         - project:treeseed/ai
         - project:treeseed/market-api
-        - project:treeseed/engineering
-        - project:treeseed/research
+        - project:treeseed/template-engineering
+        - project:treeseed/template-research
       allowedModes: [planning, acting]
       executionProviderIds:
         - codex-sub

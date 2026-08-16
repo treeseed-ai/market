@@ -1,0 +1,34 @@
+---
+id: guide-work-foundation-context
+agent: guide-steward
+kind: context-query
+queryRef:
+  id: guide-work-foundation
+  revision: 2
+testRef: treeseed-guide-work-foundation-v3
+expectedIdentities:
+  - guide.work
+  - guide.work.agents
+  - guide.work.workdays
+  - guide.work.capacity-providers
+expectedRelations: []
+expectedPaths:
+  - src/content/knowledge/treeseed-guide/work.md
+  - src/content/knowledge/treeseed-guide/work/agents.md
+  - src/content/knowledge/treeseed-guide/work/workdays.md
+  - src/content/knowledge/treeseed-guide/work/capacity-providers.md
+expectedSchemaVersions:
+  - treeseed.knowledge-page/v1
+resultBounds:
+  min: 4
+  max: 4
+budget:
+  maxContextItems: 4
+  maxTokens: 4000
+groupIds: [editorial, guide, work]
+contextQueryRefs: [guide-work-foundation]
+---
+
+This isolated test proves that the editorial foundation query retrieves the
+four exact Guide work-section identities, paths, and content schema within its
+declared item and token bounds. It does not run an agent or mutate content.

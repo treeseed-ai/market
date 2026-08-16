@@ -83,6 +83,7 @@ resources:
         defaultBranch: main
         checkoutPath: packages/api
         submodulePath: packages/api
+        repositoryPolicy: *public-repository-policy
       architecture:
         topology: split_site_content
         rootPath: .
@@ -160,6 +161,7 @@ resources:
         defaultBranch: main
         checkoutPath: packages/sdk
         submodulePath: packages/sdk
+        repositoryPolicy: *public-repository-policy
       architecture:
         topology: split_site_content
         rootPath: .
@@ -194,6 +196,7 @@ resources:
         defaultBranch: main
         checkoutPath: packages/ui
         submodulePath: packages/ui
+        repositoryPolicy: *public-repository-policy
       architecture:
         topology: split_site_content
         rootPath: .
@@ -228,6 +231,7 @@ resources:
         defaultBranch: main
         checkoutPath: packages/cli
         submodulePath: packages/cli
+        repositoryPolicy: *public-repository-policy
       architecture:
         topology: split_site_content
         rootPath: .
@@ -262,6 +266,7 @@ resources:
         defaultBranch: main
         checkoutPath: packages/core
         submodulePath: packages/core
+        repositoryPolicy: *public-repository-policy
       architecture:
         topology: split_site_content
         rootPath: .
@@ -296,6 +301,7 @@ resources:
         defaultBranch: main
         checkoutPath: packages/admin
         submodulePath: packages/admin
+        repositoryPolicy: *public-repository-policy
       architecture:
         topology: split_site_content
         rootPath: .
@@ -330,6 +336,7 @@ resources:
         defaultBranch: main
         checkoutPath: packages/agent
         submodulePath: packages/agent
+        repositoryPolicy: *public-repository-policy
       architecture:
         topology: split_site_content
         rootPath: .
@@ -364,6 +371,7 @@ resources:
         defaultBranch: main
         checkoutPath: packages/reviewer
         submodulePath: packages/reviewer
+        repositoryPolicy: *public-repository-policy
       architecture:
         topology: split_site_content
         rootPath: .
@@ -396,6 +404,7 @@ resources:
         defaultBranch: main
         checkoutPath: packages/ai
         submodulePath: packages/ai
+        repositoryPolicy: *public-repository-policy
       architecture:
         topology: split_site_content
         rootPath: .
@@ -606,14 +615,16 @@ resources:
       repositoryPolicy: *public-content-policy
       publishPolicy: *r2-content-policy
 
-  supportRepositories:
     - key: repository:treeseed/fixtures
+      project: project:treeseed/platform
+      role: fixture
       provider: github
       owner: treeseed-ai
       name: fixtures
       gitUrl: https://github.com/treeseed-ai/fixtures.git
       defaultBranch: main
-      description: Public integrated verification fixtures shared by independently buildable TreeSeed projects.
+      currentBranch: staging
+      submodulePath: .fixtures/treeseed-fixtures
       repositoryPolicy: *public-repository-policy
       metadata: { visibility: public, unpairedSupportRepository: true }
 

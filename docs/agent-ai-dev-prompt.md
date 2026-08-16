@@ -68,7 +68,7 @@ npm -w packages/agent run test:agent-tools
 npm -w packages/agent run verify:local
 ```
 
-For Knowledge Hub content work, use model-aware TreeSeed content tools when they are present. Do not hand-write frontmatter for questions, proposals, notes, decisions, books, knowledge pages, people, or agents when a `treeseed.content.*` or generated model preset tool is available. `contentAccess` controls the models and actions an agent or handler may use; `tools.allowed` controls only the callable tools exposed to an execution provider.
+For Knowledge Hub content work, use model-aware TreeSeed content tools when they are present. Do not hand-write frontmatter for questions, proposals, notes, decisions, books, knowledge pages, people, or agents when a `treeseed.content.*` or generated model preset tool is available. The activity profile's per-model permission matrix controls the operations and filters an agent or handler may use; `tools.allowed` controls only the callable tools exposed to an execution provider.
 
 `capacity-provider:test-local` exercises Docker when available. A local container
 healthcheck may warn about missing Codex auth; staging and production doctor

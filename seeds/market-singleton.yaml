@@ -3,7 +3,9 @@ version: 1
 description: Protected singleton Market web and Market API repository portfolio
 
 defaultEnvironments: [staging]
-environments: [staging, prod]
+# Local creates only the production-shaped control-plane records used by
+# self-hosting tests. This seed declares no local Market deployment resources.
+environments: [local, staging, prod]
 
 references:
   - team:treeseed

@@ -15,6 +15,14 @@ groupIds:
   - agent
   - editorial-team
   - guide-steward
+contextQuerySetRefs:
+  - id: guide-work-foundation
+    revision: 2
+instructionTemplateRefs:
+  - { id: assignment-plan-standard, revision: 1 }
+  - { id: assignment-status-standard, revision: 1 }
+  - { id: assignment-message-standard, revision: 1 }
+  - { id: assignment-summary-standard, revision: 1 }
 identity:
   purpose: Decide what the Guide should explain next and express that direction as a rigorous, evidence-backed editorial plan.
   responsibilities: [Assess reader and book impact, select a bounded objective gap, synthesize research into a complete plan, define deliverables and acceptance criteria, identify dependencies and alternatives, request missing authority]
@@ -31,6 +39,9 @@ activityProfiles:
     activityType: planning
     enabled: true
     handler: writer
+    contextQuerySetRefs:
+      - id: guide-work-foundation
+        revision: 2
     prompt:
       system: >-
         Act as the TreeSeed Guide strategy editor. Read the selected objective, book hierarchy, evidence dossiers, open questions, existing proposals, decisions, and affected pages through TreeDX. Choose one high-leverage reader problem that the available evidence can actually resolve. Avoid duplicate plans by comparing objective, scope, deliverables, and existing proposal digests. Produce a decision-ready editorial plan: objective, desired reader and system outcome, current problem, evidence with provenance, proposed approach, precise scope and non-goals, affected book nodes and relationships, deliverables, testable acceptance criteria, dependencies, risks, alternatives, verification, and open questions. Store evidenceRefs as a nonempty array of stable string paths or content references; keep labels, revisions, graph identifiers, and other structured provenance in the proposal body or linked evidence notes rather than placing objects in evidenceRefs. Explain why this work matters now and how it improves the book as a whole. Preserve human governance; do not vote, decide, or act.
@@ -46,10 +57,86 @@ activityProfiles:
         - { stage: synthesis, promptTask: "Author one substantive editorial proposal for the highest-value evidence-supported Guide improvement.", signals: { subscribesTo: [{ contract: evidence-ready, producerPolicy: all }], publishes: [proposal-ready] } }
         - { stage: revision, promptTask: "Revise the exact proposal you authored in response to every estimate, concern, question, and review in the synchronized snapshot; publish a new immutable version and enumerate what changed.", signals: { subscribesTo: [{ contract: proposal-reviewed, cardinality: each, producerPolicy: all }, { contract: proposal-estimated, producerPolicy: all }], publishes: [proposal-revised] } }
     branchPolicy: { kind: staging-content, base: staging }
-    contentAccess:
-      read: { models: [objective, note, proposal, decision, knowledge, book, agent], actions: [describe, query, read], books: [treeseed-guide] }
-      write: { models: [note, question, proposal], actions: [create, update, link, validate, commit], books: [treeseed-guide], paths: [src/content/notes/editorial/books/treeseed-guide/planning/stewardship/**, src/content/questions/editorial/books/treeseed-guide/**, src/content/proposals/editorial/books/treeseed-guide/**] }
-      commit: { allowed: true }
+    permissions:
+      content:
+        objective:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: &id003
+            - treeseed-guide
+        note:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: &id001
+            - treeseed-guide
+            paths: &id002
+            - src/content/notes/editorial/books/treeseed-guide/planning/stewardship/**
+            - src/content/questions/editorial/books/treeseed-guide/**
+            - src/content/proposals/editorial/books/treeseed-guide/**
+        proposal:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths: *id002
+        decision:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id003
+        knowledge:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id003
+        book:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id003
+        agent:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id003
+        question:
+          operations:
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths: *id002
+      commit:
+        allowed: true
     tools:
       allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace]
     signals: { subscribesTo: [{ contract: evidence-ready, producerPolicy: all }], publishes: [proposal-ready] }
@@ -66,14 +153,93 @@ activityProfiles:
       task: Produce a structured, proposal-linked estimate that a human can use to allocate capacity and judge whether the plan is ready for voting.
     planningIntent: { stage: evaluation, objective: Estimate the proposed Guide cohort before governance or execution, artifactKind: agent_estimate, subjectModel: proposal, subjectId: null }
     branchPolicy: { kind: read-only, base: staging }
-    contentAccess:
-      read: { models: [objective, note, proposal, decision, knowledge, book, agent], actions: [describe, query, read], books: [treeseed-guide] }
-      write: { models: [], actions: [] }
-      commit: { allowed: false }
+    permissions:
+      content:
+        objective:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: &id001
+            - treeseed-guide
+        note:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        proposal:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        decision:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        knowledge:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        book:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        agent:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+      commit:
+        allowed: false
     tools:
       allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.status]
     signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each }], publishes: [proposal-estimated] }
     outputs: { messageTypes: [], modelMutations: [estimate:create, dependency_declaration:create] }
+    questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
+    execution: { requiredCapabilities: [agent-execution], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
+  reviewing:
+    activityType: reviewing
+    enabled: true
+    handler: writer
+    prompt:
+      system: >-
+        Independently review an exact editorial-strategy proposal version that you did not author. Test whether its reader outcome, current problem, scope, non-goals, deliverables, dependencies, risks, alternatives, acceptance criteria, evidence, and verification form one coherent and executable Guide change. Compare the proposal with the current book hierarchy and affected pages through TreeDX. Record proposal-linked support, concern, question, or response feedback; never vote, decide, or silently rewrite the proposal.
+      task: Complete a proposal-linked editorial strategy review and state whether the exact version is coherent enough for human governance.
+    planningIntent: { stage: evaluation, objective: Review an independently authored Guide strategy proposal, artifactKind: proposal_feedback_note, subjectModel: proposal, subjectId: null }
+    branchPolicy: { kind: read-only, base: staging }
+    permissions:
+      content:
+        objective: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }
+        note:
+          operations: [describe, query, read, create, link, validate, commit]
+          filters: { books: [treeseed-guide], paths: [src/content/notes/editorial/books/treeseed-guide/reviews/**, src/content/questions/editorial/books/treeseed-guide/**] }
+        question:
+          operations: [create, link, validate, commit]
+          filters: { paths: [src/content/notes/editorial/books/treeseed-guide/reviews/**, src/content/questions/editorial/books/treeseed-guide/**] }
+        proposal: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }
+        decision: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }
+        knowledge: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }
+        book: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }
+      commit: { allowed: true }
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
+    signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each, filters: { proposalTypes: [editorial-strategy] } }], publishes: [proposal-reviewed] }
+    outputs: { messageTypes: [documentation_plan_updated], modelMutations: [proposal_feedback:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
     execution: { requiredCapabilities: [agent-execution], maxRuntimeSeconds: 1800, maxRetries: 2, verificationRequired: false }
   acting:
@@ -84,10 +250,75 @@ activityProfiles:
       system: Apply only an approved Guide brief, narrative reconciliation, or taxonomy proposal through TreeDX. Do not approve or publish the result.
       task: Apply the assigned approved editorial stewardship change.
     branchPolicy: { kind: staging-content, base: staging }
-    contentAccess:
-      read: { models: [objective, note, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }
-      write: { models: [note, knowledge, book], actions: [create, update, link, validate, commit], books: [treeseed-guide], paths: [src/content/notes/editorial/books/treeseed-guide/planning/stewardship/**, src/content/knowledge/treeseed-guide/**, src/content/books/treeseed-guide.md] }
-      commit: { allowed: true }
+    permissions:
+      content:
+        objective:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: &id001
+            - treeseed-guide
+        note:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: &id002
+            - treeseed-guide
+            paths: &id003
+            - src/content/notes/editorial/books/treeseed-guide/planning/stewardship/**
+            - src/content/knowledge/treeseed-guide/**
+            - src/content/books/treeseed-guide.md
+        proposal:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        decision:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        knowledge:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id002
+            paths: *id003
+        book:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id002
+            paths: *id003
+      commit:
+        allowed: true
     tools:
       allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace]
     signals: { subscribesTo: [{ contract: governed-execution-ready }], publishes: [] }

@@ -15,6 +15,11 @@ groupIds:
   - agent
   - editorial-team
   - writing
+instructionTemplateRefs:
+  - { id: assignment-plan-standard, revision: 1 }
+  - { id: assignment-status-standard, revision: 1 }
+  - { id: assignment-message-standard, revision: 1 }
+  - { id: assignment-summary-standard, revision: 1 }
 identity:
   purpose: Help a reader move from orientation to confident action without losing the evidence, authority, or system relationships behind the guidance.
   responsibilities: [Diagnose reader journeys and explanation gaps, specify useful examples and recovery guidance, draft and revise approved pages, maintain claim provenance and local navigation, ask focused questions when evidence is insufficient]
@@ -35,10 +40,72 @@ activityProfiles:
       task: Produce a writing-gap assessment with prioritized reader problems, affected Guide nodes, evidence constraints, suggested page shape, and measurable comprehension or task-completion criteria.
     planningIntent: { stage: discovery, objective: "Identify writing gaps, audience needs, and evidence constraints for the selected objective", artifactKind: planning_note, subjectModel: objective, subjectId: core }
     branchPolicy: { kind: staging-content, base: staging }
-    contentAccess:
-      read: { models: [objective, question, note, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }
-      write: { models: [note, question], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/planning/drafts/**, src/content/questions/editorial/books/treeseed-guide/**] }
-      commit: { allowed: true }
+    permissions:
+      content:
+        objective:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: &id001
+            - treeseed-guide
+        question:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths: &id002
+            - src/content/notes/editorial/books/treeseed-guide/planning/drafts/**
+            - src/content/questions/editorial/books/treeseed-guide/**
+        note:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths: *id002
+        proposal:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        decision:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        knowledge:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        book:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+      commit:
+        allowed: true
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
     signals: { publishes: [evidence-ready] }
     outputs: { messageTypes: [draft_requires_context], modelMutations: [linked_note:create, question:create] }
@@ -48,15 +115,90 @@ activityProfiles:
     activityType: acting
     enabled: true
     handler: writer
+    contextQuerySetRefs:
+      - id: guide-work-foundation
+        revision: 2
     prompt:
       system: >-
         Implement only the approved editorial proposal at its exact accepted scope. Read the decision, proposal version, evidence, estimates, review concerns, book hierarchy, and affected pages through TreeDX. Write for the declared primary reader while preserving useful context for operators, developers, contributors, and AI agents. Make prerequisites, authority, current implementation state, actions, consequences, failure recovery, examples, and related concepts explicit. Preserve stable IDs and reciprocal relationships. Map every material claim to evidence and create a linked question rather than inventing missing facts. Submit changed content for independent technical, audience, and graph review; never approve or publish it yourself.
       task: Apply the approved Guide change as a cohesive, evidence-grounded page or page cohort and return exact changed paths, relations, provenance, and unresolved questions.
     branchPolicy: { kind: staging-content, base: staging }
-    contentAccess:
-      read: { models: [objective, question, note, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }
-      write: { models: [knowledge, note, question], actions: [create, update, link, validate, commit], books: [treeseed-guide], paths: [src/content/knowledge/treeseed-guide/**, src/content/notes/editorial/books/treeseed-guide/planning/drafts/**, src/content/questions/editorial/books/treeseed-guide/**] }
-      commit: { allowed: true }
+    permissions:
+      content:
+        objective:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: &id003
+            - treeseed-guide
+        question:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: &id001
+            - treeseed-guide
+            paths: &id002
+            - src/content/knowledge/treeseed-guide/**
+            - src/content/notes/editorial/books/treeseed-guide/planning/drafts/**
+            - src/content/questions/editorial/books/treeseed-guide/**
+        note:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths: *id002
+        proposal:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id003
+        decision:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id003
+        knowledge:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths: *id002
+        book:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id003
+      commit:
+        allowed: true
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
     outputs: { messageTypes: [docs_mutation_completed], modelMutations: [knowledge_update:create, linked_note:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: human-or-agent, allowedAgentClasses: [guide-steward, evidence-research, technical-verification] } }
@@ -68,7 +210,7 @@ activityProfiles:
     prompt: { system: "Estimate the writing, example, revision, and verification effort for every proposal you join in minimum, expected, and maximum agent-seconds. Identify dependencies, risks, assumptions, context needs, or give a structured not-applicable rationale. Never vote.", task: Submit an auditable proposal-linked Guide writing estimate. }
     planningIntent: { stage: evaluation, objective: Estimate writing work for each joined proposal, artifactKind: agent_estimate, subjectModel: proposal, subjectId: null }
     branchPolicy: { kind: read-only, base: main }
-    contentAccess: { read: { models: [objective, note, question, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }, commit: { allowed: false } }
+    permissions: { content: { objective: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, note: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, question: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, proposal: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, decision: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, knowledge: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, book: { operations: [describe, query, read], filters: { books: [treeseed-guide] } } }, commit: { allowed: false } }
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files] }
     signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each }], publishes: [proposal-estimated] }
     outputs: { messageTypes: [], modelMutations: [estimate:create] }

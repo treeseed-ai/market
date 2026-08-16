@@ -1,9 +1,9 @@
 # Agent Capacity Completion and Production-Readiness Plan
 
-**Status:** Local agent and capacity production-readiness is complete; supervised project development may begin
-**Last updated:** 2026-07-23
-**Production readiness:** Ready for the local supervised-development transition; hosted deployment remains intentionally blocked
-**Formal sequential completion:** 15 of 15 phases complete for the supported local runtime. The withdrawn synthetic-provider result has been replaced by configured real-Codex evidence.
+**Status:** Runtime foundations are complete; the supervised source-development transition is reopened for lifecycle-integrity acceptance
+**Last updated:** 2026-08-13
+**Production readiness:** Agent outcomes are not operational. Runtime foundations and isolated context checks exist, but no profile is ready until its canonical outcome guarantee has three same-generation live passes, including interruption/resume; hosted deployment remains intentionally blocked.
+**Formal sequential completion:** The historical 15-phase runtime program is complete. The post-readiness self-development audit reopened the source-development transition gate without invalidating its earlier provider-runtime evidence.
 **Estimated backend readiness through phase 12:** Complete for the local runtime.
 **Closed phases:** Phases 0 through 14 are complete for local operation. CAP-024 remains an explicit hosted-only blocker and does not prevent local project-agent development.
 **Hosted acceptance:** Blocked by the intentional hosted-deployment suspension
@@ -20,7 +20,15 @@ No phase may be called complete because a type, route, mock, fixture, or source-
 | 2026-07-21/22 real-provider cycle | CAP-293 through CAP-317 | Hosted acceptance only (CAP-024) | Active guarantee acceptance `20260722180225` passed 6/6 through the normal manifest-selected Codex provider. It completed a 190,333 ms two-project overlap with distinct assignments/workspaces and exact per-project settlement; the 14-assignment engineering graph with all eight roles and its governed rejection/revision/approval loop; and the eleven-assignment research graph with two citations, one evidence-driven revision, approval, publication, and reporting. In-run cleanup completed, and cleanup `20260722193357` found zero isolated resources and zero drift. The descriptor omission found after the live run was corrected; focused parity report `2026-07-22T19-36-02-829Z` then passed 1/1 with all nine verifier steps green. CAP-300's package canary remains the first post-readiness transition Stage B task, not a production-readiness blocker. |
 | Phase transitions | Phases 0 through 14 closed for local operation | Hosted acceptance only | The final source/diff audit, root check, API build, focused and package suites, 113/113 capacity guarantee validation, real-provider lifecycle, focused parity rerun, and zero-residue cleanup pass. Hosted Railway/Cloudflare work remains prohibited until CAP-024 is deliberately resumed. |
 
-The former stable count of `in progress` phases reflected shared binary exit gates rather than a lack of implementation. The final real-provider run has now satisfied those shared gates, so the phase and finding tables below are closed for local operation.
+The former stable count of `in progress` phases reflected shared binary exit gates rather than a lack of implementation. The historical provider-runtime phase and finding tables below remain closed. They do not certify the newer workday terminalization, assignment-scoped workset, or federated source-development lifecycle.
+
+### 2026-08-13 self-development integrity audit
+
+The latest production-shaped Agent Lab record contradicted unconditional transition readiness: its parent run was `completed` while one of eight admitted assignments was failed. The owning path now closes admission, rereads all durable assignments, mode runs, envelopes, and settlements, and refuses successful completion when any required assignment failed. Proposal output registration now creates provenance-linked immutable revisions, and workday summaries return aggregates unless one bounded evidence collection is requested. These repairs remain transition evidence only until live interruption/replay cycles pass.
+
+The first source-development canary is still required: accepted decision and capacity plan, acting assignment, assignment-authorized exact-ref workset, independently reviewed checkpoint, execution-authority receipt, package verification, federated save, remote read-back, and zero-residue recovery. Platform-root pointer authority and unpublished TreeDX authoring receipt recovery remain open and must not be inferred from the historical runtime closure.
+
+The canonical `agent.system` catalog now owns readiness in dependency order: dynamic context, exact profile selection and authority, Planning, Chat, Estimating, Acting, Reviewing, exact independent handoff, Reporting, replay/recovery truthfulness, source golden, and Guide golden. The current machine status is 0 active and 12 blocked at proof generation `7a20a13b...`: completing the capability-specific proof contract and verifier correctly invalidated the earlier dynamic-context streak. Every capability now publishes its required CLI commands, named semantic predicates, repository-postcondition count, and candidate invocation. Unit, contract, route, process-completion, artifact-count, or settlement evidence cannot activate these claims. TreeSeed becomes operational for internal agent development only when the Guide golden guarantee is active from semantic target-ref read-back and zero-residue evidence.
 
 ## Execution Order And Status Discipline
 

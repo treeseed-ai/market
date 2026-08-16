@@ -1,0 +1,48 @@
+schemaVersion: treeseed.guarantee/v2
+id: guarantee.agent.system.source-golden.917
+journeyIndex: 917
+type: agent
+subtype: system
+journey: Prove bounded source development end to end
+ownerPackage: "@treeseed/market"
+surface: cli
+summary: Authenticated CLI orchestration drives all six profiles through exact-ref source work, independent review, revision, integration, settlement, and cleanup.
+status: planned
+capabilityId: agent.system.source-golden
+catalog: agent.system
+activation: { minimumConsecutivePasses: 3, requiredVariants: [baseline, clean-repeat, interruption-resume], invalidateOnSourceChange: true }
+proof:
+  requiredCommands: [governance.proposal-show, capacity.decision-planning, capacity.capacity-plan, capacity.assignment, capacity.checkpoint-integrate, capacity.workday-summary, platform.status]
+  minimumRepositoryPostconditions: 1
+  outcomePredicates:
+    source.complete-governed-lifecycle: [source.planning, source.chat, source.estimating, source.acting, source.reviewing, source.reporting, source.simulated-human-transcript, source.settlement]
+    source.semantic-repository-outcome: [source.exact-local-ref, source.exact-remote-ref, source.behavior, source.verification, source.receipt, source.review, source.integration, source.zero-residue]
+    source.rejection-revision: [source.fixture-provenance, source.initial-rejection, source.real-codex-revision, source.distinct-final-reviewer, source.exact-revision-approval]
+outcomes:
+  - id: source.complete-governed-lifecycle
+    kind: required
+    description: Proposal, simulated-human decision, estimate, accepted plan, acting, review, report, and settlement use exact refs and authenticated CLI operations.
+    evidenceKinds: [redacted_cli_transcript, workflow_graph]
+    authoritativeSubjects: [proposalRevision, decision, capacityPlan, workday, targetRef]
+  - id: source.semantic-repository-outcome
+    kind: required
+    description: Required behavior exists at exact local and remote refs with verification, receipts, review, integration, and zero residue.
+    evidenceKinds: [git_read_back, verification, mutation_receipt, cleanup]
+    authoritativeSubjects: [checkpointRef, reviewedRef, integratedRef, remoteRef]
+  - id: source.rejection-revision
+    kind: required
+    variants: [interruption-resume]
+    description: The interruption variant rejects a pre-seeded deficient checkpoint, real Codex revises it, and a distinct reviewer approves the revision.
+    evidenceKinds: [fixture_provenance, review_read_back, revised_diff]
+    authoritativeSubjects: [deficientCheckpointRef, rejectionRef, revisedCheckpointRef, approvalRef]
+dependencies: { journeys: [], guarantees: [guarantee.agent.lifecycle.simulation-upstream-isolation.919] }
+actors: { allowed: [capacity_operator, simulated_human], forbidden: [anonymous_user, unauthorized_user] }
+devices: { required: [] }
+gates: [core]
+preconditions: { fixtures: [bounded_source_project] }
+api: { required: true, verifierRefs: [market.agent-catalog.golden-live-proof] }
+content: { required: true, verifierRefs: [] }
+audit: { required: true, verifierRefs: [] }
+negativeCases: []
+evidence: { required: [verifier_evidence, redacted_cli_transcript] }
+notes: ["The deficient checkpoint is fixture evidence and is never attributed to an agent."]

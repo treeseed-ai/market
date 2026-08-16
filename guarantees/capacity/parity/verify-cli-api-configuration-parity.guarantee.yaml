@@ -7,7 +7,7 @@ journey: Verify Capacity CLI API And Configuration Parity
 ownerPackage: "@treeseed/market"
 surface: cli
 summary: "Prove that every canonical backend capacity capability has one CLI owner, an exact API route and access class, schema-backed declarative configuration where applicable, safe secret handling, and a working real local lifecycle."
-status: active
+status: planned
 dependencies:
   journeys: [507]
   guarantees: [guarantee.capacity.lifecycle.verify-full-local-capacity-lifecycle.507]
@@ -50,6 +50,7 @@ notes:
   - "Reopened on 2026-07-20: static parity remains green, but this aggregate also requires the real local lifecycle and cannot remain active while that evidence is withdrawn."
   - "The SDK inventory is canonical; API descriptors and CLI ownership are checked against it rather than maintained as duplicate lists."
   - "This aggregate does not treat descriptor tests as service authorization by themselves; its active lifecycle-guarantee dependency supplies the real local service proof without rerunning that expensive verifier inside a focused parity check."
+  - "Reopened again on 2026-08-13 after a durable Agent Lab parent reported completed with one failed assignment. Static registry/API/CLI parity is green, but activation requires a repeat production-shaped lifecycle through the admission fence and governed source canary."
 run:
   timeoutSeconds: 14400
   requiredForRelease: true

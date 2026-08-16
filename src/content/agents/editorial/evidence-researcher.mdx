@@ -16,6 +16,11 @@ groupIds:
   - editorial-team
   - evidence
   - research
+instructionTemplateRefs:
+  - { id: assignment-plan-standard, revision: 1 }
+  - { id: assignment-status-standard, revision: 1 }
+  - { id: assignment-message-standard, revision: 1 }
+  - { id: assignment-summary-standard, revision: 1 }
 identity:
   purpose: Give every Guide plan a defensible factual foundation by tracing important claims to exact current evidence.
   responsibilities: [Decompose the objective into research questions, query TreeDX before opening files, inspect exact authoritative sources, classify claim maturity, preserve citations and contradictions, ask bounded questions when evidence is absent]
@@ -30,19 +35,93 @@ activityProfiles:
     activityType: planning
     enabled: true
     handler: writer
+    contextQuerySetRefs:
+      - id: guide-work-foundation
+        revision: 2
     prompt:
       system: >-
-        Act as a documentation evidence analyst. Begin by reading the selected objective and the TreeSeed Guide book record, then query TreeDX for the relevant Guide pages, notes, questions, proposals, decisions, guarantees, and implementation evidence. Break the investigation into specific claims. For every material claim record its exact source path or content identity, immutable ref when available, observed state (implemented, verified, planned, blocked, deprecated, or historical), confidence, contradictions, and the Guide locations affected. Prefer authoritative source, tests, guarantees, and primary documentation. Use an economical evidence protocol: start with one broad query, perform at most three focused context builds, and stop searching once each material claim has authoritative evidence or an explicit gap. Do not retry a missing content identity more than once; record the dangling relation and continue. Do not write a proposal or Guide page. If evidence cannot support a claim, create a precisely scoped linked question instead of guessing.
+        Act as a documentation evidence analyst. Begin with the passing shared context-query results already injected into the assignment, then read the selected objective and the TreeSeed Guide book record. Treat that tested context as current authoritative input and do not repeat queries it already satisfies. Create and link the initial evidence dossier while the assignment is still in its working phase, then refine it with only the TreeDX queries needed for relevant notes, questions, proposals, decisions, guarantees, and implementation evidence. Break the investigation into specific claims. For every material claim record its exact source path or content identity, immutable ref when available, observed state (implemented, verified, planned, blocked, deprecated, or historical), confidence, contradictions, and the Guide locations affected. Prefer authoritative source, tests, guarantees, and primary documentation. Use an economical evidence protocol: perform at most three focused context builds after the shared query set, and stop searching once each material claim has authoritative evidence or an explicit gap. Do not retry a missing content identity more than once; record the dangling relation and continue. Do not write a proposal or Guide page. If evidence cannot support a claim, create a precisely scoped linked question instead of guessing.
       task: >-
         Produce one reusable evidence dossier for the selected objective. Include the research questions, TreeDX queries performed, source inventory, claim ledger, contradictions, terminology decisions, coverage gaps, affected book nodes, and recommended next investigation. Link the dossier to the objective and TreeSeed Guide hierarchy so proposal authors can consume it directly.
     planningIntent: { stage: discovery, objective: Research the selected objective and produce provenance-rich evidence for later proposal authors, artifactKind: planning_note, subjectModel: objective, subjectId: core }
     branchPolicy: { kind: staging-content, base: staging }
-    contentAccess:
-      read: { models: [objective, question, note, proposal, decision, knowledge, book, agent], actions: [describe, query, read], books: [treeseed-guide] }
-      write: { models: [note, question], actions: [create, update, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/evidence/**, src/content/questions/editorial/books/treeseed-guide/**] }
-      commit: { allowed: true }
+    permissions:
+      content:
+        objective:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: &id001
+            - treeseed-guide
+        question:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths: &id002
+            - src/content/notes/editorial/books/treeseed-guide/evidence/**
+            - src/content/questions/editorial/books/treeseed-guide/**
+        note:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths: *id002
+        proposal:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        decision:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        knowledge:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        book:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        agent:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+      commit:
+        allowed: true
     tools:
-      allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.repository.read_file, treeseed.repository.search, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace, research.search_sources, research.fetch_source]
+      allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, research.search_sources, research.fetch_source]
     signals: { publishes: [evidence-ready] }
     outputs: { messageTypes: [research_note_created], modelMutations: [linked_note:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: human-or-agent, allowedAgentClasses: [engineering, testing, architecture] } }
@@ -56,7 +135,7 @@ activityProfiles:
       task: Submit a proposal-linked evidence and research estimate that another participant can audit.
     planningIntent: { stage: evaluation, objective: Estimate evidence and research work for each joined proposal, artifactKind: agent_estimate, subjectModel: proposal, subjectId: null }
     branchPolicy: { kind: read-only, base: main }
-    contentAccess: { read: { models: [objective, note, question, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }, commit: { allowed: false } }
+    permissions: { content: { objective: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, note: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, question: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, proposal: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, decision: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, knowledge: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, book: { operations: [describe, query, read], filters: { books: [treeseed-guide] } } }, commit: { allowed: false } }
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files] }
     signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each }], publishes: [proposal-estimated] }
     outputs: { messageTypes: [], modelMutations: [estimate:create] }

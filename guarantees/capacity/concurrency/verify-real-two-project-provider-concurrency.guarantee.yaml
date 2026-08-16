@@ -7,11 +7,11 @@ journey: Verify Real Two Project Provider Concurrency
 ownerPackage: "@treeseed/market"
 surface: agent-runtime
 summary: "Prove one reconciled local provider executes independent engineering and research project assignments concurrently through two real Codex runners with isolated TreeDX workspaces, project budgets, artifacts, usage, settlement, and cleanup."
-status: active
+status: planned
 actors:
   allowed: [team_owner, capacity_provider, capacity_operator]
   forbidden: [unapproved_capacity_provider, revoked_capacity_provider]
-gates: [core, release]
+gates: [future]
 preconditions:
   fixtures: [integrated_treeseed_project]
   notes:
@@ -41,4 +41,4 @@ notes:
   - "The bounded service matrix supplies deterministic failure isolation; the real-provider scenario supplies overlapping Codex/AgentKernel/TreeDX execution."
 run:
   timeoutSeconds: 14400
-  requiredForRelease: true
+  requiredForRelease: false

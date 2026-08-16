@@ -1,0 +1,12 @@
+name: TreeSeed Platform
+slug: treeseed-platform
+siteUrl: https://treeseed.dev/platform
+contactEmail: hello@treeseed.email
+authority: { kind: customer-platform }
+market: { profile: treeseed }
+controlPlane: { mode: market-passthrough }
+hub: { mode: treeseed_hosted }
+runtime: { mode: none, registration: none }
+processing: { mode: market-assigned, providerRef: codex-sub }
+surfaces: { web: { enabled: true }, admin: { enabled: true }, api: { enabled: false } }
+services: {}

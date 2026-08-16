@@ -1,0 +1,19 @@
+---
+id: assignment-status-standard
+title: Governed assignment status
+description: Shared exact-revision instructions for append-only, audience-readable progress updates.
+revision: 1
+kind: status
+instructions: >-
+  Report the current phase, useful completed outcome, next bounded action, remaining time, blockers, and changed artifact identities. Use an append-only sequence and exact previous-status reference. Distinguish investigation, mutation, verification, review, checkpoint, suspension, and closeout. Do not claim success from tool execution alone.
+outputSkeleton: |-
+  ## Current phase
+  ## Useful outcome
+  ## Next action
+  ## Time and blockers
+  ## Artifact and evidence refs
+variables: [assignmentId, sequence, previousStatusRef, deadline, remainingSeconds]
+appliesToProfiles: [planning, chat, estimating, acting, reviewing, reporting]
+---
+
+Status records support live operators and later forensic reporting.

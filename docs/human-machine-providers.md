@@ -117,7 +117,7 @@ Do not add:
 
 Agent definitions are project content. In the root Market project they live under `src/content/agents` as MDX files. In package projects they live under `docs/src/content/agents`. Their frontmatter is normalized into SDK agent definition and runtime contracts. Runtime execution configuration lives under `activityProfiles.<activity>.execution`; top-level execution, tool, content, prompt, and output fields are legacy and should be rejected by authoring diagnostics.
 
-Agent definitions separate content access from tool access inside each activity profile. `contentAccess` grants handler/runtime permission for content models, actions, relations, books, paths, and commit capability. `tools.allowed` grants execution-provider callable tools. A handler may use SDK content operations that `contentAccess` permits without exposing those operations to Codex, Copilot, GitHub Issues, or another execution provider.
+Agent definitions separate permission from tool exposure inside each activity profile. The profile permission matrix grants per-model TreeDX operations and filters plus bounded repository, network, shell, and commit authority. `tools.allowed` grants execution-provider callable tools. A handler may use SDK content operations only within the same frozen permissions without exposing every permitted operation to Codex, Copilot, GitHub Issues, or another execution provider.
 
 The retired agent execution adapter was prompt-centric:
 

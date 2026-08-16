@@ -1,0 +1,18 @@
+---
+id: assignment-message-standard
+title: Governed assignment message
+description: Shared exact-revision instructions for addressed discussion messages and response-required suspension.
+revision: 1
+kind: message
+instructions: >-
+  Address all participants or explicit human and agent recipients. Preserve topic, thread, assignment, artifact, and immutable context references. State the evidence, the exact question or update, whether a response is required, and what work can safely continue. Before waiting for a required response, checkpoint, write a suspended summary, and release capacity.
+outputSkeleton: |-
+  ## Recipients and context
+  ## Evidence or update
+  ## Question or requested response
+  ## Continuation and suspension state
+variables: [topicId, threadId, assignmentId, recipients, contextRefs]
+appliesToProfiles: [planning, chat, estimating, acting, reviewing, reporting]
+---
+
+Messages remain separate from group membership and proposal participation.

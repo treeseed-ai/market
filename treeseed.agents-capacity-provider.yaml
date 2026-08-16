@@ -41,6 +41,7 @@ credentialBindings:
     source: process-environment
     reference: TREESEED_OPENCODE_AUTH_FILE
     required: false
+defaultExecutionProviderId: codex-sub
 executionProviders:
   - id: codex-sub
     adapter: codex
@@ -48,10 +49,17 @@ executionProviders:
     module: builtin:codex
     protocol: responses
     credentialBindings: [codex-auth]
+    minimumAssignmentDuration:
+      amount: 600
+      unit: seconds
     nativeLimits:
       maxConcurrentRunners: 2
       availableAgentSeconds: 28800
+    lanes:
+      - { id: codex-sub-communication, purpose: communication, maxConcurrentRunners: 1 }
+      - { id: codex-sub-operation, purpose: operation, maxConcurrentRunners: 1 }
     capabilities: &agent-capabilities
+      - agent-execution
       - engineering
       - research
       - planning
@@ -69,10 +77,16 @@ executionProviders:
     model:
       baseUrl: https://api.openai.com/v1
     credentialBindings: [openai-api]
+    minimumAssignmentDuration:
+      amount: 600
+      unit: seconds
     nativeLimits:
       maxConcurrentRunners: 2
       availableInputTokens: 4000000
       availableOutputTokens: 1000000
+    lanes:
+      - { id: codex-key-communication, purpose: communication, maxConcurrentRunners: 1 }
+      - { id: codex-key-operation, purpose: operation, maxConcurrentRunners: 1 }
     capabilities: *agent-capabilities
   - id: codex-treeseed
     adapter: codex
@@ -84,10 +98,15 @@ executionProviders:
       baseUrl: http://host.docker.internal:4771/v1
       model: treeseed-qwen3.5-4b
     credentialBindings: [appliance-inference]
+    minimumAssignmentDuration:
+      amount: 600
+      unit: seconds
     nativeLimits:
       maxConcurrentRunners: 1
       availableInputTokens: 1000000
       availableOutputTokens: 250000
+    lanes:
+      - { id: codex-treeseed-operation, purpose: operation, maxConcurrentRunners: 1 }
     capabilities: *agent-capabilities
   - id: ghcopilot-key
     adapter: copilot
@@ -98,6 +117,9 @@ executionProviders:
     nativeLimits:
       maxConcurrentRunners: 2
       availableAgentSeconds: 28800
+    lanes:
+      - { id: ghcopilot-key-communication, purpose: communication, maxConcurrentRunners: 1 }
+      - { id: ghcopilot-key-operation, purpose: operation, maxConcurrentRunners: 1 }
     capabilities: *agent-capabilities
   - id: ghcopilot-treeseed
     adapter: copilot
@@ -113,6 +135,8 @@ executionProviders:
       maxConcurrentRunners: 1
       availableInputTokens: 1000000
       availableOutputTokens: 250000
+    lanes:
+      - { id: ghcopilot-treeseed-operation, purpose: operation, maxConcurrentRunners: 1 }
     capabilities: *agent-capabilities
   - id: opencode-sub
     adapter: opencode
@@ -123,6 +147,9 @@ executionProviders:
     nativeLimits:
       maxConcurrentRunners: 2
       availableAgentSeconds: 28800
+    lanes:
+      - { id: opencode-sub-communication, purpose: communication, maxConcurrentRunners: 1 }
+      - { id: opencode-sub-operation, purpose: operation, maxConcurrentRunners: 1 }
     capabilities: *agent-capabilities
   - id: opencode-key
     adapter: opencode
@@ -138,6 +165,9 @@ executionProviders:
       availableOutputTokens: 1000000
       availableCost: 100
       currency: USD
+    lanes:
+      - { id: opencode-key-communication, purpose: communication, maxConcurrentRunners: 1 }
+      - { id: opencode-key-operation, purpose: operation, maxConcurrentRunners: 1 }
     capabilities: *agent-capabilities
   - id: opencode-treeseed
     adapter: opencode
@@ -153,5 +183,7 @@ executionProviders:
       maxConcurrentRunners: 1
       availableInputTokens: 1000000
       availableOutputTokens: 250000
+    lanes:
+      - { id: opencode-treeseed-operation, purpose: operation, maxConcurrentRunners: 1 }
     capabilities: *agent-capabilities
 connections: []

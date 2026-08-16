@@ -1,0 +1,31 @@
+---
+id: guide-work-foundation
+title: TreeSeed Guide work foundation
+description: Retrieve the Work, Agents, Workdays, and Capacity Providers guide pages as the bounded editorial foundation for agent documentation.
+revision: 2
+maturity: draft
+purpose: research
+query: TreeSeed Guide Work Agents Workdays Capacity Providers
+target:
+  kind: content
+  models: [knowledge]
+  paths:
+    - /src/content/knowledge/treeseed-guide/work.md
+    - /src/content/knowledge/treeseed-guide/work/agents.md
+    - /src/content/knowledge/treeseed-guide/work/workdays.md
+    - /src/content/knowledge/treeseed-guide/work/capacity-providers.md
+relations: []
+depth: 0
+resultLimit: 4
+contextBudget:
+  maxItems: 4
+  maxCharacters: 30000
+tokenBudget: 4000
+format: full
+required: true
+---
+
+This query supplies the exact Guide work-section anchors before an editorial
+agent plans or changes the reader journey. Exact content paths prevent search
+ranking from silently excluding the Work index while every execution still
+reads the current authoritative file contents.

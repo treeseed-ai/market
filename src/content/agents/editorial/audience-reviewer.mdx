@@ -15,6 +15,11 @@ groupIds:
   - agent
   - audience-review
   - editorial-team
+instructionTemplateRefs:
+  - { id: assignment-plan-standard, revision: 1 }
+  - { id: assignment-status-standard, revision: 1 }
+  - { id: assignment-message-standard, revision: 1 }
+  - { id: assignment-summary-standard, revision: 1 }
 identity:
   purpose: Ensure the Guide reduces reader uncertainty and supports meaningful action instead of merely describing internal concepts.
   responsibilities: [Identify the primary reader and job, walk the proposed learning path, test prerequisites and terminology, inspect navigation and progressive disclosure, check accessibility and machine context, request concrete revisions]
@@ -35,11 +40,71 @@ activityProfiles:
       task: Produce a reader-journey assessment linked to the objective, with audience priorities, failure points, affected pages, necessary context, and testable usability criteria.
     planningIntent: { stage: discovery, objective: "Discover audience needs, prerequisites, and accessibility constraints for the selected objective", artifactKind: planning_note, subjectModel: objective, subjectId: core }
     branchPolicy: { kind: read-only, base: main }
-    contentAccess:
-      read: { models: [objective, note, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }
-      write: { models: [note, question], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/reviews/**, src/content/questions/editorial/books/treeseed-guide/**] }
-      commit: { allowed: true }
-    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
+    permissions:
+      content:
+        objective:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: &id001
+            - treeseed-guide
+        note:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths: &id002
+            - src/content/notes/editorial/books/treeseed-guide/reviews/**
+            - src/content/questions/editorial/books/treeseed-guide/**
+        proposal:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        decision:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        knowledge:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        book:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        question:
+          operations:
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            paths: *id002
+      commit:
+        allowed: true
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
     signals: { publishes: [evidence-ready] }
     outputs: { messageTypes: [documentation_plan_updated], modelMutations: [review_note:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
@@ -54,12 +119,72 @@ activityProfiles:
       task: Complete a proposal-linked reader experience audit and state whether its outcomes and acceptance criteria are clear enough for human governance.
     planningIntent: { stage: evaluation, objective: Review the least-covered generated proposal and record linked audience feedback, artifactKind: proposal_feedback_note, subjectModel: proposal, subjectId: null }
     branchPolicy: { kind: read-only, base: main }
-    contentAccess:
-      read: { models: [objective, note, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }
-      write: { models: [note, question], actions: [create, link, validate, commit], paths: [src/content/notes/editorial/books/treeseed-guide/reviews/**, src/content/questions/editorial/books/treeseed-guide/**] }
-      commit: { allowed: true }
-    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
-    signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each, filters: { proposalTypes: [audience-experience] } }], publishes: [proposal-reviewed] }
+    permissions:
+      content:
+        objective:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: &id001
+            - treeseed-guide
+        note:
+          operations:
+          - describe
+          - query
+          - read
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            books: *id001
+            paths: &id002
+            - src/content/notes/editorial/books/treeseed-guide/reviews/**
+            - src/content/questions/editorial/books/treeseed-guide/**
+        proposal:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        decision:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        knowledge:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        book:
+          operations:
+          - describe
+          - query
+          - read
+          filters:
+            books: *id001
+        question:
+          operations:
+          - create
+          - update
+          - link
+          - validate
+          - commit
+          filters:
+            paths: *id002
+      commit:
+        allowed: true
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.content.create, treeseed.content.update, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
+    signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each, filters: { proposalTypes: [audience-experience, editorial-strategy] } }], publishes: [proposal-reviewed] }
     outputs: { messageTypes: [docs_mutation_completed], modelMutations: [proposal_feedback:create, question:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
     execution: { requiredCapabilities: [agent-execution], maxRuntimeSeconds: 2400, maxRetries: 2, verificationRequired: false }
@@ -72,7 +197,7 @@ activityProfiles:
       task: Submit an auditable proposal-linked audience estimate.
     planningIntent: { stage: evaluation, objective: Estimate audience work for each joined proposal, artifactKind: agent_estimate, subjectModel: proposal, subjectId: null }
     branchPolicy: { kind: read-only, base: main }
-    contentAccess: { read: { models: [objective, note, question, proposal, decision, knowledge, book], actions: [describe, query, read], books: [treeseed-guide] }, commit: { allowed: false } }
+    permissions: { content: { objective: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, note: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, question: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, proposal: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, decision: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, knowledge: { operations: [describe, query, read], filters: { books: [treeseed-guide] } }, book: { operations: [describe, query, read], filters: { books: [treeseed-guide] } } }, commit: { allowed: false } }
     tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files] }
     signals: { subscribesTo: [{ contract: proposal-ready, cardinality: each }], publishes: [proposal-estimated] }
     outputs: { messageTypes: [], modelMutations: [estimate:create] }

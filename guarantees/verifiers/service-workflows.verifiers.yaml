@@ -62,3 +62,9 @@ verifiers:
     ownerPackage: "@treeseed/sdk"
     testFile: tests/unit/scenes/agent-lab/agent-lab-contract.test.ts
     timeoutSeconds: 120
+  market.agent-catalog.golden-live-proof:
+    kind: nodeScript
+    ownerPackage: "@treeseed/market"
+    command: scripts/guarantees/verify-agent-capability.ts
+    timeoutSeconds: 7200
+    resultSchema: treeseed.guarantee-verifier-result/v1
