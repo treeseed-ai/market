@@ -85,6 +85,10 @@ describe('Treeseed Drizzle schema baseline', () => {
 				'0014_legacy_capacity_accounting_nullable.sql',
 				'0015_remove_platform_repository_claims.sql',
 				'0016_session_events.sql',
+				'0017_agent_lab_view_state.sql',
+				'0018_agent_context_query_checks.sql',
+				'0019_context_query_check_evidence_only.sql',
+				'0020_capacity_integrated_communication.sql',
 			]);
 		expect(existsSync(d1MigrationPath)).toBe(true);
 
@@ -202,7 +206,9 @@ describe('Treeseed Drizzle schema baseline', () => {
 		expect(marketSql).toMatch(createIndexPattern('idx_capacity_ledger_reservation_phase'));
 		expect(MarketSchema.capacityGrants.laneIdsJson.name).toBe('lane_ids_json');
 		expect(MarketSchema.capacityReservations.laneId.name).toBe('lane_id');
-		expect('laneId' in MarketSchema.capacityLedgerEntries).toBe(false);
+		expect(MarketSchema.capacityLedgerEntries.laneId.name).toBe('lane_id');
+		expect(MarketSchema.capacityLedgerEntries.lanePurpose.name).toBe('lane_purpose');
+		expect(MarketSchema.capacityLedgerEntries.executionKind.name).toBe('execution_kind');
 		expect(MarketSchema.capacityReservations.reservedNativeAmount.name).toBe('reserved_native_amount');
 		expect(MarketSchema.capacityUsageActuals.activeSeconds.name).toBe('active_seconds');
 		expect(MarketSchema.capacityUsageActuals.elapsedSeconds.name).toBe('elapsed_seconds');
@@ -251,7 +257,7 @@ describe('Treeseed Drizzle schema baseline', () => {
 		expect(marketSql).toMatch(/CONSTRAINT "fk_capacity_usage_actuals_project" FOREIGN KEY \([^;]+ ON DELETE cascade/u);
 		expect(marketSql).toContain('"id" text PRIMARY KEY NOT NULL');
 		expect(marketSql).toMatch(createIndexPattern('idx_credit_conversion_profiles_profile_key'));
-		expect(marketSql).toContain('"credit_formula_version" text DEFAULT \'treeseed.actual-credits.v1\' NOT NULL');
+		expect(marketSql).toContain('"formula_version" text NOT NULL');
 		expect(marketSql).toContain('CONSTRAINT "fk_capacity_allocation_sets_superseded_by" FOREIGN KEY ("superseded_by_id")');
 		expect(marketSql).toContain('CONSTRAINT "chk_capacity_allocation_sets_effective_interval"');
 		expect(marketSql).toContain('"metadata_json" text DEFAULT \'{}\' NOT NULL');

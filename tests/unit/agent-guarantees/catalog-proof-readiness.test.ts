@@ -6,10 +6,10 @@ import { discoverGuarantees } from '../../../packages/sdk/src/guarantees/index/p
 const root=resolve(import.meta.dirname,'../../..');
 
 describe('canonical agent catalog proof readiness',()=>{
-	it('defines executable proof requirements for all twelve ordered capabilities',()=>{
+	it('defines executable proof requirements for all fifteen ordered capabilities',()=>{
 		const status=createAgentGuaranteeCatalogStatus({workspaceRoot:root,catalog:'agent.system'});
 		expect(status.ok).toBe(true);
-		expect(status.entries).toHaveLength(12);
+		expect(status.entries).toHaveLength(15);
 		for(const entry of status.entries) {
 			expect(entry.proofReadiness.requiredCommands.length,entry.capabilityId).toBeGreaterThan(0);
 			expect(Object.values(entry.proofReadiness.outcomePredicates).flat().length,entry.capabilityId).toBeGreaterThan(0);

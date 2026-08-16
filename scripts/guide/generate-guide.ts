@@ -6,6 +6,7 @@ type Guarantee = { id: string; journey: string; summary: string; status: string;
 type Page = { id: string; slug: string; title: string; summary: string; order: number; parentId?: string; guaranteeId?: string; category: string; subcategory?: string };
 
 const root = process.cwd();
+const missingPagesOnly = process.argv.includes('--missing-pages');
 const coverage = JSON.parse(readFileSync(join(root, 'scripts/guide/expected-guarantees.json'), 'utf8')) as Coverage[];
 const categories = [
 	['deployment', 'Deployment'], ['security', 'Security'], ['content', 'Content'], ['work', 'Work'], ['market', 'Market'], ['governance', 'Governance'],
@@ -35,7 +36,15 @@ function filesUnder(directory: string): string[] {
 		return entry.isDirectory() ? filesUnder(path) : entry.isFile() && entry.name.endsWith('.guarantee.yaml') ? [path] : [];
 	});
 }
+function markdownFilesUnder(directory: string): string[] {
+	if (!existsSync(directory)) return [];
+	return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+		const path = join(directory, entry.name);
+		return entry.isDirectory() ? markdownFilesUnder(path) : entry.isFile() && /\.mdx?$/u.test(entry.name) ? [path] : [];
+	});
+}
 function classify(id: string, type: string, subtype: string, source: string): [string, string] {
+	if (type === 'deployment' && subtype === 'local-platform') return ['deployment', 'development'];
 	if (categories.some(([category]) => category === type) && coverage.some((item) => item.category === type && item.subcategory === subtype)) return [type, subtype];
 	const value = `${id} ${type} ${subtype} ${source}`.toLowerCase();
 	if (/user\.auth|auth-and-sessions|authentication/u.test(value)) return ['security', 'authentication'];
@@ -46,6 +55,7 @@ function classify(id: string, type: string, subtype: string, source: string): [s
 	if (/workday/u.test(value)) return ['work', 'workdays'];
 	if (/capacity/u.test(value)) return ['work', 'capacity-providers'];
 	if (/agent/u.test(value)) return ['work', 'agents'];
+	if (/ui\.workspace|guarantees\/ui\/workspace/u.test(value)) return ['content', 'management'];
 	if (/host|reconciliation|platform-operations/u.test(value)) return ['deployment', 'remote-platform'];
 	if (/project\.treedx|dx-repository|projects-and-workstreams/u.test(value)) return ['deployment', 'remote-projects'];
 	if (/private/u.test(value)) return ['deployment', 'private-platform'];
@@ -58,7 +68,7 @@ function classify(id: string, type: string, subtype: string, source: string): [s
 	if (/proposal|discussion/u.test(value)) return ['governance', 'proposal-discussion'];
 	if (/decision/u.test(value)) return ['governance', 'cooperative-decisions'];
 	if (/governance/u.test(value)) return ['governance', 'decision-tracking'];
-	if (/local/u.test(value)) return ['deployment', 'local-platform'];
+	if (/local/u.test(value)) return ['deployment', 'development'];
 	return ['content', 'management'];
 }
 
@@ -68,21 +78,23 @@ function guaranteeManifest(input: Coverage, journey: string, index: number) {
 }
 
 let journeyIndex = 570;
-for (const item of coverage) {
-	for (const journey of item.entries) {
+for (const item of coverage) for (const journey of item.entries) {
+	if (!missingPagesOnly) {
 		const slug = slugify(journey);
 		const ownerRoot = ownerRoots[item.owner];
 		const path = join(root, ownerRoot, 'guarantees', item.category, item.subcategory, `${slug}.guarantee.yaml`);
 		mkdirSync(dirname(path), { recursive: true });
 		writeFileSync(path, guaranteeManifest(item, journey, journeyIndex), 'utf8');
-		journeyIndex += 1;
 	}
+	journeyIndex += 1;
 }
 if (journeyIndex !== 730) throw new Error(`Expected guarantee indexes 570-729, got ${journeyIndex}.`);
 
 const criticalPath = join(root, 'packages/api/guarantees/project/treedx/preserve-markdown-frontmatter.guarantee.yaml');
-mkdirSync(dirname(criticalPath), { recursive: true });
-writeFileSync(criticalPath, `schemaVersion: treeseed.guarantee/v1\nid: guarantee.project.treedx.preserve-markdown-frontmatter.730\njourneyIndex: 730\ntype: project\nsubtype: treedx\njourney: Preserve Markdown Frontmatter Through TreeDX\nownerPackage: "@treeseed/api"\nsurface: api-control-plane\nsummary: Preserve complete structured Markdown and MDX frontmatter consistently through TreeDX repository and graph operations.\nstatus: planned\ndependencies: { journeys: [], guarantees: [] }\nactors: { allowed: [authenticated_user, project_manager], forbidden: [unauthorized_user] }\ndevices: { required: [desktop_chromium] }\ngates: [core, security, release]\npreconditions: { fixtures: [integrated_treeseed_project], notes: [] }\napi: { required: false, verifierRefs: [] }\ncontent: { required: false, verifierRefs: [] }\naudit: { required: false, verifierRefs: [] }\nnegativeCases: []\nevidence: { required: [guarantee_report, treedx_content_ref] }\nnotes: ["TreeDX package tests are authoritative until an integrated API verifier is registered."]\n`, 'utf8');
+if (!missingPagesOnly) {
+	mkdirSync(dirname(criticalPath), { recursive: true });
+	writeFileSync(criticalPath, `schemaVersion: treeseed.guarantee/v1\nid: guarantee.project.treedx.preserve-markdown-frontmatter.730\njourneyIndex: 730\ntype: project\nsubtype: treedx\njourney: Preserve Markdown Frontmatter Through TreeDX\nownerPackage: "@treeseed/api"\nsurface: api-control-plane\nsummary: Preserve complete structured Markdown and MDX frontmatter consistently through TreeDX repository and graph operations.\nstatus: planned\ndependencies: { journeys: [], guarantees: [] }\nactors: { allowed: [authenticated_user, project_manager, platform_admin], forbidden: [unauthorized_user] }\ndevices: { required: [desktop_chromium] }\ngates: [core, security, release]\npreconditions: { fixtures: [integrated_treeseed_project], notes: [] }\napi: { required: false, verifierRefs: [] }\ncontent: { required: false, verifierRefs: [] }\naudit: { required: false, verifierRefs: [] }\nnegativeCases: []\nevidence: { required: [guarantee_report, treedx_content_ref] }\nnotes: ["TreeDX package tests are authoritative until an integrated API verifier is registered."]\n`, 'utf8');
+}
 
 const guaranteeRoots = ['guarantees', ...readdirSync(join(root, 'packages'), { withFileTypes: true })
 	.filter((entry) => entry.isDirectory()).map((entry) => `packages/${entry.name}/guarantees`)];
@@ -120,7 +132,7 @@ for (const guarantee of guarantees) {
 }
 
 const bookPath = join(root, 'src/content/books/treeseed-guide.md');
-writeFileSync(bookPath, `---\nschemaVersion: treeseed.book/v2\nid: treeseed-guide\nslug: treeseed-guide\ntitle: TreeSeed Guide\nsummary: A complete guide to TreeSeed platform guarantees, workflows, and expected capabilities.\ndescription: A hierarchical guide for using, operating, securing, extending, and governing the TreeSeed platform.\nstatus: draft\nvisibility: public\norder: 10\ntopics: [deployment, security, content, work, market, governance]\naudience: [users, team owners, project managers, operators, contributors]\nrelatedBookIds: [treeseed-platform-architecture-development]\npackPolicy: allowed\n---\n\n# TreeSeed Guide\n\nFollow the connected knowledge tree to understand the platform from deployment through governance.\n`, 'utf8');
+if (!missingPagesOnly) writeFileSync(bookPath, `---\nschemaVersion: treeseed.book/v2\nid: treeseed-guide\nslug: treeseed-guide\ntitle: TreeSeed Guide\nsummary: A complete guide to TreeSeed platform guarantees, workflows, and expected capabilities.\ndescription: A hierarchical guide for using, operating, securing, extending, and governing the TreeSeed platform.\nstatus: draft\nvisibility: public\norder: 10\ntopics: [deployment, security, content, work, market, governance]\naudience: [users, team owners, project managers, operators, contributors]\nrelatedBookIds: [treeseed-platform-architecture-development]\npackPolicy: allowed\n---\n\n# TreeSeed Guide\n\nFollow the connected knowledge tree to understand the platform from deployment through governance.\n`, 'utf8');
 
 const pageById = new Map(pages.map((page) => [page.id, page]));
 const canonical = (page: Page) => `/t/treeseed/books/treeseed-guide/${page.slug}`;
@@ -132,8 +144,12 @@ function securityOutline(page: Page) {
 	return '';
 }
 const guideRoot = join(root, 'src/content/knowledge/treeseed-guide');
-rmSync(guideRoot, { recursive: true, force: true });
+const existingGuidePageIds = new Set(missingPagesOnly
+	? markdownFilesUnder(guideRoot).map((path) => yamlValue(readFileSync(path, 'utf8'), 'id')).filter(Boolean)
+	: []);
+if (!missingPagesOnly) rmSync(guideRoot, { recursive: true, force: true });
 for (const page of pages) {
+	if (missingPagesOnly && !page.guaranteeId) continue;
 	const parent = page.parentId ? pageById.get(page.parentId) : undefined;
 	const children = pages.filter((candidate) => candidate.parentId === page.id)
 		.sort((left, right) => left.order - right.order || left.title.localeCompare(right.title));
@@ -142,8 +158,10 @@ for (const page of pages) {
 	const navigation = `${parent ? `\n[Back to ${parent.title}](${canonical(parent)})\n` : ''}${children.length ? `\n## In this section\n\n${children.map((child) => `- [${child.title}](${canonical(child)})`).join('\n')}\n` : ''}`;
 	const guaranteeBody = page.guaranteeId ? `\n## What this guarantee promises\n\nThis page documents \`${page.guaranteeId}\`.\n\n## When to use it\n\n## Before you begin\n\n## Procedure\n\n## Expected result\n\n## Safety and recovery\n\n## Verification status\n\n## Related guarantees\n` : '';
 	const path = join(guideRoot, `${page.slug}.md`);
+	if (missingPagesOnly && existingGuidePageIds.has(page.id)) continue;
 	mkdirSync(dirname(path), { recursive: true });
 	writeFileSync(path, `${frontmatter}\n# ${page.title}\n${securityOutline(page)}${guaranteeBody}${navigation}`, 'utf8');
+	existingGuidePageIds.add(page.id);
 }
 
 console.log(JSON.stringify({ guarantees: guarantees.length, pages: pages.length, plannedGuarantees: 160, lastJourneyIndex: 730 }, null, 2));

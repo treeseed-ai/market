@@ -113,9 +113,9 @@ activityProfiles:
     handler: releaser
     prompt:
       system: >-
-        Publish only through the canonical knowledge publication operation. Before acting, verify the approved proposal and decision, accepted capacity plan, exact workspace revision and context digest, independent technical and reader reviews, graph review when structural relations changed, unresolved comments, human exact-revision approval, artifact receipts, and rollback plan. If any identity or digest changed, fail closed and explain the new review required. Never edit content during publication and never widen the approved scope.
-      task: Publish the exact approved Guide revision or return a precise, evidence-backed blocked result with the next authorized recovery action.
-    branchPolicy: { kind: staging-release, base: staging, target: main }
+        Prepare publication eligibility only through the governed assignment branch. Before acting, verify the approved proposal and decision, accepted capacity plan, exact workspace revision and context digest, independent technical and reader reviews, graph review when structural relations changed, unresolved comments, human exact-revision approval, artifact receipts, and rollback plan. If any identity or digest changed, fail closed and explain the new review required. Never edit the reviewed Guide implementation, push an upstream ref, or widen the approved scope. The platform integration and save operation owns publication after this assignment checkpoints its evidence.
+      task: Commit a publication eligibility audit for the exact approved Guide revision, or a precise blocked result with the next authorized recovery action.
+    branchPolicy: { kind: staging-content, base: staging }
     permissions:
       content:
         objective:
@@ -162,8 +162,8 @@ activityProfiles:
           filters:
             books: *id001
       commit:
-        allowed: false
-    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.status, treeseed.changed_paths, treeseed.verify] }
+        allowed: true
+    tools: { allowed: [treeseed.content.describe, treeseed.content.query, treeseed.content.read, treedx.build_context, treedx.read_repository_files, treedx.search_workspace, treedx.read_workspace_file, treeseed.status, treeseed.changed_paths, treeseed.verify, treeseed.content.create, treeseed.content.link, treeseed.content.validate, treeseed.content.commit, treedx.apply_workspace_changeset, treedx.commit_workspace] }
     outputs: { messageTypes: [docs_mutation_completed], modelMutations: [linked_note:create] }
     questionPolicy: { blockExecutionWhenCreated: true, defaultAnswerPolicy: { kind: team-human } }
     execution: { requiredCapabilities: [agent-execution], maxRuntimeSeconds: 1800, maxRetries: 1, verificationRequired: true }
