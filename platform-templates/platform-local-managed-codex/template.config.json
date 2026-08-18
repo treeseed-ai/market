@@ -25,7 +25,7 @@
     "executionProvider": "codex",
     "aiAppliance": false,
     "services": ["api", "treeseedDatabase", "operationsRunner", "treedx", "agentProvider"],
-    "seeds": ["seeds/platform.yaml"],
+    "seeds": ["seeds/agents.yaml", "seeds/platform.yaml"],
     "scenes": ["scenes/team-project-portfolio-demo.yaml"]
   },
   "testing": { "smokeCommand": "npx trsd platform status --json", "buildCommand": "npm run verify" }
