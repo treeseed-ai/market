@@ -15,8 +15,8 @@
     { "name": "Runtime Mailpit URL", "token": "__PORTFOLIO_MAILPIT_URL__", "deriveFrom": "runtime" }
   ],
   "managedSurface": {
-    "coreManaged": ["treeseed.site.yaml", "seeds/platform.yaml", "scenes/team-project-portfolio-demo.yaml"],
-    "validatedOnly": ["treeseed.site.yaml", "seeds/platform.yaml", "scenes/team-project-portfolio-demo.yaml"]
+    "coreManaged": ["treeseed.site.yaml", "seeds/agents.yaml", "seeds/platform.yaml", "scenes/team-project-portfolio-demo.yaml"],
+    "validatedOnly": ["treeseed.site.yaml", "seeds/agents.yaml", "seeds/platform.yaml", "scenes/team-project-portfolio-demo.yaml"]
   },
   "platform": {
     "controlPlane": { "mode": "managed" },

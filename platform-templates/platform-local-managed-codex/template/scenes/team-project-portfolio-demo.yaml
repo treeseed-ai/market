@@ -1,0 +1,731 @@
+schemaVersion: treeseed.scene/v1
+id: team-project-portfolio-demo
+title: Team Project Portfolio Demo
+description: >-
+  Register a user, create the TreeSeed team, and prepare portfolio projects for research and engineering work. This scene is intentionally practical: it should expose real admin-flow, project-launch, Mailpit, recording, rendering, and training-output gaps while serving as a central TreeSeed acceptance test harness and demo / educational video generator scenario.
+audience:
+  - evaluator
+  - operator
+  - trainee
+
+mode:
+  test: false
+  demo: true
+  training: true
+
+runtime:
+  mode: training
+  timeouts:
+    sceneSeconds: 1800
+    chapterSeconds: 600
+    stepSeconds: 120
+  checkpoints:
+    enabled: true
+    defaultResumable: true
+    everyStep: true
+  progress:
+    heartbeatSeconds: 15
+  failure:
+    continueOnFailure: true
+
+target:
+  app: market
+  environment: local
+  baseUrl: auto
+  browser: chromium
+  viewport:
+    width: 1600
+    height: 900
+
+devices:
+  defaultProfile: desktop
+  profiles:
+    - id: desktop
+      title: Desktop
+      orientation: landscape
+      viewport:
+        width: 1600
+        height: 900
+      video:
+        width: 1600
+        height: 900
+      output:
+        width: 1920
+        height: 1080
+      deviceScaleFactor: 1
+      isMobile: false
+      hasTouch: false
+      browserFrame:
+        enabled: false
+        title: Team Project Portfolio Demo
+        chrome: desktop
+    - id: tablet
+      title: Tablet
+      orientation: landscape
+      viewport:
+        width: 1024
+        height: 768
+      video:
+        width: 1024
+        height: 768
+      output:
+        width: 1440
+        height: 1080
+      deviceScaleFactor: 1
+      isMobile: true
+      hasTouch: true
+      browserFrame:
+        enabled: false
+        title: Team Project Portfolio Demo
+        chrome: tablet
+    - id: mobile
+      title: Mobile
+      orientation: portrait
+      viewport:
+        width: 390
+        height: 844
+      video:
+        width: 390
+        height: 844
+      output:
+        width: 1080
+        height: 1920
+      deviceScaleFactor: 2
+      isMobile: true
+      hasTouch: true
+      browserFrame:
+        enabled: false
+        title: Team Project Portfolio Demo
+        chrome: mobile
+
+setup:
+  dev:
+    required: true
+    command: trsd dev start --web-runtime local --json
+    reuseExisting: true
+
+artifacts:
+  trace: true
+  video: true
+  screenshots: true
+  console: true
+  network: true
+  timeline: true
+  appLogs: true
+
+render:
+  remotion:
+    composition: treeseed-training-default
+    output:
+      format: mp4
+      fps: 30
+      resolution:
+        width: 1920
+        height: 1080
+    capture:
+      viewport:
+        width: 1600
+        height: 900
+      video:
+        width: 1600
+        height: 900
+      evidenceFit: fixed-browser
+    browserFrame:
+      enabled: false
+      title: Team Project Portfolio Demo
+
+chapters:
+  - id: registration
+    title: Register a portfolio owner
+    startsAt: open-register
+  - id: email-confirmation
+    title: Confirm the account through Mailpit
+    startsAt: open-mailpit
+  - id: team-setup
+    title: Create the TreeSeed team
+    startsAt: verify-admin-home
+  - id: portfolio-projects
+    title: Prepare portfolio projects
+    startsAt: open-new-project-bylaws
+  - id: gap-review
+    title: Capture linked project gaps
+    startsAt: open-new-project-sdk
+
+overlays:
+  - id: scenario-purpose
+    at: open-register
+    renderer: remotion
+    type: callout
+    variant: panel
+    region: top-right
+    style:
+      tone: brand
+      shadow: medium
+      radius: 8
+    motion:
+      keyframes:
+        - at: 0
+          unit: progress
+          opacity: 0
+          position:
+            x: 100
+            y: 10
+            unit: percent
+        - at: 0.18
+          unit: progress
+          opacity: 1
+          position:
+            x: 82
+            y: 10
+            unit: percent
+        - at: 1
+          unit: progress
+          opacity: 1
+          position:
+            x: 82
+            y: 10
+            unit: percent
+    objects:
+      - id: acceptance-pulse
+        type: circle
+        position:
+          x: 8
+          y: 22
+        size:
+          width: 14
+          height: 14
+        style:
+          tone: success
+          opacity: 0.82
+        motion:
+          keyframes:
+            - at: 0
+              unit: progress
+              scale: 0.8
+              opacity: 0.45
+            - at: 0.5
+              unit: progress
+              scale: 1.28
+              opacity: 1
+            - at: 1
+              unit: progress
+              scale: 0.8
+              opacity: 0.45
+    text: This demo doubles as a product acceptance probe and an educational video source.
+  - id: mailpit-selector-risk
+    at: open-mailpit
+    renderer: remotion
+    type: callout
+    text: Mailpit confirmation is attempted through the browser so local email and auth gaps are visible in the run artifacts.
+  - id: team-portfolio-context
+    at: open-new-team
+    renderer: remotion
+    type: callout
+    text: The TreeSeed team will own a portfolio of research and engineering projects.
+  - id: bylaws-project-context
+    at: open-new-project-bylaws
+    renderer: remotion
+    type: callout
+    text: Bylaws is expected to be a new research-template project with no upstream remote.
+  - id: sdk-linked-project-gap
+    at: capture-sdk-linking-gap
+    renderer: remotion
+    type: callout
+    text: >-
+      Expected: link github.com/treeseed-ai/sdk and request a docs repository. Current gap: this linked-project operation is not exposed by the scene runtime or obvious project UI.
+  - id: final-gap-summary
+    at: review-gap-summary
+    renderer: remotion
+    type: callout
+    text: Review the screenshots, timeline, captions, transcript, and evidence bundle to prioritize product and selector hardening.
+
+diagrams:
+  - id: local-runtime-topology
+    renderer: remotion
+    component: DevRuntimeTopologyDiagram
+    at: open-mailpit
+    placement: overlay
+    durationSeconds: 12
+    style:
+      tone: info
+      shadow: medium
+    motion:
+      keyframes:
+        - at: 0
+          unit: progress
+          opacity: 0
+          scale: 0.96
+        - at: 0.2
+          unit: progress
+          opacity: 1
+          scale: 1
+        - at: 1
+          unit: progress
+          opacity: 1
+          scale: 1
+    objects:
+      - id: mail-flow-cursor
+        type: arrow
+        from:
+          x: 18
+          y: 80
+          unit: percent
+        to:
+          x: 84
+          y: 80
+          unit: percent
+        style:
+          tone: brand
+          opacity: 0.78
+        motion:
+          keyframes:
+            - at: 0
+              unit: progress
+              opacity: 0.2
+            - at: 0.6
+              unit: progress
+              opacity: 1
+            - at: 1
+              unit: progress
+              opacity: 0.7
+    props:
+      title: Local demo runtime
+      surfaces:
+        - id: browser
+          label: Browser scene
+          kind: playwright
+        - id: web
+          label: Local web app
+          kind: astro
+        - id: api
+          label: Local API
+          kind: treeseed-api
+        - id: mailpit
+          label: Mailpit
+          kind: email
+      links:
+        - from: browser
+          to: web
+          label: drives UI
+        - from: web
+          to: api
+          label: auth and project calls
+        - from: api
+          to: mailpit
+          label: confirmation email
+  - id: project-launch-lifecycle
+    renderer: remotion
+    component: OperationLifecycleDiagram
+    at: submit-bylaws-project
+    placement: overlay
+    durationSeconds: 12
+    props:
+      title: Project launch lifecycle
+      states:
+        - form-ready
+        - submitted
+        - queued
+        - deploying
+        - review
+      activeState: review
+  - id: scene-timeline-review
+    renderer: remotion
+    component: SceneExecutionTimelineDiagram
+    at: review-gap-summary
+    placement: overlay
+    durationSeconds: 10
+    props:
+      title: Portfolio demo execution timeline
+      showCheckpoints: true
+      showSegments: true
+
+training:
+  enabled: true
+  captions:
+    enabled: true
+    formats:
+      - vtt
+      - srt
+    maxCueSeconds: 6
+    renderInTrainingVideo: true
+  transcript:
+    enabled: true
+    formats:
+      - json
+      - markdown
+  narration:
+    enabled: true
+    style: instructional
+    includeDiagnostics: true
+  glossary:
+    enabled: true
+    terms:
+      - term: team
+        definition: A TreeSeed ownership boundary for projects, hosts, work, and knowledge.
+        sourceStep: open-new-team
+        groupIds:
+          - portfolio
+      - term: project
+        definition: A managed TreeSeed work surface that can own content, repositories, hosting, and launch evidence.
+        sourceStep: open-new-project-bylaws
+        groupIds:
+          - portfolio
+      - term: research template
+        definition: The starter used for research and knowledge-oriented projects such as Bylaws.
+        sourceStep: choose-research-template
+        groupIds:
+          - template
+      - term: linked repository
+        definition: An existing upstream repository that should be connected to a TreeSeed project instead of creating a new source repository.
+        sourceStep: capture-sdk-linking-gap
+        groupIds:
+          - gap
+      - term: docs repository
+        definition: A documentation repository expected for the linked SDK software project.
+        sourceStep: capture-sdk-linking-gap
+        groupIds:
+          - gap
+      - term: Mailpit
+        definition: The local email inbox used to confirm registration during the demo.
+        sourceStep: open-mailpit
+        groupIds:
+          - local-dev
+      - term: checkpoint
+        definition: A resumable scene runtime marker that helps diagnose and continue long workflows.
+        sourceStep: review-gap-summary
+        groupIds:
+          - scene-runtime
+  chapterClips:
+    enabled: true
+    format: manifest
+
+workflow:
+  - id: open-register
+    title: Open registration for a normal user
+    action:
+      goto: /auth/register?returnTo=/app
+    expect:
+      visible:
+        - role: heading
+          name: Create account
+
+  - id: fill-first-name
+    title: Enter the user's first name
+    action:
+      fill:
+        css: input[name="firstName"]
+        internal: true
+        value: Test
+    expect:
+      visible:
+        - css: input[name="firstName"]
+          internal: true
+
+  - id: fill-last-name
+    title: Enter the user's last name
+    action:
+      fill:
+        css: input[name="lastName"]
+        internal: true
+        value: Portfolio
+    expect:
+      visible:
+        - css: input[name="lastName"]
+          internal: true
+
+  - id: fill-username
+    title: Choose a unique username
+    action:
+      fill:
+        css: input[name="username"]
+        internal: true
+        value: __PORTFOLIO_USERNAME__
+    expect:
+      visible:
+        - css: input[name="username"]
+          internal: true
+
+  - id: fill-email
+    title: Enter the generated local email address
+    action:
+      fill:
+        css: input[name="email"]
+        internal: true
+        value: __PORTFOLIO_EMAIL__
+    expect:
+      visible:
+        - css: input[name="email"]
+          internal: true
+
+  - id: fill-password
+    title: Enter a strong generated password
+    action:
+      fill:
+        css: input[name="password"]
+        internal: true
+        value: __PORTFOLIO_PASSWORD__
+    expect:
+      visible:
+        - css: input[name="password"]
+          internal: true
+
+  - id: fill-confirm-password
+    title: Confirm the generated password
+    action:
+      fill:
+        css: input[name="confirmPassword"]
+        internal: true
+        value: __PORTFOLIO_PASSWORD__
+    expect:
+      visible:
+        - css: input[name="confirmPassword"]
+          internal: true
+
+  - id: submit-registration
+    title: Submit the registration form
+    action:
+      click:
+        role: button
+        name: Create account
+    expect:
+      text: Check your email
+    checkpoint:
+      resumable: true
+
+  - id: open-mailpit
+    title: Open the local Mailpit inbox
+    action:
+      goto: __PORTFOLIO_MAILPIT_URL__
+    demoOnly: true
+    checkpoint:
+      resumable: true
+
+  - id: open-confirmation-email
+    title: Open the newest confirmation email
+    action:
+      click:
+        css: a[href^="/view/"]:has-text("__PORTFOLIO_EMAIL__")
+        brittle: true
+    demoOnly: true
+    continueOnFailure: true
+    checkpoint:
+      resumable: true
+
+  - id: open-confirmation-link
+    title: Open the email confirmation link
+    action:
+      mailpitConfirmLatest:
+        mailpitUrl: __PORTFOLIO_MAILPIT_URL__
+        email: __PORTFOLIO_EMAIL__
+        subjectIncludes: Confirm
+    expect:
+      urlIncludes: /app
+    demoOnly: true
+    continueOnFailure: true
+    checkpoint:
+      resumable: true
+
+  - id: verify-admin-home
+    title: Confirm the user can see the admin homepage
+    action:
+      goto: /app
+    expect:
+      visible:
+        - role: heading
+          name: Start
+    continueOnFailure: true
+    checkpoint:
+      resumable: true
+
+  - id: open-new-team
+    title: Open the new team screen
+    action:
+      goto: /app/teams/new
+    expect:
+      visible:
+        - role: heading
+          name: Create team
+    continueOnFailure: true
+
+  - id: fill-team-slug
+    title: Enter the TreeSeed team slug
+    action:
+      fill:
+        css: input[name="name"]
+        internal: true
+        value: treeseed
+    expect:
+      visible:
+        - css: input[name="name"]
+          internal: true
+    continueOnFailure: true
+
+  - id: fill-team-display-name
+    title: Enter the TreeSeed team display name
+    action:
+      fill:
+        css: input[name="displayName"]
+        internal: true
+        value: TreeSeed
+    expect:
+      visible:
+        - css: input[name="displayName"]
+          internal: true
+    continueOnFailure: true
+
+  - id: fill-team-summary
+    title: Describe the team project portfolio
+    action:
+      fill:
+        css: textarea[name="profileSummary"]
+        internal: true
+        value: TreeSeed owns a portfolio of research and engineering projects, including governance research and software platform work.
+    expect:
+      visible:
+        - css: textarea[name="profileSummary"]
+          internal: true
+    continueOnFailure: true
+
+  - id: submit-team
+    title: Create the TreeSeed team
+    action:
+      click:
+        role: button
+        name: Create team
+    expect:
+      urlIncludes: /app/teams
+    continueOnFailure: true
+    checkpoint:
+      resumable: true
+
+  - id: open-new-project-bylaws
+    title: Open the new project screen for Bylaws
+    action:
+      goto: /app/projects/new
+    expect:
+      text: Create hosted project
+    continueOnFailure: true
+
+  - id: fill-bylaws-name
+    title: Enter the Bylaws project name
+    action:
+      fill:
+        css: input[name="name"]
+        internal: true
+        value: Bylaws
+    expect:
+      visible:
+        - css: input[name="name"]
+          internal: true
+    continueOnFailure: true
+
+  - id: fill-bylaws-slug
+    title: Enter the Bylaws project slug
+    action:
+      fill:
+        css: input[name="slug"]
+        internal: true
+        value: bylaws
+    expect:
+      visible:
+        - css: input[name="slug"]
+          internal: true
+    continueOnFailure: true
+
+  - id: choose-research-template
+    title: Choose the research template
+    action:
+      click:
+        css: label[for="template-research"]
+        internal: true
+    expect:
+      visible:
+        - css: label[for="template-research"]
+          internal: true
+    continueOnFailure: true
+
+  - id: fill-bylaws-objective
+    title: Describe the Bylaws research objective
+    action:
+      fill:
+        css: textarea[name="coreObjective"]
+        internal: true
+        value: Build a research project for organizing TreeSeed bylaws, governance notes, decision records, and portfolio policy.
+    expect:
+      visible:
+        - css: textarea[name="coreObjective"]
+          internal: true
+    continueOnFailure: true
+
+  - id: submit-bylaws-project
+    title: Submit the Bylaws project launch
+    action:
+      click:
+        role: button
+        name: Create project
+    expect:
+      visible:
+        - css: "body"
+          internal: true
+    continueOnFailure: true
+    checkpoint:
+      resumable: true
+
+  - id: open-new-project-sdk
+    title: Open the new project screen for SDK
+    action:
+      goto: /app/projects/new
+    expect:
+      text: Create hosted project
+    continueOnFailure: true
+
+  - id: fill-sdk-name
+    title: Enter the SDK project name
+    action:
+      fill:
+        css: input[name="name"]
+        internal: true
+        value: SDK
+    expect:
+      visible:
+        - css: input[name="name"]
+          internal: true
+    continueOnFailure: true
+
+  - id: fill-sdk-slug
+    title: Enter the SDK project slug
+    action:
+      fill:
+        css: input[name="slug"]
+        internal: true
+        value: sdk
+    expect:
+      visible:
+        - css: input[name="slug"]
+          internal: true
+    continueOnFailure: true
+
+  - id: capture-sdk-linking-gap
+    title: Capture the linked SDK project gap
+    action:
+      pause:
+        mode: timed
+        durationSeconds: 6
+        prompt: >-
+          Expected linked software project: public GitHub repository github.com/treeseed-ai/sdk with a docs repository request. Current gap: this operation is not exposed by the scene runtime or obvious project UI.
+    demoOnly: true
+    continueOnFailure: true
+    checkpoint:
+      resumable: true
+
+  - id: review-gap-summary
+    title: Review portfolio demo evidence and gaps
+    action:
+      goto: /app/projects
+    expect:
+      visible:
+        - css: "body"
+          internal: true
+    continueOnFailure: true
+    checkpoint:
+      resumable: true
