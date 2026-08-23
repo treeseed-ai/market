@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parse } from 'yaml';
 
 const root = resolve(import.meta.dirname, '../../..');
 
@@ -28,17 +27,12 @@ describe('portfolio license boundaries', () => {
 		}
 	});
 
-	it('keeps templates Apache-licensed and the singleton Market API private', () => {
+	it('keeps templates and Market Apache-licensed without owning the Market API seed', () => {
 		for (const path of ['starters/engineering/LICENSE', 'starters/research/LICENSE']) {
 			expect(readFileSync(resolve(root, path), 'utf8')).toContain('Apache License, Version 2.0');
 		}
-		const singletonSeed = parse(readFileSync(resolve(root, 'seeds/market-singleton.yaml'), 'utf8')) as {
-			resources: {
-				projects: Array<{ repository: { name: string; repositoryPolicy: { visibility: string } } }>;
-				hubRepositories: Array<{ name: string; repositoryPolicy: { visibility: string } }>;
-			};
-		};
-		expect(singletonSeed.resources.projects.find((project) => project.repository.name === 'market-api')?.repository.repositoryPolicy.visibility).toBe('private');
-		expect(singletonSeed.resources.hubRepositories.find((repository) => repository.name === 'market-api-content')?.repositoryPolicy.visibility).toBe('private');
+		expect(json('package.json').license).toBe('Apache-2.0');
+		expect(readFileSync(resolve(root, 'seeds/README.md'), 'utf8')).toContain('canonical portable portfolio bundle');
+		expect(readFileSync(resolve(root, 'seeds/README.md'), 'utf8')).toContain('no contributor-grant workflow');
 	});
 });
