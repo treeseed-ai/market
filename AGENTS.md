@@ -483,3 +483,7 @@ Common failure patterns:
 - API endpoint reliability belongs to `@treeseed/api` endpoint-family guarantees backed by complete route descriptor matrices.
 - UI/Admin guarantees should use `dependsOnGuarantees` to depend on API endpoint guarantees instead of duplicating endpoint reliability checks.
 - Agent guarantee runs must support deterministic mock execution for CI and live Codex proof for local/staging. Explicit live Codex runs must fail closed with `missing_codex_auth` when Codex auth is unavailable.
+
+## Project library
+
+Use `trsd library show market` and `status` before querying `treeseed-ai/market-library`. Read root-level paths at an exact commit. Author only through governed library workspaces and reviews. Never recreate `src/content` or edit `.treeseed/data` directly.
