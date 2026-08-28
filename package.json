@@ -39,12 +39,13 @@
   "scripts": {
     "setup": "npm install",
     "setup:ci": "npm ci",
+    "brand:sync": "node --import tsx ./scripts/sync-brand-assets.ts",
     "postinstall": "npm run bootstrap",
     "bootstrap": "if test -f ./packages/core/scripts/treedx/workspaces/workspace-bootstrap.ts; then node --import tsx ./packages/core/scripts/treedx/workspaces/workspace-bootstrap.ts; elif test -f ./node_modules/@treeseed/core/dist/scripts/treedx/workspaces/workspace-bootstrap.js; then node ./node_modules/@treeseed/core/dist/scripts/treedx/workspaces/workspace-bootstrap.js; else treeseed starlight:patch; fi",
     "starlight:patch": "treeseed starlight:patch",
     "config": "treeseed config",
     "preflight": "treeseed preflight",
-    "dev": "treeseed dev",
+    "dev": "npm run brand:sync && treeseed dev",
     "lint": "npm run check",
     "check:typescript-source": "node --import tsx ./scripts/check-typescript-source.ts",
     "check:file-lengths": "node --import tsx ./scripts/check-file-lengths.ts && npm run check:file-architecture",
@@ -57,7 +58,7 @@
     "test:unit": "vitest run --config ./vitest.config.ts",
     "test:demo:e2e": "npm -w packages/ui exec -- playwright test --config ../../playwright.demo.config.ts",
     "check": "npm run check:file-lengths && npm run check:ui-architecture && if test -f ./packages/sdk/scripts/verification/tenant-check.ts; then node --import tsx ./packages/sdk/scripts/verification/tenant-check.ts; elif test -f ./node_modules/@treeseed/sdk/dist/scripts/verification/tenant-check.js; then node ./node_modules/@treeseed/sdk/dist/scripts/verification/tenant-check.js; else treeseed check; fi",
-    "build:web": "if test -f ./packages/sdk/scripts/build/tenant-build.ts; then TREESEED_LOCAL_DEV_MODE=cloudflare node --import tsx ./packages/sdk/scripts/build/tenant-build.ts; elif test -f ./node_modules/@treeseed/sdk/dist/scripts/build/tenant-build.js; then TREESEED_LOCAL_DEV_MODE=cloudflare node ./node_modules/@treeseed/sdk/dist/scripts/build/tenant-build.js; else TREESEED_LOCAL_DEV_MODE=cloudflare treeseed build; fi",
+    "build:web": "npm run brand:sync && if test -f ./packages/sdk/scripts/build/tenant-build.ts; then TREESEED_LOCAL_DEV_MODE=cloudflare node --import tsx ./packages/sdk/scripts/build/tenant-build.ts; elif test -f ./node_modules/@treeseed/sdk/dist/scripts/build/tenant-build.js; then TREESEED_LOCAL_DEV_MODE=cloudflare node ./node_modules/@treeseed/sdk/dist/scripts/build/tenant-build.js; else TREESEED_LOCAL_DEV_MODE=cloudflare treeseed build; fi",
     "build": "npm run build:web",
     "deploy": "treeseed release",
     "preview": "if test -f ./packages/sdk/scripts/tenant/tenant-astro-command.ts; then node --import tsx ./packages/sdk/scripts/tenant/tenant-astro-command.ts preview; elif test -f ./node_modules/@treeseed/sdk/dist/scripts/tenant/tenant-astro-command.js; then node ./node_modules/@treeseed/sdk/dist/scripts/tenant/tenant-astro-command.js preview; else treeseed preview; fi",
@@ -78,7 +79,7 @@
     "@treeseed/cli": "0.12.58",
     "@treeseed/core": "0.12.59",
     "@treeseed/sdk": "0.12.62",
-    "@treeseed/ui": "0.12.17"
+    "@treeseed/ui": "0.12.18-rc.10"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
