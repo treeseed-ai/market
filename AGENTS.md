@@ -4,6 +4,10 @@ This repository is the unified development workspace for the Treeseed system and
 
 For the canonical current-state package map, see `docs/package-ownership.md`.
 
+## CRITICAL: Branch And Deployment Boundary
+
+`main` is the only production branch and maps only to the `production` deployment environment. `staging` is the only development-integration branch and maps only to the `staging` deployment environment. Short-lived pull-request branches may validate without deploying, but they must never define another deployment environment. Do not create or use `development`, `preview`, `stable`, or any other GitHub deployment environment; preview deployments are prohibited. Release tags may promote an exact reviewed `staging` commit to `production` without creating another branch or environment. Artifact channel names must never become GitHub deployment environments.
+
 ## CRITICAL: Comprehensive Pre-Change Audit
 
 This is the highest-priority engineering rule in the workspace. Before creating an implementation plan or making any code, configuration, workflow, manifest, lockfile, infrastructure, or documentation edit, conduct a comprehensive audit of all related functionality.

@@ -19,7 +19,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'pull_request' && 'preview' || (github.ref_name == 'main' && 'production' || (github.ref_name == 'staging' && 'staging' || 'preview')) }}
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,9 +56,8 @@ jobs:
           set -euo pipefail
           SOURCE_COMMIT="$(git rev-parse HEAD)"
           test "${SOURCE_COMMIT}" = "${{ github.event.pull_request.head.sha || github.sha }}"
-          CHANNEL=preview
+          CHANNEL=staging
           if test "${GITHUB_REF_NAME}" = main; then CHANNEL=production; fi
-          if test "${GITHUB_REF_NAME}" = staging; then CHANNEL=staging; fi
           VALIDATE=()
           if test "${{ github.event_name }}" = pull_request; then VALIDATE+=(--validate-only); fi
           if test "${{ github.event_name }}" != pull_request; then

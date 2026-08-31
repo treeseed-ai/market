@@ -8,7 +8,7 @@ on:
         required: true
         default: staging
         type: choice
-        options: [staging, prod]
+        options: [staging, production]
 
 permissions:
   contents: read
@@ -17,7 +17,7 @@ jobs:
   guarantees:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    environment: ${{ inputs.environment == 'prod' && 'production' || 'staging' }}
+    environment: ${{ inputs.environment }}
     env:
       CI: "true"
       TREESEED_AGENT_GUARANTEE_EXECUTION_PROVIDER: mock
@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.environment == 'prod' && 'main' || 'staging' }}
+          ref: ${{ inputs.environment == 'production' && 'main' || 'staging' }}
           submodules: recursive
       - uses: actions/setup-node@v4
         with:
