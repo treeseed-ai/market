@@ -2,9 +2,7 @@ name: Verify
 
 on:
   push:
-    paths-ignore: ["src/content/**"]
   pull_request:
-    paths-ignore: ["src/content/**"]
   workflow_dispatch:
 
 permissions:
