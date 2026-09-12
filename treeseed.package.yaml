@@ -30,6 +30,7 @@ development:
       endpoints: [{ id: http, protocol: http, port: 4323, canonicalAlias: market.treeseed.localhost, visibility: host, authentication: application }]
       dependencies:
         - { id: sdk, target: package, locality: local, reaction: restart }
+        - { id: cli, target: package, locality: local, reaction: restart }
         - { id: ui, target: package, locality: local, reaction: restart }
         - { id: core, target: package, locality: local, reaction: restart }
         - { id: api, target: service, capability: control-plane-api, locality: either, reaction: none }
