@@ -2,6 +2,7 @@ name: Content
 
 on:
   push:
+    branches: [staging, main]
     paths:
       - 'src/content/**'
   pull_request:
@@ -19,7 +20,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    environment: ${{ github.event_name == 'pull_request' && '' || (github.ref_name == 'main' && 'production' || 'staging') }}
     steps:
       - uses: actions/checkout@v4
         with:
