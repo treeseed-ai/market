@@ -37,7 +37,7 @@
     "setup": "npm install --workspaces=false",
     "setup:ci": "npm ci --workspaces=false",
     "brand:sync": "node --import tsx ./scripts/sync-brand-assets.ts",
-    "dev": "npm run brand:sync && TREESEED_WEB_RUNTIME_TARGET=managed-node node ./node_modules/astro/astro.js dev --config astro.config.ts --port 4323",
+    "dev": "npm run brand:sync && TREESEED_WEB_RUNTIME_TARGET=managed-node node ./node_modules/astro/astro.js dev --config astro.config.ts",
     "lint": "npm run check",
     "check:typescript-source": "node --import tsx ./scripts/check-typescript-source.ts",
     "check:file-lengths": "node --import tsx ./scripts/check-file-lengths.ts && npm run check:file-architecture",

@@ -22,7 +22,7 @@ development:
       ignoredPaths: [dist, node_modules]
       operations:
         setup: { command: npm, args: [run, brand:sync], environment: {}, timeoutSeconds: 120 }
-        start: { command: npm, args: [run, dev, --, --host, 127.0.0.1, --port, "4323"], environment: {}, timeoutSeconds: 86400 }
+        start: { command: npm, args: [run, dev, --, --host, 0.0.0.0, --port, "4323"], environment: {}, timeoutSeconds: 86400 }
         build: { command: npm, args: [run, build], environment: {}, timeoutSeconds: 1800 }
         verify: { command: npm, args: [run, test:unit], environment: {}, timeoutSeconds: 900 }
       ready: { kind: http, path: /, expectedStatus: 200, timeoutSeconds: 180 }
