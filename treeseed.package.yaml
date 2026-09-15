@@ -9,6 +9,16 @@ workflowTemplateVersion: "1"
 githubEnvironments: [staging, production]
 verify: { fast: npm run test:unit, local: npm run verify:direct, release: npm run verify }
 releaseGate: { workflow: verify.yml }
+projectArchitecture:
+  topology: split_site_content
+  rootPath: .
+  sitePath: .
+  contentPath: .
+  contentRuntimeSource: r2_preview_overlay
+  localContentMaterialization: none
+  contentPublishTarget:
+    kind: cloudflare_r2
+    prefix: packages/market
 development:
   schemaVersion: treeseed.development-runtime/v1
   project: { id: market, repository: treeseed-ai/market }
