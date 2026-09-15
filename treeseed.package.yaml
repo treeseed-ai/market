@@ -1,0 +1,43 @@
+schemaVersion: treeseed.package/v1
+id: "@treeseed/market"
+name: TreeSeed Market
+kind: node-typescript
+type: singleton-hosted-site
+repository: treeseed-ai/market
+capabilities: { save: true, verify: true, publish: false, deploy: true, localOnly: false }
+workflowTemplateVersion: "1"
+githubEnvironments: [staging, production]
+verify: { fast: npm run test:unit, local: npm run verify:direct, release: npm run verify }
+releaseGate: { workflow: verify.yml }
+development:
+  schemaVersion: treeseed.development-runtime/v1
+  project: { id: market, repository: treeseed-ai/market }
+  defaults: { leaseSeconds: 14400, restoreOnFailure: true }
+  targets:
+    - id: web
+      kind: live-web
+      platforms: [linux-amd64, linux-arm64, darwin-arm64, darwin-amd64]
+      runtimeRequirements: [node>=22, browser]
+      sourceRoots: [src, public, scripts, astro.config.ts, treeseed.site.yaml]
+      ignoredPaths: [dist, node_modules]
+      operations:
+        setup: { command: npm, args: [run, brand:sync], environment: {}, timeoutSeconds: 120 }
+        start: { command: npm, args: [run, dev, --, --host, 0.0.0.0, --port, "4323"], environment: {}, timeoutSeconds: 86400 }
+        build: { command: npm, args: [run, build], environment: {}, timeoutSeconds: 1800 }
+        verify: { command: npm, args: [run, test:unit], environment: {}, timeoutSeconds: 900 }
+      ready: { kind: http, path: /, expectedStatus: 200, timeoutSeconds: 180 }
+      outputs: []
+      endpoints: [{ id: http, protocol: http, port: 4323, canonicalAlias: market.treeseed.localhost, visibility: host, authentication: application }]
+      dependencies:
+        - { id: sdk, target: package, locality: local, reaction: restart }
+        - { id: ui, target: package, locality: local, reaction: restart }
+        - { id: core, target: package, locality: local, reaction: restart }
+        - { id: api, target: service, capability: control-plane-api, locality: either, reaction: none }
+      statePolicy: stateless
+      migrationPolicy: none
+      secretRefs: {}
+      shutdown: { graceSeconds: 15, activeWorkPolicy: block }
+      resources: {}
+      logs: [.treeseed/development/web.log]
+      forbiddenOperations: [manager-socket, browser-token-exposure]
+      promotion: { liveAdmissible: false, candidateRequiresVerification: true }

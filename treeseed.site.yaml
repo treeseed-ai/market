@@ -83,7 +83,6 @@ connections:
         baseUrl: https://api.treeseed.dev
 plugins:
   - package: "@treeseed/core/plugin-default"
-  - package: "@treeseed/admin/plugin"
 providers:
   agents:
     execution: codex
