@@ -94,7 +94,7 @@ providers:
   deploy: cloudflare
   dns: cloudflare-dns
   content:
-    serving: local_collections
+    serving: published_runtime
     runtime: team_scoped_r2_overlay
     publish: team_scoped_r2_overlay
     docs: default

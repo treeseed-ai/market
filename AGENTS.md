@@ -99,9 +99,9 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 
 ## TreeSeed Content Model Rule
 
-Agent definitions, questions, objectives, notes, proposals, and decisions are Astro content models. They must be Markdown/MDX entries with SDK-contract frontmatter and content bodies. Root Market content lives under `src/content/**`; package project content lives under `docs/src/content/**`.
+Agent definitions, questions, objectives, notes, proposals, decisions, and pages are Markdown/MDX content models governed through each project's TreeDX library. Library collections live at the library repository root. Primary software repositories must not track or directly mutate `src/content/**` or `docs/src/content/**`; ignored `.treeseed/library/**` paths are runtime caches only.
 
-Agent definitions must live in `src/content/agents/` for the root Market project and `docs/src/content/agents/` for package projects.
+Use `trsd library` operations for content discovery, reading, authoring, review, and publication. Never restore local content as a fallback when TreeDX or its binding is unavailable.
 
 Notes linked to other content must live under `src/content/notes/{classification}/` or `docs/src/content/notes/{classification}/` and must link to their subject through SDK-supported frontmatter fields such as `about`, `relatedObjectives`, `relatedQuestions`, `relatedProposals`, or `relatedDecisions`.
 

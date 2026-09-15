@@ -1,21 +1,21 @@
 id: treeseed-market
 siteConfigPath: ./src/config.yaml
 content:
-  docs: ./src/content/knowledge
-  pages: ./src/content/pages
-  notes: ./src/content/notes
-  questions: ./src/content/questions
-  objectives: ./src/content/objectives
-  proposals: ./src/content/proposals
-  decisions: ./src/content/decisions
-  people: ./src/content/people
-  agents: ./src/content/agents
-  discussions: ./src/content/discussions
-  discussion_messages: ./src/content/discussion-messages
-  discussion_events: ./src/content/discussion-events
-  books: ./src/content/books
-  templates: ./src/content/templates
-  workdays: ./src/content/workdays
+  docs: ./.treeseed/library/knowledge
+  pages: ./.treeseed/library/pages
+  notes: ./.treeseed/library/notes
+  questions: ./.treeseed/library/questions
+  objectives: ./.treeseed/library/objectives
+  proposals: ./.treeseed/library/proposals
+  decisions: ./.treeseed/library/decisions
+  people: ./.treeseed/library/people
+  agents: ./.treeseed/library/agents
+  discussions: ./.treeseed/library/discussions
+  discussion_messages: ./.treeseed/library/discussion-messages
+  discussion_events: ./.treeseed/library/discussion-events
+  books: ./.treeseed/library/books
+  templates: ./.treeseed/library/templates
+  workdays: ./.treeseed/library/workdays
 features:
   docs: true
   books: true
