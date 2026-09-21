@@ -61,7 +61,7 @@ Capacity acceptance follows the same independent-project rule. `starters/enginee
 
 ### Book knowledge ownership
 
-- `@treeseed/sdk` owns `treeseed.book/v2`, `treeseed.knowledge-page/v1`, book-collection and immutable knowledge-pack contracts, derived routes, content-sync safety, and deterministic snapshot artifacts.
+- `@treeseed/sdk` owns `treeseed.book/v3`, `treeseed.knowledge-page/v2`, book-collection and immutable knowledge-pack contracts, derived routes, content-sync safety, and deterministic snapshot artifacts.
 - `@treeseed/ui` owns reusable library, outline, authoring, review, relationship, and pack presentation. Admin routes compose these primitives and do not create page-local editor or collection systems.
 - `@treeseed/core` owns the single Starlight-based reader and the policy-filtered published-content consumption boundary.
 - `@treeseed/admin` owns authenticated authoring, review, linking, publication, and pack workbench routes over API contracts.
