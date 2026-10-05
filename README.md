@@ -48,7 +48,8 @@ ui -> consumed by admin/core/market
 sdk -> core/admin/api/cli/agent
 core -> sdk + ui
 admin -> core + sdk + ui
-market -> admin + core + ui
+market -> core + sdk + ui + Market API HTTP
+market-api -> sdk + Admin API HTTP
 api -> sdk
 cli -> sdk + core + selected public agent surfaces
 agent -> sdk
@@ -59,15 +60,19 @@ See [Package Ownership](./docs/package-ownership.md) for where new functionality
 
 ## Hosted Runtime Shape
 
-The root market repository is the only hosted web tenant in this workspace. It owns the real `treeseed.site.yaml`.
+The checked-out root remains the Market web tenant during extraction. The target `treeseed-ai/platform` workspace is an installer and integration environment, not a hosted Market tenant, and cannot compile Market resources.
 
 ```text
-Cloudflare web app: root market
-  - public site, docs, content, overrides, future ecommerce
-  - admin routes contributed by @treeseed/admin
+Singleton Market deployment (outside Platform)
+  - public Market web from treeseed-ai/market
+  - private /v1/market/** implementation from treeseed-ai/market-api
+  - all other /v1/** passed through api.treeseed.dev
+
+Customer Platform deployment
+  - optional Admin portal from @treeseed/admin
   - reusable UI from @treeseed/ui
   - web runtime from @treeseed/core
-  - /v1/* proxy/client surfaces
+  - hosted, external, or managed Admin API control plane
 
 Railway backend app: packages/api
   - API service
@@ -207,7 +212,7 @@ Integrated package build order is:
 sdk -> ui -> core -> admin -> api -> cli -> agent
 ```
 
-Public npm release order excludes the private/deploy-only API package:
+Public npm release order excludes the deploy-only API package. Its source repository is public AGPL-3.0-only with a separately offered commercial license:
 
 ```text
 sdk -> ui -> core -> admin -> cli -> agent
@@ -221,9 +226,8 @@ Use `trsd config` or provider secret managers for provider credentials. Do not w
 
 Important package credential conventions:
 
-- repository-scoped GitHub tokens use `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>`
-- admin package token: `TREESEED_GITHUB_TOKEN_TREESEED_AI_ADMIN`
-- TreeDX package token: `TREESEED_GITHUB_TOKEN_TREESEED_AI_TREEDX`
+- first-party `treeseed-ai/*` repositories use only `TREESEED_GITHUB_TOKEN`
+- repository-scoped `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>` overrides are reserved for imported third-party repositories
 - public npm package tokens belong in each package repository's GitHub `production` environment as `NPM_TOKEN`
 
 See [Package Ownership](./docs/package-ownership.md#secret-and-config-ownership) for ownership details.

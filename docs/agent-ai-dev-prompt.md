@@ -68,7 +68,7 @@ npm -w packages/agent run test:agent-tools
 npm -w packages/agent run verify:local
 ```
 
-For Knowledge Hub content work, use model-aware TreeSeed content tools when they are present. Do not hand-write frontmatter for questions, proposals, notes, decisions, books, knowledge pages, people, or agents when a `treeseed.content.*` or generated model preset tool is available. `contentAccess` controls the models and actions an agent or handler may use; `tools.allowed` controls only the callable tools exposed to an execution provider.
+For Knowledge Hub content work, use model-aware TreeSeed content tools when they are present. Do not hand-write frontmatter for questions, proposals, notes, decisions, books, knowledge pages, people, or agents when a `treeseed.content.*` or generated model preset tool is available. The activity profile's per-model permission matrix controls the operations and filters an agent or handler may use; `tools.allowed` controls only the callable tools exposed to an execution provider.
 
 `capacity-provider:test-local` exercises Docker when available. A local container
 healthcheck may warn about missing Codex auth; staging and production doctor
@@ -329,7 +329,7 @@ Manual approval is the default.
 Ask me before:
 
 * approving TreeSeed governance decisions
-* switching from `--docs-automation dry-run` to `--docs-automation on`
+* switching from `--docs-automation plan` to `--docs-automation on`
 * applying canonical docs mutations
 * staging or saving generated documentation changes
 * releasing or publishing
@@ -420,7 +420,7 @@ Open or inspect state for:
 http://127.0.0.1:4321/app
 /app
 /app/teams
-/app/hosts
+/app/services
 /app/projects
 /app/capacity
 /app/work/objectives
@@ -657,8 +657,9 @@ Examples:
 
 ```bash
 cd packages/agent && npm test -- --runInBand
-cd packages/agent && npm run test:market-knowledge-dogfood
-npm test -- market-docs-automation-governance
+cd packages/agent && npm test
+npx trsd capacity test-local --json
+npx trsd guarantees run --owner-package @treeseed/agent --environment local --json
 npm test -- governance
 npm test -- workday
 npm test -- knowledge
@@ -673,7 +674,7 @@ Repeat this loop until acceptance criteria pass:
 ```text
 1. Confirm web/API are running or restart them with logs.
 2. Confirm seed state exists.
-3. Run or rerun manager + worker with the same workday id in dry-run mode.
+3. Run or rerun manager + worker with the same workday id in plan mode.
 4. Tail logs and inspect API/UI/state.
 5. Classify the first real blocker.
 6. Patch the smallest integrated slice.
@@ -682,9 +683,9 @@ Repeat this loop until acceptance criteria pass:
 9. Update notes in your response with what changed and what remains.
 ```
 
-Do not switch from `dry-run` to `on` until dry-run is boring and the UI/API/reporting path is understandable.
+Do not switch from `plan` to `on` until plan is boring and the UI/API/reporting path is understandable.
 
-When dry-run passes, ask me before starting the local capacity provider:
+When plan passes, ask me before starting the local capacity provider:
 
 ```bash
 npx trsd capacity up --execute --json

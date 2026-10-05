@@ -1,0 +1,65 @@
+schemaVersion: treeseed.guarantee/v2
+id: guarantee.capacity.research.verify-autonomous-cited-research-starter.510
+journeyIndex: 510
+type: capacity
+subtype: research
+journey: Verify Autonomous Cited Research Starter
+ownerPackage: "@treeseed/market"
+surface: agent-runtime
+summary: "Prove the reconciled research starter autonomously decomposes a question, applies source policy, gathers independent evidence, rejects an unsupported claim, revises it, preserves contradiction, publishes cited knowledge, reports the workday, settles usage, and cleans up."
+status: planned
+capabilityId: agent.system.research-golden
+catalog: agent.system
+activation: { minimumConsecutivePasses: 3, requiredVariants: [baseline, clean-repeat, interruption-resume], invalidateOnSourceChange: true }
+proof:
+  requiredCommands: [governance.proposal-show, capacity.decision-planning, capacity.capacity-plan, capacity.assignment, capacity.workday-summary, platform.status]
+  minimumRepositoryPostconditions: 1
+  outcomePredicates:
+    research.governed-synthesis: [research.dynamic-context, research.two-independent-sources, research.claim-synthesis, research.source-policy, research.unsupported-claim-denial]
+    research.review-and-publication: [research.initial-rejection, research.semantic-revision, research.independent-approval, research.cited-output, research.reporting, research.settlement, research.cleanup]
+outcomes:
+  - id: research.governed-synthesis
+    kind: required
+    description: Real governed retrieval supplies at least two independent cited sources and unsupported claims are denied.
+    evidenceKinds: [retrieval_receipt, citation_read_back, execution_trace]
+    authoritativeSubjects: [sourceRefs, claimArtifact]
+  - id: research.review-and-publication
+    kind: required
+    description: Rejection, semantic revision, independent approval, cited knowledge output, reporting, settlement, and cleanup use exact refs.
+    evidenceKinds: [review_read_back, repository_read_back, cleanup]
+    authoritativeSubjects: [rejectedCheckpointRef, approvedCheckpointRef, targetRef]
+dependencies: { journeys: [], guarantees: [guarantee.agent.system.source-golden.917] }
+actors:
+  allowed: [team_owner, capacity_provider, capacity_operator]
+  forbidden: [unapproved_capacity_provider, revoked_capacity_provider]
+gates: [future]
+preconditions:
+  fixtures: [integrated_treeseed_project]
+  notes:
+    - "The canonical local development stack and reconciled research starter TreeDX repository must be ready."
+scene:
+  required: false
+api:
+  required: true
+  verifierRefs: [market.agent-catalog.golden-live-proof]
+content:
+  required: true
+  verifierRefs: [market.agent-catalog.golden-live-proof]
+audit:
+  required: true
+  verifierRefs: [market.agent-catalog.golden-live-proof]
+negativeCases:
+  - id: unsupported-material-claim-cannot-pass-review
+    actor: capacity_provider
+    verifierRefs: [market.agent-catalog.golden-live-proof]
+  - id: research-cannot-bypass-source-policy
+    actor: capacity_provider
+    verifierRefs: [market.agent-catalog.golden-live-proof]
+evidence:
+  required: [guarantee_report, verifier_evidence, api_verification_log, audit_event_id]
+notes:
+  - "Reopened on 2026-07-20: scripted source and execution evidence was withdrawn. Reactivate only after governed real-source collection and the complete real-provider revision workflow pass."
+  - "The verifier requires all four starter roles, every canonical stage with one settled assignment per attempt, two independent citations with hashes and retrieval metadata, rejection and at least one revision, repeated revision/review when approval is withheld, cited publication only after approval, Reporter completion, continuous access-token refresh, and terminal cleanup."
+run:
+  timeoutSeconds: 14400
+  requiredForRelease: false

@@ -1,0 +1,19 @@
+name: TreeSeed Platform
+slug: treeseed-platform
+siteUrl: https://treeseed.dev/platform
+contactEmail: hello@treeseed.email
+authority: { kind: customer-platform }
+market: { profile: treeseed }
+controlPlane: { mode: managed }
+hub: { mode: customer_hosted }
+runtime: { mode: none, registration: none }
+processing: { mode: local, providerRef: codex-treeseed }
+surfaces: { web: { enabled: true }, admin: { enabled: true }, api: { enabled: true } }
+services:
+  api: { enabled: true, provider: local }
+  treeseedDatabase: { enabled: true, provider: local }
+  operationsRunner: { enabled: true, provider: local }
+  treedx: { enabled: true, provider: local }
+  agentProvider: { enabled: true, provider: local }
+  aiAppliance: { enabled: true, provider: local }
+publicTreeDxFederation: {}

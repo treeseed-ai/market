@@ -8,13 +8,36 @@ YAML-backed color scheme definitions are the canonical way to add dynamic TreeSe
 
 Use `ThemeScript` before paint on public, auth, and app shells. Use `ThemeSelector` wherever users can change appearance. Anonymous choices are stored in appearance cookies/localStorage, registration carries the selected `colorScheme` and `themeMode`, and logged-in account settings persist the same fields through `/auth/appearance`.
 
-Reusable TreeSeed web UI now lives in `@treeseed/ui`. Import Astro components from `@treeseed/ui/components/astro/...`, React components from `@treeseed/ui/react` or `@treeseed/ui/components/react/...`, helper scripts from `@treeseed/ui/lib/...`, and shared CSS from `@treeseed/ui/styles/...`. Admin, Market, and Core code should compose primitives such as `ProductShell`, `PublicShell`, forms, data surfaces, auth cards, operation panels, and market cards from UI, while keeping only package-specific routes, data mapping, policy, and small adapter logic locally.
+Reusable TreeSeed web UI now lives in `@treeseed/ui`. Import Astro components from `@treeseed/ui/components/astro/...`, React components from `@treeseed/ui/react` or `@treeseed/ui/components/react/...`, helper scripts from `@treeseed/ui/lib/...`, and shared CSS from `@treeseed/ui/styles/...`. Admin, Market, and Core code should compose shell primitives, public stacked-section components, forms, data surfaces, auth cards, operation panels, tabs, and market cards from UI, while keeping only package-specific routes, data mapping, policy, and small adapter logic locally.
+
+## Current Shell And Layout Model
+
+TreeSeed currently composes three shell families; reusable UI exports beyond these consumers remain available for redesign work:
+
+- **Authenticated app shell:** `ShellFrame`, `ShellHeader`, `SiteUserControls`, `TeamOperationsPanel`, `TeamOperationsDrawer`, and `ControlSurface` composed by Admin's `TreeseedAppLayout` for `/app/**`.
+- **Auth shell:** `AuthShell` for sign-in, registration, recovery, username, email confirmation, and device approval flows.
+- **Public single-column shell:** `PublicSingleColumnShell`, `PublicStack`, `PublicSection`, `PublicHeroSection`, `PublicProfileHeader`, and `PublicKnowledgeSection` for the homepage, marketing pages, public profiles, public projects, books, and Knowledge Hub pages.
+- **Public knowledge profiles:** `KnowledgeProfileLayout`, `KnowledgeProfileIdentity`, `KnowledgeProfileStats`, `KnowledgeProfileCollection`, and `KnowledgeActivityTrail` compose a compact, pattern-free identity rail, reusable knowledge ledger, publication rhythm, and time-zone-aware activity trail. Actual organization logos render with `object-fit: contain` on a transparent, undecorated canvas so transparent image backgrounds remain intact; fallback initials use the standard muted surface. The complete desktop identity-and-stats rail owns sticky positioning so its sections cannot overlap; mobile returns the rail to normal document flow. The layout's optional navigation slot hosts canonical, access-checked account or team tabs above the profile without duplicating tab styles. Product packages map safe view models into these primitives rather than recreating profile cards, timelines, or navigation.
+
+`SurfaceTabs` is the canonical responsive tab primitive for control-surface subpages. Link mode is used for routed subpages; panel mode is used only for in-page tab panels. `SettingsTemplate` renders routed section tabs above the active section body on every viewport. `ProjectControlNav`, `WorkContentNav`, raw `.ts-tabs`, and page-local tab scripts are compatibility surfaces and should delegate to `SurfaceTabs`.
+
+`ProductShell`, `PublicShell`, `RailNav`, and `BottomNav` remain exported for one migration cycle as compatibility/deprecated entries. New application work should compose the current shell primitives through package-owned layouts instead of importing those wrappers directly.
+
+`Timestamp` and the `timestamps` client utilities are the canonical instant-display path. Authenticated shells carry the persisted account IANA time zone, render semantic `<time datetime>` elements in that zone, and reformat refreshed content without changing the stored instant. `Countdown` composes that same canonical timestamp display with an accessible live remaining-time indicator for deadlines such as archived-team recovery windows. Account settings use `AccountTimeZoneSettings`; page-local `Intl.DateTimeFormat` implementations and raw ISO timestamp output are not alternate supported paths.
+
+`IdentitySummary` is the canonical compact person/account identity display for tables and administrative lists. `ResponsiveTable` supports `density="comfortable"` for interaction-heavy directories where identity, status, and actions need stronger vertical separation.
+
+Exactly one layer owns an authenticated page heading. Routes whose content template renders `PageHeader` set `contentOwnsPageHeader`; direct-content routes leave heading ownership with `ProductShell`. The desktop team operations rail fills the viewport below the sticky header. Its primary selector/navigation region owns overflow while the team and account actions remain in a non-scrolling footer. Every navigation and action entry has an accessible icon and label.
+
+The desktop rail can collapse to a narrow icon strip. `ProductShell` persists that preference in `treeseed.app-sidebar-collapsed`, restores it before paint, and keeps the mobile drawer fully expanded. Expanded rails show icons and labels; collapsed rails hide the active-team selector while retaining the manage-teams icon, enlarge navigation icons, and expose labels through accessible names and hover titles. Team management is exposed once through that selector-adjacent icon rather than duplicated in the primary navigation. The footer owns the collapse/expand control and normalizes link and form actions to one control height. In the mobile drawer, bottom site controls use compact vertical spacing and right-aligned navigation. App structural planes and form controls are square-edged; selected links, buttons, and cards use the shared small radius for a compact repository-tool visual language.
+
+Every exported Astro layout/component must have a UI sandbox registry entry in `packages/ui/sandbox/src/lib/component-catalog.ts`. Full-page shells must have representative full-page previews, and deprecated compatibility entries must be visibly labeled in the registry.
 
 ## Package Ownership
 
 - `@treeseed/ui` owns reusable components, shells, forms, controls, cards, operation panels, auth surfaces, theme utilities, React widgets, and CSS primitives.
-- `@treeseed/admin` owns admin route composition, data binding, auth/session flow, admin view models, and workflow orchestration.
-- root `@treeseed/market` owns tenant content, public messaging, page overrides, Treeseed branding, buyer marketplace pages, and Commons participant pages.
+- `@treeseed/admin` owns authentication, account, team, active-team, invitation, and public knowledge-profile composition plus retained generic contracts.
+- root `@treeseed/market` owns tenant content, configuration, public messaging, and future redesigned business-policy presentation; it currently owns no route files.
 - `@treeseed/core` owns generic site runtime and plugin/layout integration hooks, not layout-down product components.
 - `@treeseed/api`, `@treeseed/sdk`, `@treeseed/cli`, `@treeseed/agent`, and TreeDX own non-visual runtime behavior.
 
@@ -41,7 +64,7 @@ Admin and Market pages should import UI primitives from `@treeseed/ui` and keep 
 
 Run `npm run audit:ui` before shipping UI work. The audit blocks retired token names, raw colors outside allowlisted theme/email files, inline style attributes outside intentional dynamic CSS-variable cases, and page-local `<style>` blocks in converted surfaces.
 
-Book and docs pages are protected. They may receive token remapping and Starlight bridge variables, but their layout, typography, reading width, font controls, and navigation structure should not be redesigned as part of market app component migration.
+Book and docs pages are protected. They may receive token remapping and Starlight bridge variables, but their layout, typography, reading width, font controls, and navigation structure should not be redesigned as part of market app component work.
 
 ## Commerce And Governance Components
 

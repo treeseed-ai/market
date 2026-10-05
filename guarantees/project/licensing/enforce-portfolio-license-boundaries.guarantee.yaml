@@ -1,0 +1,27 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.project.licensing.enforce-portfolio-license-boundaries.812
+journeyIndex: 812
+type: project
+subtype: licensing
+journey: "Enforce portfolio license boundaries"
+ownerPackage: "@treeseed/market"
+surface: cli
+summary: "Guarantee that the public portfolio is Apache-2.0, the Admin API is AGPL-3.0-only with a commercial alternative, and the singleton Market API remains private and proprietary."
+status: planned
+dependencies: { journeys: [], guarantees: [] }
+actors: { allowed: [team_owner, platform_admin], forbidden: [unauthorized_user] }
+devices: { required: [] }
+gates: [future]
+preconditions: { fixtures: [integrated_treeseed_project], notes: [] }
+api: { required: true, verifierRefs: [market.portfolio.licensing] }
+content: { required: false, verifierRefs: [] }
+audit: { required: true, verifierRefs: [market.portfolio.licensing] }
+negativeCases:
+  - id: market-api-cannot-be-public
+    actor: unauthorized_user
+    verifierRefs: [market.portfolio.licensing]
+    notes:
+      - "The private Market API and content repository must remain private in the singleton seed."
+evidence: { required: [guarantee_report, verifier_evidence] }
+notes:
+  - "Public workspace and Admin API metadata are executable today. Keep planned until protected singleton repository acceptance verifies the private Market API and content repositories carry all-rights-reserved notices."

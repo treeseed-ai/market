@@ -1,8 +1,8 @@
 {
   "name": "@treeseed/market",
-  "version": "0.7.5",
+  "version": "0.7.49",
   "description": "TreeSeed marketplace site built on top of @treeseed/core.",
-  "license": "COMMERCIAL",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/treeseed-ai/market.git",
@@ -15,11 +15,14 @@
   "packageManager": "npm@11.7.0",
   "type": "module",
   "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
   "engines": {
     "node": ">=22"
+  },
+  "overrides": {
+    "libsodium": "0.7.15",
+    "libsodium-sumo": "0.7.15",
+    "libsodium-wrappers": "0.7.15",
+    "libsodium-wrappers-sumo": "0.7.15"
   },
   "files": [
     "README.md",
@@ -31,63 +34,33 @@
     "templates"
   ],
   "scripts": {
-    "setup": "npm install",
-    "setup:ci": "npm ci",
-    "postinstall": "npm run bootstrap",
-    "bootstrap": "if test -f ./packages/core/scripts/workspace-bootstrap.ts; then node --import tsx ./packages/core/scripts/workspace-bootstrap.ts; elif test -f ./node_modules/@treeseed/core/dist/scripts/workspace-bootstrap.js; then node ./node_modules/@treeseed/core/dist/scripts/workspace-bootstrap.js; else treeseed starlight:patch; fi",
-    "starlight:patch": "treeseed starlight:patch",
-    "config": "treeseed config",
-    "preflight": "treeseed preflight",
-    "dev": "treeseed dev",
+    "setup": "npm install --workspaces=false",
+    "setup:ci": "npm ci --workspaces=false",
+    "brand:sync": "node --import tsx ./scripts/sync-brand-assets.ts",
+    "dev": "npm run brand:sync && TREESEED_WEB_RUNTIME_TARGET=managed-node node ./node_modules/astro/astro.js dev --config astro.config.ts",
     "lint": "npm run check",
     "check:typescript-source": "node --import tsx ./scripts/check-typescript-source.ts",
-    "check:ui-migration": "node --import tsx ./scripts/check-ui-migration-phase0.ts",
-    "audit:ui": "node --import tsx ./scripts/audit-ui.ts",
-    "db:generate:market": "npm -w packages/sdk run db:generate:market",
+    "check:file-lengths": "node --import tsx ./scripts/check-file-lengths.ts && npm run check:file-architecture",
+    "check:file-architecture": "node --import tsx ./scripts/check-file-architecture.ts",
     "test": "npm run test:unit",
     "test:unit": "vitest run --config ./vitest.config.ts",
-    "test:demo:e2e": "npm -w packages/ui exec -- playwright test --config ../../playwright.demo.config.ts",
-    "test:scenario:study-group": "node --import tsx ./tests/scenarios/university-study-group.ts",
-    "check": "npm run check:ui-migration && if test -f ./packages/sdk/scripts/tenant-check.ts; then node --import tsx ./packages/sdk/scripts/tenant-check.ts; elif test -f ./node_modules/@treeseed/sdk/dist/scripts/tenant-check.js; then node ./node_modules/@treeseed/sdk/dist/scripts/tenant-check.js; else treeseed check; fi",
-    "build:web": "if test -f ./packages/sdk/scripts/tenant-build.ts; then TREESEED_LOCAL_DEV_MODE=cloudflare node --import tsx ./packages/sdk/scripts/tenant-build.ts; elif test -f ./node_modules/@treeseed/sdk/dist/scripts/tenant-build.js; then TREESEED_LOCAL_DEV_MODE=cloudflare node ./node_modules/@treeseed/sdk/dist/scripts/tenant-build.js; else TREESEED_LOCAL_DEV_MODE=cloudflare treeseed build; fi",
+    "check": "npm run check:file-lengths && tsc --noEmit",
+    "build:web": "npm run brand:sync && TREESEED_WEB_RUNTIME_TARGET=cloudflare node ./node_modules/astro/astro.js build --config astro.config.ts",
     "build": "npm run build:web",
-    "deploy": "treeseed release",
-    "preview": "if test -f ./packages/sdk/scripts/tenant-astro-command.ts; then node --import tsx ./packages/sdk/scripts/tenant-astro-command.ts preview; elif test -f ./node_modules/@treeseed/sdk/dist/scripts/tenant-astro-command.js; then node ./node_modules/@treeseed/sdk/dist/scripts/tenant-astro-command.js preview; else treeseed preview; fi",
+    "preview": "TREESEED_WEB_RUNTIME_TARGET=managed-node node ./node_modules/astro/astro.js preview --config astro.config.ts --port 4323",
     "verify:direct": "node --import tsx ./scripts/market-verify.ts",
     "verify:local": "TREESEED_VERIFY_DRIVER=direct treeseed-sdk-verify",
     "verify:action": "TREESEED_VERIFY_DRIVER=act treeseed-sdk-verify",
-    "verify": "treeseed-sdk-verify",
-    "test:agent-contracts": "npm -w packages/agent run test:agent-contracts",
-    "test:agent-handlers": "npm -w packages/agent run test:agent-handlers",
-    "test:agent-message-chains": "npm -w packages/agent run test:agent-message-chains",
-    "test:manager-worker": "npm -w packages/agent run test:manager-worker",
-    "test:market-knowledge-dogfood": "npm -w packages/agent run test:market-knowledge-dogfood",
-    "test:market-docs-governed-mutation": "npm -w packages/agent run test:market-docs-governed-mutation"
+    "verify": "npm run verify:direct"
   },
   "dependencies": {
-    "@codemirror/commands": "^6.10.3",
-    "@codemirror/lang-markdown": "^6.5.0",
-    "@codemirror/language": "^6.12.3",
-    "@codemirror/state": "^6.6.0",
-    "@codemirror/view": "^6.43.0",
-    "@mdxeditor/editor": "^4.0.1",
-    "@react-email/render": "^2.0.8",
-    "@treeseed/admin": "github:treeseed-ai/admin#0.12.5",
-    "@treeseed/agent": "^0.11.1-dev.staging.20260628T212758Z",
-    "@treeseed/cli": "github:treeseed-ai/cli#0.12.5",
-    "@treeseed/core": "github:treeseed-ai/core#0.12.5",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#0.12.5",
-    "@treeseed/ui": "github:treeseed-ai/ui#0.12.5",
-    "codemirror": "^6.0.2",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.6"
+    "@treeseed/core": ">=0.12.60-rc.1 <0.14.0",
+    "@treeseed/sdk": ">=0.13.0-rc.82 <0.14.0",
+    "@treeseed/ui": ">=0.12.18-rc.11 <0.14.0"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "drizzle-kit": "^0.31.10",
-    "pg-mem": "^3.0.14",
+    "astro": "^5.6.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.2"

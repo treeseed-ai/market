@@ -1,8 +1,80 @@
 # Treeseed Workspace Guide
 
+## CRITICAL: complete automated test coverage
+
+Every behavior, contract, state transition, failure path, and edge case must have automated unit, integration, and scene/guarantee-based acceptance coverage. This is mandatory for all projects, especially the capacity-provider and agent system. A behavior without all three layers is an unresolved delivery gap, not completed work.
+
+- Unit tests must prove exact outputs, validation, invariants, and boundary conditions. Cover valid and invalid inputs, missing/empty/malformed values, authorization denial, stale or moved refs, and every named prohibited field.
+- Integration tests must exercise the real owning components and their public boundaries: handlers, provider/kernel execution, APIs, persistence, tools, and downstream consumers. Mocks, string assertions, compilation, or call-order checks alone are not integration proof.
+- Coded scenes and guarantees must prove production-shaped end-to-end outcomes: exact governed artifacts and read-back, independent verification, actual usage, exactly-once settlement, and durable teardown. Use the project's existing native acceptance harness and respect package ownership; do not put TreeSeed-specific policy into product-neutral packages.
+- Cover duplicate and concurrent execution, idempotency, partial failure, interruption, retry, resume, cancellation, expiry, provider/tool/subprocess errors, unsafe commands, and cleanup without residue. Preserve failed observations; do not fabricate dispositions, usage, citations, receipts, or passing replays.
+- For every defect, first add a focused regression that reproduces the failure, then add or strengthen the corresponding integration and scene/guarantee cases. Fix the earliest owning contract. Retain previously covered behavior and all historical failed evidence.
+- Never weaken assertions, remove negative cases, narrow acceptance criteria, disable type checks, extend deadlines, increase allowances, or relabel failures as passes to get green results. An unexpected agent timeout is a fatal architecture defect: agents must check authoritative remaining time frequently, reserve verification/closeout time, and produce authorized continuation proposals for unfinished work before the original deadline.
+- Delivery requires passing evidence at all three layers on the exact candidate. Missing environments, credentials, skipped tests, or blocked layers remain explicitly unproven. Component passes, suite totals, line coverage, and process completion never substitute for full semantic acceptance.
+- Before EVERY acceptance run (scene or guarantee), run ALL automated unit and integration tests for every participating project on the exact candidate. Focused regressions are additional checks, not substitutes for the complete suites. Failed, skipped, missing, empty, or inconclusive prerequisite coverage blocks acceptance; never launch a live campaign first and discover prerequisite failures afterward. Run the complete suites once per participating project per acceptance invocation, before any scene begins; do not reuse a previous invocation's passing receipt or omit tests to save time. Preserve exact command, candidate, run, and result evidence in the existing Issue and Actions artifacts.
+- Keep the behavior-to-unit/integration/scene mapping and exact command, commit, run, and artifact evidence in the existing Issue body and Actions artifacts. Reproduce failures with cheap focused tests before another expensive activation or full campaign; batch known fixes, inspect failed jobs, and reuse only unchanged immutable evidence. No duplicate campaigns or new coverage side channels.
+
+## Agent configuration and handler ownership
+
+When this project defines or consumes agents, agent identity, task instructions, prompts, capabilities, permissions, parameters, and activity profiles must be governed YAML configuration. Adding or renaming an agent using existing handlers must not require provider, guest, kernel, or scheduler code changes. Do not hardcode named-role configuration in shared runtime code; shared rules must apply to any configured agent.
+
+Task-specific executable code belongs in the configured handler. Reuse existing class-based handlers and exact profile bindings; new coded functionality may require a pinned handler, but not a parallel dispatch path or duplicated policy. Test arbitrary YAML-defined agents, renamed identities, handler selection, changed prompts/parameters, denied permissions, and unknown/duplicate handlers through unit, real integration, and coded acceptance cases.
+
 This repository is the unified development workspace for the Treeseed system and the canonical integration environment for the package repositories in `packages/`.
 
 For the canonical current-state package map, see `docs/package-ownership.md`.
+
+## CRITICAL: Branch And Deployment Boundary
+
+`main` is the only production branch and maps only to the `production` deployment environment. `staging` is the only development-integration branch and maps only to the `staging` deployment environment. Short-lived pull-request branches may validate without deploying, but they must never define another deployment environment. Do not create or use `development`, `preview`, `stable`, or any other GitHub deployment environment; preview deployments are prohibited. Release tags may promote an exact reviewed `staging` commit to `production` without creating another branch or environment. Artifact channel names must never become GitHub deployment environments.
+
+## CRITICAL: Comprehensive Pre-Change Audit
+
+This is the highest-priority engineering rule in the workspace. Before creating an implementation plan or making any code, configuration, workflow, manifest, lockfile, infrastructure, or documentation edit, conduct a comprehensive audit of all related functionality.
+
+- Read the canonical architecture and ownership documentation, applicable `AGENTS.md` files, manifests, current implementation, tests, generated state contracts, and relevant recent history before deciding how the system works.
+- Trace the complete execution path across SDK, CLI, package, root orchestration, CI/CD, provider adapters, persistence, recovery, verification, and release consumers. Do not inspect only the file named in the request.
+- Inventory every existing implementation, compatibility path, helper, workflow, adapter, and recovery mechanism that overlaps the requested behavior. Explicitly identify duplicate, legacy, conflicting, or partially migrated paths before proposing changes.
+- Use read-only live observation when provider or remote state is relevant. Compare desired state, persisted state, and authoritative live state before planning any mutation.
+- Verify assumptions against executable tests and the actual dependency graph. Existing tests that only assert mocks, strings, or call order are not proof of end-to-end lifecycle behavior.
+- Do not create a new implementation alongside an existing path without first selecting the canonical owner and defining how the conflicting path will be removed or migrated.
+- Do not make incremental symptom patches when the audit shows a broken cross-system contract. Fix the owning abstraction and add regression coverage for interrupted, resumed, stale, partial, and repeated execution.
+- Record the audit findings and intended ownership boundary in the working update before editing. If the canonical owner or contract cannot be determined, stop and resolve that ambiguity before changing code.
+- After editing, repeat the audit against the resulting diff to confirm that no duplicate path, contradictory documentation, hidden mutation, or untested fallback remains.
+
+## CRITICAL: Hosted Deployment Suspension
+
+Hosted application deployment is intentionally suspended while the Railway and Cloudflare environments are rebuilt around a reviewed OpenTofu design.
+
+- Market and API must not contain a push-triggered `deploy.yml` workflow. Do not recreate one, add provider mutation to `verify.yml`, or enable Railway/Cloudflare automatic deployment from Git pushes.
+- `trsd stage` is local verification plus exact Git ref promotion by default. It must not dispatch, require, or wait for hosted deployment workflows unless the operator explicitly passes `--ci hosted` after hosted deployment automation has been restored.
+- `trsd release` is intentionally unavailable while the root production deployment workflow is absent. Do not bypass that fail-closed state with direct tags, provider commands, workflow edits, or manual infrastructure mutation.
+- Push-triggered `verify.yml` workflows may run because they are non-mutating verification only. Manual guarantee and package documentation workflows may remain, but they must not be invoked by save or stage.
+- Local development remains the active runtime path. Use `npx trsd dev start --web-runtime local --json` for the hot-reloading Market UI, local API, PostgreSQL, and operations runner, and use package-owned `trsd capacity` commands for capacity-provider development.
+
+## CRITICAL: Source And Test File Size
+
+Handwritten executable source and test code must remain small enough to audit, review, and test by responsibility.
+
+- No handwritten source file, executable script, test file, or code fixture may exceed 500 physical lines. The normal target is 250-350 lines.
+- No directory may contain more than 10 direct handwritten executable source, script, test, code-fixture, or support files. Entrypoints and barrels count toward the limit. Create purpose-named bounded-context subdirectories before a directory exceeds the limit.
+- Directory names must communicate cohesive functional ownership. Generic or ordinal partitions such as `part-N`, `module-N`, `chunk-N`, `section-N`, and `segment-N` are forbidden for directories as well as files.
+- Split files by cohesive domain, behavior, route family, adapter, repository, component, or scenario. Never satisfy the limit with arbitrary numbered chunks.
+- Generic partition names such as `part-N`, `module-N`, `chunk-N`, `section-N`, and `segment-N` are forbidden, as are ordinal collision suffixes on tests and scenario collectors. Numbers are allowed only when they are intrinsic domain terminology, such as a protocol version or HTTP status.
+- A file's directory and basename must make its single responsibility inferable. Barrels and registries may compose named domain contributions, but must not hide declaration-order or line-budget partitions behind ordinal symbols.
+- Generated output, vendored dependencies, database migrations, snapshots, lockfiles, declarative data, and documentation are exempt. Generated files must remain visibly generated and must not become a place for handwritten logic.
+- TypeScript projects use one `tests/` root with semantic suites such as `unit`, `integration`, `contract`, `acceptance`, `e2e`, and `performance`, plus `fixtures` and `support`. Do not create a parallel `test/` root or hide tests under `scripts/`.
+
+## CRITICAL: Functional Code Naming
+
+Code names must describe behavior in the context supplied by their owning package and directory.
+
+- Do not repeat `Treeseed`, `TreeSeed`, or `KnowledgeCoop` in executable filenames or declared variables, functions, classes, methods, types, interfaces, enums, or other implementation symbols. Use the smallest functional domain qualifier needed to make a name unambiguous.
+- `TREESEED_*` environment variables remain canonical. External product contracts also retain their established identity, including `@treeseed/*` package names, `treeseed.*` manifests, `.treeseed` state paths, routes, headers, persisted and wire identifiers, stable browser APIs, and human-facing product text.
+- Package-level context is part of a symbol's meaning. Prefer `WorkflowClient` inside `@treeseed/sdk` over `TreeseedWorkflowSdk`; when a clean name would collide, qualify it by responsibility, such as `PlatformApiContext` or `AgentApiContext`, never by brand or ordinal.
+- Public code APIs follow the same rule. Rename all first-party consumers atomically and do not retain deprecated branded aliases merely for compatibility.
+- Multi-language projects such as TreeDX retain ecosystem-native test roots where Cargo, Elixir, Python, or SDK tooling requires them, while following the same size and responsibility rules inside those roots.
+- Every independent repository must enforce the hard limit and functional naming rules in its package-local verification. The integrated Market verification additionally audits the checked-out portfolio.
 
 ## Independent Project Rule
 
@@ -18,7 +90,11 @@ This workspace is an integrated development and verification environment, not a 
 Treeseed infrastructure is reconciled from exact desired state. The SDK-owned reconciliation platform documented in `docs/reconciliation-platform.md` is the only orchestration model for hosting, config sync, local development infrastructure, package workflows, capacity providers, TreeDX hosting/image consumption, staging, and release.
 
 - Never mutate provider infrastructure outside `trsd` reconciliation. Direct Railway, Wrangler, Docker, GitHub CLI, or provider API calls are diagnostic only unless they are low-level private adapter primitives invoked by the reconciler.
+- Railway GraphQL is strictly read-only, including inside reconciler adapters. Every Railway mutation must use the official Railway TypeScript SDK/IaC client; when the public SDK does not expose the required operation, the reconciler may invoke the exact-version Treeseed-managed Railway CLI. Never add, restore, or execute a GraphQL `mutation` document for Railway, and never treat a direct GraphQL mutation as a recovery shortcut.
+- Never bypass official TreeSeed SDK operations or `trsd` CLI workflows for project work. Saves, commits, pushes, staging promotion, package pointer updates, reconciliation, verification, and release work must flow through existing `trsd` commands such as `trsd save`, `trsd stage`, `trsd release`, `trsd hosting`, `trsd package`, or new/updated SDK operations when capability is missing. Direct `git`, provider, package-manager, or shell orchestration is diagnostic only unless it is executed inside a TreeSeed operation.
 - Never trust provider mutation success without a fresh live observation and postcondition verification. `ok: true` is valid only after selected live postconditions pass.
+- Never add dry-run behavior anywhere in Treeseed commands, SDK workflows, reconciliation adapters, release flows, package scripts, hosting flows, capacity flows, provider operations, or tests. The only acceptable operation modes are `plan` for non-mutating previews and live execution for real work.
+- Never leave the workspace in a state where local Treeseed operator tooling is unusable. Save, stage, release, cleanup, and recovery workflows may switch package manifests and lockfiles into production dependency mode, but they must preserve or immediately restore the local `trsd` operator package closure, validate `node_modules/.bin/trsd`, and fail with a clear repair action if workspace links or lockfiles are stale.
 - Never add one-off provider orchestration to CLI handlers, package scripts, release flows, config flows, dev flows, TreeDX flows, capacity flows, or hosting adapters. New mutation paths must compile desired resources and route through the canonical SDK reconciliation engine.
 - Every new host, service type, package workflow, secret store, provider resource, or local runtime capability must implement the canonical adapter lifecycle: refresh, diff, plan, validate, apply, refresh, verify, persist, plus destroy and import/adopt where applicable.
 - Reconciliation is exact-state infrastructure management. Missing, duplicate, stale, offline, detached, misnamed, wrong-domain, wrong-image, missing-secret, or provider-limited resources are drift and must be planned as create, update, replace, delete, adopt, rename, reattach, retain, taint, or blocked.
@@ -35,17 +111,29 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 - `@treeseed/admin`: distributable AGPLv3 administration portal layered on core/ui; owns admin routes, middleware, auth/session glue, API client facades, admin view models, catalog display, and secret-manager UI/contracts
 - `@treeseed/market`: root hosted Treeseed tenant; owns public site, content, docs, page overrides, the root web tenant `treeseed.site.yaml`, Treeseed branding, and future ecommerce/business policy
 - `@treeseed/agent`: processing runtime, provider API, provider manager, provider runner, worker runtime, AgentKernel execution, mode scheduling, built-in handlers, agent testing harnesses, provider-local capacity enforcement, runtime images/templates, and runtime support modules
+- `@treeseed/ai`: independently installable local AI appliance; owns SDK-reconciled vLLM inference, the authenticated inference gateway, hardware diagnostics, appliance supervision, and packaging while consuming SDK contracts and API-governed capacity assignments; Axolotl training and adapter lifecycle remain planned
 - `@treeseed/api`: Treeseed backend API, package-local backend `treeseed.site.yaml`, Treeseed PostgreSQL adapter, migrations, operation lifecycle, route descriptors, and Treeseed operations runner
 - `@treeseed/cli`: operator and developer CLI workflows
+- `@treeseed/reviewer`: local-only guarantee run review UI, screenshot/log triage, reviewer notes, evidence bundling, and AI-agent workplan generation
 - `packages/treedx`: TreeDX implementation and Docker Hub release image used by Treeseed-hosted TreeDX bootstrap and related platform workflows
+
+## TreeSeed Content Model Rule
+
+Agent definitions, questions, objectives, notes, proposals, decisions, and pages are Markdown/MDX content models governed through each project's TreeDX library. Library collections live at the library repository root. Primary software repositories must not track or directly mutate `src/content/**` or `docs/src/content/**`; ignored `.treeseed/library/**` paths are runtime caches only.
+
+Use `trsd library` operations for content discovery, reading, authoring, review, and publication. Never restore local content as a fallback when TreeDX or its binding is unavailable.
+
+Notes linked to other content must live under `src/content/notes/{classification}/` or `docs/src/content/notes/{classification}/` and must link to their subject through SDK-supported frontmatter fields such as `about`, `relatedObjectives`, `relatedQuestions`, `relatedProposals`, or `relatedDecisions`.
+
+Agents and operations must use TreeDX-backed content operations for real content access and mutation. Do not add direct local-content reads or writes for agent work except fixture inspection that proves a TreeDX-backed operation.
 
 ## Package Integration Manifests
 
 - Checked-out package repositories should declare package-local Treeseed metadata in `treeseed.package.yaml`.
 - `treeseed.package.yaml` is the preferred extension point for package repository slug, workflow names, image targets, source-build policy, production image workflow, hosting source mode, and package credential needs.
 - `trsd config` discovers checked-out package manifests and merges their environment registry entries into the central workspace `.treeseed/config` state.
-- Repository-scoped GitHub tokens use `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>` with uppercase names and single underscores, for example `TREESEED_GITHUB_TOKEN_TREESEED_AI_ADMIN` and `TREESEED_GITHUB_TOKEN_TREESEED_AI_TREEDX`; `TREESEED_GITHUB_TOKEN` is the canonical fallback for repositories without a scoped token.
-- `packages/admin` is an npm package with release gate `packages/admin/.github/workflows/deploy.yml`; publishing expects the package repository GitHub `production` environment secret `NPM_TOKEN`.
+- `TREESEED_GITHUB_TOKEN` is the sole credential for first-party `treeseed-ai/*` repositories. Repository-scoped `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>` overrides are supported only for imported third-party projects.
+- `packages/admin` is an npm package with manual release gate `packages/admin/.github/workflows/release-gate.yml`; publishing expects the package repository GitHub `production` environment secret `NPM_TOKEN`.
 - Use `treeseed.site.yaml` for hostable application manifests and hosting ownership. The root manifest owns the Market web tenant; package-local manifests such as `packages/api/treeseed.site.yaml` own independently released runtime surfaces. Add package-local app manifests only when the package itself owns deployable app surfaces.
 - Project architecture is logical: repository identity plus `rootPath`, optional `sitePath`, optional `contentPath`, `contentRuntimeSource`, and `localContentMaterialization`. The Market project uses `sitePath: "."`; first-party package projects use `sitePath: "docs"` even before docs sites are prepared. Submodules are supported local materialization/workspace mechanics, not the canonical project model. The operating principle is that projects should be easy to create from templates and easy to import from live projects without restructuring.
 - If a package needs local development topology beyond package scripts, prefer a future package-local `treeseed.dev.yaml` style manifest over bespoke CLI logic; the CLI/SDK should discover and merge these manifests instead of hard-coding package names.
@@ -55,6 +143,12 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 
 ## Boundary Rules
 
+### User Time Zone Display
+
+- Every date or time shown in authenticated UI must use the signed-in user's persisted IANA time zone through the canonical `@treeseed/ui` `Timestamp` component or timestamp utilities.
+- Never render raw ISO values, server-local time, browser-local time, or hard-coded UTC as the primary authenticated UI display. UTC may appear only as supplemental forensic detail, such as a semantic timestamp title.
+- Pages that render timestamps server-side must pass the same account time zone to both the application shell and each timestamp component so the initial response, client hydration, and refreshed content agree.
+
 - `sdk` must not import from `core`, `admin`, `api`, `agent`, `ui`, `cli`, TreeDX source, or root market source.
 - `ui` must not import from root, `admin`, `core`, `api`, `agent`, or `cli`; it may depend on UI/runtime libraries only.
 - `core` may depend on `sdk` and `ui`; it must not depend on `admin`, `api`, `cli`, or `agent`.
@@ -62,6 +156,7 @@ Treeseed infrastructure is reconciled from exact desired state. The SDK-owned re
 - `market` may consume public exports from `admin`, `core`, `ui`, and `sdk`, and may call API behavior through HTTP/proxy/client surfaces; it must not import backend implementation from `api`.
 - `api` may depend on `sdk`; it must not import root/admin/core UI implementation.
 - `cli` may depend on `sdk`, `core`, and narrow public surfaces from `agent` when command execution requires them.
+- `reviewer` may depend on `cli`, `sdk`, and `ui`; it must remain local-only and must not own guarantee execution, scene execution, release gates, provider orchestration, or hosted control-plane behavior.
 - `agent` may depend on `sdk`; it must not depend on `core`, `admin`, root market, or `api` implementation.
 - `treedx` remains product-neutral and must not encode Treeseed product semantics.
 - Shared fixture references do not imply package ownership.
@@ -110,6 +205,7 @@ Canonical implementation docs:
 Package ownership for the capacity rearchitecture is fixed:
 
 - `@treeseed/agent` owns provider runtime, provider API, provider manager, provider runner, AgentKernel execution, mode scheduling, provider-local lifecycle, runtime images/templates, and runtime tests.
+- `@treeseed/ai` is the separable model data plane for future inference, training, adapter lifecycle, appliance supervision, and hardware diagnostics; it never owns project scheduling, assignment authority, or repository mutation.
 - `@treeseed/sdk` owns portable capacity contracts, reconciliation contracts, config, and provider-neutral helper logic.
 - `@treeseed/api` owns durable provider availability sessions, assignment leases, reservations, mode-run records, usage actuals, ledger settlement, and project-scoped TreeDX proxy authorization.
 - `@treeseed/admin` and `@treeseed/cli` own operator surfaces over SDK/API/agent public contracts; they must not become schedulers.
@@ -132,6 +228,41 @@ Architecture-changing capacity work must update the canonical docs above and `do
 
 ### Real Workday And Agent Content Rules
 
+#### CRITICAL: Agent Success Means Correct End-To-End Repository Outcomes
+
+- Treat an agent as 100% broken until it completes its declared task end to end and produces the correct governed effects in the intended content and/or project repositories. Starting, receiving an assignment, invoking Codex, calling tools, completing a turn or activity profile, emitting a signal, staging or committing a file, settling usage, and cleaning up are not agent success by themselves.
+- Never describe an agent, agent run, workday, profile, team, or agent-development milestone as successful, working, completed, operational, or proven when any required artifact, repository mutation, validation, handoff, review, governance transition, receipt, settlement, or cleanup postcondition is missing, incorrect, stale, unauthorized, or failed. A parent run must remain failed or degraded when any required child outcome fails.
+- Judge correctness from the assignment's exact inputs, instructions, selected content, immutable contracts, and acceptance criteria. Merely producing schema-valid content or a repository commit is failure when the artifact has the wrong type, subject, scope, relationships, claims, provenance, location, or meaning.
+- Repository state is the primary product evidence. Require authoritative read-back of the exact resulting content and project repository refs, paths, commits, diffs, relationships, receipts, and downstream consumption. Transcripts, event logs, Atlas views, provider health, token usage, and process telemetry are diagnostic evidence only and cannot substitute for correct repository outcomes.
+- Report partial execution only as failure diagnostics. Do not count partial profiles, useful side effects, generated drafts, valid tool calls, or recovered infrastructure as progress toward a functioning agent unless the entire declared end-to-end acceptance contract passed.
+- Do not weaken, reinterpret, or narrow acceptance criteria after observing a failure. Repair the earliest owning contract that allowed incorrect work, remove or supersede invalid repository effects through governed operations, and rerun the complete scenario from authoritative inputs.
+- Establish a repeatable single-agent gate before claiming multi-agent readiness: one agent must independently produce the intended artifact and exact governed repository change, pass every required validation and postcondition, settle, clean up, and repeat without residue. Multi-agent success additionally requires every configured handoff to consume the correct upstream artifact and produce its own correct downstream repository outcome; one successful participant cannot make the team successful.
+- Prioritize making repository outcomes correct before optimizing event volume, Atlas presentation, dashboards, or other observability experiences. Observability work may proceed only when it directly exposes or diagnoses a blocker to the repository outcome currently under test.
+
+#### Agent Guarantee Campaign Performance Workflow
+
+- Pin one immutable agent-system generation and one exact warm-provider source closure before starting baseline, clean-repeat, or interruption/resume evidence. Reuse the warm provider only while live reconciliation proves the same image, rendered configuration, availability session, and source-closure identity; drift blocks the campaign instead of silently rebuilding mid-streak.
+- Use `trsd guarantees watch --market local --team <team> --workday <exact-run-id> --generation <digest> --json` for coordinated workdays, or omit `--team` only for a capacity-envelope id. It emits state transitions only and stops at the next required operator action. Do not repeatedly fetch broad workday summaries while waiting.
+- Run `trsd capacity assignment-artifacts-verify` at the checkpoint boundary. The provider must also pass the API-owned semantic completion preflight before signals, usage, settlement, or terminal completion. A wrong model, path, subject, relation, claim, commit, or read-back is a failed assignment outcome.
+- Use `trsd guarantees proof-capture` to derive workday, assignment, definition ref, artifact path, and semantic assertions from authoritative assignment and TreeDX integration records. Do not manually assemble or retype proof identities when an authoritative record exists.
+- For a bounded single-scenario run, integrate only a semantically verified checkpoint, then use `trsd capacity workday-close-admission` to fence new demand and perform authoritative terminal rereads. Do not wait out the nominal workday duration after required coverage is complete and no useful demand remains.
+- Use `trsd guarantees campaign-run --file <manifest> --execute --json` for baseline, clean-repeat, and interruption/resume. Campaign manifests contain argument-array TreeSeed commands, authoritative output captures, an explicit admission fence, semantic verification, proof capture, and replayable cleanup. Use `trsd guarantees campaign-cleanup --campaign <id> --execute --json` after interruption or failure.
+- Never credit a campaign variant from process completion, a watcher transition, a preflight receipt, or a generated proof file alone. Credit begins only after semantic repository read-back, integration, settlement, truthful parent terminalization, and replayable zero-residue cleanup all pass against the pinned generation.
+
+#### Production agent simulation workflow
+
+Use the Agent Lab scene path to observe real production-shaped agent execution. Start the managed local stack, then run the Guide agents individually and do not advance until every enabled legal activity profile has succeeded:
+
+```bash
+npx trsd dev start --web-runtime local --json
+npx trsd scene run scenes/agent-lab/guide-steward.yaml --open
+npx trsd scene view <run-id-or-path> --open
+```
+
+The Agent Lab viewer uses the stable local URL `http://127.0.0.1:4760/`. Use `npx trsd scene status --json` to determine whether a simulation is active. `TREESEED_AGENT_SIMULATOR_PORT` may override the port when a worktree has an explicit stable port assignment.
+
+Continue through each manifest under `scenes/agent-lab/`, fixing assignment, provider, kernel, TreeDX, telemetry, accounting, or cleanup defects before running the next agent. Run `npx trsd scene run scenes/guide-agent-lab.yaml --open` only after individual coverage passes. These are live workdays through the normal API, signed local provider, provider manager, runners, AgentKernel, execution provider, and TreeDX paths; mock handlers and fabricated transcripts do not qualify.
+
 - Workday verification runs are real TreeSeed workdays, not scripted smoke tests. They must exercise the same API, provider, execution-provider, TreeDX, assignment, mode-run, usage, and settlement paths used by normal workdays.
 - A workday is duration- and budget-bounded. It must not stop merely because a fixed assignment count completed. While the workday window is open and capacity remains, the system should keep scheduling useful eligible planning work.
 - Planning mode must involve every eligible configured project agent before repeating agents. With no approved decisions, planning is still productive: agents propose work, ask questions, produce estimates, review proposals, generate notes, structure knowledge, and summarize the workday.
@@ -142,6 +273,18 @@ Architecture-changing capacity work must update the canonical docs above and `do
 - Every generated note must link to its subject with frontmatter such as `about`, `relatedObjectives`, `relatedQuestions`, `relatedProposals`, or `relatedDecisions`.
 - Agent handoff must be configuration-driven. Handlers may deterministically validate, route, and serialize content, but agent prompts/configuration decide which subject is being handled and which artifact type is expected.
 - Every agent execution must be forensically traceable: agent, mode, class, handler, assignment, workday, provider, runner, execution-provider config, inputs, TreeDX context refs, generated artifacts, signals, diagnostics, token counts, durations, usage, and errors must be inspectable from CLI/Admin/API logs.
+
+### AI-Operated Human Simulation For Agent Testing
+
+- Simulate human participation only through authenticated `trsd` CLI commands. Never call governance, publication, Git, database, or provider mutation APIs directly.
+- Mark every simulated action with `--simulate-human`, the active workday ID, and a concrete evidence-based reason. Binding decisions additionally require `--yes`.
+- Inspect the exact proposal version, discussion, evidence, votes, reviews, content revision, and context digest before deciding. Ask questions or record concerns instead of automatically approving.
+- Never allow one agent or simulated operator identity to author, independently review, approve, and publish the same artifact. Multi-voter tests require separate authorized principals; never manufacture several voters from one credential.
+- Treat missing, stale, failed, mixed-revision, contradictory, or unsupported evidence as grounds to reject, request revision, or create a blocking question.
+- Keep engineering agents dormant during editorial-only campaigns. Use workday agent selectors for isolated role tests and the complete editorial selection for group tests.
+- Observe live work through `trsd capacity workday-log --follow`; process output alone is not proof. Verify assignments, mode runs, transcript closure, TreeDX artifacts, usage, settlement, publication records, and remote ref read-back.
+- Production simulation requires explicit project policy plus `--production --yes`. Hosted deployment and production release remain prohibited while the workspace deployment suspension is active.
+- Record every simulated-human command and its resulting proposal, decision, review, publication, assignment, and workday identifiers in the durable workday report.
 
 ## Shared Fixture Model
 
@@ -233,12 +376,16 @@ Hosting and capacity-provider runtime:
 - Treat hosted infrastructure as desired-state reconciliation, not a sequential provider-command flow. The source of truth is the discovered Treeseed manifests, package/application environment registries, and central machine config; `trsd` commands should derive, reconcile, verify, and report provider state from that ideal model.
 - Do not manually repair Railway or Cloudflare resources with provider CLIs as a substitute for fixing Treeseed reconciliation. Direct provider wrapper usage is acceptable for read-only inventory/debugging, but mutating hosted resources should flow through `trsd` reconcile/bootstrap/hosting/destroy workflows so the result is reproducible.
 - The root app deploys only the hosted web tenant: public site, knowledge hub, admin UI surfaces contributed by `@treeseed/admin`, reusable UI from `@treeseed/ui`, and `/v1/*` proxy/client surfaces.
-- `packages/api` deploys the API, Treeseed operations runner, Treeseed PostgreSQL service, and public TreeDX federation on Railway in the `treeseed-api` project. The canonical services are `treeseed-api`, `treeseed-api-operations-runner-01`, `treeseed-api-postgres`, and indexed `public-treedx-node-01` services. Stateful volumes must match the service name with a `-volume` suffix so scale-down and scale-up can reclaim storage.
+- `packages/api` deploys the API, Treeseed operations runner, Treeseed PostgreSQL service, and public TreeDX federation on Railway in the `treeseed-api` project. Source-divergent services must be environment-qualified: `treeseed-api-staging`, `treeseed-api-production`, `treeseed-api-operations-runner-staging-01`, `treeseed-api-operations-runner-production-01`, `public-treedx-node-staging-01`, and `public-treedx-node-production-01`. PostgreSQL remains `treeseed-api-postgres` because its source configuration is identical across environments. Stateful volumes must match their service name with a `-volume` suffix.
+- Railway source isolation is an absolute release invariant. Staging API, operations-runner, and public TreeDX services must always build from their exact GitHub `staging` commits and Dockerfiles and must never consume Docker Hub image refs, including as a temporary repair. Production API-owned services must use their separate `-production` identities and immutable released Docker Hub image tags; they must never share a Railway service identity with staging because Railway service source connections are project-wide. Apply this environment-qualified naming rule to every future service whose source, Dockerfile, image, builder, or build configuration differs by environment. Any observed staging image source, production Git source, wrong suffix, or shared staging/production source identity is blocking drift: fix desired state and reconcile through `trsd hosting`, then require live source-mode verification in both environments. Never report deployment success from mutation output alone.
+- Railway volumes are adopted and mounted directly by exact environment-specific identity. Never create volume migration, transfer, copy, helper, or temporary services. An existing active volume must be renamed to `<serviceName>-volume` when necessary and attached directly to that service at its declared mount path; reconciliation must fail rather than create an empty replacement when prior stateful lineage exists but cannot be adopted safely.
+- A canonical Railway volume queued for deletion is a critical data-safety stop. Railway only permits restoration during its recovery window through the provider-issued restoration link; SDK, CLI, IaC, detach/attach, replacement, migration, or repeated apply attempts are not restoration mechanisms. `trsd hosting plan`, ordinary `apply`, `verify`, stage, and release must fail before mutation, report every exact volume ID, preserve the existing service and volume lineage, and require live confirmation that the same IDs are active before continuing. Empty replacement is permitted only when data loss is explicitly approved for a disposable environment through `trsd hosting apply --replace-pending-volumes --yes`; this override is process-local and must never be inferred by stage or release.
+- Provider subprocesses and mutating workflow steps must be bounded, heartbeat their owning workflow lock, terminate their process group on timeout or interruption, and automatically reclaim dead-process locks on the next operation. Never require manual lockfile deletion as normal recovery.
 - TreeDX container images are produced by tagged releases in `packages/treedx` and pushed to Docker Hub as `treeseed/treedx:<tag>`. Hosted TreeDX reconciliation should deploy an explicit tagged image when proving staging or production, not an unverified moving image.
 - TreeDX semantic release tags must only be cut from merges to `main`, matching the release discipline used by the other packages and projects. Do not create release tags from staging, feature, or repair branches.
 - TreeDX staging builds from source through Railway reconciliation and must not publish registry images for routine staging validation.
 - Non-Node package projects such as TreeDX should declare Treeseed development/release metadata in a package-local `treeseed.package.yaml`. The SDK package adapter reads this file to discover the package id, repository, image target, verify commands, source-build policy, production image workflow, and hosting source mode. Prefer extending this declarative manifest pattern for new package projects instead of adding package-specific CLI logic.
-- Package repositories may require repository-scoped GitHub credentials when they live outside the root repository owner. The canonical key format is `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>`, uppercased with single underscores; for TreeDX this is `TREESEED_GITHUB_TOKEN_TREESEED_AI_TREEDX`. `TREESEED_GITHUB_TOKEN` is the canonical fallback for repositories without a scoped token; `GH_TOKEN` is emitted only for GitHub tooling at execution boundaries.
+- First-party packages resolve only `TREESEED_GITHUB_TOKEN`; imported third-party repositories may declare a repository-scoped `TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>` override. `GH_TOKEN` is emitted only for GitHub tooling at execution boundaries.
 - Use `npx trsd db image --branch staging --plan --json` to inspect TreeDX source-build policy for staging. Production image credentials and image refs are reconciled only during semantic release flows.
 - Capacity-provider runtime, provider API, provider manager, provider runner, AgentKernel execution, mode scheduling, container assets, templates, and lifecycle behavior are owned by `@treeseed/agent`.
 - Use `trsd capacity build`, `trsd capacity up`, `trsd capacity status`, `trsd capacity logs`, `trsd capacity down`, and `trsd capacity test-local` for provider lifecycle work.
@@ -272,11 +419,11 @@ For agents and automation:
 - Use `npx trsd release-candidate --strict --json` whenever you need full package graph proof. Use `--verify-driver action` for managed `gh act` parity, `--verify-driver local` for faster package-local proof, and `--package <id>` for a targeted package proof that does not satisfy production release. Run release-candidate for dependency topology changes, package export map changes, workflow changes, risky lockfile/package manifest changes, and production promotion preparation. Do not run it for every routine checkpoint.
 - Use `npx trsd workflow dispatch --repo <owner/name> --workflow <file> --branch <ref> --plan --json` whenever you need to test a `workflow_dispatch` workflow without pushing a new commit. Execute with `--execute --json` only after the plan shows the selected `github-workflow-dispatch` resource and credential routing are correct. This command is reconciler-backed and should be preferred for package image, release-gate, and diagnostic workflow testing over ad hoc `gh workflow run` calls.
 - Use `npx trsd stage --plan --json "message"` to inspect staging promotion before executing.
-- Plain `npx trsd stage --json "message"` is a local-proofed branch promotion command. It merges current `staging` down into the feature branch first, stops for conflict resolution before staging is mutated, runs full local action-parity verification, promotes exact verified root/package heads to staging, and preserves source branches/worktrees by default after staging refs are verified.
-- Stage does not wait for hosted CI/CD, Railway, Cloudflare, or live provider checks by default. A separate staging release/repair agent is responsible for making staging CI/CD and hosted deployments green after the branch promotion.
+- Plain `npx trsd stage --json "message"` is a local staging promotion command. It merges current `staging` down into the feature branch first, stops for conflict resolution before staging is mutated, runs local proof, promotes exact verified root/package heads to staging, synchronizes checkouts, and does not dispatch or wait for hosted deployment.
+- `--ci hosted` is explicit opt-in behavior reserved for a future reviewed hosted workflow. Do not use it while hosted deployment is suspended.
 - If stage stops with conflicts or local verification failures, stay on the preserved feature branch/worktree, fix the issue, run `npx trsd save --verify local --json "message"`, then rerun `npx trsd stage --json "message"` or `npx trsd resume <runId>`.
 - Never manually delete feature branches, package branches, or managed worktrees after a failed stage. Use `npx trsd recover --json` and `npx trsd resume <runId>` so cleanup and ref verification remain consistent.
-- Use `npx trsd stage --cleanup success --json "message"` only when source branch/worktree cleanup is intentionally safe after staging promotion. Plain stage defaults to `--cleanup manual`.
+- Successful stage runs delete the exact merged local and remote feature branches and managed worktrees after every required staging gate succeeds. Use explicit manual cleanup only for exceptional forensic retention; failed stage runs must preserve the feature branch for repair and resume.
 - `release` is the strict production promotion command. It must use a valid strict release-candidate proof for the exact staging state being promoted, and should run or require fresh proof before production mutation completes.
 - Use `npx trsd close "reason" --json` when abandoning a task. Close archives the branch and cleans up managed worktrees.
 - Use `npx trsd recover --json`, `npx trsd recover --prune-stale --json`, and `npx trsd resume <run-id> --json` after interrupted workflow commands.
@@ -350,3 +497,17 @@ Common failure patterns:
 - package-only verification missing a required injected package surface
 - stale export maps after moving code between packages
 - accidental cross-package imports that violate the package boundaries above
+
+## Starter And Guarantee Rules
+
+- The active first-party starters are `engineering` and `research`.
+- `information-hub` is folded into `research`; do not re-add it to catalogs, release graphs, starter tests, or submodules without a new product decision and distinct deterministic knowledge-pack packaging workflow.
+- Engineering starter agents should mirror the root Market activity-profile agent definitions.
+- Research starter active agents are research/review/writer oriented: researcher, reviewer, technical-writer, and deterministic reporter.
+- API endpoint reliability belongs to `@treeseed/api` endpoint-family guarantees backed by complete route descriptor matrices.
+- UI/Admin guarantees should use `dependsOnGuarantees` to depend on API endpoint guarantees instead of duplicating endpoint reliability checks.
+- Agent guarantee runs must support deterministic mock execution for CI and live Codex proof for local/staging. Explicit live Codex runs must fail closed with `missing_codex_auth` when Codex auth is unavailable.
+
+## Project library
+
+Use `trsd library show market` and `status` before querying `treeseed-ai/market-library`. Read root-level paths at an exact commit. Author only through governed library workspaces and reviews. Never recreate `src/content` or edit `.treeseed/data` directly.

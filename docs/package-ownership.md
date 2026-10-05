@@ -1,40 +1,77 @@
 # Treeseed Package Ownership
 
+## Seeded operating environments
+
+`@treeseed/sdk` owns portable seed/runtime-prerequisite contracts, deterministic prerequisite ordering, and local reconciliation. `@treeseed/api` owns durable seed membership claims, verified-email attachment, team/project/TreeDX records, capacity grants, allocations, sessions, and audit events. `@treeseed/agent` remains the only owner of the running provider manager, runner, AgentKernel, and execution-provider adapters. `@treeseed/cli` launches these canonical operations and does not duplicate their lifecycle logic. Scene setup consumes ordered seeds before browser or Agent Lab execution; team-scoped Agent Lab runs retain production records, while ephemeral runs clone and clean isolated resources.
+
 This document is the canonical current-state map for where Treeseed functionality belongs. Use it when deciding where to add code, configuration, documentation, tests, package workflows, or hosting resources.
+
+For capacity-provider and agent completion work, [Agent Capacity Completion and Production-Readiness Plan](./agent-capacity-completion.md) is the active cross-package execution ledger. It preserves the ownership boundaries in this document while replacing the incomplete single-team registration, allocation, kernel, handler, and starter implementations.
+
+For Guide-specific editorial roles, deterministic layered context, review independence, and exact-revision publication, see [TreeSeed Guide Editorial Agent System](./guide-editorial-agent-system.md).
 
 ## System Overview
 
-Treeseed is a unified system made from independently releasable package projects plus the root hosted market tenant.
+Treeseed is a unified system made from independently releasable projects, a public Platform integration workspace, and a separately operated singleton Market.
 
-The root `@treeseed/market` app is the hosted Treeseed-operated site. It composes:
+`treeseed-ai/platform` is the canonical installer and integration workspace. It bundles Admin, API, Agent, AI, CLI, Core, Reviewer, SDK, TreeDX, UI, and the Engineering and Research templates. It never checks out, provisions, deploys, or reconciles Market or Market API. Content repositories are logical TreeDX/R2 bindings rather than submodules.
+
+Platform federation is receipt-based. Each software project remains an independent repository; a `treeseed.integration-change-set/v1` receipt binds canonical repository identities to exact commits, dependency edges, contract digests, verification evidence, and any governed execution authorities proven in those commits. Save is repository-scoped by default; `save --federated` explicitly produces the staging-eligible portfolio receipt, stage verifies and consumes it, and release promotes the staged receipt. A local workset may materialize several repositories for a human, Codex, or an agent, but its directory layout and any transitional gitlinks are not integration authority.
+
+Governance authority and Git evidence are separate. A proposal describes and versions intended work; an accepted decision authorizes it; the API resolves accepted same-team cross-project decisions into an immutable decision snapshot, compiles project-scoped assignments from that authority, and selects reviewed deliverables; `checkpoint-integrate` emits a local `treeseed.governed-execution-authority/v1` receipt only after verifying the completed acting graph, approved implementation and review contracts, final verification, release readiness, repository identity, exact base/checkpoint commits, and changed paths. Save includes that receipt only when its integrated commit is an ancestor of the saved commit on the same branch and canonical repository. Stage asks the resolved control plane to revalidate proposal revision, decision status, and every dependency before candidate creation. The execution authority records governance dependencies, while the integration receipt records repository/package dependency edges. This gives cross-project work two explicit graphs: why work was authorized and which exact repository versions compose the result.
+
+The immutable Market profile is `treeseed` at `https://api.treeseed.dev`. Default deployments use that gateway for both Market and hosted control-plane calls. Sovereign deployments route control-plane calls to an external or Platform-managed Admin API while continuing to send registry, ecommerce, licensing, and ecosystem-governance calls to the singleton Market gateway.
+
+The root `@treeseed/market` app is currently the hosted Treeseed-operated tenant. During the staged separation it still composes:
 
 - `@treeseed/core` for the Astro/Starlight runtime and site layering
-- `@treeseed/admin` for the distributable administration portal
+- `@treeseed/admin` for the administration portal until Market route extraction completes
 - `@treeseed/ui` for reusable components and styles
-- `@treeseed/api` over HTTP/proxy surfaces for backend control-plane state
+- `@treeseed/api` over HTTP/proxy surfaces; commerce has not yet moved to the private Market API repository
 - `@treeseed/sdk` through package-owned public APIs for platform primitives
 - `@treeseed/agent` through capacity-provider workflows, not in-process runtime imports
+- `@treeseed/reviewer` as a local-only operator tool, not a hosted runtime
 - `packages/treedx` through SDK/API integration, not product-specific UI code
 
-The root market app owns the real hostable web tenant `treeseed.site.yaml` in this workspace. Deployable package apps may own package-local hostable manifests when they operate an independently released runtime surface; today `packages/api/treeseed.site.yaml` owns the API, operations runner, Treeseed PostgreSQL, capacity-provider service bindings, and public TreeDX federation topology. SDK/CLI workflows compose the root and package manifests into one integrated desired-state graph, but the web and API release pipelines remain independently deployable.
+The root market app owns the real hostable web tenant `treeseed.site.yaml` in this workspace. Deployable package apps may own package-local hostable manifests when they operate an independently released runtime surface; `packages/api/treeseed.site.yaml` owns only the API control plane, Treeseed PostgreSQL, provider protocol bindings, and public TreeDX federation topology; agent and platform-operation execution services are capacity providers owned by `@treeseed/agent`, never API sibling processes. SDK/CLI workflows compose the root and package manifests into one integrated desired-state graph, but the web and API release pipelines remain independently deployable.
 
-Project architecture is logical, not submodule-first. A project is described by repository identity plus `rootPath`, optional `sitePath`, optional `contentPath`, `contentRuntimeSource`, and `localContentMaterialization`. The Market project uses `sitePath: "."`; first-party package projects default to `sitePath: "docs"` even when a docs site is not prepared yet. Submodules are allowed as one local materialization strategy, but projects should be easy to create from templates and easy to import from live projects without restructuring.
+Project architecture is logical and split by default. Every primary software repository has a separately governed `{repository}-content` repository. Content repositories are never Market workspace submodules. Git stores content history, TreeDX owns operational content access and mutation, and R2 serves immutable publications. See [Project Architecture Migration](./project-architecture-migration.md).
 
-First-party package repositories declare their future project shape in `treeseed.package.yaml` under `projectArchitecture`. That metadata prepares packages for Admin/seed integration without changing package release gates: missing `docs/` sites report `site_not_prepared`, while package CI and publishing continue to follow the manifest's existing `verify`, `releaseGate`, and artifact settings.
+First-party package repositories declare the live split-content project shape in `treeseed.package.yaml` under `projectArchitecture`: `split_site_content`, content-repository path `src/content`, R2 staging plus preview overlays, and no implicit local materialization. This metadata does not change package release gates: missing `docs/` sites report `site_not_prepared`, while package CI and publishing continue to follow the manifest's existing `verify`, `releaseGate`, and artifact settings.
+
+Capacity acceptance follows the same independent-project rule. `starters/engineering` and `starters/research` are separately versioned Git repositories selected explicitly by the SDK reconciliation verifier and seeded into separate TreeDX repositories. A live run creates a disposable API project bound to the selected TreeDX repository; it does not turn the Market root into the project or create a synthetic source repository. Agent definitions come from project MDX through TreeDX, while engineering source mutations use exact-ref isolated worktrees in the selected starter checkout.
 
 ## Package Responsibility Table
 
 | Package | Audience-Level Purpose | Implementation Ownership |
 | --- | --- | --- |
-| `@treeseed/market` | Treeseed-operated public site, buyer marketplace, hosted tenant, docs/content, and Commons participant surfaces | Root app, `treeseed.site.yaml`, content, public messaging, overrides, buyer marketplace/cart/checkout/service/capacity/Commons pages |
-| `@treeseed/admin` | Distributable AGPLv3 administration portal for organizations | Admin routes, auth/session glue, middleware, API client facades, admin view models, catalog display, secret-manager UI/contracts |
-| `@treeseed/ui` | Reusable Treeseed UI system | Layout-down Astro/React components, shells, forms, controls, cards, dashboards, CSS/theme primitives |
-| `@treeseed/core` | Installable Astro/Starlight Treeseed web runtime | Site layering, content/runtime integration, tenant config loading, plugin hooks, web-only runtime composition, foreground dev entrypoint delegation; does not own agent scheduling or provider execution |
-| `@treeseed/sdk` | Programmatic platform substrate | Config, reconciliation, workflow engine, hosting graph, package workflow discovery, SDK-managed local dev supervisor, shared contracts, graph/content APIs, model-aware content operation contracts/rendering/validation, TreeDX client integration, portable agent-capacity contracts. SDK owns save/update/stage/close/release/recover/worktree safety; `stage` must merge staging down before mutation, preserve failed feature branches/worktrees, and clean up only after staging refs are verified. |
-| `@treeseed/api` | Deployed backend control-plane API | Hono API, package-local backend `treeseed.site.yaml`, PostgreSQL adapter/migrations, backend auth, operation lifecycle, operations runner, route descriptors, provider sessions, assignment leases, mode-run persistence, capacity ledger coordination |
+| Platform | Public installer and integration workspace | Customer repository/content orchestration, optional Admin portal and sovereign Admin API topology, Core, CLI, capacity, TreeDX, and AI composition. It owns no Market resource. |
+| `@treeseed/market` | Public singleton Market web application | Market branding, public content, catalog and commerce presentation, ecosystem-governance presentation, and the public Market web manifest. It is deployed only by protected singleton workflows. |
+| `@treeseed/admin` | Freestanding Apache-2.0 administration application | Independently buildable and deployable Admin UI, auth/session glue, routed API client facades, project/knowledge/capacity/operations/secret-management views, and a package-local hostable manifest. It contains no Market implementation. |
+| `@treeseed/ui` | Reusable Treeseed UI system | Layout-down Astro/React components, current shell primitives, public stacked-section and knowledge-profile components, tabs, forms, controls, cards, dashboards, CSS/theme primitives, content-region focus and bounded overlay primitives, canonical account-time-zone-aware timestamp rendering, the canonical enhanced form submission lifecycle, and field-addressable content-validation feedback for Discussion/chat |
+| `@treeseed/core` | Installable Astro/Starlight Treeseed web runtime | Site layering, public content/runtime integration through UI public layouts, tenant config loading, plugin hooks, web-only runtime composition, foreground dev entrypoint delegation; does not own authenticated app chrome, agent scheduling, or provider execution |
+| `@treeseed/sdk` | Programmatic platform substrate | Config, reconciliation, workflow engine, hosting graph, package workflow discovery, SDK-managed local dev supervisor, shared contracts, the canonical operator-operation registry, canonical repository identity, assignment-authorized custody, exact-ref workset, and integration-change-set receipt contracts, graph/content APIs, TreeDX changeset clients, the canonical content-publication manifest and R2 provider, model-aware content operation contracts/rendering/validation, portable Zod schemas for every agent-mutable model plus agent tests, workday reports, and template products, portable agent-capacity and artifact-reference contracts, the canonical TreeDX proxy-handle policy evaluator, and pure native accounting-window policy. SDK owns save/update/stage/close/release/recover/worktree safety; `stage` must merge staging down before mutation, consume an exact verified repository receipt, preserve failed feature branches/worksets, and clean up only after staging refs are verified. |
+| `@treeseed/api` | Public Admin and platform control-plane API, AGPL-3.0-only with a commercial alternative | Identity, teams, projects, tenant governance, TreeDX authorization, knowledge publication, workday admission fencing and terminal outcomes, proposal revision provenance, capacity, operations, audit, realtime, PostgreSQL state, and operations runner. Commerce does not belong here. |
+| Market API | Private singleton commerce implementation and Admin-compatible gateway | `treeseed-ai/market-api` owns `/v1/market/**` and passes every other supported `/v1/**` route to the separately deployed hosted Admin API. It is proprietary and never imported or provisioned by Platform. |
 | `@treeseed/cli` | Human/operator command surface | `treeseed`/`trsd` command parsing, help, command handlers, terminal reporting, workflow entrypoints over SDK/Core/Agent. CLI exposes stage options and reporting but must not reimplement SDK-owned save/stage/release orchestration. |
-| `@treeseed/agent` | Capacity-provider and agent runtime | Provider manager/runner runtime, AgentKernel execution, mode scheduling, execution-provider adapters, assignment-scoped agent tool catalogs, model-aware content tool serving over TreeDX proxy handles, provider-local capacity enforcement, runtime images/templates |
-| `packages/treedx` | Generic repository data/index/query service consumed by Treeseed | TreeDX API, storage, Git/repository graph/indexing, federation, Docker image, language SDKs; no Treeseed product semantics |
+| `@treeseed/reviewer` | Local guarantee run review and AI workplan packaging | Standalone local web app, guarantee run selection/review UI, reviewer notes, evidence browsing, copied local evidence bundles, directive/workplan schemas, and Codex-ready handoff packages. It invokes existing CLI guarantee commands and must not own guarantee execution or release gating. |
+| `@treeseed/agent` | Capacity-provider and agent runtime | Provider manager/runner runtime, sole-entrypoint AgentKernel execution, canonical mode-run lifecycle telemetry, activity-profile and research-stage resolution, execution-provider adapters, required replay-safe provider telemetry delivery, assignment-scoped fail-closed tool catalogs, model-aware content and governed research tools, exact-ref worktree/checkpoint execution, provider-local capacity enforcement, runtime images/templates |
+| `@treeseed/ai` | Installable local AI appliance | Owns the appliance manifest, hardware/VM diagnostics, SDK-reconciled vLLM Compose resource, authenticated loopback OpenAI-compatible gateway, management/status API, systemd service, Debian artifact, and provider profile catalog. Axolotl training, experience curation, adapter competition, and governed LoRA promotion remain planned. It owns no project scheduler, assignment authority, or repository mutation. |
+| `packages/treedx` | Generic repository data/index/query service consumed by Treeseed | TreeDX API, atomic unified-diff changeset application, storage, Git/repository graph/indexing, federation, Docker image, language SDKs; no Treeseed product semantics |
+
+### Book knowledge ownership
+
+- `@treeseed/sdk` owns `treeseed.book/v3`, `treeseed.knowledge-page/v2`, book-collection and immutable knowledge-pack contracts, derived routes, content-sync safety, and deterministic snapshot artifacts.
+- `@treeseed/ui` owns reusable library, outline, authoring, review, relationship, and pack presentation. Admin routes compose these primitives and do not create page-local editor or collection systems.
+- `@treeseed/core` owns the single Starlight-based reader and the policy-filtered published-content consumption boundary.
+- `@treeseed/admin` owns authenticated authoring, review, linking, publication, and pack workbench routes over API contracts.
+- `@treeseed/api` owns authorization, TreeDX workspace/review/publication admission and orchestration, workflow metadata, capacity assignment coordination, operations-runner execution, and policy-filtered knowledge APIs. Markdown remains in Git and TreeDX rather than PostgreSQL.
+- Knowledge delivery performance follows the same boundary: SDK owns compact wire and hosting-resource contracts; API owns incremental publication, authorization projections, and bounded publication-object loading; Core owns anonymous reader request coalescing; Admin must preserve shared-cache eligibility for public responses; TreeDX owns repository, graph, storage-index, worker-pool, and profiler performance. No layer may compensate by adding a second content-serving path.
+- `@treeseed/cli` owns `trsd content sync`; the SDK owns its exact-ref comparison and fast-forward-only mutation policy.
+- Git is canonical history, TreeDX is the operational content and graph plane, and PostgreSQL stores workflow metadata. An atomic published manifest is the required serving plane but is still release-blocking; exact-ref runtime reads are not accepted as a substitute. The removed filesystem book exporter is not a supported fallback.
+- Content creation and update requests are validated through SDK-owned Zod schemas before a TreeDX changeset is staged. The generic SDK TreeDX backend also validates every first-party portable model on ingestion and immediately before direct backend mutation; it never converts invalid content into an empty or missing result. Core runs raw frontmatter through that portable registry before its Astro schemas add references, Starlight fields, and runtime defaults, so those schemas are runtime adapters rather than an independent base contract. Diagnostics preserve exact path, model, and field data for CLI, API, Admin, and agent-chat repair loops. The content-publication reconciler applies the same registry to every known model before generating a runtime manifest or mutating R2, and its CLI serializes a stable failure envelope for CI. API-owned workday demand, planning-artifact projection, knowledge parsing, proposal-version authoring, and proposal discussion use the same admission boundary; remaining bespoke TreeDX readers must either call it or consume an SDK backend that does.
+- `@treeseed/sdk` owns the editorial context, audience declaration, and structured editorial review contracts; `@treeseed/agent` owns TreeDX-backed context resolution and trace provenance; `@treeseed/api` owns independent editorial review state and exact-revision publication enforcement; root Market content owns the Guide agents, editorial cores, chapter briefs, and evidence.
+- Repository custody is physical as well as logical. Developer checkouts, capacity-provider assignment checkouts, and TreeDX repository workspaces never share a writable checkout, Git common directory, or service volume. SDK contracts normalize repository identity; Agent owns provider-local materialization; the API owns no repository storage or execution checkout; TreeDX owns its product-neutral repository store.
 
 ## Dependency Direction
 
@@ -44,11 +81,15 @@ Allowed dependency direction:
 ui -> consumed by admin/core/market
 sdk -> core/admin/api/cli/agent
 core -> sdk + ui
-admin -> core + sdk + ui
-market -> admin + core + ui + HTTP/API client surfaces
+admin -> core + sdk + ui + Admin-compatible HTTP
+market -> admin + core + sdk + ui + current API HTTP (transition)
+market -> core + sdk + ui + Market API HTTP (target)
+market-api -> sdk + Admin API HTTP (target)
 api -> sdk
 cli -> sdk + core + selected public agent surfaces
+reviewer -> cli + sdk + ui
 agent -> sdk
+ai -> sdk
 treedx -> consumed through sdk clients and api hosting
 ```
 
@@ -58,13 +99,18 @@ Boundary rules:
 - `ui` must not import from root market, `admin`, `core`, `api`, `agent`, or `cli`.
 - `core` may depend on `sdk` and `ui`; it must not depend on `admin`, `api`, `cli`, or `agent`.
 - `admin` may depend on `sdk`, `core`, and `ui`; it must not import root market source. `api` belongs behind HTTP/API facades or optional dev/test-only helpers.
-- `market` may consume public exports from `admin`, `core`, `ui`, and `sdk`, and may call the API through HTTP/proxy/client surfaces. It must not import backend implementation from `api`.
+- During migration, `market` may consume public Admin exports but must not add new Admin coupling. The target removes Admin imports and retains only `core`, `ui`, `sdk`, and Market API HTTP surfaces.
+- The future Market API extends Admin API by HTTP/protocol composition, never by importing Admin API implementation.
 - `api` may depend on `sdk`; it must not own web UI, admin routes, or reusable component primitives.
 - `cli` may depend on `sdk`, `core`, and narrow public `agent` surfaces where command execution requires them.
+- `reviewer` may depend on `cli`, `sdk`, and `ui`; it must remain local-only and must not become a release gate or hosted control plane.
 - `agent` may depend on `sdk`; it must not depend on `core`, `admin`, root market, or API implementation.
+- `ai` may depend on portable `sdk` contracts. Agent and API integrations use public contracts and HTTP/provider protocols rather than importing appliance internals.
 - TreeDX must remain product-neutral and must not encode Treeseed market/admin/agent semantics.
 
 ## Hosted Runtime Topology
+
+This is the target topology, not an authorization to deploy it. Push-triggered Market/API deployment and hosted capacity acceptance are suspended until the reviewed Railway/Cloudflare OpenTofu design restores them. `trsd release` must remain fail-closed while the root production deployment workflow is absent.
 
 ```text
 Cloudflare
@@ -76,20 +122,20 @@ Cloudflare
 
 Railway
   packages/api API service
-  packages/api operations runner
   Treeseed PostgreSQL
   public TreeDX federation services
 
 Capacity providers
-  packages/agent provider manager and runner runtime roles
+  packages/agent agent and platform-operation provider manager/runner roles
+  packages/ai local model inference appliance (inference foundation implemented; training planned)
 
 TreeDX
   packages/treedx images consumed by API hosting
 ```
 
-Development and staging package manifests use exact GitHub commit refs for internal Treeseed dependencies. Staging Railway deploys `packages/api` API/runner, `packages/agent` capacity-provider manager/runner, and `packages/treedx` public federation nodes from GitHub source at the selected branch/commit. Production release rewrites installable package dependencies to npm semantic versions and deploys Docker-backed services from semantic Docker image tags. Routine staging saves and promotions must not create dev Git tags or publish development Docker images.
+Development and staging package manifests use exact GitHub commit refs for internal Treeseed dependencies. Staging Railway deploys `packages/api` as a control-plane-only service, independently deploys declared `packages/agent` provider classes, and deploys `packages/treedx` public federation nodes from GitHub source at the selected branch/commit. Production release rewrites installable package dependencies to npm semantic versions and deploys Docker-backed services from semantic Docker image tags. Routine staging saves and promotions must not create dev Git tags or publish development Docker images.
 
-`@treeseed/admin` does not own a package-local `treeseed.site.yaml`. It is a site layer/plugin consumed by a host application. In this workspace, the root market app is the host.
+`@treeseed/admin` owns a package-local `treeseed.site.yaml` for its independently buildable application while continuing to expose the Admin plugin consumed by Market during migration. Its logical package project still uses `docs/` as the knowledge-hub site; deployable app ownership does not move project content into the app root. Hosted deployment remains suspended.
 
 ## Local Development Topology
 
@@ -98,10 +144,11 @@ Development and staging package manifests use exact GitHub commit refs for inter
 - web from the root market repository
 - admin as package-provided routes layered into the root web app
 - UI as package-provided components/styles
-- API and operations runner from `packages/api`
+- API control plane from `packages/api`
+- isolated agent and platform-operation provider stacks from `packages/agent`
 - local state, process supervision, worktree-family indexing, port allocation, stale PID detection, and log discovery through `@treeseed/sdk`
 
-Capacity providers are not started by default. Use `trsd capacity ...` when provider runtime work is needed.
+`trsd run` starts every provider declared by the exact selected seed set. The `agents` seed declares one agent-class provider with Codex, OpenCode, and GitHub Copilot execution adapters; the `platform` seed declares the privileged platform-operation provider. Selecting both runs them concurrently with separate identities, configuration generations, data/checkouts, and readiness status. Use `trsd capacity ...` only for standalone provider lifecycle work.
 
 TreeDX is not an ordinary web dev process. It is run through TreeDX service workflows or consumed through SDK/API configuration when repository intelligence is enabled.
 
@@ -109,18 +156,20 @@ TreeDX is not an ordinary web dev process. It is run through TreeDX service work
 
 | New Functionality | Owner |
 | --- | --- |
-| Treeseed public messaging, product pages, docs content, marketplace business pages | root market |
-| Buyer marketplace, cart, grouped checkout UI, service checkout UI, capacity discovery/inquiry pages, Commons participant pages | root market |
-| Commerce backend records, route orchestration, Stripe server calls, webhooks, refunds, fulfillment, seller monitoring, Commons governance APIs | `@treeseed/api` |
+| Singleton Market messaging, docs, catalog, commerce, licensing, and ecosystem-governance presentation | `treeseed-ai/market` |
+| Authentication, account, team management, active-team selection, invitations, and public user/team identity profiles | `@treeseed/admin` |
+| Public homepage, books, and Knowledge Hub content during the redesign foundation | `@treeseed/core` |
+| Commerce backend records, route orchestration, Stripe server calls, webhooks, refunds, fulfillment, seller monitoring, commercial licensing, and ecosystem-governance APIs | private `treeseed-ai/market-api` under `/v1/market/**` |
 | Theme-native commerce/governance panels, cards, timelines, and status components | `@treeseed/ui` |
 | Generic admin pages, host/project/team/work/knowledge screens, admin middleware | `@treeseed/admin` |
 | Admin reusable visual components once they are generic | `@treeseed/ui` |
-| Theme tokens, app shell controls, cards, form controls, charts, status panels | `@treeseed/ui` |
+| Theme tokens, app shell controls, public stacked sections, `SurfaceTabs`, cards, badges, key/value lists, responsive tables, disclosures, pagination, confirmations, form controls, charts, status panels | `@treeseed/ui` |
 | Site runtime, plugin loading, Astro/Starlight integration, content model wiring | `@treeseed/core` |
 | Reconciliation, package workflows, config, hosting graph, provider adapters, managed local dev supervision | `@treeseed/sdk` |
-| Backend persistence, API routes, auth backend, operations runner, migrations | `@treeseed/api` |
+| Backend persistence, API routes, auth backend, assignment coordination, migrations | `@treeseed/api` |
 | CLI commands, help, terminal reports, workflow command entrypoints | `@treeseed/cli` |
-| Capacity provider manager/runner runtime, AgentKernel execution, mode scheduling, and provider images | `@treeseed/agent` |
+| Local guarantee review, screenshot/log triage, reviewer notes, and AI workplan packaging | `@treeseed/reviewer` |
+| Capacity provider manager/runner runtime, sole-entrypoint AgentKernel execution, activity-profile resolution, and provider images | `@treeseed/agent` |
 | Generic repository storage, indexing, graph search, snapshots, artifacts | `packages/treedx` |
 
 ## Where New Documentation Belongs
@@ -142,23 +191,22 @@ TreeDX is not an ordinary web dev process. It is run through TreeDX service work
 
 - `sdk` owns config schema loading, environment registry merging, reconciliation primitives, provider credential routing, and portable capacity/assignment contracts.
 - `core` owns web runtime env schema for generic site behavior.
-- `admin` owns reusable admin env expectations, secret-manager selection UI, host credential forms, unlock/passphrase UX, and diagnostics views.
-- `api` owns backend service credentials, database configuration, operations runner secrets, backend auth, credential-session persistence, provider sessions, assignment leases, mode-run records, and usage settlement.
-- `agent` owns capacity-provider runtime env entries, provider registration/check-in settings, provider-local lifecycle, and runtime execution settings.
-- `market` owns tenant-specific values, branding, buyer-facing marketplace copy, and the real hosted site manifest.
+- `admin` owns the Services UI, provider guidance, and browser-side vault ceremonies over SDK contracts.
+- `api` owns backend service credentials, database configuration, backend auth, encrypted service envelopes, vault grants, operation leases, provider sessions, assignment leases, mode-run records, and usage settlement. It has no provider-credential decryption path.
+- `agent` owns capacity-provider runtime env entries, provider identity/connection and availability-session settings, provider-local lifecycle, and runtime execution settings.
+- `market` owns singleton branding, buyer-facing marketplace copy, and its public hosted site manifest. Protected Market deployment authority remains outside Platform.
 - `ui` owns no secrets.
 - TreeDX owns TreeDX service configuration, auth mode, storage paths, and image workflow credentials.
 
-Repository-scoped GitHub tokens use:
+Private content Git transport follows a strict custody boundary. SDK reconciliation supplies exact repository/ref/commit scope but never receives a GitHub token. API verifies live GitHub authority, owns the durable project repository binding and scoped credential grant, seals the one-use delivery for the selected TreeDX node, and audits preparation. TreeDX owns delivery consumption, decryption, the bounded Git operation, and credential disposal; it remains unaware of Treeseed team or project semantics beyond opaque grant data. First-party authority always resolves through the central organization credential below.
+
+First-party repositories use one organization-wide credential:
 
 ```text
-TREESEED_GITHUB_TOKEN_<OWNER>_<REPO>
+TREESEED_GITHUB_TOKEN
 ```
 
-Examples:
-
-- `TREESEED_GITHUB_TOKEN_TREESEED_AI_ADMIN`
-- `TREESEED_GITHUB_TOKEN_TREESEED_AI_TREEDX`
+Repository-scoped overrides are reserved for imported third-party projects and must not be declared by `treeseed-ai/*` projects.
 
 Public npm package publish tokens belong in the package repository GitHub `production` environment as `NPM_TOKEN`. Deploy-only/private packages may still use GitHub environments for deployment secrets, but they are not part of the public npm release list.
 
@@ -166,11 +214,13 @@ Public npm package publish tokens belong in the package repository GitHub `produ
 
 `@treeseed/admin` is not a buyer checkout or payment package.
 
-The completed ecommerce architecture is split by surface:
+The target ecommerce architecture is split by surface. Existing API/Admin commerce code is migration inventory, not target ownership:
 
-- root market owns buyer-facing marketplace discovery, cart review, Stripe Elements checkout, service request views, service checkout, capacity discovery/inquiry, and Commons participant pages.
-- `@treeseed/api` owns backend ecommerce and Commons state: vendors, products, offers, prices, ownership, stewardship, contributions, governance policies, orders, payment groups, subscriptions, entitlements, refunds, fulfillment, scoped services, capacity listings/inquiries, marketplace aggregation, seller monitoring, webhooks, and governance events.
-- `@treeseed/admin` owns seller setup, seller operations, governance, readiness, monitoring, fulfillment, refunds, capacity trust gates, service operations, and Commons steward operations through HTTP/API facades.
+- `treeseed-ai/market` owns buyer-facing Market and ecosystem-governance presentation, including the extracted `/market` and `/app/market` families.
+- private `treeseed-ai/market-api` owns vendors, products, offers, prices, ownership, stewardship, contributions, ecosystem-governance policies, orders, payment groups, subscriptions, entitlements, refunds, fulfillment, scoped services, capacity listings/inquiries, marketplace aggregation, seller monitoring, webhooks, and commercial-license entitlements under `/v1/market/**`.
+- `@treeseed/api` owns hosted or sovereign Admin control-plane state only. Its complete versioned route descriptor is pinned by exact API ref and passed through the singleton gateway without transferring implementation ownership. The gateway admits only descriptor-declared method/path pairs; an arbitrary non-Market `/v1/**` prefix is not a pass-through contract.
+- Singleton reconciliation owns only the declared gateway, descriptor, verification, and manifest overlay inside `treeseed-ai/market-api`. Private Market application files are repository-owned: the reconciler bootstraps the extension entrypoint once, preserves all paths outside its manifest, and blocks managed-file drift instead of replacing the private application tree.
+- `@treeseed/admin` retains identity, teams, projects, project governance, knowledge, capacity/workday operations, services, secrets, audit, and control-plane administration. It contains no Market implementation after extraction.
 - `@treeseed/ui` owns reusable, Stripe-free, theme-native commerce and governance components.
 
 Admin must remain Stripe-free, checkout-free, payout-free, commission-free, and capacity-execution-free. It may link sellers or stewards to root-market buyer flows where appropriate, but it must not initialize Stripe Elements, create PaymentIntents, handle webhooks, or mutate provider execution resources.
@@ -181,7 +231,7 @@ The ecommerce model intentionally does not include commissions, application fees
 
 TreeSeed Commons governance creates participant signal, questions, proposals, votes, delegations, and steward decisions. Registration creates a governance identity, not legal cooperative membership, patronage rights, equity-like claims, or unbounded roadmap authority.
 
-Proposal governance is provider-backed. `@treeseed/sdk` owns portable governance provider contracts and built-in voting math, including admin approval, simple majority, absolute threshold, and TreeSeed bicameral providers. `@treeseed/api` owns durable governance policies, proposal versions, electorate snapshots, votes, delegations, events, and immutable decision records. `@treeseed/core` owns proposal/decision content schema fields, and `@treeseed/admin` owns the project/work UI over those records. Operational `approval_requests` remain separate from proposal governance and must not be presented as decisions.
+Project and tenant governance is provider-backed. `@treeseed/sdk` owns portable governance contracts and built-in voting math. A selected Admin control plane owns durable project/tenant governance policies, proposal versions, electorates, votes, delegations, events, and immutable decisions; `@treeseed/admin` owns the corresponding project/work UI. Singleton ecosystem governance and commerce-linked stewardship belong to Market. Operational `approval_requests` remain separate from proposal governance and must not be presented as decisions.
 
 ## TreeDX Boundary
 
@@ -193,15 +243,25 @@ TreeDX may store and index files that contain Treeseed content, but it must not 
 
 Admin and market may display capacity provider state and expose configuration workflows.
 
-`@treeseed/agent` owns provider runtime code, provider images, provider manager/runner services, AgentKernel execution, mode scheduling, execution-provider adapters, provider-local capacity enforcement, and runtime tests. The provider-local API and legacy worker task queue are retired; providers coordinate outbound with the TreeSeed API assignment lifecycle. `@treeseed/sdk` owns shared contracts and reconciliation. `@treeseed/cli` owns the operator command surface. `@treeseed/api` owns backend control-plane routes, provider availability sessions, assignment leases, mode-run records, reservations, and capacity ledger settlement.
+`@treeseed/agent` owns provider runtime code, provider images, agent and `platform-operation` provider classes, provider manager/runner services, sole-entrypoint AgentKernel execution, activity-profile and research-stage execution, canonical mode-run lifecycle telemetry, execution-provider adapters, assignment tool-policy intersection, exact-ref worktree/checkpoint behavior, stable assignment-attempt fallback identity, provider-local capacity enforcement, and runtime tests. The provider-local API, duplicate project-runner task queue, manager leases, worker runners, repository claims, runner scale decisions, agent pools, pool registrations, direct worker-pool scalers, and runtime-workday/work-policy/task-credit compatibility stack are retired under resolved CAP-072; providers coordinate outbound with the TreeSeed API assignment lifecycle. `@treeseed/sdk` owns shared contracts, reconciliation, the canonical Drizzle schema, research-source and artifact policy, and pure policy/accounting primitives. `@treeseed/cli` owns developer checkouts and the operator command surface. `@treeseed/api` owns backend control-plane routes and deterministic assignment, lease, reservation, cancellation, usage, settlement, and audit coordination; it executes no tools and owns no repository clone or checkout. TreeDX owns team-governed content repositories; capacity providers own assignment clones.
 
-Provider runtime execution is assignment-only. Do not add provider task claim/event/complete/fail HTTP routes or public provider-client methods; local task stores and project runner task APIs are separate non-provider-runtime surfaces.
+Provider runtime execution is assignment-only. Do not add provider or project-runner task claim/event/complete/fail HTTP routes, public task clients, or task-queue tables; provider assignments and mode runs are the sole agent execution lifecycle.
 
 Capacity providers supply execution capacity, native budget observations, local runner pressure, availability windows, and execution-provider capabilities. Projects supply agent definitions, agent classes, handlers, prompts, output contracts, and work semantics. The API coordinates the match between project demand and provider supply through durable records; the provider manager only supervises one provider's local runtime.
 
 Human-machine execution provider adapters follow the same boundary. AI providers, deterministic workflow providers, and human issue queue providers are execution surfaces behind capacity providers. Project handlers remain semantic and provider-independent; adapters only perform or coordinate bounded assignment work. See `docs/human-machine-providers.md`.
 
-Infrastructure lifecycle and runtime assignment are separate concerns. `trsd capacity build/up/status/logs/down/test-local` manage provider runtime lifecycle and diagnostics through reconciliation. Provider check-ins, assignments, leases, mode runs, usage actuals, and ledger entries are API control-plane records, not reconciled infrastructure resources.
+Infrastructure lifecycle and runtime assignment are separate concerns. `trsd capacity build/up/status/logs/down/test-local` manage provider runtime lifecycle and diagnostics through reconciliation. Provider availability sessions, assignments, leases, mode runs, usage actuals, and ledger entries are API control-plane records, not reconciled infrastructure resources.
+
+## Local Self-Hosting And Discussion Ownership
+
+`@treeseed/sdk` owns immutable configuration-generation contracts, the common Chat authority, invocation/lane/handoff/client-action contracts, Discussion model registry contracts, seed desired-graph primitives, multidimensional capacity budgets, and local reconciliation operations. `@treeseed/cli` owns authenticated invocation and Discussion operator commands; it does not create a second scheduler. `@treeseed/api` owns TreeDX-before-invocation admission, hidden conversation executions, semantic lane scheduling, exact continuation/handoff provenance, approval-backed operation handoffs, client sessions/actions, settlement, and operational projection to TreeDX. `@treeseed/agent` owns per-lane provider-manager polling, Codex/OpenCode execution adapters, assignment-scoped communication tools, provider-local cancellation/streaming/usage receipts, prompt enrichment, and completion evidence. `@treeseed/admin` owns only the bounded semantic client-action executor in this phase; full chat presentation remains deferred.
+
+Agent Atlas follows the same boundary. SDK owns portable topology, replay, event, assignment-lineage, context-reference, authoring, and forensic-query contracts. API freezes exact workday topology in existing parameters and owns live/as-of projections over the canonical workday event store plus authenticated per-user/team view state. UI owns presentation-only circuit, replay, dock, DAG, workspace-focus, nested-overlay, editor, and diagnostic-table primitives. Admin owns `/app/work`, authenticated adapters, URL/view-state composition, permissions, Easy/Diagnostic mode, and Discussion composition. Agent runtime emits complete forensic evidence through existing workday events. HTML studies under `design/` are reference artifacts and are never runtime imports.
+
+Group and supply boundaries are similarly singular. SDK owns project-local group membership/scope/coordination contracts and portable capacity-supply policy and ranking. API resolves group-filtered signal evidence, freezes membership, selects the team provider portfolio, revalidates acting provenance, and durably requeues safe failover generations. Agent class is capacity allocation only. Agent runtime executes the exact provider selection recorded by API and cannot reinterpret groups, select a substitute provider, or create DAG edges.
+
+Discussion sessions, messages, and events remain project content under `src/content/**` or `docs/src/content/**`; neither API nor Admin may introduce Discussion database tables. PostgreSQL may retain only generic workday/assignment records and opaque content refs needed for scheduling and event projection. TreeDX remains product-neutral.
 
 ## Verification Matrix
 
@@ -214,6 +274,7 @@ Infrastructure lifecycle and runtime assignment are separate concerns. `trsd cap
 | SDK workflow/reconciliation | `npm -w packages/sdk run verify:local`, focused workflow tests |
 | API backend/runner | `npm -w packages/api run verify:local` |
 | CLI command behavior | `npm -w packages/cli run verify:local` |
+| Reviewer local app/workplan packaging | `npm -w packages/reviewer run verify:local` |
 | Agent/provider runtime | `npm -w packages/agent run verify:local`, capacity provider runtime tests |
 | TreeDX service/image | TreeDX package release gate or targeted TreeDX runbook commands |
 | Cross-package integration | affected package verifies plus `npm run check`, `npm run build`, `npx trsd ready local --json` |
@@ -227,3 +288,11 @@ READMEs are user/adopter/operator first. They should be task-oriented, include c
 Runbooks should contain operational steps, expected outputs, failure modes, and recovery commands.
 
 Design docs should capture intent, architecture, tradeoffs, and current-state notes when older implementation plans are superseded.
+
+## Starter Ownership
+
+The active first-party template repositories are `treeseed-ai/template-engineering` and `treeseed-ai/template-research`. There is no Information Hub repository project; its former knowledge-pack purpose is owned by the Research template.
+
+## Guarantee Ownership
+
+`@treeseed/api` owns endpoint-family guarantees and route descriptor acceptance coverage for every active API endpoint. `@treeseed/admin` and Market UI guarantees should declare dependencies on those API guarantees through `dependsOnGuarantees`. `@treeseed/agent` owns contract-level runtime guarantees and real execution-provider guarantees; no mock or synthetic adapter may claim autonomous execution proof. `@treeseed/reviewer` owns local reviewer guarantees for loading guarantee run artifacts, attaching human notes, copying local evidence, and producing agent-ready workplans.

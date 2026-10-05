@@ -6,7 +6,7 @@ This runbook is the operator path for deploying the current Treeseed Market arch
 
 The current deployment shape is:
 
-- root Market repo: Cloudflare web UI, knowledge hub, public content, Treeseed messaging, page overrides, buyer marketplace/Commons pages, and `/v1/*` proxy/client only
+- root Market repo: Cloudflare web UI, knowledge hub, public content, Treeseed messaging, page overrides, authenticated operational marketplace/Commons pages, public marketing/profile/knowledge pages, and `/v1/*` proxy/client only
 - `packages/admin`: admin routes, middleware, auth/session UI, API client facades, and admin view models layered into the root web app
 - `packages/ui`: reusable components and styles consumed by Market/Admin/Core
 - `packages/api`: Railway API plus Treeseed operations runner
@@ -35,7 +35,8 @@ Expected Railway services:
 ```text
 api
   provider: railway
-  serviceName: treeseed-api
+  staging serviceName: treeseed-api-staging
+  prod serviceName: treeseed-api-production
   rootDir: packages/api
   buildCommand: npm run build
   startCommand: npm run start:api
@@ -44,7 +45,8 @@ api
 
 operationsRunner
   provider: railway
-  serviceName: treeseed-api-operations-runner-01
+  staging serviceName: treeseed-api-operations-runner-staging-01
+  prod serviceName: treeseed-api-operations-runner-production-01
   rootDir: packages/api
   buildCommand: npm run build
   startCommand: npm run start:runner
@@ -68,7 +70,7 @@ web
   hosts public content, knowledge hub, admin/auth UI contributed by @treeseed/admin, reusable UI from @treeseed/ui, and /v1/* proxy
 ```
 
-Do not rename existing Railway services during repair. Reconfigure them in place.
+Source-divergent Railway services must use separate environment-qualified identities. Adopt existing volumes before removing obsolete unsuffixed services.
 
 ## Required Configuration
 
@@ -83,7 +85,6 @@ Required for API and runner:
 
 - `TREESEED_DATABASE_URL`
 - `TREESEED_PLATFORM_RUNNER_SECRET`
-- `TREESEED_CREDENTIAL_SESSION_SECRET`
 - API auth/service signing secrets configured by the environment
 
 Required for runner:
@@ -227,8 +228,8 @@ The plan must show:
 
 - `packages/api` included when API package code changed
 - root submodule pointers included when package heads changed
-- API service still named `treeseed-api`
-- runner service still named `treeseed-api-operations-runner-01`
+- API services named `treeseed-api-staging` and `treeseed-api-production`
+- runner services named `treeseed-api-operations-runner-staging-01` and `treeseed-api-operations-runner-production-01`
 - API and runner both using `rootDir: packages/api`
 - API start command `npm run start:api`
 - runner start command `npm run start:runner`
@@ -250,8 +251,8 @@ Staging acceptance:
 - Railway API builds from `packages/api`
 - Railway runner builds from `packages/api`
 - existing Railway service names are reused
-- API `/healthz`, `/healthz/deep`, and `/v1/markets/current` pass
-- web proxy `/v1/healthz` and `/v1/markets/current` pass
+- Admin API `/healthz` and `/healthz/deep` pass through the singleton gateway
+- singleton Market `/v1/market/profile` responds directly without an Admin pass-through
 - runner smoke passes
 - hosted-service check report has no failed required checks
 
@@ -297,7 +298,7 @@ Production acceptance:
 curl -fsS https://api.treeseed.ai/healthz
 curl -fsS https://api.treeseed.ai/healthz/deep
 curl -fsS https://treeseed.ai/v1/healthz
-curl -fsS https://treeseed.ai/v1/markets/current
+curl -fsS https://api.treeseed.dev/v1/market/profile
 TREESEED_MARKET_ACCEPTANCE_BASE_URL=https://api.treeseed.ai npm -w packages/api run test:acceptance
 npx trsd audit hosting --environment prod --live --json
 ```
@@ -310,3 +311,15 @@ npx trsd audit hosting --environment prod --live --json
 - If TreeDX provisioning stays queued, run runner smoke and verify the runner service before retrying bootstrap.
 - If `stage` or `release` is interrupted, use `npx trsd recover --json` and `npx trsd resume <run-id> --json` instead of retrying blindly.
 - Treat secret output as a bug. Reports should show presence and source only.
+
+## Endpoint Guarantee Coverage
+
+Every active API route must have a route descriptor with guarantee family metadata. Endpoint reliability guarantees live under `packages/api/guarantees/api/endpoints/` and are backed by `packages/api/test/acceptance/api.base.yaml` descriptor matrices plus explicit workflow cases for stateful flows. UI guarantees should depend on these API guarantees instead of duplicating route-level proof.
+
+Before staging API or endpoint changes, run:
+
+```bash
+npm -w packages/api test -- api-route-descriptors api-acceptance-framework
+npx trsd guarantees validate --owner-package @treeseed/api --json
+npx trsd guarantees run --owner-package @treeseed/api --environment local --json
+```

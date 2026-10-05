@@ -354,7 +354,7 @@ operations:
   tools_allowed:
     - treedx.build_context
     - treedx.read_workspace_file
-    - treedx.write_workspace_file
+    - treedx.apply_workspace_changeset
     - treedx.commit_workspace
     - treeseed.status
     - treeseed.dev_plan
@@ -446,7 +446,7 @@ Humans also do **not** need to approve every feature-branch-to-staging merge. Ve
 
 Agents may:
 
-* run read-only operations such as `dev --plan`, runtime readiness checks, status checks, and operation dry-runs when granted by policy;
+* run read-only operations such as `dev --plan`, runtime readiness checks, status checks, and operation plans when granted by policy;
 * inspect repository files through approved context retrieval;
 * build context packs;
 * create or reprioritize questions;
@@ -1222,7 +1222,7 @@ export interface CodexExecutionResult {
 ```ts
 import { Codex } from '@openai/codex-sdk';
 
-export async function runCodexSubscriptionTask(
+export async function runCodexTask(
   request: CodexExecutionRequest,
 ): Promise<CodexExecutionResult> {
   assertCodexRequestIsSafe(request);
@@ -1432,7 +1432,7 @@ Provider-neutral operation request:
 ```ts
 export interface AgentOperationRequest {
   operation: 'switch' | 'dev' | 'verify' | 'save' | 'stage' | 'close' | 'release';
-  mode: 'dry_run' | 'read_only' | 'mutating';
+  mode: 'plan' | 'read_only' | 'mutating';
   taskId: string;
   workDayId?: string;
   agentSlug: string;
@@ -1534,7 +1534,7 @@ The API should expose:
 
 * operation permissions and grants;
 * operation event history;
-* operation dry-run/plan results when safe;
+* operation plan/plan results when safe;
 * active workday;
 * start/request workday;
 * task list;
@@ -1552,7 +1552,7 @@ Recommended API groups:
 ```text
 GET  /v1/projects/:projectId/operations/grants
 GET  /v1/projects/:projectId/operations/events
-POST /v1/projects/:projectId/operations/:operation/dry-run
+POST /v1/projects/:projectId/operations/:operation/plan
 GET  /v1/projects/:projectId/agents/status
 GET  /v1/projects/:projectId/workdays/current
 POST /v1/projects/:projectId/workdays/requests
@@ -1676,7 +1676,7 @@ Tasks:
 * Add operation capability grants by role/task/environment.
 * Add deterministic operation step schema to work packages.
 * Add task-event recording for operation invocations.
-* Add dry-run/read-only mode for safe inspection.
+* Add plan/read-only mode for safe inspection.
 * Add policy tests for `switch`, `dev`, `save`, `stage`, `close`, and `release`.
 
 Deliverables:
@@ -1904,34 +1904,9 @@ Generated knowledge includes an optimization score and review recommendation.
 
 ---
 
-## Milestone 6: Local dogfood scenario for TreeSeed book knowledge
+## Milestone 6: TreeDX-backed local workday proof
 
-Goal: run planner, researcher, knowledge generator, and optimizer against the top-level market platform.
-
-Tasks:
-
-* Seed objective: write TreeSeed book knowledge about the agent processing platform.
-* Seed questions about research, workdays, provider architecture, Codex provider, API/UI integration.
-* Run planner.
-* Run researcher.
-* Run knowledge generator.
-* Run optimizer.
-* Emit summary JSON.
-* Assert no code mutation.
-
-Deliverables:
-
-```text
-packages/agent/src/agents/testing/market-knowledge-dogfood.ts
-packages/agent/scripts/test-market-knowledge-dogfood.ts
-packages/agent/test/agents/market-knowledge-dogfood.test.ts
-```
-
-Acceptance:
-
-```text
-npm run test:market-knowledge-dogfood creates optimized draft knowledge about TreeSeed.
-```
+The former filesystem-writing Market knowledge dogfood harness was retired. It duplicated agent orchestration and bypassed the production TreeDX assignment path. Knowledge and research acceptance must now use the real API workday, provider manager, runner, AgentKernel, assignment-scoped TreeDX tools, mutation receipts, usage settlement, and guarantee evidence described in `docs/agent-capacity-completion.md`.
 
 ---
 
@@ -1977,7 +1952,7 @@ Tasks:
 
 * Confirm Codex execution tasks receive operations permissions from the work package before any mutation attempt.
 * Add `@openai/codex-sdk` dependency to `packages/agent`.
-* Add `codex` provider id, with `codex_subscription` accepted as a compatibility alias.
+* Add the canonical `codex` provider id without compatibility aliases.
 * Add provider config schema.
 * Add readiness check.
 * Add adapter skeleton.
@@ -1995,7 +1970,7 @@ packages/agent/test/agents/codex-provider.test.ts
 Acceptance:
 
 ```text
-Provider can be selected and mocked in tests without invoking the Codex CLI.
+Provider selection tests may validate configuration and fail-closed behavior without invoking Codex, but provider execution evidence requires the real provider.
 ```
 
 ---
@@ -2259,22 +2234,9 @@ Test:
 * provider readiness warnings appear;
 * empty states are useful.
 
-### 14.5 Dogfood tests
+### 14.5 Workday service tests
 
-Add:
-
-```bash
-cd packages/agent
-npm run test:market-knowledge-dogfood
-```
-
-Expected:
-
-```text
-planner -> researcher -> knowledge_generator -> optimizer -> approval_request
-```
-
-No code mutation in dogfood test.
+Use `trsd capacity test-local` and the package-owned active capacity guarantees. Evidence is valid only when the work uses assignment-scoped TreeDX operations and durable mutation receipts; direct fixture content writes do not prove the production workflow.
 
 ---
 
@@ -2291,8 +2253,8 @@ No code mutation in dogfood test.
 | Optimizer                          | targeted handler test plus draft scoring fixture                                          |
 | Worker task mapping                | service worker tests plus local workday smoke                                             |
 | Manager task seeding               | manager tests plus local workday smoke                                                    |
-| Codex provider skeleton            | mocked SDK unit tests                                                                     |
-| Codex provider execution           | mocked SDK tests plus manual local readiness test                                         |
+| Codex provider contract            | schema and fail-closed selection tests                                                     |
+| Codex provider execution           | automated live-provider service workflow plus durable lifecycle evidence                  |
 | API surface                        | API tests                                                                          |
 | Work/Knowledge/Capacity app surfaces | UI/render tests and local manual inspection                                             |
 | End-to-end local runtime           | `npm run dev -- --reset`, `npm run dev -- --surface services`, launch workday, inspect UI |
@@ -2599,10 +2561,16 @@ The implementation target is complete. Use this checklist before staging or rele
   * `npm run test:agent-contracts`
   * `npm run test:agent-handlers`
   * `npm run test:agent-message-chains`
-  * `npm run test:manager-worker`
+  * `npm run test:provider-runtime`
   * `npm -w packages/agent run test:capacity-provider-runtime`
   * `npx vitest run test/api/api.test.ts -t "agents"`
   * `npx vitest run test/lib/operational-ia.test.ts`
   * `git diff --check`
 * Run root `npm run verify:local` when package verifies pass and the local runtime cost is acceptable.
 * Keep production release human-gated: release may run only through an explicit human release approval.
+
+## Starter And Guarantee Defaults
+
+Engineering starters mirror the root Market activity-profile agent definitions. Research starters carry research, review, technical-writer, and deterministic reporter agents; knowledge-pack packaging belongs there until a separate information-hub starter has unique workflow semantics.
+
+Agent guarantee runs use `TREESEED_AGENT_GUARANTEE_EXECUTION_PROVIDER` with `auto` or `live-codex`. Both modes require real Codex authentication and execute through the normal manifest-selected provider path. CI, local, and staging runs that claim agent execution must fail closed with `missing_codex_auth` when Codex is unavailable; there is no mock or synthetic completion mode.

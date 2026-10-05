@@ -1,5 +1,9 @@
 # TreeSeed Scene Authoring Guide
 
+## Seed prerequisites and Agent Lab scope
+
+Scenes declare ordered prerequisites with `setup.seeds`, for example `[{ name: treeseed, environments: [local], apply: true }]`. All prerequisites are planned before mutation; identical resources are deduplicated and conflicting definitions block the run. Agent Lab scenes select either `scope.kind: team` with seeded team/provider resource keys, or `scope.kind: ephemeral`. Team scope retains workdays and evidence for Admin; ephemeral scope retains the isolated acceptance cleanup contract. The Guide editorial development scenes use the TreeSeed team scope.
+
 This is the canonical authoring guide for designing TreeSeed scenes as the central TreeSeed acceptance test harness and demo / educational video generator.
 
 A scene is one executable workflow manifest that can produce many outputs: browser acceptance evidence, Playwright recordings, screenshots, timelines, rendered MP4 demos, training captions, transcripts, narration scripts, glossary entries, evidence manifests, sanitized publish bundles, publication plans, and local exports.
@@ -167,6 +171,28 @@ artifacts:
   timeline: true
   appLogs: true
 ```
+
+For scenes used by active guarantees, declare the service journey contract:
+
+```yaml
+journey:
+  kind: service
+  proves:
+    - user can create a project
+    - project appears in the project list
+  minimumSteps: 3
+  requiresInteractiveAction: true
+  producesState:
+    - key: project.primary
+      kind: project
+  consumesState:
+    - key: auth.owner
+      kind: user
+```
+
+Active guarantee scenes must prove a workflow, not just a route. Include a `goto`, interactive actions, assertions on each acceptance step, and enough distinct steps for the reviewer to inspect the journey. Use `data-scene`, `data-testid`, role/name, label, or text selectors. Raw CSS selectors should be marked internal or brittle and avoided for release-facing guarantee proof.
+
+Scene runs capture a full-page screenshot after every executed step. Viewport screenshots are internal debug/render fallback artifacts and should not be treated as primary reviewer evidence.
 
 `runtime` controls long scenes:
 

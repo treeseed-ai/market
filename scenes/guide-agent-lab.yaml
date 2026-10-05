@@ -1,0 +1,79 @@
+schemaVersion: treeseed.scene/v1
+id: guide-agent-lab
+title: TreeSeed Guide Production Agent Lab
+description: Run the complete Guide editorial roster through a seeded team-scoped cooperative planning workday with live forensic evidence.
+audience: [operator, agent-developer, qa]
+
+journey:
+  kind: agent-lab
+  proves:
+    - agent-testing/production-lab
+
+mode:
+  test: false
+  demo: true
+  training: false
+
+runtime:
+  mode: demo
+
+target:
+  app: market
+  environment: local
+  baseUrl: auto
+  browser: chromium
+  viewport: { width: 1600, height: 1000 }
+
+setup:
+  dev:
+    required: true
+    reuseExisting: true
+  seeds:
+    - name: treeseed
+      environments: [local]
+      apply: true
+
+artifacts:
+  trace: false
+  video: false
+  screenshots: false
+  console: true
+  network: true
+  timeline: true
+  appLogs: true
+
+workflow: []
+
+agentLab:
+  scope:
+    kind: team
+    team: team:treeseed
+    capacityProvider: capacity-provider:treeseed/agents
+  provider: local
+  executionProvider: codex-treeseed
+  presentation: race-control
+  timeZone: America/New_York
+  repositories: [market]
+  agents:
+    - evidence-researcher
+    - guide-steward
+    - guide-writer
+    - knowledge-cartographer
+    - technical-verifier
+    - audience-reviewer
+    - publication-steward
+    - workday-reporter
+  agentClasses: []
+  workdays:
+    - id: guide-editorial-cycle
+      title: Guide Editorial Cycle
+      agentTests: [guide-editorial-cycle]
+      objectiveRefs: [objective:harden-documentation-automation-workday-loop]
+      durationSeconds: 10800
+      timePolicy: { cooperativePlanningPercent: 90, governedExecutionPercent: 0, reservePercent: 10 }
+      planningSession: { rounds: 3, assignmentTimeboxSeconds: 540, tokenWarning: 24000 }
+      maxActiveAssignments: 2
+      planningOnly: true
+
+training:
+  enabled: false

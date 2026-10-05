@@ -1,0 +1,68 @@
+schemaVersion: treeseed.guarantee/v2
+id: guarantee.agent.system.guide-golden.918
+journeyIndex: 918
+type: agent
+subtype: system
+journey: Prove editorial Guide development end to end
+ownerPackage: "@treeseed/market"
+surface: cli
+summary: Editorial agents improve canonical Guide content through the governed lifecycle with semantic target-ref read-back and zero residue.
+status: planned
+capabilityId: agent.system.guide-golden
+catalog: agent.system
+activation:
+  minimumConsecutivePasses: 3
+  requiredVariants: [baseline, clean-repeat, interruption-resume]
+  invalidateOnSourceChange: true
+  distinctEntityRefs:
+    - subject: ephemeralProject
+      variants: [baseline, interruption-resume]
+proof:
+  requiredCommands: [projects.list, capacity.context-query-checks, governance.proposal-show, capacity.decision-planning, capacity.capacity-plan, capacity.assignment, capacity.workday-summary, capacity.treedx-proxy-audit, platform.status]
+  minimumRepositoryPostconditions: 1
+  outcomePredicates:
+    guide.editorial-lifecycle: [guide.dynamic-context, guide.proposal, guide.simulated-human-decision, guide.estimate, guide.writing, guide.editorial-review, guide.technical-review, guide.reporting, guide.settlement, guide.cleanup]
+    guide.semantic-content-outcome: [guide.pages, guide.required-claims, guide.relationships, guide.navigation, guide.receipts, guide.signals, guide.target-ref-read-back]
+    guide.ephemeral-baseline: [guide.ephemeral-project, guide.isolated-project]
+    guide.canonical-integration: [guide.canonical-project, guide.target-ref-read-back]
+    guide.ephemeral-interruption: [guide.ephemeral-project, guide.interruption-resume, guide.zero-residue]
+outcomes:
+  - id: guide.editorial-lifecycle
+    kind: required
+    description: Dynamic context, proposal, decision, estimate, writing, independent editorial and technical review, reporting, settlement, and cleanup are exact and governed.
+    evidenceKinds: [redacted_cli_transcript, workflow_graph, treedx_read_back]
+    authoritativeSubjects: [proposalRevision, decision, workday, summaryRef]
+  - id: guide.semantic-content-outcome
+    kind: required
+    description: Intended Guide pages, claims, relationships, navigation placement, receipts, and signals exist at the observed target ref.
+    evidenceKinds: [semantic_content_assertions, mutation_receipt, repository_read_back]
+    authoritativeSubjects: [contentArtifacts, integratedRef, targetRef]
+  - id: guide.ephemeral-baseline
+    kind: required
+    variants: [baseline]
+    description: The baseline run uses one isolated ephemeral Guide project.
+    evidenceKinds: [project_inventory, cleanup]
+    authoritativeSubjects: [ephemeralProject, targetRef]
+  - id: guide.canonical-integration
+    kind: required
+    variants: [clean-repeat]
+    description: The clean repeat integrates the intended outcome into the canonical Guide project.
+    evidenceKinds: [project_inventory, repository_read_back]
+    authoritativeSubjects: [canonicalProject, targetRef]
+  - id: guide.ephemeral-interruption
+    kind: required
+    variants: [interruption-resume]
+    description: The interruption run uses a second isolated ephemeral Guide project and resumes without residue.
+    evidenceKinds: [project_inventory, replay_trace, cleanup]
+    authoritativeSubjects: [ephemeralProject, targetRef]
+dependencies: { journeys: [], guarantees: [guarantee.agent.portability.project-fork.920] }
+actors: { allowed: [capacity_operator, simulated_human], forbidden: [anonymous_user, unauthorized_user] }
+devices: { required: [] }
+gates: [core]
+preconditions: { fixtures: [ephemeral_guide_project, canonical_guide_project] }
+api: { required: true, verifierRefs: [market.agent-catalog.golden-live-proof] }
+content: { required: true, verifierRefs: [] }
+audit: { required: true, verifierRefs: [] }
+negativeCases: []
+evidence: { required: [verifier_evidence, redacted_cli_transcript] }
+notes: ["Operational readiness begins only when this capability reaches active status."]

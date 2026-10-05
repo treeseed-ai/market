@@ -1,12 +1,10 @@
-# TreeSeed Seeds
+# Portfolio seed ownership
 
-Seed manifests define named, declarative market portfolios that can be validated and planned with the Treeseed CLI.
+Market does not publish a competing TreeSeed team or capacity-provider seed.
+The canonical portable portfolio bundle is maintained by the Platform
+repository at `seeds/treeseed.yaml`, where Market and Market API are independent
+first-party projects with portfolio-only custody.
 
-Phase 1 is plan-only:
-
-```bash
-trsd seed treeseed --environments local --plan
-trsd seed treeseed --validate
-```
-
-Apply support is intentionally blocked until local reconciliation upserts land in the next phase.
+Market remains independently built and released. Platform seed ownership does
+not make Market a Platform deployment resource, and this Apache-2.0 repository
+has no contributor-grant workflow.

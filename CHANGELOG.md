@@ -1,5 +1,570 @@
 # Changelog
 
+## [0.7.48] - 2026-07-15
+
+### Added
+
+- feat(deps): archive stale stage resumes after repository heads (f763c7dec720)
+- feat(deps): wait for Railway deployments before live hosting (cf3bb0af0a82)
+- feat(deps): honor package deployment capabilities during staging (d216340a7e57)
+- feat(deps): sync integrated package updates (85651588ec94)
+- feat(deps): make API staging deployment safely retryable (e2fd4a6653b5)
+- feat(deps): align managed tool test fallback with SDK (7a4d545f8c5e)
+- feat(deps): fail fast on conclusive deployment CLI verification (89a59392ada5)
+- feat(deps): fix managed Railway CLI test environment (ae9b95f13ac0)
+- feat(deps): bound remote Git workflow probes (fc5cc53b308b)
+- feat(deps): handle orphaned Railway volume migration (5c1ac1442ba3)
+- feat(deps): use Railway SDK for environment patch operations (f408eaa04fc2)
+- feat(deps): classify stale Railway attachments from blocker records (f1b4660c9ccd)
+- feat(deps): scope Railway migration cleanup to target environment (9c3e1cbe5a3f)
+- feat(deps): resolve qualified Railway service from project inventory (6028db6f1578)
+- feat(deps): unblock exact inactive Railway migration attachment (ecc48f590bb5)
+- feat(deps): detach only known empty Railway migration volumes (6b9525d41745)
+- feat(deps): commit Railway restored volume patch (e8f00a445868)
+- feat(deps): restore Railway volumes through native source snapshots (88ebcc83cede)
+- feat(deps): retry Railway backup propagation safely (6996ea467b57)
+- feat(deps): treat Railway backup workflows as opaque (138ceb4e3091)
+- 2 additional changes omitted from this summary.
+
+### Fixed
+
+- test(deps): update scalable hosting boundary contract (abe7b03c69e9)
+- build(deps): sync integrated package updates (7d735f583c9e)
+- build(deps): isolate Railway staging and production service sources (10bd8e49f7c9)
+
+### Tests
+
+- chore(workspace): update submodules and documentation (6180dda0e26d)
+- build(deps): enforce SDK-first Railway reconciliation (a913df198550)
+
+### Dependencies
+
+- build(deps): wait for Railway volume detach propagation (41f5d21b6f5b)
+- @treeseed/admin: 0.12.57
+- @treeseed/agent: 0.12.57
+- @treeseed/api: 0.6.56
+- @treeseed/cli: 0.12.57
+- @treeseed/core: 0.12.58
+- @treeseed/sdk: 0.12.61
+- @treeseed/ui: 0.12.17
+
+## [0.7.47] - 2026-07-14
+
+### Added
+
+- feat(deps): prevent stale stage auto-resume after candidate heads (e7a31e29db4a)
+- feat(deps): allow retained production aliases during staging (d52b8b9abb99)
+
+### Fixed
+
+- build(deps): deduplicate Railway API services and enforce canonical (11c403a6e47c)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.56
+- @treeseed/agent: 0.12.56
+- @treeseed/api: 0.6.55
+- @treeseed/cli: 0.12.56
+- @treeseed/core: 0.12.57
+- @treeseed/sdk: 0.12.60
+- @treeseed/ui: 0.12.16
+
+## [0.7.46] - 2026-07-14
+
+### Fixed
+
+- build(deps): fix release image state and atomic lockfiles (9fef252f5fb8)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.55
+- @treeseed/agent: 0.12.55
+- @treeseed/api: 0.6.54
+- @treeseed/cli: 0.12.55
+- @treeseed/core: 0.12.56
+- @treeseed/sdk: 0.12.59
+- @treeseed/ui: 0.12.16
+
+## [0.7.45] - 2026-07-13
+
+### Fixed
+
+- build(deps): scope release validation to selected packages (77a31f324671)
+- build(deps): fix selective release metadata for verification-only (9daa44a0cabd)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.54
+- @treeseed/agent: 0.12.54
+- @treeseed/api: 0.6.53
+- @treeseed/cli: 0.12.54
+- @treeseed/core: 0.12.55
+- @treeseed/sdk: 0.12.58
+- @treeseed/ui: 0.12.16
+
+## [0.7.43] - 2026-07-13
+
+### Added
+
+- feat(deps): retain declared sibling operations runner resources (0036de6b551e)
+- feat(deps): discover Railway sibling identities without production (482d1f65bea4)
+- feat(deps): Retry transient GitHub job setup failures once (3b04a07c7d08)
+- feat(deps): Align CLI stage cleanup contract (b95ce018cc02)
+- feat(deps): Require explicit workflow resume and prevent stale (f1583a81a52b)
+
+### Fixed
+
+- build(deps): reattach production Railway domains to exact desired (8c4d87799842)
+- build(deps): Fix release readiness and merged branch cleanup (1e6eb4395fba)
+
+### Dependencies
+
+- build(deps): retain sibling Railway environments during production (6226e5eff9d2)
+- build(deps): Avoid repeated fetches during merged branch cleanup (c067d6ed7433)
+- build(deps): Delete merged feature branches after successful stage (07e5f550b5da)
+- build(deps): Permanently isolate Railway staging Git sources (654bd23dc2c8)
+- @treeseed/admin: 0.12.52
+- @treeseed/agent: 0.12.52
+- @treeseed/api: 0.6.51
+- @treeseed/cli: 0.12.52
+- @treeseed/core: 0.12.53
+- @treeseed/sdk: 0.12.56
+- @treeseed/ui: 0.12.16
+
+## [0.7.40] - 2026-07-13
+
+### Tests
+
+- ci(deps): sync integrated package updates (a89291c3f2f5)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.49
+- @treeseed/agent: 0.12.49
+- @treeseed/cli: 0.12.49
+- @treeseed/core: 0.12.50
+- @treeseed/sdk: 0.12.53
+- @treeseed/ui: 0.12.16
+
+## [0.7.39] - 2026-07-13
+
+### Added
+
+- feat(deps): support published SDK dependencies in API verification (16a6f83e286a)
+- feat(deps): Patch TreeDX Phoenix and Plug security advisories (42176432ce54)
+- feat(deps): Make TreeDX metrics test state-safe (3ac7d77b1251)
+- feat(deps): Restore verified Reviewer SDK artifact hydration (4eb932451142)
+- feat(deps): Build lock-pinned SDK during Reviewer verification (22fdb91e8062)
+- feat(deps): Use GitHub token fallback for Reviewer artifact hydration (2bb0a43a3c69)
+- feat(deps): Hydrate Reviewer SDK verification artifact (7beaa4e02705)
+- feat(deps): Verify API deployment CLI artifact hydration (c2320cb09441)
+- feat(deps): use deterministic seeded project IDs in scenes (80b7cadf77d9)
+- feat(deps): seed verified login fixture without browser session (a40c882cef38)
+- feat(deps): assert stable verification handoff heading (715d1c9b6ecf)
+- feat(deps): separate hosted email UI and delivery evidence (6d01822b1f19)
+- feat(deps): preserve dependency graph during artifact hydration (c06358ab4a94)
+- feat(deps): fix stage completion and API SMTP routing (649fcf27b888)
+- feat(deps): Bind hosted API SMTP settings from root staging registry (04d2c1935351)
+- feat(deps): Bind hosted API SMTP settings from root staging registry (e99122918536)
+- feat(deps): Fix staging guarantee scene routes and registration (30e191c370ee)
+- feat(deps): Expose API surface URLs to strict live staging checks (25ecdfb6204e)
+- feat(deps): Make hosted apply wait for transient HTTP readiness (d196ea9994ad)
+- feat(deps): make staging candidate retries resumable (8402ca1af237)
+- 3 additional changes omitted from this summary.
+
+### Changed
+
+- Adding a TreeSeed reviewer interface project. (eebc61600899)
+
+### Fixed
+
+- build(deps): bump version to 0.7.36 and update dependencies (64a3289728de)
+- ci(deps): Fix deployment build and CLI artifact closure (4f8cf954c830)
+- ci(deps): fix hosted scene fixtures routes and browsers (b642feeaa071)
+- ci(deps): hydrate exact candidate artifacts before staging deploy (b0a52bdecc74)
+- build(deps): fix staging candidate route inventory (f6faa8a6bf65)
+- build(deps): sync integrated package updates (5f1cfdde08c0)
+- build(deps): lock in UI shell architecture and test fixes (6a0c602d396a)
+
+### Tests
+
+- chore(reviewer): update submodule pointer (289b3f80816b)
+- build(deps): verify local-only reviewer through workspace links (3350424d6f63)
+- ci(deps): Run Market verification on staging pushes (80ac08d482f8)
+- ci(deps): Standardize verify release-gate and deploy workflows (19ea1f4e7883)
+- ci(deps): Propagate API web service secret through staging (7a8122316475)
+- ci(deps): Propagate control-plane secrets through staging reconciliation (81c537a517d1)
+- ci(deps): inject protected TreeDX secrets into staging reconciliation (cf3f18666fa1)
+- ci(deps): recover reliable save stage release workflow (667061f1ce48)
+
+### Dependencies
+
+- build(deps): update package dependencies and submodule pointers (3fb443ff3e72)
+- build(reviewer): update dependencies and bump version (35c6bef6475d)
+- build(root): bump version to 0.7.38 and update dependencies (32847cf8ffaa)
+- build(deps): sync integrated package updates (ae81891afacb)
+- build(deps): sync integrated package updates (b409881c7a45)
+- build(deps): sync integrated package updates (065150397f40)
+- build(deps): preserve registry dependency lock semantics (3e3e8b7aff8d)
+- build(deps): resume release after Hex credential rotation (3dcd6843e724)
+- build(deps): reuse exact staged candidate proof during release (8a1e042043b0)
+- build(deps): reuse staged package closure during release verification (c8dec57b0725)
+- build(deps): resolve managed release tooling and stale checkout adoption (f284065cd5b8)
+- build(deps): allow Railway deployments to settle before live (c14ece18b894)
+- build(deps): restore workspace links after release dependency hydration (6c096fcea069)
+- build(deps): hydrate missing package dependencies before release (1155a1582f52)
+- build(deps): avoid release tag collisions after partial publication (7178947f0bab)
+- build(deps): sync integrated package updates (a0c878d5dca6)
+- build(deps): sync integrated package updates (37fc74aa566a)
+- build(deps): update internal package versions and pointers (249e1150f435)
+- build(deps): sync integrated package updates (80e2edf36107)
+- build(deps): Exclude verification-only packages from release publication (c2b095148782)
+- 14 additional changes omitted from this summary.
+
+## [0.7.30] - 2026-07-06
+
+### Fixed
+
+- build(deps): sync release package locks after TreeDX security fix (2f16eb004ecd)
+
+### Dependencies
+
+- build(deps): sync starter and fixture submodule promotion with stage (6406fd880925)
+- @treeseed/admin: 0.12.40
+- @treeseed/agent: 0.12.40
+- @treeseed/api: 0.6.39
+- @treeseed/cli: 0.12.40
+- @treeseed/core: 0.12.41
+- @treeseed/sdk: 0.12.44
+- @treeseed/ui: 0.12.8
+- treedx: 0.2.37
+
+## [0.7.28] - 2026-07-06
+
+### Fixed
+
+- build(deps): fix Railway Dockerfile hosted build command verification (08c323a9e05e)
+
+### Tests
+
+- build(deps): complete starter, api guarantee, and agent live (ce32aa860b05)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.38
+- @treeseed/agent: 0.12.38
+- @treeseed/api: 0.6.37
+- @treeseed/cli: 0.12.38
+- @treeseed/core: 0.12.39
+- @treeseed/sdk: 0.12.42
+- @treeseed/ui: 0.12.6
+- treedx: 0.2.35
+
+## [0.7.27] - 2026-07-05
+
+### Added
+
+- feat(deps): harden container image release security (1b65e0ba3fe4)
+
+### Fixed
+
+- build(deps): fix Docker Hub attestation verification (d8ebd7b19e8a)
+
+### Dependencies
+
+- build(deps): add final production release guarantee gate (93212f2a72ad)
+- @treeseed/admin: 0.12.37
+- @treeseed/agent: 0.12.37
+- @treeseed/api: 0.6.36
+- @treeseed/cli: 0.12.37
+- @treeseed/core: 0.12.38
+- @treeseed/sdk: 0.12.41
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.34
+
+## [0.7.25] - 2026-07-05
+
+### Fixed
+
+- build(deps): fix production source cache purge finalization (9f4061a3ea28)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.35
+- @treeseed/agent: 0.12.35
+- @treeseed/api: 0.6.34
+- @treeseed/cli: 0.12.35
+- @treeseed/core: 0.12.36
+- @treeseed/sdk: 0.12.39
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.33
+
+## [0.7.24] - 2026-07-05
+
+### Fixed
+
+- build(deps): bypass source page edge cache for production release (e1078b21f198)
+
+### Dependencies
+
+- build(deps): make live hosted env checks provider authoritative (1c3a43183a02)
+- build(deps): fail release on broken production web surface (d1f82ad947ab)
+- @treeseed/admin: 0.12.34
+- @treeseed/agent: 0.12.34
+- @treeseed/api: 0.6.33
+- @treeseed/cli: 0.12.34
+- @treeseed/core: 0.12.35
+- @treeseed/sdk: 0.12.38
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.32
+
+## [0.7.23] - 2026-07-04
+
+### Dependencies
+
+- build(deps): purge production web cache before release verification (91e7dedeed60)
+- @treeseed/admin: 0.12.33
+- @treeseed/agent: 0.12.33
+- @treeseed/api: 0.6.32
+- @treeseed/cli: 0.12.33
+- @treeseed/core: 0.12.34
+- @treeseed/sdk: 0.12.37
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.31
+
+## [0.7.22] - 2026-07-04
+
+### Fixed
+
+- fix(release): sync package recovery heads (95b4c7cacabe)
+- fix(release): update TreeDX gate compatibility (053977dbf610)
+- fix(release): restore TreeDX release gate integration (455a8f02c96f)
+
+### Infrastructure
+
+- chore(release): refresh staging package refs (e13158ad93f2)
+
+### Dependencies
+
+- build(build): require trsd operations for project work (024d9ecdd5e9)
+- @treeseed/admin: 0.12.32
+- @treeseed/agent: 0.12.32
+- @treeseed/api: 0.6.31
+- @treeseed/cli: 0.12.32
+- @treeseed/core: 0.12.33
+- @treeseed/sdk: 0.12.36
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.30
+
+## [0.7.21] - 2026-07-04
+
+### Fixed
+
+- fix: use sdk railway git source repair (17c71ef2a947)
+- fix: preserve release operator links (86e122e51fc0)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.30
+- @treeseed/agent: 0.12.30
+- @treeseed/api: 0.6.29
+- @treeseed/cli: 0.12.30
+- @treeseed/core: 0.12.31
+- @treeseed/sdk: 0.12.34
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.28
+
+## [0.7.20] - 2026-07-04
+
+### Fixed
+
+- chore: advance sdk test fix (d77ddb06dbda)
+- chore: update sdk publish gate ordering fix (76571e8c2f70)
+- chore: update sdk workflow gate failure fix (c0fd6ab0206c)
+- chore: update sdk release gate fix (e3206dcf4aeb)
+- chore: update api hosted sdk email acceptance fix (10a369b03fc4)
+- chore: update api acceptance nonce fix (8f46b94a8691)
+- chore: update api acceptance bypass fix (b1a7226b09c2)
+- chore: update api acceptance seed fix (d4e0cabcc61a)
+- fix: update api live credential propagation (7cbcade83363)
+- fix: gate release graph on api workflow failures (e3e42a1a57c3)
+- chore: update API live credential fix (16c9cb376bc9)
+- chore: update API staging workflow fix (92e4af782ad2)
+- chore: update api acceptance credential fix (d3a8cf08e6b6)
+- fix: retry market api workflow gate polling (521d92ec4682)
+- chore: update api sdk release fixes (c16e12ddc3bf)
+- fix: gate staging market deploys on API workflows (4150f853ab7b)
+- chore: update sdk release gate fix (6fec41b4bd71)
+
+### Infrastructure
+
+- chore: record release package versions (92bcab5f01f1)
+- chore: record release package versions (92bf8c16606f)
+- chore: record release package versions (8c18ab7a839c)
+- chore: record changelog cleanup pointers (dbbb42fcf18b)
+- chore: record release package versions (7b6ed27fd8f2)
+- chore: record release retry package pointers (fd3fb8003530)
+- chore: sync release package lock (ee9b1fa52597)
+- chore: record release package pointers (4fdfd0fea3dc)
+- chore: update sdk staging pointer (adebaa51483b)
+- Update release source policy package pointers (bf17db76abc3)
+- Advance release pointers after API deploy gate (e429a215bb04)
+- Advance release package pointers (66bfa05d4e9f)
+- Record published package release pointers (e73b9907931e)
+- Update API deploy workflow pointer (2beb2e65f3c1)
+- Update CLI release verification pointer (86b4a35fc0f3)
+- chore: advance sdk release reconciler (6ca6b31b70cf)
+- chore: advance release package pointers (93f91c393646)
+- chore: keep api ci in api package (194eb1715484)
+- chore: bound hosted web deploy workflow (08a36fa90284)
+- chore: update sdk deploy retry repair (4df3b532fb11)
+- 12 additional changes omitted from this summary.
+
+### Tests
+
+- chore: update api staging dependency test (d0bd0cac15b1)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.29
+- @treeseed/agent: 0.12.29
+- @treeseed/api: 0.6.28
+- @treeseed/cli: 0.12.29
+- @treeseed/core: 0.12.30
+- @treeseed/sdk: 0.12.33
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.27
+
+## [0.7.11] - 2026-07-03
+
+### Fixed
+
+- Update staging refs for release verification fix (c5710a3e235f)
+- fix(release): load API acceptance credentials from config (55554eefc5ce)
+- fix(release): gate root deploy on API production verification (40bfcdfe4522)
+
+### Infrastructure
+
+- Update staging package refs for release retry (bd45e8b95cef)
+- Update release verification package pointers (df7f55a2ed4a)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.16
+- @treeseed/agent: 0.12.16
+- @treeseed/api: 0.6.15
+- @treeseed/cli: 0.12.16
+- @treeseed/core: 0.12.17
+- @treeseed/sdk: 0.12.20
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.15
+
+## [0.7.10] - 2026-07-03
+
+### Infrastructure
+
+- Update release diagnostics (c98546b7eb45)
+- Update sdk release journal scan (cdd0eb309a9b)
+- Update sdk release image reconciliation (0408f6cb8d66)
+
+### Tests
+
+- Update sdk release gate test isolation (484feb3f886f)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.13
+- @treeseed/agent: 0.12.13
+- @treeseed/api: 0.6.12
+- @treeseed/cli: 0.12.13
+- @treeseed/core: 0.12.14
+- @treeseed/sdk: 0.12.16
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.12
+
+## [0.7.9] - 2026-07-02
+
+### Changed
+
+- Update sdk Railway Postgres reconciliation (c2e7378d6033)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.12
+- @treeseed/agent: 0.12.12
+- @treeseed/api: 0.6.11
+- @treeseed/cli: 0.12.12
+- @treeseed/core: 0.12.13
+- @treeseed/sdk: 0.12.15
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.11
+
+## [0.7.8] - 2026-07-02
+
+### Changed
+
+- Update api acceptance credential isolation (0d702593fc7b)
+- Update sdk Railway image env scope (30c6c9f501f9)
+- Update sdk production database reconciliation (fb85977da527)
+
+### Fixed
+
+- Update sdk production image scope fix (7d82fec56df9)
+- Update sdk reconcile env overlay fix (4705bfa058eb)
+
+### Dependencies
+
+- Update api production dependency assertion (e0272bf95ddb)
+- @treeseed/admin: 0.12.11
+- @treeseed/agent: 0.12.11
+- @treeseed/api: 0.6.10
+- @treeseed/cli: 0.12.11
+- @treeseed/core: 0.12.12
+- @treeseed/sdk: 0.12.14
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.10
+
+## [0.7.7] - 2026-07-02
+
+### Fixed
+
+- Update sdk production reconciliation fix (2999cd1d5624)
+- Update sdk release image gate fix (2bdf05f1efb8)
+- fix(release): refresh staging lock recovery refs (9293494aec6a)
+- fix(release): refresh staging release guard refs (9e3ed89394a3)
+- fix(release): require valid production railway topology (266403a39edb)
+- fix(release): refresh staging package refs (6068f6499170)
+- fix(release): update sdk journal loader (13466d9854cd)
+- fix(release): restore staging refs after artifact check fix (2029acf63492)
+- fix(release): align SDK staging pointer (e58cfb3911d0)
+- fix(release): restore staging refs after TreeDX crate fix (42db83de09a6)
+- fix(release): update TreeDX crate package fix (7ce5b95d8d4c)
+- fix(release): refresh staging refs after SDK launcher fix (b875c0024536)
+- fix(release): restore staging package commit refs (7f6617c4a67f)
+- fix(release): update SDK key-agent release guard (64a790191884)
+- fix(release): update TreeDX Rust publish fix (3c0fc48bb44c)
+- fix(release): retry visual fixture login (0605c860a113)
+- fix(release): retry hosted scene navigation (45adac7a4e2d)
+- fix(release): retry API acceptance requests (b342bf8cac69)
+- fix(release): allow agent npm provenance (77ebc000d6c0)
+- fix(release): retry npm lockfile refresh (39e60d38ebe1)
+- 7 additional changes omitted from this summary.
+
+### Infrastructure
+
+- Update release recovery package pointers (141f97e1fb40)
+
+### Dependencies
+
+- @treeseed/admin: 0.12.10
+- @treeseed/agent: 0.12.10
+- @treeseed/api: 0.6.9
+- @treeseed/cli: 0.12.10
+- @treeseed/core: 0.12.11
+- @treeseed/sdk: 0.12.13
+- @treeseed/ui: 0.12.5
+- treedx: 0.2.9
+
 ## [0.7.5] - 2026-07-02
 
 ### Fixed
@@ -549,7 +1114,6 @@
 
 ### Dependencies
 
-- build(deps): avoid live queue lookup during destroy dry runs (e56427021569)
 - build(deps): harden provider cleanup api calls for clean destroy (2e2e8e13da51)
 - build(deps): wait for delayed Railway service instances before (d42fba82760c)
 - Release @treeseed/market 0.6.20.

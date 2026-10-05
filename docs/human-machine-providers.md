@@ -27,10 +27,10 @@ This is not a new scheduler. This is not a new task system. Jira, Linear, GitHub
 Human teams, deterministic workflows, and AI agents use the same control-plane lifecycle:
 
 ```text
-provider check-in -> next assignment -> lease renewal -> mode-run telemetry -> complete/return/fail -> usage settlement
+membership-scoped availability session -> next assignment -> lease renewal -> mode-run telemetry -> complete/return/fail -> usage settlement
 ```
 
-Handlers are provider-independent algorithms. Providers are execution mechanisms. First-party agents use the generic handler set `plan`, `research`, `act`, `review`, and `report`; project agent classes and `handlerConfig.domain` carry role semantics such as implementation, documentation review, release readiness, or codebase cartography. The same generic handlers can work across AI, deterministic automation, and human issue queues when their capability requirements match provider supply.
+Handlers are provider-independent algorithms. Providers are execution mechanisms. First-party agents use activity profiles over the clean handler set `writer`, `actor`, `estimate`, `releaser`, and `reporter`; project agent classes and profile contracts carry role semantics such as implementation, documentation review, release readiness, or codebase research. The same handlers can work across AI, deterministic automation, and human issue queues when their capability requirements match provider supply.
 
 TreeDX-backed content access is the default SDK and assignment runtime path. Execution provider invocations may include redacted `agent_tool` descriptors when the agent content definition allows those tools and the assignment has the required scoped handles. AI providers such as Codex use the catalog through assignment-scoped MCP configuration metadata; human issue queues such as GitHub Issues render safe route templates, allowed operations, allowed paths, and required header names into the issue body. Model-aware content tools expose generic `treeseed.content.*` commands plus generated model presets while sharing one SDK-backed renderer and validator. No execution provider prompt, issue, snapshot, log, or artifact should contain raw TreeDX credentials, provider API keys, GitHub tokens, or repository deploy keys.
 
@@ -43,8 +43,9 @@ The design goal is that it must be easy for capacity providers to orchestrate hu
 ## Core Principle
 
 ```text
-handler = the generic algorithm
-agent class/domain = what the work means
+activity profile = the bounded run contract
+handler = the provider-independent algorithm
+agent class = what the work means
 execution provider adapter = how and where the work runs
 capacity provider = who supplies execution capacity
 assignment = what Treeseed authorized now
@@ -53,9 +54,13 @@ assignment = what Treeseed authorized now
 Projects own work semantics:
 
 - agent MDX definitions
-- handler semantics
+- activity profiles
+- handler selection
 - prompts and persona
-- permissions
+- content access
+- tool permissions
+- branch policy
+- question policy
 - required capabilities
 - output contracts
 - planning and acting policy needs
@@ -89,11 +94,11 @@ This architecture must integrate with existing Treeseed systems instead of creat
 
 Do use:
 
-- existing provider check-in and assignment lifecycle routes
+- existing provider availability-session and assignment lifecycle routes
 - existing `ProviderAvailabilitySession`, `ProviderAssignment`, `ProviderAssignmentExplanation`, `AgentModeRun`, usage, reservation, and ledger records
 - existing AgentKernel execution boundary
 - existing project agent MDX definitions
-- existing semantic handlers
+- existing clean handlers and activity profiles
 - existing Admin and CLI inspection surfaces
 - existing capability handle and TreeDX proxy boundaries
 - existing `trsd capacity` lifecycle commands
@@ -110,9 +115,9 @@ Do not add:
 
 ## Current State
 
-Agent definitions are project content. In the root Market project they live under `src/content/agents` as MDX files. Their frontmatter is normalized into `AgentRuntimeSpec` from `@treeseed/sdk/types/agents`. The current execution config lives under the MDX `execution` frontmatter.
+Agent definitions are project content. In the root Market project they live under `src/content/agents` as MDX files. In package projects they live under `docs/src/content/agents`. Their frontmatter is normalized into SDK agent definition and runtime contracts. Runtime execution configuration lives under `activityProfiles.<activity>.execution`; top-level execution, tool, content, prompt, and output fields are legacy and should be rejected by authoring diagnostics.
 
-Agent definitions separate content access from tool access. `contentAccess` grants handler/runtime permission for content models, actions, relations, books, paths, and commit capability. `tools.allowed` grants execution-provider callable tools. A handler may use SDK content operations that `contentAccess` permits without exposing those operations to Codex, Copilot, GitHub Issues, or another execution provider.
+Agent definitions separate permission from tool exposure inside each activity profile. The profile permission matrix grants per-model TreeDX operations and filters plus bounded repository, network, shell, and commit authority. `tools.allowed` grants execution-provider callable tools. A handler may use SDK content operations only within the same frozen permissions without exposing every permitted operation to Codex, Copilot, GitHub Issues, or another execution provider.
 
 The retired agent execution adapter was prompt-centric:
 
@@ -190,7 +195,7 @@ execution:
       - repo_write
       - verification
     preferredLanes:
-      - provider: codex_subscription
+      - provider: codex
         weight: 80
       - provider: human_issue_queue
         weight: 20
@@ -278,7 +283,7 @@ provider adapter descriptor
 + provider config
 + provider capabilities file
 + execution provider records
-+ provider check-in payload
++ provider availability-session payload
 + grants
 + native limits
 + observations
@@ -528,7 +533,7 @@ Handlers do not own:
 - raw TreeDX credentials
 - unassigned external task creation
 
-The migration should not introduce a generic `human_delegation` handler as the default path. Human teams should execute assignments produced by the same `plan`, `research`, `act`, `review`, and `report` handlers when their provider capabilities match the assignment; role semantics come from project agent class, domain config, prompts, and output contracts.
+The migration should not introduce a generic `human_delegation` handler as the default path. Human teams should execute assignments produced by the same activity-profile contracts and clean handlers (`writer`, `actor`, `estimate`, `releaser`, `reporter`) when their provider capabilities match the assignment; role semantics come from project agent class, prompts, content/tool permissions, branch policy, question policy, and output contracts.
 
 ## AgentKernel Integration
 
@@ -551,7 +556,7 @@ Implementation guidance:
 
 - AgentKernel should expose `context.execution` as `ExecutionProviderAdapter` or a narrowed handler-facing facade over it.
 - The retired prompt-only adapter should be removed or renamed as part of the hard replacement.
-- Existing Codex and Copilot implementations should become `ExecutionProviderAdapter` implementations. Manual print-only and stub execution adapters should not remain selectable server capacity providers; provider-runner DryRun is the only non-side-effect fallback execution mode.
+- Existing Codex and Copilot implementations should become `ExecutionProviderAdapter` implementations. Manual print-only and stub execution adapters must not remain selectable server capacity providers; `plan` validates intended execution without selecting any fallback execution provider.
 - `AgentRunTrace` remains lower-level trace detail.
 - `AgentModeRun` remains the durable assignment-level record.
 - Kernel validation must continue to reject invalid acting work, expired leases, output contract violations, missing capability coverage, invalid capability handles, invalid TreeDX proxy handles, and unsupported modes.
@@ -820,7 +825,7 @@ outputs -> model final response, changed paths, verification hints
 usage -> tokens, wall minutes, files changed
 ```
 
-Existing Codex execution should use `ExecutionProviderAdapter.start`. The adapter should expose descriptors such as `ai_model`, `codex_subscription`, `repo_read`, `repo_write`, `planning`, `implementation`, and `verification` as applicable. It should report wall time, token usage when available, changed paths, commands proposed or run, and verification hints as normalized usage and artifacts.
+Existing Codex execution should use `ExecutionProviderAdapter.start`. The adapter should expose descriptors such as `ai_model`, `codex`, `repo_read`, `repo_write`, `planning`, `implementation`, and `verification` as applicable. It should report wall time, token usage when available, changed paths, commands proposed or run, and verification hints as normalized usage and artifacts.
 
 ## API And SDK Additions
 
@@ -846,14 +851,14 @@ Prefer existing records first:
 - Continue using `ProviderAvailabilitySession`.
 - Continue using `ProviderAssignment`.
 - Continue using `AgentModeRun`.
-- Continue using `TaskUsageActual` and ledger settlement records.
+- Continue using canonical `CapacityUsageActual` and ledger settlement records.
 - Continue using `ProviderAssignmentExplanation`.
 
 Add durable fields only if existing JSON metadata is insufficient:
 
-- `provider_assignments.external_ref`
-- `provider_assignments.external_url`
-- `provider_assignments.execution_run_ref_json`
+- `capacity_provider_assignments.external_ref`
+- `capacity_provider_assignments.external_url`
+- `capacity_provider_assignments.execution_run_ref_json`
 - `agent_mode_runs.external_refs_json`
 - `agent_mode_runs.artifacts_json`
 
@@ -945,7 +950,7 @@ Acceptance:
 ### Phase C: Runtime Adapter Replacement
 
 - Replace the retired prompt-only adapter with `ExecutionProviderAdapter` in `packages/agent/src/agents/runtime-types.ts`.
-- Migrate `CopilotExecutionAdapter` and `CodexSubscriptionExecutionAdapter`; remove selectable stub/manual execution providers in favor of explicit DryRun fallback behavior in the provider runner.
+- Migrate `CopilotExecutionAdapter` and `CodexExecutionProviderAdapter`; remove selectable stub/manual execution providers. A `plan` operation validates intended execution without constructing a fake provider, while live execution fails closed when no provider is available.
 - Update `agent-runtime.ts` provider registry to register execution-provider adapters.
 - Update handlers to call work-package execution instead of legacy prompt execution.
 
@@ -992,7 +997,7 @@ Implementation note: Phase E implements async adapter lifecycle support by wrapp
 Acceptance:
 
 - Existing Codex assignment proof still passes.
-- A fake async provider can return `waiting`, then `completed`.
+- A disposable real async-provider account can return `waiting`, then `completed`; this is required before the lifecycle is accepted as provider evidence.
 - Lease renewal continues while async execution is in progress.
 
 ### Phase F: Jira Reference Adapter

@@ -2,6 +2,12 @@ name: TreeSeed Market
 slug: treeseed-market
 siteUrl: https://treeseed.dev
 contactEmail: hello@treeseed.email
+authority:
+  kind: market-singleton
+market:
+  profile: treeseed
+controlPlane:
+  mode: market-passthrough
 hosting:
   kind: self_hosted_project
   registration: none
@@ -21,9 +27,17 @@ cloudflare:
     stagingBranch: staging
     buildOutputDir: dist
   r2:
+    bucketName: treeseed-market-content
     manifestKeyTemplate: teams/{teamId}/published/common.json
     previewRootTemplate: teams/{teamId}/previews
     previewTtlHours: 168
+  tunnel:
+    local:
+      enabled: true
+      # SDK scopes these base identities to the current machine/worktree deployment.
+      name: treeseed-local-connectors
+      hostname: connect.local.treeseed.dev
+      originUrl: http://127.0.0.1:3000
 surfaces:
   web:
     enabled: true
@@ -69,9 +83,7 @@ connections:
         baseUrl: https://api.treeseed.dev
 plugins:
   - package: "@treeseed/core/plugin-default"
-  - package: "@treeseed/admin/plugin"
 providers:
-  forms: full_email
   agents:
     execution: codex
     mutation: local_branch
@@ -82,7 +94,7 @@ providers:
   deploy: cloudflare
   dns: cloudflare-dns
   content:
-    serving: local_collections
+    serving: published_runtime
     runtime: team_scoped_r2_overlay
     publish: team_scoped_r2_overlay
     docs: default
